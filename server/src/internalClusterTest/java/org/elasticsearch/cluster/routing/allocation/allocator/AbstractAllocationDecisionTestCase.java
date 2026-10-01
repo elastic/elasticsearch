@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -169,16 +168,16 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
          */
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return TestDecisions.NO;
+            return Decision.NO;
         }
 
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (CAN_ALLOCATE_NO_IDS.contains(node.nodeId())) {
-                return TestDecisions.NO;
+                return Decision.NO;
             }
             if (CAN_ALLOCATE_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return TestDecisions.NOT_PREFERRED;
+                return Decision.NOT_PREFERRED;
             }
             if (CAN_ALLOCATE_THROTTLE_NODE_IDS.contains(node.nodeId()) && allocation.isSimulating() == false) {
                 return Decision.THROTTLE;
@@ -189,9 +188,9 @@ public abstract class AbstractAllocationDecisionTestCase extends ESIntegTestCase
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (CAN_REMAIN_NO_NODE_IDS.contains(node.nodeId())) {
-                return TestDecisions.NO;
+                return Decision.NO;
             } else if (CAN_REMAIN_NOT_PREFERRED_NODE_IDS.contains(node.nodeId())) {
-                return TestDecisions.NOT_PREFERRED;
+                return Decision.NOT_PREFERRED;
             }
             return Decision.YES;
         }

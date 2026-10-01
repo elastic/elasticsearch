@@ -41,7 +41,6 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -78,14 +77,12 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         assertEquals(RecoverySource.Type.SNAPSHOT, primary.recoverySource().getType());
 
         final Decision decision = executeAllocation(clusterState, primary);
+        assertEquals(Decision.Type.NO, decision.type());
         assertThat(
-            decision,
-            isNoDecisionWithExplanationMatching(
-                RestoreInProgressAllocationDecider.NAME,
-                startsWith(
-                    "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
-                        + "Please check constraints applied in index and cluster settings, then retry the restore."
-                )
+            decision.getExplanation(),
+            startsWith(
+                "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                    + "Please check constraints applied in index and cluster settings, then retry the restore."
             )
         );
     }
@@ -177,28 +174,23 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         Decision decision = executeAllocation(clusterState, primary);
         if (shardState == RestoreInProgress.State.FAILURE) {
+            assertEquals(Decision.Type.NO, decision.type());
             if (failureCount > 0) {
                 assertThat(
-                    decision,
-                    isNoDecisionWithExplanationMatching(
-                        RestoreInProgressAllocationDecider.NAME,
-                        startsWith(
-                            "shard has failed to be restored from the snapshot [default:_repository:_existing/_uuid]"
-                                + " - manually close or delete the index "
-                                + "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation "
-                                + "of an empty primary shard. Check the logs for more information about the failure. Details:"
-                        )
+                    decision.getExplanation(),
+                    startsWith(
+                        "shard has failed to be restored from the snapshot [default:_repository:_existing/_uuid]"
+                            + " - manually close or delete the index "
+                            + "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of "
+                            + "an empty primary shard. Check the logs for more information about the failure. Details:"
                     )
                 );
             } else {
                 assertThat(
-                    decision,
-                    isNoDecisionWithExplanationMatching(
-                        RestoreInProgressAllocationDecider.NAME,
-                        startsWith(
-                            "Restore from snapshot failed because the configured constraints prevented allocation on any of the available "
-                                + "nodes. Please check constraints applied in index and cluster settings, then retry the restore."
-                        )
+                    decision.getExplanation(),
+                    startsWith(
+                        "Restore from snapshot failed because the configured constraints prevented allocation on any of the available "
+                            + "nodes. Please check constraints applied in index and cluster settings, then retry the restore."
                     )
                 );
             }

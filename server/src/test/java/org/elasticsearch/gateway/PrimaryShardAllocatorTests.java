@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -256,7 +255,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 // since the deciders return a NO decision for allocating a shard (due to the guaranteed NO decision from the second
                 // decider),
                 // the allocator will see if it can force assign the primary, where the decision will be YES
-                new TestAllocateDecision(randomBoolean() ? Decision.YES : TestDecisions.NO),
+                new TestAllocateDecision(randomBoolean() ? Decision.YES : Decision.NO),
                 getNoDeciderThatAllowsForceAllocate()
             )
         );
@@ -281,7 +280,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 // since both deciders here return a NO decision for allocating a shard,
                 // the allocator will see if it can force assign the primary, where the decision will be either NO or THROTTLE,
                 // so the shard will remain un-initialized
-                new TestAllocateDecision(TestDecisions.NO),
+                new TestAllocateDecision(Decision.NO),
                 forceDecisionNo ? getNoDeciderThatDeniesForceAllocate() : getNoDeciderThatThrottlesForceAllocate()
             )
         );
@@ -372,7 +371,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that we prefer to throttle rather than allocate to a not-preferred node when both exist.
      */
     public void testThrottleBeforeNotPreferredNode() {
-        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.THROTTLE, TestDecisions.NOT_PREFERRED);
+        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.THROTTLE, Decision.NOT_PREFERRED);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
@@ -388,7 +387,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that we allocate to a YES node rather than a NOT_PREFERRED node when both exist
      */
     public void testYesBeforeNotPreferredNode() {
-        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.YES, TestDecisions.NOT_PREFERRED);
+        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.YES, Decision.NOT_PREFERRED);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertAllocatedToNode1(allocation);
         assertClusterHealthStatus(allocation, ClusterHealthStatus.GREEN);
@@ -398,7 +397,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that we allocate to a NOT_PREFERRED node rather than a NO node when both exist
      */
     public void testNotPreferredBeforeNoNode() {
-        final RoutingAllocation allocation = runAllocationWithTwoNodes(TestDecisions.NOT_PREFERRED, TestDecisions.NO);
+        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.NOT_PREFERRED, Decision.NO);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertAllocatedToNode1(allocation);
         assertClusterHealthStatus(allocation, ClusterHealthStatus.GREEN);
@@ -669,11 +668,11 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private AllocationDecider getNoDeciderThatDeniesForceAllocate() {
-        return getNoDeciderWithForceAllocate(TestDecisions.NO);
+        return getNoDeciderWithForceAllocate(Decision.NO);
     }
 
     private AllocationDecider getNoDeciderWithForceAllocate(final Decision forceAllocateDecision) {
-        return new TestAllocateDecision(TestDecisions.NO) {
+        return new TestAllocateDecision(Decision.NO) {
             @Override
             public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 assert shardRouting.primary() : "cannot force allocate a non-primary shard " + shardRouting;

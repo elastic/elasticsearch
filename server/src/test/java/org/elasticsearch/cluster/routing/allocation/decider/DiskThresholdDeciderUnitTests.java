@@ -56,8 +56,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -129,15 +127,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertEquals(mostAvailableUsage.toString(), Decision.Type.YES, decision.type());
         assertThat(((Decision.Single) decision).getExplanation(), containsString("enough disk for shard on node"));
         decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
+        assertEquals(mostAvailableUsage.toString(), Decision.Type.NO, decision.type());
         assertThat(
-            mostAvailableUsage.toString(),
-            decision,
-            isNoDecisionWithExplanationMatching(
-                DiskThresholdDecider.NAME,
-                containsString(
-                    "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], "
-                        + "having less than the minimum required"
-                )
+            ((Decision.Single) decision).getExplanation(),
+            containsString(
+                "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], "
+                    + "having less than the minimum required"
             )
         );
     }
@@ -202,7 +197,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .build();
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
-        assertThat(decision, isNoDecision(DiskThresholdDecider.NAME));
+        assertEquals(Decision.Type.NO, decision.type());
 
         double usedPercentage = 100.0 - (100.0 * freeBytes / totalBytes);
 
@@ -363,23 +358,21 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             )
         );
         decision = decider.canRemain(indexMetadata, test_1, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
+        assertEquals(Decision.Type.NO, decision.type());
         assertThat(
-            decision,
-            isNoDecisionWithExplanationMatching(
-                DiskThresholdDecider.NAME,
-                containsString(
-                    "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                        + "[cluster.routing.allocation.disk.watermark.high"
-                        + (testMaxHeadroom ? ".max_headroom=150gb" : "=90%")
-                        + "] and there is less than the required ["
-                        + ByteSizeValue.ofBytes(exactFreeSpaceForHighWatermark)
-                        + "] free space on "
-                        + "node, actual free: ["
-                        + ByteSizeValue.ofBytes(exactFreeSpaceForBelowHighWatermark)
-                        + "], actual used: ["
-                        + Strings.format1Decimals(exactUsedSpaceForBelowHighWatermark, "%")
-                        + "]"
-                )
+            ((Decision.Single) decision).getExplanation(),
+            containsString(
+                "the shard cannot remain on this node because it is above the high watermark cluster setting "
+                    + "[cluster.routing.allocation.disk.watermark.high"
+                    + (testMaxHeadroom ? ".max_headroom=150gb" : "=90%")
+                    + "] and there is less than the required ["
+                    + ByteSizeValue.ofBytes(exactFreeSpaceForHighWatermark)
+                    + "] free space on "
+                    + "node, actual free: ["
+                    + ByteSizeValue.ofBytes(exactFreeSpaceForBelowHighWatermark)
+                    + "], actual used: ["
+                    + Strings.format1Decimals(exactUsedSpaceForBelowHighWatermark, "%")
+                    + "]"
             )
         );
         try {
@@ -967,16 +960,15 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .build();
         allocation.debugDecision(true);
         Decision decision = decider.canForceAllocateDuringReplace(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
+        assertEquals(Decision.Type.NO, decision.type());
+
         assertThat(
-            decision,
-            isNoDecisionWithExplanationMatching(
-                DiskThresholdDecider.NAME,
-                containsString(
-                    "unable to force allocate shard to [node_0] during replacement, "
-                        + "as allocating to this node would cause disk usage to exceed 100% (["
-                        + shardSize
-                        + "] bytes above available disk space)"
-                )
+            decision.getExplanation(),
+            containsString(
+                "unable to force allocate shard to [node_0] during replacement, "
+                    + "as allocating to this node would cause disk usage to exceed 100% (["
+                    + shardSize
+                    + "] bytes above available disk space)"
             )
         );
     }

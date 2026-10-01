@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -143,7 +142,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         AllocationDecider canAllocateDecider = new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return TestDecisions.NO;
+                return Decision.NO;
             }
         };
         Tuple<ClusterState, MoveDecision> rebalance = setupStateAndRebalance(canAllocateDecider, Settings.EMPTY, false);
@@ -218,7 +217,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 if (excludeNodes.contains(node.nodeId())) {
-                    return TestDecisions.NO;
+                    return Decision.NO;
                 }
                 return Decision.YES;
             }
@@ -251,7 +250,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         // make sure all excluded nodes returned a NO decision
         for (NodeAllocationResult nodeResult : rebalanceDecision.getNodeDecisions()) {
             if (excludeNodes.contains(nodeResult.getNode().getId())) {
-                assertThat(nodeResult.getCanAllocateDecision(), isNoDecision());
+                assertEquals(Type.NO, nodeResult.getCanAllocateDecision().type());
             }
         }
     }

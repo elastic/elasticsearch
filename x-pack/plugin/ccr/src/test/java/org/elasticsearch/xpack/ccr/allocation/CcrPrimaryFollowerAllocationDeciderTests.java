@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCase {
@@ -190,12 +189,10 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
             Decision noDecision = executeAllocation(clusterState, shardRouting.primaryShard(), dataOnlyNode);
+            assertThat(noDecision.type(), equalTo(Decision.Type.NO));
             assertThat(
-                noDecision,
-                isNoDecisionWithExplanationMatching(
-                    CcrPrimaryFollowerAllocationDecider.NAME,
-                    equalTo("shard is a primary follower and being bootstrapped, but node does not have the remote_cluster_client role")
-                )
+                noDecision.getExplanation(),
+                equalTo("shard is a primary follower and being bootstrapped, but node does not have the remote_cluster_client role")
             );
             Decision yesDecision = executeAllocation(clusterState, shardRouting.primaryShard(), dataAndRemoteNode);
             assertThat(yesDecision.type(), equalTo(Decision.Type.YES));

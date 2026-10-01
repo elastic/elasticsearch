@@ -21,10 +21,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +42,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -72,7 +69,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             // Allow initial allocation but not relocation for UNMOVABLE_INDEX_NAME
             if (enabled.get() && shardRouting.unassigned() == false && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) {
-                return TestDecisions.NO;
+                return Decision.NO;
             } else {
                 return Decision.YES;
             }
@@ -80,7 +77,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         @Override
         public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return (enabled.get() && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) ? TestDecisions.NO : Decision.YES;
+            return (enabled.get() && shardRouting.getIndexName().equals(UNMOVABLE_INDEX_NAME)) ? Decision.NO : Decision.YES;
         }
     }
 
@@ -208,7 +205,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .filter(nodeDecision -> nodeDecision.getNode().getId().equals(nodeBId))
             .findFirst()
             .ifPresentOrElse(nodeAllocationResult -> {
-                assertThat(nodeAllocationResult.getCanAllocateDecision(), isNoDecision(NodeReplacementAllocationDecider.NAME));
+                assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()
@@ -277,7 +274,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .filter(nodeDecision -> nodeDecision.getNode().getId().equals(nodeBId))
             .findFirst()
             .ifPresentOrElse(nodeAllocationResult -> {
-                assertThat(nodeAllocationResult.getCanAllocateDecision(), isNoDecision(NodeReplacementAllocationDecider.NAME));
+                assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()

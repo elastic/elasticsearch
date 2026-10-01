@@ -49,8 +49,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
@@ -199,17 +197,14 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
             .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
             .build();
-        assertThat(
-            resizeAllocationDecider.canAllocate(shardRouting, routingAllocation),
-            isNoDecisionWithNoExplanation(ResizeAllocationDecider.NAME)
+        assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
+        assertEquals(
+            Decision.NO,
+            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation)
         );
-        assertThat(
-            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation),
-            isNoDecisionWithNoExplanation(ResizeAllocationDecider.NAME)
-        );
-        assertThat(
-            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation),
-            isNoDecisionWithNoExplanation(ResizeAllocationDecider.NAME)
+        assertEquals(
+            Decision.NO,
+            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation)
         );
 
         routingAllocation.debugDecision(true);
@@ -259,13 +254,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
             .build();
         final Decision actual = resizeAllocationDecider.canAllocate(shardRouting, routingAllocation);
-        assertThat(
-            actual,
-            isNoDecisionWithExplanationMatching(
-                ResizeAllocationDecider.NAME,
-                equalTo("resize source index [[" + deletedSourceIndexName + "]] doesn't exists")
-            )
-        );
+        assertThat(actual.type(), equalTo(Decision.Type.NO));
+        assertThat(actual.getExplanation(), equalTo("resize source index [[" + deletedSourceIndexName + "]] doesn't exists"));
     }
 
     public void testSourcePrimaryActive() {
@@ -306,14 +296,14 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
                 Decision.YES,
                 resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation)
             );
-            assertThat(
-                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation),
-                isNoDecisionWithNoExplanation(ResizeAllocationDecider.NAME)
+            assertEquals(
+                Decision.NO,
+                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation)
             );
         } else {
-            assertThat(
-                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation),
-                isNoDecisionWithNoExplanation(ResizeAllocationDecider.NAME)
+            assertEquals(
+                Decision.NO,
+                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation)
             );
             assertEquals(
                 Decision.YES,

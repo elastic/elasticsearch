@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -634,7 +633,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                 RoutingNode node,
                 RoutingAllocation allocation
             ) {
-                return TestDecisions.NO;
+                return Decision.NO;
             }
         };
 

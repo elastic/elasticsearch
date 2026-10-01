@@ -46,8 +46,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithExplanationMatching;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -282,25 +280,25 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ).type()
         );
-        assertThat(
+        assertEquals(
             "A shard on a node with queuing above the threshold should not remain",
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canRemain(
                 testHarness.clusterState.metadata().getProject().index(indexName),
                 testHarness.shardRoutingOnNodeAboveQueueThreshold,
                 testHarness.aboveQueuingThresholdRoutingNode,
                 testHarness.routingAllocation
-            ),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+            ).type()
         );
-        assertThat(
+        assertEquals(
             "A shard with no write load can still return NOT_PREFERRED",
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canRemain(
                 testHarness.clusterState.metadata().getProject().index(indexName),
                 testHarness.shardRoutingNoWriteLoad,
                 testHarness.aboveQueuingThresholdRoutingNode,
                 testHarness.routingAllocation
-            ),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+            ).type()
         );
         assertEquals(
             "A shard with no write load will return YES when there is a minimum write load configured",
@@ -459,7 +457,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .findFirst()
             .orElseThrow();
         Decision decision = writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation);
-        assertThat(decision, isNotPreferredDecision(WriteLoadConstraintDecider.NAME));
+        assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
         assertThat(
             decision.getExplanation(),
             equalTo(
@@ -571,7 +569,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .orElseThrow();
 
         decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
-        assertThat(decision.getExplanation(), decision, isNotPreferredDecision(WriteLoadConstraintDecider.NAME));
+        assertEquals(decision.getExplanation(), decision.type(), Decision.NOT_PREFERRED.type());
         assertThat(
             decision.getExplanation(),
             matchesPattern(
@@ -626,13 +624,21 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             hotspotRoutingNode,
             routingAllocation
         );
+        assertEquals(Decision.Type.NOT_PREFERRED, decision.type());
         assertThat(
-            decision,
-            isNotPreferredDecisionWithExplanationMatching(WriteLoadConstraintDecider.NAME, matchesPattern(Strings.format("""
-                Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and \
-                a thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is \
-                hot-spotting. Shard write load \\[.*\\]. Max shard write-load proportion is disabled. Should move shard\\(s\\) \
-                away""", latencyMillis, highLatencyThresholdString, utilization, hotspotUtilizationThresholdString)))
+            decision.getExplanation(),
+            matchesPattern(
+                Strings.format(
+                    """
+                        Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
+                        thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is hot-spotting. \
+                        Shard write load \\[.*\\]. Max shard write-load proportion is disabled. Should move shard\\(s\\) away""",
+                    latencyMillis,
+                    highLatencyThresholdString,
+                    utilization,
+                    hotspotUtilizationThresholdString
+                )
+            )
         );
     }
 
@@ -708,15 +714,15 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 allocationWithThreshold
             ).type()
         );
-        assertThat(
+        assertEquals(
             "shard above write load threshold should be eligible for movement",
+            Decision.Type.NOT_PREFERRED,
             deciderWithThreshold.canRemain(
                 state.metadata().getProject().index(indexName),
                 aboveThresholdShard,
                 hotspotRoutingNode,
                 allocationWithThreshold
-            ),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+            ).type()
         );
         assertEquals(
             "shard absent from write-load data defaults to 0.0 and should be exempt from movement",
@@ -735,20 +741,21 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         final var allocationDisabled = TestRoutingAllocationFactory.forClusterState(state).clusterInfo(clusterInfo).mutable();
 
-        assertThat(
+        assertEquals(
             "with threshold disabled, below-threshold shard should still be eligible for movement",
+            Decision.Type.NOT_PREFERRED,
             deciderDisabled.canRemain(
                 state.metadata().getProject().index(indexName),
                 belowThresholdShard,
                 hotspotRoutingNode,
                 allocationDisabled
-            ),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+            ).type()
         );
-        assertThat(
+        assertEquals(
             "with threshold disabled, shard absent from write-load data should still be eligible for movement",
-            deciderDisabled.canRemain(state.metadata().getProject().index(indexName), absentShard, hotspotRoutingNode, allocationDisabled),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+            Decision.Type.NOT_PREFERRED,
+            deciderDisabled.canRemain(state.metadata().getProject().index(indexName), absentShard, hotspotRoutingNode, allocationDisabled)
+                .type()
         );
     }
 
@@ -851,14 +858,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         // retry test, but turn off setting with a 0 value
         var writeLoadDeciderProportionDisabled = createWriteLoadConstraintDecider(createSettings(null, null, null, 0, null));
 
-        assertThat(
-            writeLoadDeciderProportionDisabled.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDeciderProportionDisabled.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()
         );
 
-        assertThat(
-            writeLoadDeciderProportionDisabled.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDeciderProportionDisabled.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
         );
 
         // retry test, with proportions under the threshold
@@ -882,14 +889,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // both high and low shards decide NOT_PREFERRED to canRemain, as the proportion
         // of load is under 90% on any one shard
-        assertThat(
-            writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()
         );
 
-        assertThat(
-            writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation),
-            isNotPreferredDecision(WriteLoadConstraintDecider.NAME)
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
         );
     }
 

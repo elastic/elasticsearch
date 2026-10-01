@@ -73,7 +73,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -619,17 +618,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         decision = allocationDecider.canAllocate(ShardRoutingHelper.initialize(primaryShard, "newNode"), oldNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.NO));
         assertThat(
-            decision,
-            isNoDecisionWithExplanationMatching(
-                NodeVersionAllocationDecider.NAME,
-                is(
-                    "cannot relocate primary shard from a node with version ["
-                        + newNode.node().getVersion()
-                        + "] to a node with older version ["
-                        + oldNode.node().getVersion()
-                        + "]"
-                )
+            decision.getExplanation(),
+            is(
+                "cannot relocate primary shard from a node with version ["
+                    + newNode.node().getVersion()
+                    + "] to a node with older version ["
+                    + oldNode.node().getVersion()
+                    + "]"
             )
         );
 
@@ -652,17 +649,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             oldNode,
             routingAllocation
         );
+        assertThat(decision.type(), is(Decision.Type.NO));
         assertThat(
-            decision,
-            isNoDecisionWithExplanationMatching(
-                NodeVersionAllocationDecider.NAME,
-                is(
-                    "max supported index version ["
-                        + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                        + "] is older than the snapshot version ["
-                        + newNode.node().getMaxIndexVersion().toReleaseVersion()
-                        + "]"
-                )
+            decision.getExplanation(),
+            is(
+                "max supported index version ["
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
+                    + "] is older than the snapshot version ["
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
+                    + "]"
             )
         );
 
@@ -693,17 +688,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
 
         decision = allocationDecider.canAllocate(replicaShard, oldNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.NO));
         assertThat(
-            decision,
-            isNoDecisionWithExplanationMatching(
-                NodeVersionAllocationDecider.NAME,
-                is(
-                    "cannot allocate replica shard to a node with version ["
-                        + oldNode.node().getVersion()
-                        + "] since this is older than the primary version ["
-                        + newNode.node().getVersion()
-                        + "]"
-                )
+            decision.getExplanation(),
+            is(
+                "cannot allocate replica shard to a node with version ["
+                    + oldNode.node().getVersion()
+                    + "] since this is older than the primary version ["
+                    + newNode.node().getVersion()
+                    + "]"
             )
         );
 

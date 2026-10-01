@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -169,7 +168,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     Set<String> nodeIds = NOT_PREFERRED_NODES;
                     if (nodeIds.contains(node.nodeId())) {
-                        return TestDecisions.NOT_PREFERRED;
+                        return Decision.NOT_PREFERRED;
                     } else {
                         return Decision.YES;
                     }
@@ -178,7 +177,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
                     if (REBALANCE_DISABLED) {
-                        return TestDecisions.NO;
+                        return Decision.NO;
                     } else {
                         return Decision.YES;
                     }

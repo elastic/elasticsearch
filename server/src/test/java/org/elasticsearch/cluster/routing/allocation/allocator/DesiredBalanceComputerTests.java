@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -668,7 +667,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                         // Move command works every decision except NO
-                        return randomFrom(Decision.YES, Decision.THROTTLE, TestDecisions.NOT_PREFERRED);
+                        return randomFrom(Decision.YES, Decision.THROTTLE, Decision.NOT_PREFERRED);
                     }
                 }).build()
             );
@@ -731,7 +730,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // Always return NO so that AllocationCommands will silently fail.
-                    return TestDecisions.NO;
+                    return Decision.NO;
                 }
             }).build()
         );

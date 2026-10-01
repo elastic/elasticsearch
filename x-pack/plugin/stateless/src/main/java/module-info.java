@@ -24,7 +24,6 @@ module org.elasticsearch.xpack.stateless {
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
-    requires java.desktop;
 
     exports org.elasticsearch.xpack.stateless
         to

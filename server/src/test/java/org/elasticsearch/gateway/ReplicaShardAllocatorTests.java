@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -511,7 +510,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     if (node.node().equals(throttledNode)) {
                         return Decision.THROTTLE;
                     }
-                    return TestDecisions.NOT_PREFERRED;
+                    return Decision.NOT_PREFERRED;
                 }
             }))
         );
@@ -534,9 +533,9 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     if (node.node().equals(notPreferredNode)) {
-                        return TestDecisions.NOT_PREFERRED;
+                        return Decision.NOT_PREFERRED;
                     }
-                    return TestDecisions.NO;
+                    return Decision.NO;
                 }
             }))
         );
@@ -590,10 +589,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     private static AllocationDeciders notPreferredAllocationDeciders() {
         return new AllocationDeciders(
-            Arrays.asList(
-                new TestAllocateDecision(TestDecisions.NOT_PREFERRED),
-                new SameShardAllocationDecider(createBuiltInClusterSettings())
-            )
+            Arrays.asList(new TestAllocateDecision(Decision.NOT_PREFERRED), new SameShardAllocationDecider(createBuiltInClusterSettings()))
         );
     }
 

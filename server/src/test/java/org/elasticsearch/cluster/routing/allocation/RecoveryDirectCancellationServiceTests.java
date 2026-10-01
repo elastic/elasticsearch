@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -972,9 +973,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     RoutingAllocation allocation
                 ) {
                     final String allocId = allocationIds.get(node.nodeId());
-                    return cancelIfStartedThisRound.contains(allocId)
-                        ? TestDecisions.NO
-                        : randomFrom(TestDecisions.NOT_PREFERRED, Decision.YES);
+                    return cancelIfStartedThisRound.contains(allocId) ? Decision.NO : randomFrom(Decision.NOT_PREFERRED, Decision.YES);
                 }
             };
 
@@ -1833,7 +1832,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 RoutingAllocation allocation
             ) {
                 return shardRouting.shardId().equals(shardId) && shardRouting.primary() == primary && node.nodeId().equals(forbiddenNodeId)
-                    ? TestDecisions.NO
+                    ? Decision.NO
                     : Decision.YES;
             }
         };

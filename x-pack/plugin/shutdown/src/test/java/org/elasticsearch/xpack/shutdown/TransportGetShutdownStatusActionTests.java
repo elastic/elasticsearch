@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -137,7 +136,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 @Override
                 public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
                     // No behavior should change based on rebalance decisions
-                    return TestDecisions.NO;
+                    return Decision.NO;
                 }
 
                 @Override
@@ -159,7 +158,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
                     // No behavior should change based on rebalance decisions
-                    return TestDecisions.NO;
+                    return Decision.NO;
                 }
             })
         );
@@ -355,13 +354,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             if (n.nodeId().equals(LIVE_NODE_ID)) {
                 return Decision.THROTTLE;
             } else if (n.nodeId().equals(SHUTTING_DOWN_NODE_ID)) {
-                return TestDecisions.NO;
+                return Decision.NO;
             } else {
                 return Decision.YES;
             }
         });
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
@@ -393,9 +392,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
 
         // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
-        canAllocate.set((r, n, a) -> TestDecisions.NO);
+        canAllocate.set((r, n, a) -> Decision.NO);
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
@@ -489,9 +488,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
 
         // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
-        canAllocate.set((r, n, a) -> TestDecisions.NO);
+        canAllocate.set((r, n, a) -> Decision.NO);
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
@@ -523,9 +522,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
 
         // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
-        canAllocate.set((r, n, a) -> TestDecisions.NO);
+        canAllocate.set((r, n, a) -> Decision.NO);
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
@@ -652,9 +651,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         // LIVE_NODE_ID can not accept the remaining shard as it is temporarily initializing 2 other shards
-        canAllocate.set((r, n, a) -> n.nodeId().equals(LIVE_NODE_ID) ? Decision.THROTTLE : TestDecisions.NO);
+        canAllocate.set((r, n, a) -> n.nodeId().equals(LIVE_NODE_ID) ? Decision.THROTTLE : Decision.NO);
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
@@ -691,8 +690,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
 
         // Every other node is NOT_PREFERRED, but the shard cannot remain so it should still move.
-        canAllocate.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : TestDecisions.NOT_PREFERRED);
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canAllocate.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.NOT_PREFERRED);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
@@ -918,9 +917,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
 
         // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
-        canAllocate.set((r, n, a) -> TestDecisions.NO);
+        canAllocate.set((r, n, a) -> Decision.NO);
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
@@ -1073,9 +1072,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         var indexRoutingTable = indexRoutingTableBuilder.build();
 
         // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
-        canAllocate.set((r, n, a) -> TestDecisions.NO);
+        canAllocate.set((r, n, a) -> Decision.NO);
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? TestDecisions.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);

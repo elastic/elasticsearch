@@ -49,8 +49,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -237,13 +235,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             }
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.label().equals("same_shard") && nodeHoldingPrimary) {
-                    assertThat(
-                        d,
-                        isNoDecisionWithExplanationMatching(
-                            "same_shard",
-                            startsWith("a copy of this shard is already allocated to this node [")
-                        )
-                    );
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertThat(d.getExplanation(), startsWith("a copy of this shard is already allocated to this node ["));
                 } else {
                     assertEquals(Decision.Type.YES, d.type());
                     assertNotNull(d.getExplanation());
@@ -360,18 +353,14 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             }
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.label().equals("same_shard") && nodeHoldingPrimary) {
-                    assertThat(
-                        d,
-                        isNoDecisionWithExplanationMatching(
-                            "same_shard",
-                            startsWith("a copy of this shard is already allocated to this node [")
-                        )
-                    );
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertThat(d.getExplanation(), startsWith("a copy of this shard is already allocated to this node ["));
                 } else if (d.label().equals("filter") && nodeHoldingPrimary == false) {
-                    assertThat(d, isNoDecisionWithExplanationMatching("filter", equalTo(Strings.format("""
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertEquals(Strings.format("""
                         node does not match index setting [index.routing.allocation.include] \
                         filters [_name:"%s"]\
-                        """, primaryNodeName))));
+                        """, primaryNodeName), d.getExplanation());
                 } else {
                     assertEquals(Decision.Type.YES, d.type());
                     assertNotNull(d.getExplanation());
@@ -470,14 +459,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             }
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.label().equals("filter")) {
-                    assertThat(
-                        d,
-                        isNoDecisionWithExplanationMatching(
-                            "filter",
-                            equalTo(
-                                "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"
-                            )
-                        )
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertEquals(
+                        "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                        d.getExplanation()
                     );
                 }
             }
@@ -561,17 +546,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(0, moveDecision.getCurrentNodeRanking());
         // verifying can remain decision object
         assertNotNull(moveDecision.getCanRemainDecision());
-        assertThat(moveDecision.getCanRemainDecision(), isNoDecision("filter"));
+        assertEquals(Decision.Type.NO, moveDecision.getCanRemainDecision().type());
         for (Decision d : moveDecision.getCanRemainDecision().getDecisions()) {
             if (d.label().equals("filter")) {
-                assertThat(
-                    d,
-                    isNoDecisionWithExplanationMatching(
-                        "filter",
-                        equalTo(
-                            "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"
-                        )
-                    )
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals(
+                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                    d.getExplanation()
                 );
             } else {
                 assertEquals(Decision.Type.YES, d.type());
@@ -591,14 +572,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             if (d.label().equals("filter")) {
-                assertThat(
-                    d,
-                    isNoDecisionWithExplanationMatching(
-                        "filter",
-                        equalTo(
-                            "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"
-                        )
-                    )
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals(
+                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                    d.getExplanation()
                 );
             } else {
                 assertEquals(Decision.Type.YES, d.type());
@@ -682,16 +659,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(2, moveDecision.getCurrentNodeRanking());
         // verifying cluster rebalance decision object
         assertNotNull(moveDecision.getClusterRebalanceDecision());
-        assertThat(moveDecision.getClusterRebalanceDecision(), isNoDecision("enable"));
+        assertEquals(Decision.Type.NO, moveDecision.getClusterRebalanceDecision().type());
         for (Decision d : moveDecision.getClusterRebalanceDecision().getDecisions()) {
             if (d.label().equals("enable")) {
-                assertThat(
-                    d,
-                    isNoDecisionWithExplanationMatching(
-                        "enable",
-                        equalTo("no rebalancing is allowed due to index setting [index.routing.rebalance.enable=none]")
-                    )
-                );
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals("no rebalancing is allowed due to index setting [index.routing.rebalance.enable=none]", d.getExplanation());
             } else {
                 assertEquals(Decision.Type.YES, d.type());
                 assertNotNull(d.getExplanation());
@@ -920,9 +892,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         String primaryNodeName = primaryNodeName();
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             if (d.label().equals("filter")) {
-                assertThat(d, isNoDecisionWithExplanationMatching("filter", equalTo(Strings.format("""
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals(Strings.format("""
                     node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]\
-                    """, primaryNodeName))));
+                    """, primaryNodeName), d.getExplanation());
             } else {
                 assertEquals(Decision.Type.YES, d.type());
                 assertNotNull(d.getExplanation());
@@ -1012,7 +985,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertNull(moveDecision.getTargetNode());
         // verifying cluster rebalance decision object
         assertNotNull(moveDecision.getClusterRebalanceDecision());
-        assertThat(moveDecision.getClusterRebalanceDecision(), isNoDecision());
+        assertEquals(Decision.Type.NO, moveDecision.getClusterRebalanceDecision().type());
         // verify node decisions
         assertEquals(2, moveDecision.getNodeDecisions().size());
         for (NodeAllocationResult result : moveDecision.getNodeDecisions()) {

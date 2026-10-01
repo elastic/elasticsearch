@@ -21,7 +21,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -76,7 +75,7 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
     // canRebalance(RoutingAllocation): during simulation, NEVER returns NO
     public void testAllocationLevel_simulation_never_blocksAllRebalancing() {
         var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER);
-        assertThat(decider.canRebalance(simulatingAllocation()), isNoDecision(DisableSimulationRebalancingDecider.NAME));
+        assertThat(decider.canRebalance(simulatingAllocation()).type(), equalTo(Decision.Type.NO));
     }
 
     // Dynamic setting update takes effect immediately

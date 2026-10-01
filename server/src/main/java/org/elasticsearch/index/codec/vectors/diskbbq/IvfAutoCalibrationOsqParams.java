@@ -11,13 +11,10 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.elasticsearch.core.Nullable;
 
-public enum IvfAutoCalibrationOsqParams {
-    ISO_SIZING(null, null, 1),
-    QUALITY(null, null, null);
-
+public final class IvfAutoCalibrationOsqParams {
     /**
      * Default target recall for calibration sweeps.
-     **/
+     */
     static final double DEFAULT_TARGET_RECALL = 0.9;
 
     /**
@@ -33,14 +30,6 @@ public enum IvfAutoCalibrationOsqParams {
     private final double targetRecall;
     private final int k;
     private final int maxDocBits;
-
-    public static IvfAutoCalibrationOsqParams fromProfile(IvfAutoCalibrationProfile profile) {
-        return switch (profile) {
-            case ISO_SIZING -> ISO_SIZING;
-            case QUALITY -> QUALITY;
-            case DISABLED -> throw new IllegalStateException("No params for autocalibration profile [" + profile.name() + "]");
-        };
-    }
 
     IvfAutoCalibrationOsqParams(@Nullable Double targetRecall, @Nullable Integer k, @Nullable Integer maxDocBits) {
         this.targetRecall = targetRecall == null ? DEFAULT_TARGET_RECALL : targetRecall;

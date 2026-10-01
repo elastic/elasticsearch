@@ -9,12 +9,28 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Locale;
 
 public enum IvfAutoCalibrationProfile {
-    DISABLED,
-    ISO_SIZING,
-    QUALITY;
+    DISABLED(null),
+    ISO_SIZING(new IvfAutoCalibrationOsqParams(null, null, 1)),
+    QUALITY(new IvfAutoCalibrationOsqParams(null, null, null));
+
+    @Nullable
+    private final IvfAutoCalibrationOsqParams osqParams;
+
+    IvfAutoCalibrationProfile(@Nullable IvfAutoCalibrationOsqParams osqParams) {
+        this.osqParams = osqParams;
+    }
+
+    public IvfAutoCalibrationOsqParams osqParams() {
+        if (osqParams == null) {
+            throw new IllegalStateException("No osq params for autocalibration profile [" + this + "]");
+        }
+        return osqParams;
+    }
 
     @Override
     public String toString() {

@@ -196,7 +196,7 @@ public class IvfAutoCalibration {
     }
 
     public static IvfAutoCalibration fromProfile(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
-        IvfAutoCalibrationOsqParams params = IvfAutoCalibrationOsqParams.fromProfile(profile);
+        IvfAutoCalibrationOsqParams params = profile.osqParams();
         return new IvfAutoCalibration(
             vectorsPerCluster,
             ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,

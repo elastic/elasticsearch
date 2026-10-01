@@ -763,7 +763,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             if (profile == IvfAutoCalibrationProfile.DISABLED) {
                 assertThrows(IllegalStateException.class, () -> IvfAutoCalibration.fromProfile(VPC, profile));
             } else {
-                IvfAutoCalibrationOsqParams params = IvfAutoCalibrationOsqParams.fromProfile(profile);
+                IvfAutoCalibrationOsqParams params = profile.osqParams();
                 IvfAutoCalibration calibration = IvfAutoCalibration.fromProfile(VPC, profile);
                 assertThat(profile.toString(), calibration.targetRecall(), equalTo(params.targetRecall()));
                 assertThat(profile.toString(), calibration.k(), equalTo(params.k()));

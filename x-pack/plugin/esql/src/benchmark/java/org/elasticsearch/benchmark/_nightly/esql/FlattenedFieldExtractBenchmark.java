@@ -182,7 +182,8 @@ import java.util.stream.IntStream;
  * paths and stay flat and tiny for {@code keyed_fused}; {@code root_only} and {@code root_then_evaluator} should
  * allocate nearly the same, showing the per-row parse adds little.</p>
  * <pre>{@code
- * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark -p layout=in_order -prof gc -f 1 -jvmArgsAppend -DskipSelfTest=true'
+ * ./gradlew :x-pack:plugin:esql:benchmark --args \
+ *   'FlattenedFieldExtractBenchmark -p layout=in_order -prof gc -f 1 -jvmArgsAppend -DskipSelfTest=true'
  * }</pre>
  *
  * <p><b>2. Async flamegraphs (the attribution: reconstruction vs parse).</b> Needs async-profiler 4.0
@@ -201,8 +202,14 @@ import java.util.stream.IntStream;
  * fallback is fewer/cheaper {@code lookupOrd}s, not the JSON parser; better still, widen the fused path so the
  * root is never reconstructed.</p>
  * <pre>{@code
- * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=root_only -p layout=in_order -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rootonly;output=flamegraph"'
- * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=root_then_evaluator -p layout=in_order -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rooteval;output=flamegraph"'
+ * ./gradlew :x-pack:plugin:esql:benchmark --args \
+ *   'FlattenedFieldExtractBenchmark.benchmark -p path=root_only -p layout=in_order -p subFields=100 -f 1'\
+ *   ' -jvmArgsAppend -DskipSelfTest=true'\
+ *   ' -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rootonly;output=flamegraph"'
+ * ./gradlew :x-pack:plugin:esql:benchmark --args \
+ *   'FlattenedFieldExtractBenchmark.benchmark -p path=root_then_evaluator -p layout=in_order -p subFields=100 -f 1'\
+ *   ' -jvmArgsAppend -DskipSelfTest=true'\
+ *   ' -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rooteval;output=flamegraph"'
  * }</pre>
  *
  * <p><b>3. Explain the fused layout penalty (why {@code shuffled} is ~2x {@code in_order}).</b> Expect the
@@ -210,13 +217,16 @@ import java.util.stream.IntStream;
  * advance/lookup; the {@code shuffled} run spends more time in random doc/ordinal access, so it is doc-values
  * bound rather than extraction bound.</p>
  * <pre>{@code
- * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=keyed_fused -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-fused;output=flamegraph"'
+ * ./gradlew :x-pack:plugin:esql:benchmark --args \
+ *   'FlattenedFieldExtractBenchmark.benchmark -p path=keyed_fused -p subFields=100 -f 1'\
+ *   ' -jvmArgsAppend -DskipSelfTest=true'\
+ *   ' -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-fused;output=flamegraph"'
  * }</pre>
  *
  * <p><b>4. Trustworthy headline numbers.</b> {@link Fork @Fork(1)} captures no cross-fork variance, so re-run
  * the final numbers with more forks (and watch the {@code Error} column) on a quiet machine.</p>
  * <pre>{@code
- * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark -f 3'
+ * ./gradlew :x-pack:plugin:esql:benchmark --args 'FlattenedFieldExtractBenchmark -f 3'
  * }</pre>
  */
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)

@@ -15,7 +15,7 @@ import org.openjdk.jmh.annotations.Param;
  * <p>
  * Run with:
  * <pre>
- * ./gradlew :benchmarks:run --args='ViewResolutionFullBenchmark'
+ * ./gradlew :x-pack:plugin:esql:benchmark --args='ViewResolutionFullBenchmark'
  * </pre>
  */
 public class ViewResolutionFullBenchmark extends ViewResolutionBenchmarkBase {

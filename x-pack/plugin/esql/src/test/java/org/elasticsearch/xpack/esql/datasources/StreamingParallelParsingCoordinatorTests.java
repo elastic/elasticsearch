@@ -1455,6 +1455,175 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * A record with no {@code \n} in reach must be rejected once the grow buffer reaches
+     * {@code external_max_record_size}, not after buffering the input up to the next {@code \n}. The stream
+     * yields newline-free bytes and fails if read far past the cap, so a grow loop that ignores the cap
+     * surfaces that failure instead of the record-size error.
+     */
+    public void testGrowLoopStopsReadingAtRecordCapWithoutNewline() throws Exception {
+        int maxRecordBytes = 8 * 1024;
+        byte[] head = "a\nb\n".getBytes(StandardCharsets.UTF_8);
+        long readLimit = 64L * maxRecordBytes;
+        InputStream noNewline = new InputStream() {
+            private long pos;
+
+            @Override
+            public int read() throws IOException {
+                byte[] one = new byte[1];
+                return read(one, 0, 1) < 0 ? -1 : one[0];
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (pos >= readLimit) {
+                    throw new IOException("read past the record cap");
+                }
+                int n = (int) Math.min(len, readLimit - pos);
+                for (int i = 0; i < n; i++, pos++) {
+                    b[off + i] = pos < head.length ? head[(int) pos] : (byte) 'x';
+                }
+                return n;
+            }
+        };
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(new LineFormatReader(64), noNewline, maxRecordBytes, breaker, executor);
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(it));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertThat(chain, Matchers.containsString("record exceeds [8kb]"));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * The grow buffer for a record larger than the chunk size is charged to the breaker: a breaker that
+     * holds the chunk pool but not the grown record refuses the read.
+     */
+    public void testGrowBufferIsChargedToBreaker() throws Exception {
+        byte[] bytes = ("y".repeat(16 * 1024) + "\ntail\n").getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofKb(4));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(
+                new LineFormatReader(64),
+                new ByteArrayInputStream(bytes),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            );
+            // LimitedBreaker's message does not carry the label; the pool alone fits, so the trip is the grow buffer.
+            expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * A grow buffer's charge is released once the chunk it backs is parsed, not held until close: after
+     * the read drains, only the chunk pool remains charged.
+     */
+    public void testGrowBufferChargeIsReleasedOnceParsed() throws Exception {
+        int chunkSize = 64;
+        int parallelism = 2;
+        String big = "y".repeat(16 * 1024);
+        byte[] bytes = (big + "\ntail\n").getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(bytes),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            );
+            List<String> lines = new ArrayList<>();
+            try (it) {
+                BytesRef scratch = new BytesRef();
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    BytesRefBlock block = page.<BytesRefBlock>getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        lines.add(block.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "only pool buffers may remain charged once every chunk is parsed",
+                    breaker.getUsed(),
+                    Matchers.lessThanOrEqualTo((long) (parallelism + 1) * chunkSize)
+                );
+            }
+            assertEquals(List.of(big, "tail"), lines);
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Closing early, with grown chunks dispatched but not yet parsed, releases their charges; the
+     * teardown breaker check fails on any grow buffer left charged.
+     */
+    public void testEarlyCloseReleasesGrowBuffers() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 50; i++) {
+            sb.append("z".repeat(1024)).append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadWithBreaker(
+                new LineFormatReader(64),
+                new ByteArrayInputStream(bytes),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                breaker,
+                executor
+            );
+            try (it) {
+                assertTrue(it.hasNext());
+                it.next().releaseBlocks();
+            }
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadWithBreaker(
+        SegmentableFormatReader reader,
+        InputStream stream,
+        int maxRecordBytes,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            stream,
+            null,
+            List.of("line"),
+            50,
+            2,
+            executor,
+            ErrorPolicy.STRICT,
+            null,
+            0L,
+            maxRecordBytes,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            breaker,
+            ExternalReadCounters.NOOP,
+            null
+        );
+    }
+
+    /**
      * A {@code external_max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
      * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
      * at the undelimitable record and returns the records parsed before it (truncate-at-failure, since

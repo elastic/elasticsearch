@@ -36,12 +36,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -321,6 +322,9 @@ public final class StreamingParallelParsingCoordinator {
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
 
         private static final Page POISON = new Page(0);
+        private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
+        /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
+        private static final int POOL_CLOSED_MARKER = -1;
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
 
         /**
@@ -378,7 +382,21 @@ public final class StreamingParallelParsingCoordinator {
         private final StreamingSegmentatorAdmission admission;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
+        /**
+         * Pool buffers charged to {@link #breaker}, or {@link #POOL_CLOSED_MARKER} once {@link #close()} has
+         * refunded them. Marking it closed rather than resetting it to 0 is what lets an allocation that
+         * races a close that stopped waiting early (timeout or interrupt) see the refund and undo its own
+         * charge instead of leaking it.
+         */
         private final AtomicInteger buffersAllocated;
+        /**
+         * Arrays the grow loop allocated for a record larger than {@link #chunkSize}, each charged to
+         * {@link #breaker} at its length. Identity-keyed: membership is what tells {@link #recycleBuffer}
+         * to release a charge rather than return the array to {@link #bufferPool}, since a grown array
+         * trimmed at EOF can be no larger than a pool buffer. Whatever is still here at {@link #close()}
+         * is released there.
+         */
+        private final Set<byte[]> growBuffers = ConcurrentHashMap.newKeySet();
         private final CircuitBreaker breaker;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
         /** Capacity of {@link #bufferPool} (one pooled buffer per possible in-flight chunk-sized slice). */
@@ -735,6 +753,9 @@ public final class StreamingParallelParsingCoordinator {
                         buf = takeOrAllocateBuffer();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        break;
+                    }
+                    if (buf == null) {
                         break;
                     }
 
@@ -1097,38 +1118,76 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
+        /**
+         * Returns a pooled buffer, or a newly charged one while the pool is below capacity, or {@code null}
+         * once {@link #close()} has begun.
+         */
         private byte[] takeOrAllocateBuffer() throws InterruptedException {
             byte[] buf = bufferPool.poll();
             if (buf != null) {
                 return buf;
             }
-            // Claim the slot atomically before charging, closing the check-then-act window a plain
-            // get()-then-increment leaves open. The claim is rolled back if the charge throws or if
-            // the increment revealed we were already at capacity, so the tally always equals the
-            // number of successful charges — close() refunds exactly that and no more. Rolling back
-            // in a finally (rather than catching CircuitBreakingException) keeps the invariant even
-            // if the breaker fails some other way; the flag is set only once the charge has landed,
-            // so an allocation failure after it leaves the charge in place for close() to refund.
-            if (buffersAllocated.incrementAndGet() <= bufferPoolSize) {
-                boolean charged = false;
-                try {
-                    breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
-                    charged = true;
-                    return new byte[chunkSize];
-                } finally {
-                    if (charged == false) {
-                        buffersAllocated.decrementAndGet();
-                    }
+            // Charge first, then claim the slot with a CAS, so the tally only ever counts charges that
+            // landed: a breaker trip leaves nothing to roll back, and close() refunds exactly the tally.
+            // A failed CAS means close() swapped in POOL_CLOSED_MARKER (or another allocator claimed the slot),
+            // so the charge is undone and the state re-read. An allocation failure after a successful
+            // claim leaves the charge counted for close() to refund.
+            while (true) {
+                int allocated = buffersAllocated.get();
+                if (allocated == POOL_CLOSED_MARKER) {
+                    return null;
                 }
+                if (allocated >= bufferPoolSize) {
+                    return bufferPool.take();
+                }
+                breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
+                if (buffersAllocated.compareAndSet(allocated, allocated + 1)) {
+                    return new byte[chunkSize];
+                }
+                breaker.addWithoutBreaking(-chunkSize);
             }
-            buffersAllocated.decrementAndGet();
-            return bufferPool.take();
         }
 
         private void recycleBuffer(byte[] buf) {
-            if (buf.length <= chunkSize) {
+            if (growBuffers.remove(buf)) {
+                breaker.addWithoutBreaking(-buf.length);
+            } else if (buf.length <= chunkSize) {
                 bufferPool.offer(buf);
             }
+        }
+
+        /**
+         * Allocates a grow-loop array of {@code length} bytes holding a copy of the first {@code copyLen}
+         * bytes of {@code from}. The array is charged to {@link #breaker} before it is allocated and stays
+         * charged until {@link #recycleBuffer} drops it, so the breaker sees the grow loop's peak — the old
+         * and the new array are both live while one is copied into the other.
+         */
+        private byte[] newGrowBuffer(byte[] from, int copyLen, int length) {
+            breaker.addEstimateBytesAndMaybeBreak(length, GROW_BUFFER_BREAKER_LABEL);
+            byte[] buf;
+            try {
+                buf = new byte[length];
+            } catch (Throwable t) {
+                breaker.addWithoutBreaking(-length);
+                throw t;
+            }
+            growBuffers.add(buf);
+            System.arraycopy(from, 0, buf, 0, copyLen);
+            return buf;
+        }
+
+        /**
+         * Replaces grow buffer {@code buf} with a new one of {@code length} bytes carrying its first
+         * {@code copyLen} bytes, releasing {@code buf}. On failure {@code buf} is left charged for the
+         * caller to release.
+         */
+        private byte[] resizeGrowBuffer(byte[] buf, int copyLen, int length) {
+            if (length == buf.length) {
+                return buf;
+            }
+            byte[] resized = newGrowBuffer(buf, copyLen, length);
+            recycleBuffer(buf);
+            return resized;
         }
 
         private static int readFromStream(InputStream stream, byte[] buf, int offset, int length) throws IOException {
@@ -1143,27 +1202,43 @@ public final class StreamingParallelParsingCoordinator {
             return totalRead;
         }
 
-        private static byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
-            byte[] grown = new byte[existingLen + growBy];
-            System.arraycopy(existing, 0, grown, 0, existingLen);
-
-            int offset = existingLen;
-            while (true) {
-                int n = stream.read(grown, offset, grown.length - offset);
-                if (n < 0) {
-                    if (offset == existingLen) {
-                        return Arrays.copyOf(existing, existingLen);
+        /**
+         * Reads from {@code stream} into a grow buffer seeded with the first {@code existingLen} bytes of
+         * {@code existing} until a raw {@code \n} or EOF, growing by {@code growBy} each time it fills.
+         * Growth stops at {@link #maxRecordBytes}, and a full buffer of that size with no {@code \n} throws
+         * {@link RecordTooLargeException}: no record boundary can lie before the next {@code \n}, so such a
+         * buffer holds a single record over the cap. The returned array is a grow buffer, trimmed to the bytes read.
+         */
+        private byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+            byte[] grown = newGrowBuffer(existing, existingLen, existingLen + growBy);
+            boolean success = false;
+            try {
+                int offset = existingLen;
+                while (true) {
+                    int n = stream.read(grown, offset, grown.length - offset);
+                    if (n < 0) {
+                        byte[] result = resizeGrowBuffer(grown, offset, offset);
+                        success = true;
+                        return result;
                     }
-                    return Arrays.copyOf(grown, offset);
-                }
-                for (int i = offset; i < offset + n; i++) {
-                    if (grown[i] == '\n') {
-                        return Arrays.copyOf(grown, offset + n);
+                    for (int i = offset; i < offset + n; i++) {
+                        if (grown[i] == '\n') {
+                            byte[] result = resizeGrowBuffer(grown, offset + n, offset + n);
+                            success = true;
+                            return result;
+                        }
+                    }
+                    offset += n;
+                    if (offset >= grown.length) {
+                        if (grown.length >= maxRecordBytes) {
+                            throw recordTooLargeException();
+                        }
+                        grown = resizeGrowBuffer(grown, offset, (int) Math.min((long) grown.length + growBy, maxRecordBytes));
                     }
                 }
-                offset += n;
-                if (offset >= grown.length) {
-                    grown = Arrays.copyOf(grown, grown.length + growBy);
+            } finally {
+                if (success == false) {
+                    recycleBuffer(grown);
                 }
             }
         }
@@ -1186,35 +1261,48 @@ public final class StreamingParallelParsingCoordinator {
          * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
          *         index, so callers can avoid a redundant boundary rescan
          *
-         * <p><strong>Note on memory:</strong> {@code maxRecordBytes} bounds record <em>acceptance</em>,
-         * not transient allocation. The {@link #growUntilNewline} step below reads to the next raw
-         * {@code \n} (or EOF) before the cap pre-check fires, so a record with no newline for N bytes can
-         * buffer up to ~N bytes (one {@code growBy} chunk past the cap) before being rejected. Bounding
-         * peak buffer growth to {@code maxRecordBytes} itself would be a separate follow-up (#835).
+         * <p><strong>Note on memory:</strong> no grow buffer exceeds {@code maxRecordBytes}: the pre-check
+         * below bounds each round and {@link #growUntilNewline} bounds the read within it. Every grow buffer
+         * is charged to {@link #breaker}; the returned one stays charged until {@link #recycleBuffer} drops
+         * it after the chunk it backs is parsed.
          */
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+            // existing is the caller's pool buffer; every later buf is a charged grow buffer this method owns
+            // until it returns it.
             byte[] buf = existing;
             int len = existingLen;
-            // Bound the grow loop: a record past maxRecordBytes means the scanner won't find a boundary
-            // (a format/quoting mismatch), so fail rather than read the input without bound.
-            while (true) {
-                if (len + growBy > maxRecordBytes) {
-                    throw recordTooLargeException();
+            boolean success = false;
+            try {
+                // Bound the grow loop: a record past maxRecordBytes means the scanner won't find a boundary
+                // (a format/quoting mismatch), so fail rather than read the input without bound.
+                while (true) {
+                    if ((long) len + growBy > maxRecordBytes) {
+                        throw recordTooLargeException();
+                    }
+                    byte[] grown = growUntilNewline(stream, buf, len, growBy);
+                    if (buf != existing) {
+                        recycleBuffer(buf);
+                    }
+                    buf = grown;
+                    if (grown.length == len) {
+                        success = true;
+                        return new GrowResult(grown, -1);
+                    }
+                    // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
+                    int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
+                    if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
+                        throw recordTooLargeException();
+                    }
+                    if (boundary >= 0) {
+                        success = true;
+                        return new GrowResult(grown, boundary);
+                    }
+                    len = grown.length;
                 }
-                byte[] grown = growUntilNewline(stream, buf, len, growBy);
-                if (grown.length == len) {
-                    return new GrowResult(grown, -1);
+            } finally {
+                if (success == false && buf != existing) {
+                    recycleBuffer(buf);
                 }
-                // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
-                int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
-                if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
-                    throw recordTooLargeException();
-                }
-                if (boundary >= 0) {
-                    return new GrowResult(grown, boundary);
-                }
-                buf = grown;
-                len = grown.length;
             }
         }
 
@@ -1595,9 +1683,16 @@ public final class StreamingParallelParsingCoordinator {
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
             }
-            long trackedBytes = (long) buffersAllocated.getAndSet(0) * chunkSize;
-            if (trackedBytes > 0) {
-                breaker.addWithoutBreaking(-trackedBytes);
+            int allocated = buffersAllocated.getAndSet(POOL_CLOSED_MARKER);
+            if (allocated > 0) {
+                breaker.addWithoutBreaking(-(long) allocated * chunkSize);
+            }
+            // Grow buffers backing chunks that were never parsed (an early close or a parser failure leaves
+            // them queued or dropped). remove() makes each release single-shot against a concurrent recycle.
+            for (byte[] buf : growBuffers) {
+                if (growBuffers.remove(buf)) {
+                    breaker.addWithoutBreaking(-buf.length);
+                }
             }
         }
 

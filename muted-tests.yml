@@ -209,6 +209,9 @@ tests:
 - class: org.elasticsearch.system_indices.action.FeatureMigrationIT
   method: testMigrateWithTemplatesV2
   issue: https://github.com/elastic/elasticsearch/issues/160711
+- class: org.elasticsearch.system_indices.action.FeatureMigrationIT
+  method: testMigrateWithTemplatesV1
+  issue: https://github.com/elastic/elasticsearch/issues/160712
 
 # Examples:
 #

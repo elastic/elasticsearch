@@ -105,13 +105,6 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 # Allow other users write access to create checksum files
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
-# Publish the exploded maven aggregation tree to snapshots.elastic.co /
-# artifacts.elastic.co ourselves, ahead of the release-manager cutover tracked
-# in https://github.com/elastic/elasticsearch-team/issues/4297.
-echo --- Publishing maven aggregation to S3
-DRA_WORKFLOW="$WORKFLOW" \
-  .buildkite/scripts/dra-maven-snapshots-publish.sh
-
 echo --- Running release-manager
 
 # Artifacts should be generated
@@ -132,3 +125,10 @@ docker run --rm \
   --artifact-set main \
   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+
+# Publish the exploded maven aggregation tree to snapshots.elastic.co /
+# artifacts.elastic.co ourselves, ahead of the release-manager cutover tracked
+# in https://github.com/elastic/elasticsearch-team/issues/4297.
+echo --- Publishing maven aggregation to S3
+DRA_WORKFLOW="$WORKFLOW" \
+  .buildkite/scripts/dra-maven-snapshots-publish.sh

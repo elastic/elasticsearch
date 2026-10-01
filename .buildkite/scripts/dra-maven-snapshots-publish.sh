@@ -40,6 +40,56 @@
 
 set -euo pipefail
 
+retry_with_backoff() {
+  local description="$1"
+  shift
+
+  local max_attempts=4
+  local delays=(5 15 30)
+  local attempt=1
+
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+
+    local exit_code=$?
+    if (( attempt >= max_attempts )); then
+      echo "$description failed after $attempt attempts" >&2
+      return "$exit_code"
+    fi
+
+    local delay="${delays[$((attempt - 1))]}"
+    echo "$description failed with exit code $exit_code (attempt $attempt/$max_attempts); retrying in ${delay}s..." >&2
+    sleep "$delay"
+    ((attempt++))
+  done
+}
+
+publish_recursive_tree() {
+  local source_dir="$1"
+  local destination="$2"
+
+  aws s3 cp --recursive --no-progress --only-show-errors \
+    "$source_dir" "$destination"
+}
+
+publish_javadoc_tree() {
+  local source_dir="$1"
+  local destination="$2"
+  local aws_config_file="$WORK_DIR/aws-javadoc-config"
+
+  # `index-all.html` can be large enough to trigger multipart uploads, and the
+  # multipart completion path is where we've seen intermittent missing-ETag
+  # failures from `aws s3 cp`. Force single-part uploads for the expanded
+  # javadoc tree; these files are comfortably below S3's 5 GiB single PUT limit.
+  (
+    export AWS_CONFIG_FILE="$aws_config_file"
+    aws configure set default.s3.multipart_threshold 5GB >/dev/null
+    publish_recursive_tree "$source_dir" "$destination"
+  )
+}
+
 # Default matches dra-workflow.sh's `WORKFLOW="${DRA_WORKFLOW:-snapshot}"` so
 # this script is safe to run standalone.
 DRA_WORKFLOW="${DRA_WORKFLOW:-snapshot}"
@@ -84,10 +134,10 @@ echo "--- Publishing to s3://$BUCKET/{maven,javadoc}/"
 # Use `cp --recursive` rather than `sync`: sync needs s3:ListBucket to diff the
 # remote against the local tree, which the `unified-release-maven` role does
 # not grant (only object-level Put/Get on `maven/*` and `javadoc/*`).
-aws s3 cp --recursive --no-progress --only-show-errors \
-  "$MAVEN_DIR/"   "s3://$BUCKET/maven/"
-aws s3 cp --recursive --no-progress --only-show-errors \
-  "$JAVADOC_DIR/" "s3://$BUCKET/javadoc/"
+retry_with_backoff "maven tree upload" \
+  publish_recursive_tree "$MAVEN_DIR/" "s3://$BUCKET/maven/"
+retry_with_backoff "javadoc tree upload" \
+  publish_javadoc_tree "$JAVADOC_DIR/" "s3://$BUCKET/javadoc/"
 
 echo "Published to:"
 echo "  https://$BUCKET/maven/"

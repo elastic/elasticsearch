@@ -195,7 +195,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             // Keep writing `_timeseries` as `FieldAttribute` and append the extra metadata only

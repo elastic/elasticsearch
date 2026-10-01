@@ -112,7 +112,7 @@ public final class MetadataAttribute extends TypedAttribute {
             out.writeString(name());
             dataType().writeTo(out);
             out.writeOptionalString(null); // qualifier, no longer used
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeBoolean(searchable);

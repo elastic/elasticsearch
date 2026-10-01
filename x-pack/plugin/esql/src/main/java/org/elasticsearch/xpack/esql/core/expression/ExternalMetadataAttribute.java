@@ -60,7 +60,7 @@ public class ExternalMetadataAttribute extends TypedAttribute implements Virtual
             Source.EMPTY.writeTo(out);
             out.writeString(name());
             dataType().writeTo(out);
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
         }

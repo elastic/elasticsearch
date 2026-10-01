@@ -96,7 +96,7 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
                 // We used to always serialize a null qualifier here, so do the same for bwc.
                 out.writeOptionalString(null);
             }
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             if (out.getTransportVersion().supports(ESQL_TO_TEXT_VALUES_ANALYZER)) {

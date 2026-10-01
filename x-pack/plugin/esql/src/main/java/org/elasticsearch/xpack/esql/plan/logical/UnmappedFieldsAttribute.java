@@ -92,7 +92,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             out.writeString(name());
             dataType().writeTo(out);
             out.writeOptionalString(null); // qualifier, no longer used
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeNamedWriteable(pattern);

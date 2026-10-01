@@ -11,6 +11,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
@@ -24,6 +25,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -44,6 +46,21 @@ final class DecompressingStorageObject implements StorageObject {
     @Nullable
     private final CircuitBreaker breaker;
     private final int maxDecompressionRatio;
+    @Nullable
+    private final Executor readAheadExecutor;
+    private final ReadAhead readAhead;
+
+    /**
+     * Window of concurrent ranged reads that feeds a stream-only codec. {@code rangesInFlight == 0} keeps the
+     * single whole-object stream.
+     */
+    record ReadAhead(int rangesInFlight, int rangeBytes) {
+        static final ReadAhead NONE = new ReadAhead(0, 0);
+
+        boolean enabled() {
+            return rangesInFlight > 0 && rangeBytes > 0;
+        }
+    }
 
     DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec) {
         this(delegate, codec, null, 0);
@@ -59,12 +76,46 @@ final class DecompressingStorageObject implements StorageObject {
         @Nullable CircuitBreaker breaker,
         int maxDecompressionRatio
     ) {
+        this(delegate, codec, breaker, maxDecompressionRatio, null, ReadAhead.NONE);
+    }
+
+    DecompressingStorageObject(
+        StorageObject delegate,
+        DecompressionCodec codec,
+        @Nullable CircuitBreaker breaker,
+        int maxDecompressionRatio,
+        @Nullable Executor readAheadExecutor,
+        ReadAhead readAhead
+    ) {
         Check.notNull(delegate, "delegate cannot be null");
+        Check.notNull(readAhead, "readAhead cannot be null");
         Check.notNull(codec, "codec cannot be null");
         this.delegate = delegate;
         this.codec = codec;
         this.breaker = breaker;
         this.maxDecompressionRatio = maxDecompressionRatio;
+        this.readAheadExecutor = readAheadExecutor;
+        this.readAhead = readAhead;
+    }
+
+    /**
+     * Opens the compressed bytes. A whole-object GET is a single connection, which over a long round trip
+     * bounds the whole scan, so when the length is known and a breaker and executor are available the bytes
+     * come from a window of concurrent ranged reads instead.
+     */
+    private InputStream openRaw() throws IOException {
+        long length = delegate.knownLength();
+        if (readAhead.enabled() && readAheadExecutor != null && breaker != null && length != READ_TO_END) {
+            return new RangeReadAheadInputStream(
+                delegate,
+                length,
+                readAhead.rangeBytes(),
+                readAhead.rangesInFlight(),
+                DirectBufferFactory.forBreaker(breaker),
+                readAheadExecutor
+            );
+        }
+        return delegate.newStream();
     }
 
     @Override
@@ -72,7 +123,7 @@ final class DecompressingStorageObject implements StorageObject {
         if (codec instanceof SplittableDecompressionCodec splittable && delegate instanceof RangeStorageObject range) {
             return splittable.decompressRange(range.rawDelegate(), range.offset(), range.offset() + range.length());
         }
-        InputStream raw = delegate.newStream();
+        InputStream raw = openRaw();
         try {
             // Wrap raw in an uncloseable filter before handing it to the codec. The decompressor
             // (e.g. GZIPInputStream) cascades close() to the underlying stream; on providers like
@@ -88,7 +139,7 @@ final class DecompressingStorageObject implements StorageObject {
         } catch (IOException | RuntimeException e) {
             try {
                 // Abort rather than close so providers like S3 skip the draining connection teardown.
-                delegate.abortStream(raw);
+                abortRaw(delegate, raw);
             } catch (IOException suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -181,6 +232,18 @@ final class DecompressingStorageObject implements StorageObject {
     }
 
     /**
+     * A read-ahead stream was not returned by the owner's {@code newStream}, so {@code abortStream} would not
+     * accept it; closing it is what cancels its outstanding ranges and releases its buffers.
+     */
+    private static void abortRaw(StorageObject owner, InputStream raw) throws IOException {
+        if (raw instanceof RangeReadAheadInputStream) {
+            raw.close();
+        } else {
+            owner.abortStream(raw);
+        }
+    }
+
+    /**
      * Bundles the decompressed stream with the raw delegate stream it was built from so
      * {@link #abortStream(InputStream)} can route the abort to the raw stream — which is where
      * providers like S3 perform the connection-discard via {@code Abortable.abort()}.
@@ -230,7 +293,7 @@ final class DecompressingStorageObject implements StorageObject {
                 primary = e;
             }
             try {
-                owner.abortStream(raw);
+                abortRaw(owner, raw);
             } catch (Exception e) {
                 if (primary == null) {
                     if (e instanceof IOException ioe) {

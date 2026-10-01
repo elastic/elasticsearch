@@ -2978,7 +2978,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     obj,
                     codec,
                     streamingBreaker,
-                    cdr.maxDecompressionRatio()
+                    cdr.maxDecompressionRatio(),
+                    // Feed the serial decompressor from concurrent ranged reads: one whole-object GET caps the
+                    // scan at a single connection's throughput, which is the limit on cross-region reads.
+                    executor,
+                    cdr.readAhead()
                 );
                 InputStream stream = decompressing.newStream();
                 try {

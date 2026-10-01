@@ -155,14 +155,6 @@ public class IvfAutoCalibration {
     private final int k;
     private final int maxDocBits;
 
-    /**
-     * All (encoding, rerank ratio) combinations at or below {@link #maxDocBits} doc bits, sorted by ascending
-     * estimated cost so that the first configuration meeting target recall is always the cheapest available.
-     * {@link #DOC_BITS_WEIGHT} is large enough to guarantee that all entries at a given doc-bit level sort before
-     * any entry at a higher doc-bit level, so cheaper encodings are exhausted naturally without explicit phase logic.
-     */
-    private final List<CalibrationSweep> costOrderedSweeps;
-
     IvfAutoCalibration(int vectorsPerCluster) {
         this(
             vectorsPerCluster,
@@ -179,7 +171,6 @@ public class IvfAutoCalibration {
         this.targetRecall = targetRecall;
         this.k = k;
         this.maxDocBits = maxDocBits;
-        this.costOrderedSweeps = buildCostOrderedSweeps(maxDocBits);
     }
 
     public static IvfAutoCalibration fromProfile(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
@@ -635,7 +626,7 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple in {@link #costOrderedSweeps} in ascending
+     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple at or below {@link #maxDocBits} in ascending
      * cost order and returns the first configuration whose predicted recall meets {@link #targetRecall}, or the
      * best-effort configuration if none does. The two calibration paths differ only in how the quantization error std
      * is obtained, which is supplied by {@code errorStdProvider}.
@@ -659,7 +650,7 @@ public class IvfAutoCalibration {
 
         boolean[] preconditionValues = new boolean[] { false, true };
 
-        for (CalibrationSweep sweep : costOrderedSweeps) {
+        for (CalibrationSweep sweep : buildCostOrderedSweeps(maxDocBits)) {
             CandidateEncoding candidate = sweep.candidate();
             int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
             float oversample = (float) sweep.rerankDepth();

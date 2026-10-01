@@ -102,7 +102,7 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
             for (int p = 0; p < inputPage.getPositionCount(); p++) {
                 assertEquals(inputSortKeys.getLong(p), resultSortKeys.getLong(p));
                 assertEquals(inputPassThrough.getInt(p), resultPassThrough.getInt(p));
-                assertEquals(p, resultExtracted.getInt(p));
+                assertEquals(Math.multiplyExact(p, p), resultExtracted.getInt(p));
             }
         }
     }
@@ -111,7 +111,7 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new ExternalFieldExtractOperator.Factory(1, List.of(0, 2), List.of("col"), List.of(DataType.INTEGER), driverContext -> {
             SourceExtractors registry = new SourceExtractors();
-            registry.register(new PositionExtractor());
+            registry.register(new SquaredPositionExtractor());
             return registry;
         }, Runnable::run);
     }
@@ -672,7 +672,7 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
         public void close() {}
     }
 
-    private static final class PositionExtractor implements ColumnExtractor {
+    private static final class SquaredPositionExtractor implements ColumnExtractor {
         @Override
         public long rowCount() {
             return Integer.MAX_VALUE;
@@ -686,7 +686,8 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
                 for (int c = 0; c < columnNames.length; c++) {
                     try (IntBlock.Builder builder = factory.newIntBlockBuilder(localPositions.length)) {
                         for (long position : localPositions) {
-                            builder.appendInt(Math.toIntExact(position));
+                            int value = Math.toIntExact(position);
+                            builder.appendInt(value * value);
                         }
                         result[c] = builder.build();
                     }

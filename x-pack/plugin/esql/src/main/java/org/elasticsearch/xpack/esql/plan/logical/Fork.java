@@ -15,16 +15,18 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -95,6 +97,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
+            Predicate<Attribute> onlyNull = producesOnlyNull(subPlan);
             for (Attribute attr : subPlan.output()) {
                 var merged = mergedOutput.get(attr.name());
 
@@ -108,7 +111,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
                 // resolved. They are carried through the branch projections so the conversion can be extracted, but are
                 // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
-                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || producesOnlyNull(subPlan, attr)) {
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
                     continue;
                 }
 
@@ -211,23 +214,23 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * Whether {@code attr}, a column of {@code branch}'s output, holds nothing but nulls. Branch alignment fills a
-     * column a branch lacks this way, so that every branch outputs the same names; a column written as an explicit
+     * Whether a column of {@code branch}'s output holds nothing but nulls. Branch alignment fills a column a branch
+     * lacks this way, so that every branch outputs the same names; a column written as an explicit
      * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
      * <p>
      * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
      * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
      * a later one shadows answer for the column.
+     * <p>
+     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
      */
-    private static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
-        Holder<Boolean> onlyNull = new Holder<>(false);
+    public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
+        Map<NameId, Boolean> onlyNull = new HashMap<>();
         branch.forEachDown(Eval.class, eval -> {
             for (Alias field : eval.fields()) {
-                if (field.id().equals(attr.id())) {
-                    onlyNull.set(Expressions.isGuaranteedNull(field.child()));
-                }
+                onlyNull.put(field.id(), Expressions.isGuaranteedNull(field.child()));
             }
         });
-        return onlyNull.get();
+        return attr -> onlyNull.getOrDefault(attr.id(), false);
     }
 }

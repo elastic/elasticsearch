@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -144,6 +145,18 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 // Rows come from the left side; the right side is a lookup index or an inline aggregation.
                 LogicalPlan left = withIndexKey(binary.left());
                 yield left == null ? null : binary.replaceChildren(left, binary.right());
+            }
+            case MergePlan merge -> {
+                List<LogicalPlan> branches = new ArrayList<>(merge.children().size());
+                for (LogicalPlan branch : merge.children()) {
+                    LogicalPlan withKey = withIndexKey(branch);
+                    // Branches line up by position, so the key must come last in each, as it does in the merge output.
+                    if (withKey == null || withKey.output().getLast().equals(indexKey(withKey)) == false) {
+                        yield null;
+                    }
+                    branches.add(withKey);
+                }
+                yield merge.replaceSubPlans(branches).refreshOutput();
             }
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };

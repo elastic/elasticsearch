@@ -445,6 +445,15 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(promqlDivs, not(empty()));
         assertTrue("PromQL Div must allow non-finite results", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
 
+        // Native ES|QL STATS AVG also stays strict: its surrogate division is finite-only.
+        LogicalPlan nativeStats = optimizedPlan("FROM test | STATS a = AVG(salary)");
+        assertThat(nonFiniteExpressions(nativeStats), empty());
+
+        // The PromQL translation of an average also produces a non-finite variant: the non-finite Avg (and/or the
+        // non-finite Div its surrogate builds) preserves non-finite results, whereas native STATS AVG above stays strict.
+        LogicalPlan promqlAvg = planPromql("PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost)))");
+        assertThat(nonFiniteExpressions(promqlAvg), not(empty()));
+
         // Native ES|QL STATS MAX / MIN stay strict: they introduce no non-finite-preserving expression.
         assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());
         assertThat(nonFiniteExpressions(optimizedPlan("FROM test | STATS m = MIN(salary)")), empty());

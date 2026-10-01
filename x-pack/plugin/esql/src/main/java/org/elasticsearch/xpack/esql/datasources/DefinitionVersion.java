@@ -30,11 +30,19 @@ import java.util.TreeMap;
  * so a dataset declaring exactly what inference already produced would stop sharing the entries of its
  * undeclared twin and pay a cold scan for declaring nothing.
  * <p>
- * Everything cached about a file is derived from those definitions, so everything cached about it is
- * addressed by this. An edit to either — a setting, the resource pattern, an endpoint, a credential —
- * yields a different version, so entries derived under the old one are no longer reachable and age out.
- * That replaces an invalidation path from the registry to the caches: nothing has to notice a change
- * and tell anyone about it, because the address moved.
+ * Everything cached about a file is derived from those definitions, so every entry is <em>addressed</em> by
+ * this. An edit to either — a setting, the resource pattern, an endpoint, a credential — yields a different
+ * version, so entries derived under the old one are no longer reachable and age out. That replaces an
+ * invalidation path from the registry to the caches: nothing has to notice a change and tell anyone about it,
+ * because the address moved.
+ * <p>
+ * <b>Addressing is not the same as the write path honouring it.</b> Statistics enrichment finds the entries to
+ * fill by sweeping the schema cache with {@code ExternalSourceCacheService.matchesContribution}, which compares
+ * a path, an mtime and a format-config fingerprint and looks at neither this version nor the storage identity.
+ * Two entries that this version separates are therefore still enriched by one another's harvest when they share
+ * those three, which two stores serving one bucket and key written in the same second do. That is older than
+ * this class and is not closed by it; a reader must not take a version in the key to mean a harvest cannot
+ * cross it.
  * <p>
  * Deliberately coarse. An edit that could not have changed what is cached still changes the version,
  * and the cost is one cold read. Deciding per field which edits matter would have to be re-decided

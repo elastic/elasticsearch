@@ -963,6 +963,13 @@ public class ExternalSourceCacheService implements Closeable {
      * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
      * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
      * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
+     * <p>
+     * <b>It does not compare the key's identity or its definition version</b>, so every entry for this path at this
+     * mtime under this format config is enriched whichever store or definition it describes. Two stores serving one
+     * bucket and key written in the same second share an mtime — object-store {@code Last-Modified} is second-granular
+     * — so one store's harvest can land on the other's record and be read back as its row count. Those components
+     * became part of the key before the write path learned to read them; closing it means carrying the resolved
+     * identity into the contribution, or stamping the harvest with the identity the data node's provider reports.
      */
     private static boolean matchesContribution(
         SchemaCacheKey key,

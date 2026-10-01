@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -1874,6 +1875,11 @@ public class ExternalSourceResolver {
             public Optional<SourceStatistics> statistics() {
                 return Optional.ofNullable(harvestedStatistics);
             }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return entry.widenedColumns();
+            }
         };
     }
 
@@ -2445,6 +2451,11 @@ public class ExternalSourceResolver {
             @Override
             public List<String> warnings() {
                 return metadata.warnings();
+            }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return metadata.widenedColumns();
             }
 
             @Override

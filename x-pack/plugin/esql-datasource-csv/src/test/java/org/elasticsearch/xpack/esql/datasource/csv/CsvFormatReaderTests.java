@@ -269,6 +269,46 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
     }
 
+    /**
+     * The type axis (within-sample widening) and the width axis (headerless column count) must share
+     * one sampling boundary: for a given {@code schema_sample_size}, an anomaly on the last sampled row
+     * is absorbed on both axes, and the identical anomaly one row later is absorbed on neither. Nothing
+     * here pins a literal row number, so the test survives {@code schema_sample_size}'s default
+     * changing again — it is the "the two boundaries must agree" guard elastic/esql-planning#2134's own
+     * acceptance criteria calls for, whose absence is exactly what let the two axes silently drift apart
+     * (the type axis doubled its effective window in elastic/elasticsearch#157409 while the width axis
+     * stayed on the single original window) before the two CSV sampling windows were merged back into
+     * one.
+     */
+    public void testTypeAndWidthAxesShareOneSamplingBoundary() throws IOException {
+        int n = 3;
+        Map<String, Object> config = Map.of("header_row", false, "schema_sample_size", n);
+
+        CsvFormatReader typeAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typeAtBoundary = typeAtBoundaryReader.metadata(createStorageObject("1\n2\noops\n")).schema();
+        assertEquals(
+            "a type anomaly on the last sampled row must be absorbed (widened)",
+            DataType.KEYWORD,
+            typeAtBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader typePastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typePastBoundary = typePastBoundaryReader.metadata(createStorageObject("1\n2\n3\noops\n")).schema();
+        assertEquals(
+            "the same type anomaly one row past the sample must not be absorbed",
+            DataType.INTEGER,
+            typePastBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader widthAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthAtBoundary = widthAtBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c,extra\n")).schema();
+        assertEquals("a width anomaly on the last sampled row must be absorbed (widened)", 3, widthAtBoundary.size());
+
+        CsvFormatReader widthPastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthPastBoundary = widthPastBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c\n4,d,extra\n")).schema();
+        assertEquals("the same width anomaly one row past the sample must not be absorbed", 2, widthPastBoundary.size());
+    }
+
     public void testSchema() throws IOException {
         String csv = """
             id:long,name:keyword,age:integer,active:boolean
@@ -2123,15 +2163,16 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * When the initial sample (rows 1..N) is all-numeric but later rows contain text, the inferred
-     * schema must widen that column to KEYWORD so the text values are readable without errors.
-     * A tiny {@code schema_sample_size=2} makes "hello" appear after the sample window.
+     * When the early rows of the sample are all-numeric but a later row in that same sample contains
+     * text, the inferred schema must widen that column to KEYWORD so the text value is readable
+     * without errors.
      */
-    public void testInferredSchemaWidensOnPostSampleTextConflict() throws IOException {
-        // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
+    public void testInferredSchemaWidensOnTextConflict() throws IOException {
+        // Rows 1-2 are numeric (inferred as INTEGER from the first two rows seen). Row 3 is text —
+        // contradicts INTEGER — and the sample is sized to cover all three rows in its one window.
         String csv = "id\n1\n2\nhello\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 3));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(1, schema.size());
@@ -9635,7 +9676,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * sample rows are consumed.
      */
     public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
-        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // Plain headers trigger type inference from a sample (default 40 000 rows).
         // The file contains 200 000 rows so most of it should remain unread after schema().
         StringBuilder csv = new StringBuilder("id,name,value\n");
         for (int i = 0; i < 200_000; i++) {

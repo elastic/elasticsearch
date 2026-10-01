@@ -70,21 +70,44 @@ public class NdJsonSchemaInferrer {
     private int lineCount = 0;
 
     private final DateFormatter dateFormatter;
+    /** Set once at the start of {@link #doInferSchema}; {@link FieldInfo#addType} reports into it directly. */
+    private List<Widening> widenings;
 
     private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
         this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
     }
 
     /**
+     * One within-file widen worth reporting: a field whose inferred type moved because its sampled
+     * values disagree — a fold to {@link DataType#KEYWORD}, or a {@code long}/{@code double} merge.
+     * Mirrors {@code CsvSchemaInferrer.Widening}, feeding the same warning channel
+     * ({@code NdJsonFormatReader}) and the same {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#widenedColumns()}.
+     *
+     * @param row 1-based record number, within the inference sample, that carried {@code value}
+     */
+    public record Widening(String columnName, DataType fromType, DataType toType, String value, int row) {}
+
+    /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
     public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
-        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
+        return inferSchema(inputStream, maxLines, datetimeFormatter, new ArrayList<>());
     }
 
-    private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
-        FieldInfo root = new FieldInfo(null);
+    /** As above, reporting every within-sample widen worth surfacing to the user into {@code widenings}. */
+    public static List<Attribute> inferSchema(
+        InputStream inputStream,
+        int maxLines,
+        DateFormatter datetimeFormatter,
+        List<Widening> widenings
+    ) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines, widenings);
+    }
+
+    private List<Attribute> doInferSchema(InputStream inputStream, int maxLines, List<Widening> widenings) throws IOException {
+        this.widenings = widenings;
+        FieldInfo root = new FieldInfo(null, null);
         NdJsonUtils.LineTerminatorTrackingStream tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
         JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
         try {
@@ -188,13 +211,13 @@ public class NdJsonSchemaInferrer {
             case VALUE_NUMBER_INT -> {
                 switch (parser.getNumberType()) {
                     case INT:
-                        field.addType(DataType.INTEGER);
+                        field.addType(DataType.INTEGER, lineCount + 1, parser.getText());
                         return;
                     case LONG:
-                        field.addType(DataType.LONG);
+                        field.addType(DataType.LONG, lineCount + 1, parser.getText());
                         return;
                     case BIG_INTEGER: {
-                        field.addType(DataType.DOUBLE);
+                        field.addType(DataType.DOUBLE, lineCount + 1, parser.getText());
                         var location = parser.getTokenLocation();
                         logger.debug(
                             "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
@@ -205,14 +228,14 @@ public class NdJsonSchemaInferrer {
                     }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
+            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE, lineCount + 1, parser.getText()); // conservative size
+            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN, lineCount + 1, parser.getText());
             case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
     }
 
-    /** Build the list of Attribute by recursively traversing the FieldInfo tree */
+    /** Build the list of Attribute by recursively traversing the FieldInfo tree. */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
         if (field.children == null) {
             // No children were ever observed. Happens for the root when every sampled line was
@@ -253,9 +276,20 @@ public class NdJsonSchemaInferrer {
         Map<String, FieldInfo> children = null;
         final int idx;
         final String name;
+        /** Dotted path from the root, or {@code null} for the root itself; labels a reported {@link Widening}. */
+        final String fullName;
+        /**
+         * The single type that represents every value seen for this field so far, folded in arrival order —
+         * unlike {@link #types} (an unordered set, resolved only at the end by {@link #resolveType}), this is
+         * updated incrementally so {@link #addType} can tell exactly which value moved it and to what, the
+         * same question {@code CsvSchemaInferrer.narrowCandidate} answers for CSV. {@code null} until the
+         * first non-null value.
+         */
+        DataType runningType;
 
-        FieldInfo(String name) {
+        FieldInfo(String name, String fullName) {
             this.name = name;
+            this.fullName = fullName;
             this.idx = fields.size();
             fields.add(this);
             if (lineCount > 0) {
@@ -269,12 +303,56 @@ public class NdJsonSchemaInferrer {
             if (children == null) {
                 children = new LinkedHashMap<>();
             }
-            return children.computeIfAbsent(name, (n) -> new FieldInfo(n));
+            return children.computeIfAbsent(name, (n) -> new FieldInfo(n, fullName == null ? n : fullName + "." + n));
         }
 
-        void addType(DataType type) {
-            types.add(type);
+        /**
+         * Records one sampled value's type, updating the running fold and reporting a {@link Widening} the
+         * moment it moves to {@link DataType#KEYWORD} or completes a {@code long}/{@code double} merge —
+         * gated exactly like {@code SchemaReconciliation}'s cross-file emitters
+         * ({@code emitKeywordFallbackWarnings} / {@code emitPrecisionLossWarnings}): a lossless promotion
+         * (e.g. {@code integer -> long}) stays silent. The first value a field ever sees never widens
+         * anything (there is nothing yet to move away from), matching
+         * {@code CsvSchemaInferrer.narrowCandidate}'s treatment of an unconfirmed column.
+         * <p>
+         * A type already contributing to the fold changes nothing if seen again — {@code join} is
+         * idempotent — so re-seeing it is skipped before the join, both as an optimization and because
+         * {@code updated != previous} below only ever holds on a genuinely new type: {@code previous}
+         * already absorbed every type seen so far, so joining it with one of those again is a no-op.
+         * <p>
+         * The long/double merge check is deliberately membership-based ({@code hadBothLongAndDouble},
+         * computed from {@link #types} before this call's type is added) rather than keyed off whether
+         * {@code updated} itself changed: a field already resolved to {@code DOUBLE} from a genuine
+         * decimal, that later sees a value that is <em>also</em> exactly long-representable, has
+         * {@code updated == previous == DOUBLE} — the join is a no-op — even though this is exactly the
+         * cross-file-equivalent case ({@code DOUBLE} unified from both {@code LONG} and {@code DOUBLE}
+         * contributors). Checking {@code previous}/{@code type} against the two rungs directly (as a
+         * transition-only check once did) misses that order. {@code fromType} reports {@code LONG} (this
+         * value's own shape) rather than {@code previous} whenever {@code previous} already equals
+         * {@code updated}, since reporting {@code fromType == toType == DOUBLE} would say nothing useful.
+         */
+        void addType(DataType type, int row, String value) {
             fieldsSeen.set(idx);
+            boolean hadBothLongAndDouble = types.contains(DataType.LONG) && types.contains(DataType.DOUBLE);
+            if (types.add(type) == false) {
+                return;
+            }
+            DataType previous = runningType;
+            DataType updated = previous == null ? type : TypeWidening.join(previous, type);
+            if (previous != null) {
+                boolean becameKeyword = updated == DataType.KEYWORD && updated != previous;
+                boolean becameLongDoubleMerge = updated == DataType.DOUBLE
+                    && hadBothLongAndDouble == false
+                    && types.contains(DataType.LONG)
+                    && types.contains(DataType.DOUBLE);
+                if (becameKeyword) {
+                    widenings.add(new Widening(fullName, previous, updated, value, row));
+                } else if (becameLongDoubleMerge) {
+                    DataType fromType = previous == updated ? type : previous;
+                    widenings.add(new Widening(fullName, fromType, updated, value, row));
+                }
+            }
+            runningType = updated;
         }
 
         DataType resolveType() {
@@ -320,11 +398,12 @@ public class NdJsonSchemaInferrer {
      */
     private void inferStringType(FieldInfo field, String text) {
         if (field.types.contains(DataType.KEYWORD)) {
-            field.addType(DataType.KEYWORD);
+            field.addType(DataType.KEYWORD, lineCount + 1, text);
             return;
         }
         TemporalAccessor parsed = tryParseDateTime(text);
-        field.addType(parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME);
+        DataType type = parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME;
+        field.addType(type, lineCount + 1, text);
     }
 
     /**

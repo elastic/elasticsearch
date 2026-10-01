@@ -79,6 +79,21 @@ public interface SourceMetadata {
     }
 
     /**
+     * Columns whose inferred type widened while reading this one file's schema sample, e.g. a column
+     * that committed to {@code integer} and then moved to {@code keyword} on a later non-numeric
+     * value. Reported separately from {@link #warnings()} (a structured record rather than text)
+     * because {@code schema_resolution: strict} needs to refuse these programmatically, including for
+     * a single-file dataset where {@code SchemaReconciliation.reconcileStrict} otherwise has nothing
+     * to compare the lone file's schema against.
+     *
+     * @return widened columns for this file, empty if inference found none (or the source type, such
+     *         as Parquet or Iceberg, doesn't sample-infer at all)
+     */
+    default List<WidenedColumn> widenedColumns() {
+        return List.of();
+    }
+
+    /**
      * Returns optional partition column names.
      * For partitioned data sources, this indicates which columns
      * are used for partitioning.

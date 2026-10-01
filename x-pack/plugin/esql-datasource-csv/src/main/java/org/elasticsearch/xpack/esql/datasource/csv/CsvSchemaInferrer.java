@@ -55,7 +55,14 @@ import java.util.Locale;
  */
 public class CsvSchemaInferrer {
 
-    static final int DEFAULT_SAMPLE_SIZE = 20_000;
+    /**
+     * The single schema-sampling window, for both the column type and (headerless) column count
+     * decisions. Was {@code 20_000} with a second, separate {@code 20_000}-row "widening window" layered
+     * on top for the type decision only (see elastic/elasticsearch#157409); the two were merged into one
+     * window to put both decisions on the same boundary (elastic/esql-planning#2134), and the default
+     * raised to {@code 40_000} to preserve the row depth type inference already effectively sampled.
+     */
+    static final int DEFAULT_SAMPLE_SIZE = 40_000;
 
     private static final DataType[] TYPE_CANDIDATES = {
         DataType.BOOLEAN,
@@ -87,107 +94,15 @@ public class CsvSchemaInferrer {
     private CsvSchemaInferrer() {}
 
     /**
-     * Widens an already-inferred schema against additional rows that were not part of the initial
-     * sample. Uses the same {@link #narrowCandidate} logic as {@link #inferSchema}, starting from
-     * the already-confirmed candidate types (every column is treated as confirmed, since the initial
-     * sample already committed to its type). A column whose type cannot represent a value in
-     * {@code additionalRows} moves to whatever type represents both, which for a confirmed column is
-     * usually {@code KEYWORD}.
-     * <p>
-     * A column can also move the other way. If these rows show a dialect the {@code date_nanos} rail
-     * cannot parse, a column sitting on that rail is demoted to {@code datetime} even though nothing
-     * widened &mdash; so "nothing widened" is not the same as "nothing changed".
-     * <p>
-     * Returns the same {@code schema} reference only when neither happens (including when
-     * {@code additionalRows} is empty), and a new list otherwise.
+     * One within-file widen worth reporting: a confirmed column's committed type changed because a
+     * later sampled value no longer fit it. Only emitted for the moves {@link CsvFormatReader} surfaces
+     * to the user (a widen to {@link DataType#KEYWORD}, or a {@code long}/{@code double} merge) — see
+     * the gating in {@link #narrowCandidate}. {@code column} is the index into the schema being built;
+     * the caller (which holds the column names) resolves it to a name.
      *
-     * @param schema         the schema returned by a prior {@link #inferSchema} call
-     * @param additionalRows rows that were not included in the initial sample
-     * @param datetimeFormatter the same formatter used for the initial inference
+     * @param row 1-based row number within the sample or window this inference call was given
      */
-    static List<Attribute> widenSchema(List<Attribute> schema, List<String[]> additionalRows, @Nullable DateFormatter datetimeFormatter) {
-        return widenSchema(schema, additionalRows, datetimeFormatter, new boolean[schema.size()]);
-    }
-
-    /** As above, carrying the sample's undecodable-dialect evidence forward. */
-    static List<Attribute> widenSchema(
-        List<Attribute> schema,
-        List<String[]> additionalRows,
-        @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawUndecodableTemporal
-    ) {
-        if (additionalRows.isEmpty()) {
-            return schema;
-        }
-        int numCols = schema.size();
-        int[] candidateIdx = new int[numCols];
-        for (int col = 0; col < numCols; col++) {
-            DataType type = schema.get(col).dataType();
-            candidateIdx[col] = TYPE_CANDIDATES.length - 1; // default: KEYWORD
-            for (int i = 0; i < TYPE_CANDIDATES.length - 1; i++) {
-                if (TYPE_CANDIDATES[i] == type) {
-                    candidateIdx[col] = i;
-                    break;
-                }
-            }
-        }
-        int nonKeywordCount = 0;
-        for (int col = 0; col < numCols; col++) {
-            if (candidateIdx[col] < TYPE_CANDIDATES.length - 1) {
-                nonKeywordCount++;
-            }
-        }
-        boolean anyWidened = false;
-        outer: for (String[] row : additionalRows) {
-            for (int col = 0; col < numCols; col++) {
-                if (candidateIdx[col] >= TYPE_CANDIDATES.length - 1) {
-                    continue;
-                }
-                String value = col < row.length ? row[col] : null;
-                if (value != null) {
-                    value = value.trim();
-                }
-                if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
-                    continue;
-                }
-                // All columns are confirmed by the initial sample (confirmed=true).
-                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter, sawUndecodableTemporal, col);
-                if (newIdx != candidateIdx[col]) {
-                    candidateIdx[col] = newIdx;
-                    anyWidened = true;
-                    if (newIdx >= TYPE_CANDIDATES.length - 1) {
-                        nonKeywordCount--;
-                    }
-                }
-            }
-            if (nonKeywordCount == 0) {
-                break outer;
-            }
-        }
-        boolean anyDemotion = false;
-        for (int col = 0; col < numCols; col++) {
-            if (sawUndecodableTemporal[col] && TYPE_CANDIDATES[candidateIdx[col]] == DataType.DATE_NANOS) {
-                anyDemotion = true;
-                break;
-            }
-        }
-        // Not just anyWidened: the window can contribute a dialect the nanos rail cannot decode without
-        // moving any rung, and returning the original schema there would leave the column on that rail.
-        if (anyWidened == false && anyDemotion == false) {
-            return schema;
-        }
-        List<Attribute> widened = new ArrayList<>(numCols);
-        for (int col = 0; col < numCols; col++) {
-            Attribute original = schema.get(col);
-            DataType newType = demoteIfDialectCannotDecode(TYPE_CANDIDATES[candidateIdx[col]], sawUndecodableTemporal[col]);
-            if (newType != original.dataType()) {
-                widened.add(new ReferenceAttribute(Source.EMPTY, null, original.name(), newType, Nullability.TRUE, null, false));
-            } else {
-                widened.add(original);
-            }
-        }
-        return widened;
-    }
+    record Widening(int column, DataType fromType, DataType toType, String value, int row) {}
 
     /**
      * Infers schema from column names and sample data rows.
@@ -201,21 +116,19 @@ public class CsvSchemaInferrer {
      * @return list of attributes with inferred types
      */
     static List<Attribute> inferSchema(String[] columnNames, List<String[]> sampleRows, @Nullable DateFormatter datetimeFormatter) {
-        return inferSchema(columnNames, sampleRows, datetimeFormatter, new boolean[columnNames.length]);
+        return inferSchema(columnNames, sampleRows, datetimeFormatter, new boolean[columnNames.length], new ArrayList<>());
     }
 
     /**
-     * As above, reporting per column whether the sample held a timestamp the date_nanos rail cannot parse.
-     * <p>
-     * A caller that goes on to widen against a second window must pass the same array back, or a
-     * column demoted here could be promoted again by a nanosecond value in that window with the
-     * sample's evidence forgotten.
+     * As above, reporting per column whether the sample held a timestamp the date_nanos rail cannot parse,
+     * and reporting every within-sample widen worth surfacing to the user into {@code widenings}.
      */
     static List<Attribute> inferSchema(
         String[] columnNames,
         List<String[]> sampleRows,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawUndecodableTemporal
+        boolean[] sawUndecodableTemporal,
+        List<Widening> widenings
     ) {
         int numCols = columnNames.length;
         int[] candidateIdx = new int[numCols];
@@ -223,8 +136,19 @@ public class CsvSchemaInferrer {
         boolean[] typeConfirmed = new boolean[numCols];
         // Whether the column has seen at least one non-null value
         boolean[] seenValue = new boolean[numCols];
+        // Whether a long/double merge has already been reported for this column — see narrowCandidate's
+        // "already DOUBLE" branch, which can fire on more than one row for the same column and must only
+        // report the first.
+        boolean[] sawLongDoubleMerge = new boolean[numCols];
+        // Columns not yet pinned to the terminal KEYWORD rung. Once this hits zero nothing left in the
+        // sample can move anything, so the rest of it is not worth walking — the same short-circuit the
+        // pre-merge widenSchema used over its own window (see nonKeywordCount there, before the two
+        // sampling windows were merged into this single pass).
+        int nonKeywordCount = numCols;
 
-        for (String[] row : sampleRows) {
+        int rowNumber = 0;
+        outer: for (String[] row : sampleRows) {
+            rowNumber++;
             for (int col = 0; col < numCols; col++) {
                 if (candidateIdx[col] >= TYPE_CANDIDATES.length - 1) {
                     continue;
@@ -237,15 +161,25 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 seenValue[col] = true;
-                candidateIdx[col] = narrowCandidate(
+                int newIdx = narrowCandidate(
                     candidateIdx[col],
                     typeConfirmed[col],
                     value,
                     datetimeFormatter,
                     sawUndecodableTemporal,
-                    col
+                    sawLongDoubleMerge,
+                    col,
+                    rowNumber,
+                    widenings
                 );
+                candidateIdx[col] = newIdx;
                 typeConfirmed[col] = true;
+                if (newIdx >= TYPE_CANDIDATES.length - 1) {
+                    nonKeywordCount--;
+                }
+            }
+            if (nonKeywordCount == 0) {
+                break outer;
             }
         }
 
@@ -296,6 +230,13 @@ public class CsvSchemaInferrer {
      *
      * @param currentIdx the candidate the column has committed to so far
      * @param confirmed  whether any value has confirmed that candidate
+     * @param sawLongDoubleMerge per-column latch: true once a long/double merge has been reported for
+     *                   this column, so a confirmed-{@code DOUBLE} column seeing further long-shaped
+     *                   values (see below) does not re-report on every one of them
+     * @param row        1-based row number within the sample or window being walked, used only to
+     *                   label a reported {@link Widening}
+     * @param widenings  widenings worth reporting to the user (a move to {@code keyword}, or a
+     *                   {@code long}/{@code double} merge) are appended here
      */
     private static int narrowCandidate(
         int currentIdx,
@@ -303,7 +244,10 @@ public class CsvSchemaInferrer {
         String value,
         @Nullable DateFormatter datetimeFormatter,
         boolean[] sawUndecodableTemporal,
-        int col
+        boolean[] sawLongDoubleMerge,
+        int col,
+        int row,
+        List<Widening> widenings
     ) {
         int evidenceIdx = recognise(currentIdx, value, datetimeFormatter, sawUndecodableTemporal, col);
         if (confirmed == false) {
@@ -313,6 +257,17 @@ public class CsvSchemaInferrer {
             // The column's own type still fits, which is the common case for every settled column.
             // Returning here is what keeps the lattice a per-commitment cost rather than a per-value
             // one; join(t, t) is t, so this changes nothing but the work done to find that out.
+            //
+            // One case still needs a look even though nothing moves: recognise starts its walk at the
+            // accepted rung, so a confirmed DOUBLE column never re-walks the LONG rung below it — every
+            // numeric string parses as DOUBLE, so a long-shaped value (e.g. one past 2^53, where DOUBLE
+            // already silently loses precision) returns here having never been distinguished from a
+            // genuine decimal. That hides exactly the merge emitPrecisionLossWarnings reports cross-file:
+            // this column's unified type is DOUBLE and both LONG and DOUBLE shapes contributed to it.
+            if (sawLongDoubleMerge[col] == false && TYPE_CANDIDATES[currentIdx] == DataType.DOUBLE && canParseLong(value)) {
+                sawLongDoubleMerge[col] = true;
+                widenings.add(new Widening(col, DataType.LONG, DataType.DOUBLE, value, row));
+            }
             return currentIdx;
         }
         DataType accepted = TYPE_CANDIDATES[currentIdx];
@@ -322,7 +277,22 @@ public class CsvSchemaInferrer {
         // exhaustively — so the answer is either the evidence or the top, and there is no rung to
         // search for. It cannot be the accepted type: the identity case returned above, and
         // recognition starts at the accepted rung, so any evidence that gets here is strictly wider.
-        return committed == evidence ? evidenceIdx : TYPE_CANDIDATES.length - 1;
+        int newIdx = committed == evidence ? evidenceIdx : TYPE_CANDIDATES.length - 1;
+        // Gated exactly like the cross-file emitters (emitKeywordFallbackWarnings / emitPrecisionLossWarnings):
+        // report a widen to KEYWORD, or a long/double merge, and stay silent on a lossless promotion such as
+        // integer -> long. Only (accepted == LONG && evidence == DOUBLE) is reachable here: recognise never
+        // walks backward from the accepted rung, and DOUBLE sits after LONG in TYPE_CANDIDATES, so evidence
+        // can never resolve to LONG once accepted is DOUBLE — that case is instead the one the branch above
+        // this one catches (evidenceIdx == currentIdx, DOUBLE already accepting a long-shaped value).
+        boolean isLongDoubleMerge = accepted == DataType.LONG && evidence == DataType.DOUBLE;
+        DataType newType = TYPE_CANDIDATES[newIdx];
+        if (newType == DataType.KEYWORD || isLongDoubleMerge) {
+            widenings.add(new Widening(col, accepted, newType, value, row));
+            if (isLongDoubleMerge) {
+                sawLongDoubleMerge[col] = true;
+            }
+        }
+        return newIdx;
     }
 
     /**

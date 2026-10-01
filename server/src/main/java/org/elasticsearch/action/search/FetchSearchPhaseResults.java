@@ -50,7 +50,7 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
         final long bytes;
         if (result.isChargedOnCoordinator()) {
             // The chunked path already charged these hits, so take that charge over instead of estimating again.
-            bytes = result.transferCoordinatorCharge(circuitBreaker);
+            bytes = result.transferCoordinatorCharge();
         } else {
             long estimated = 0L;
             for (SearchHit hit : result.hits().getHits()) {

@@ -36,13 +36,11 @@ import java.util.TreeMap;
  * invalidation path from the registry to the caches: nothing has to notice a change and tell anyone about it,
  * because the address moved.
  * <p>
- * <b>Addressing is not the same as the write path honouring it.</b> Statistics enrichment finds the entries to
- * fill by sweeping the schema cache with {@code ExternalSourceCacheService.matchesContribution}, which compares
- * a path, an mtime and a format-config fingerprint and looks at neither this version nor the storage identity.
- * Two entries that this version separates are therefore still enriched by one another's harvest when they share
- * those three, which two stores serving one bucket and key written in the same second do. That is older than
- * this class and is not closed by it; a reader must not take a version in the key to mean a harvest cannot
- * cross it.
+ * <b>Addressing is not the same as attribution.</b> A statistics contribution says which path, at which mtime,
+ * under which format config, and never which store or which definition — so a harvest cannot be attributed to one
+ * of two entries that agree on those three, which two stores serving one bucket and key written in the same second
+ * do. {@code ExternalSourceCacheService.collectMatchingEntries} therefore enriches none of them rather than
+ * guessing. A version in the key keeps entries apart; it does not let the write path tell them apart.
  * <p>
  * Deliberately coarse. An edit that could not have changed what is cached still changes the version,
  * and the cost is one cold read. Deciding per field which edits matter would have to be re-decided

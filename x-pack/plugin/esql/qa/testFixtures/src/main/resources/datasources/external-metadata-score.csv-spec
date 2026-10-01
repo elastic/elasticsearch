@@ -188,21 +188,16 @@ required_capability: external_source_score_fix
 required_capability: runtime_score_fix
 dataset: books_ds: "{{books}}"
 
+// in pipe order the _score filter runs before the match, so it sees the 0.0 baseline and keeps every match
 FROM books_ds METADATA _score
 | EVAL content = to_text(concat(title, " ", description))
-| WHERE _score > 1.5
+| WHERE _score < 0.5
 | WHERE match(content, "Tolkien Rings")
-| SORT book_no
-| KEEP book_no, _score
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
 ;
 
-book_no:keyword | _score:double
-1463            | 2.0
-2714            | 2.0
-4023            | 2.0
-5335            | 2.0
-7140            | 2.0
-7350            | 2.0
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
 ;
 
 matchOrMatchPhraseOnExternalRuntimeTextThenScoreFilter

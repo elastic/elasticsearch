@@ -9,9 +9,11 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -24,7 +26,7 @@ import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.RemoteClusterSettings;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -62,27 +64,44 @@ public final class InternalSettingsPlugin extends Plugin {
         Property.IndexScope
     );
 
+    private final boolean stateless;
+
+    public InternalSettingsPlugin(Settings settings) {
+        this.stateless = DiscoveryNode.isStateless(settings);
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            MERGE_ENABLED,
-            USE_COMPOUND_FILE,
-            INDEX_CREATION_DATE_SETTING,
-            PROVIDED_NAME_SETTING,
-            TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
-            RemoteClusterSettings.REMOTE_MAX_PENDING_CONNECTION_LISTENERS,
-            IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
-            IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
-            IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
-            IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
-            FsService.ALWAYS_REFRESH_SETTING,
-            PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-            ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
-            RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
-            RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
-            RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
-            RecoveryGateMonitor.RECHECK_INTERVAL_SETTING
+        final List<Setting<?>> settings = new ArrayList<>(
+            List.of(
+                MERGE_ENABLED,
+                USE_COMPOUND_FILE,
+                INDEX_CREATION_DATE_SETTING,
+                PROVIDED_NAME_SETTING,
+                TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
+                RemoteClusterSettings.REMOTE_MAX_PENDING_CONNECTION_LISTENERS,
+                IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
+                IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
+                IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
+                IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
+                FsService.ALWAYS_REFRESH_SETTING
+            )
         );
+        // The stateless plugin registers these itself, and a setting cannot be registered twice.
+        if (stateless == false) {
+            settings.addAll(
+                List.of(
+                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                    ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                    ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+                    ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
+                    RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
+                    RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
+                    RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
+                    RecoveryGateMonitor.RECHECK_INTERVAL_SETTING
+                )
+            );
+        }
+        return settings;
     }
 }

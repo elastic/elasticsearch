@@ -84,17 +84,15 @@ teardown:
   - match: { values.1: [ null, "b1", "from_source" ] }
 
 ---
-'LOAD_ALL rejects a sub-query union whose conversion resolves on a later analyzer pass':
+'LOAD_ALL runs a sub-query union whose conversion resolves on a later analyzer pass':
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ subquery_in_from_command_conversion_resolved_on_later_pass ]
+          capabilities: [ subquery_in_from_command_conversion_resolved_on_later_pass, optional_fields_load_all_subqueries ]
       reason: "analysis of a conversion over a sub-query union that resolves on a later pass terminates"
-  # The unmapped does_not_exist delays the EVAL's resolution by one analyzer pass, so its TO_STRING(ip) is pushed
-  # into the union after the WHERE's equal conversion. Analysis must terminate so the LOAD_ALL command allow-list
-  # can reject the union.
+  # does_not_exist delays the EVAL by one analyzer pass. The union is allowed, so the query has to finish.
   - do:
       indices.create:
         index: la_sub_ip
@@ -110,9 +108,13 @@ teardown:
           - { "index": { "_index": "la_sub_ip", "_id": "1" } }
           - { "ip": "172.21.3.15" }
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_sub_ip), (FROM la_sub_ip) | WHERE TO_STRING(ip) == "172.21.3.15" OR does_not_exist IS NOT NULL | EVAL x = TO_STRING(ip) | LIMIT 10'
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "[UnionAll] is not supported yet" }
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_sub_ip), (FROM la_sub_ip) | WHERE TO_STRING(ip) == "172.21.3.15" OR does_not_exist IS NOT NULL | EVAL x = TO_STRING(ip) | KEEP ip, x | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: ip }
+  - match: { columns.0.type: ip }
+  - match: { columns.1.name: x }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "172.21.3.15", "172.21.3.15" ] }
+  - match: { values.1: [ "172.21.3.15", "172.21.3.15" ] }

@@ -125,6 +125,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * @param moveDecision the {@link AllocationDecision} for moving the shard to another node
      * @param targetNode the node where the shard should move to
      * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
+     * @param canAllocateDecision the canAllocate decision for the target node, only set when {@code targetNode} is set
      * @return the {@link MoveDecision} for moving the shard to another node
      */
     public static MoveDecision move(

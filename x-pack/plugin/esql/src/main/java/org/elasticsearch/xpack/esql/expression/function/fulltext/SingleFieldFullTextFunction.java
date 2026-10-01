@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -189,20 +190,20 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     /**
      * Builds the runtime-search evaluator for a {@code text} field: the query string is analyzed once into its
-     * terms, and each row's value is then analyzed and matched by the {@link RuntimeSearch.TokenStreamMatcher} the
+     * terms, and each row's value is then analyzed and matched by the {@link TokenStreamMatching.Matcher} the
      * given function builds from those terms. How the terms must match (any term, consecutive phrase, ...) is the
      * only thing that differs between the full-text functions supporting runtime search.
      */
     protected ExpressionEvaluator.Factory runtimeTextEvaluator(
         ToEvaluator toEvaluator,
-        Function<List<BytesRef>, RuntimeSearch.TokenStreamMatcher> matcherBuilder
+        Function<List<BytesRef>, TokenStreamMatching.Matcher> matcherBuilder
     ) {
         // Without options there is no query-side override, so the values analyzer covers both sides — the query
         // analyzer defaults to the values analyzer like search_analyzer does on an indexed field.
         Analyzer analyzer = resolveValuesAnalyzer(toEvaluator);
         List<BytesRef> queryTerms;
         try {
-            queryTerms = RuntimeSearch.analyzeTerms(analyzer, queryAsObject().toString());
+            queryTerms = TokenStreamMatching.analyzeTerms(analyzer, RuntimeSearch.CONTENT_FIELD, queryAsObject().toString());
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
         }

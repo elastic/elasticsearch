@@ -118,7 +118,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // divided, never which rows the file has or what they hold.
         inert.addAll(FileSplitProvider.CONFIG_KEYS);
         // A deprecated no-op: PartitionConfig.CONFIG_KEYS documents that fromConfig does not read it, and
-        // SchemaCacheKeyTests pins that two configs differing only in it address one entry.
+        // FileSourceFactoryValidationTests pins that two configs differing only in it address one entry.
         inert.add(PartitionConfig.CONFIG_PARTITIONING_HIVE);
         // Bounds how much of a listing schema discovery samples. Nothing cached is derived under it: the
         // resolver only caches a listing it expanded without a bound.

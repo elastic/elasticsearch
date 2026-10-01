@@ -84,6 +84,10 @@ public final class DefinitionVersion {
      * The version for {@code dataset} read under {@code parent}. Both are folded in, because a dataset
      * inherits its data source's settings: rotating a credential on the source changes what every
      * dataset over it reads, and must change their versions too.
+     * <p>
+     * Murmur3-128, following {@code ReadConfigFingerprint}, and like it this guards accidental collision rather
+     * than an adversary. The pre-image is written by whoever may register a dataset or a data source, which is a
+     * privileged operation; a reader who could choose it could also read what it addresses.
      */
     public static String of(Dataset dataset, DataSource parent) {
         StringBuilder encoded = new StringBuilder();

@@ -34,8 +34,8 @@ public record SchemaCacheKey(
 ) {
     /**
      * The version of the stored definitions this query reads under, as a named component rather than
-     * a format setting: it is not an option a reader parses, and it must not be filtered by the
-     * format-affecting allow-list that decides which settings change how bytes become rows.
+     * a format setting: it is not an option a reader parses, so it has no place among the settings a
+     * participant reports as its own identity.
      * <p>
      * Absent for a query that reaches the cache without a registered dataset behind it, where there is
      * no definition to version. Such entries share one version value and are addressed as they were

@@ -179,7 +179,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
         }
 
-        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME), command.stepId());
+        // The step list and its expansion are this relation's own columns: the command's step attribute is defined once, by
+        // the final projection, so no filter above can fold the whole list in where a single step is meant.
+        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME));
         var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
 
         return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);

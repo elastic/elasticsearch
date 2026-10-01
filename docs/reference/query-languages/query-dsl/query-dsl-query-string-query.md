@@ -245,9 +245,9 @@ Allowing a wildcard at the beginning of a word (eg `"*ing"`) is particularly hea
 ::::
 
 
-By default, wildcard terms are only normalized; character-level transformations such as lowercasing apply, but not stemming. Stemming is skipped because the wildcard may be completing a partial word, and stemming an incomplete form would produce incorrect results.
+By default, wildcard terms are only normalized. Character-level transformations such as lowercasing apply, but not stemming. Stemming is skipped because the wildcard could be completing a partial word, and stemming an incomplete form would produce incorrect results.
 
-By setting `analyze_wildcard` to true, query terms that end with a `*` are fully analyzed using the field's search analyzer, including stemming. For example, `running*` with an English analyzer stems `running` to `run` before applying the wildcard, producing a prefix query for `run*`. This matches documents containing words like "running" or "runs", which the English analyzer indexes as "run". If analysis produces multiple tokens, a boolean query is built with exact matches on all but the last token and a prefix match on the last. Wildcard terms that do not end with `*`, such as `*running` or `run*ning`, are only normalized even when `analyze_wildcard` is true, as there is no complete leading term to analyze meaningfully.
+By setting `analyze_wildcard` to true, query terms that end with a `*` are fully analyzed using the field's search analyzer, including stemming. For example, `running*` with an English analyzer stems `running` to `run` before applying the wildcard, producing a prefix query for `run*`. This matches documents containing words like `running` or `runs`, which the English analyzer indexes as `run`. If analysis produces multiple tokens, a boolean query is built with exact matches on all but the last token and a prefix match on the last. Wildcard terms that do not end with `*`, such as `*running` or `run*ning`, are only normalized even when `analyze_wildcard` is true, as there is no complete leading term to analyze meaningfully.
 
 
 #### Regular expressions [_regular_expressions]

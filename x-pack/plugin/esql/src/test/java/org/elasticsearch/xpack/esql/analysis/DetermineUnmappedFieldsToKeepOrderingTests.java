@@ -209,6 +209,14 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
             """, "language_code", "unmapped.nested", "unmapped_event_duration", "unmapped_message");
     }
 
+    public void testMarkJoinOrderingOmitsSyntheticMark() {
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                OR message == "nope"
+            """, "language_code", "unmapped.nested", "unmapped_event_duration");
+    }
+
     public void testPartialMappingSubqueryKeepWildcardAfterSortOrderingMatchesOptimizedOutput() {
         assertOrderingMatchesPlanOutput(partialMappingTest(), """
             FROM (FROM partial_mapping_sample_data | WHERE message == "42"),

@@ -107,7 +107,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
         if (carriesUnmappedFieldsAttribute(result)) {
-            registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(result, leaves).output());
+            // UnionTypesCleanup drops synthetic columns (the IN mark) after this snapshot. The replay has to drop them
+            // too, or expansion asserts that the replay is longer than the executed schema.
+            registerUnmappedFieldsOrdering.accept(
+                leaves -> dropSyntheticAttributes(withLeavesInPlaceOfSyntheticColumn(result, leaves).output())
+            );
         }
         return result;
     }
@@ -152,6 +156,17 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             }
         }
         return replaced ? union.replaceSubPlansAndOutput(union.children(), newOutput) : union;
+    }
+
+    /** Same keep-rule as {@code UnionTypesCleanup#planWithoutSyntheticAttributes}. */
+    private static List<Attribute> dropSyntheticAttributes(List<Attribute> output) {
+        List<Attribute> kept = new ArrayList<>(output.size());
+        for (Attribute attr : output) {
+            if (attr.synthetic() == false || attr == Analyzer.NO_FIELDS.getFirst()) {
+                kept.add(attr);
+            }
+        }
+        return kept.size() == output.size() ? output : kept;
     }
 
     private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {

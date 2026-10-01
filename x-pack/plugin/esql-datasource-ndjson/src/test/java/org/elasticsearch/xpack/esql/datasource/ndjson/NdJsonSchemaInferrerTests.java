@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -27,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
@@ -618,30 +619,67 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testChargesGrowWithColumnNameLength() throws IOException {
-        // Same column count and same input shape; only the names differ. The longer names must cost more.
-        long[] peak = new long[2];
-        String[] prefixes = { "c", "c".repeat(500) };
-        for (int i = 0; i < prefixes.length; i++) {
-            String prefix = prefixes[i];
-            StringBuilder sb = new StringBuilder("{");
-            for (int c = 0; c < 200; c++) {
-                sb.append(c == 0 ? "" : ",").append('"').append(prefix).append(c).append("\":1");
-            }
-            String record = sb.append("}\n").toString();
-            // Smallest limit that admits the record, found by doubling; names longer than the limit's slack must not fit.
-            long limit = 1_024;
-            while (true) {
-                try {
-                    infer(record, new LimitedBreaker("test", ByteSizeValue.ofBytes(limit)));
-                    break;
-                } catch (CircuitBreakingException e) {
-                    limit *= 2;
-                }
-            }
-            peak[i] = limit;
+    /** Records the most it held at once, so a test can read what an inference charged before releasing it. */
+    private static class PeakTrackingLimitedBreaker extends LimitedBreaker {
+        long peak;
+
+        PeakTrackingLimitedBreaker(ByteSizeValue max) {
+            super("test", max);
         }
-        assertThat(peak[1], greaterThan(peak[0]));
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            peak = Math.max(peak, getUsed());
+        }
+    }
+
+    /**
+     * Same column count and same leaf keys; only the one parent key differs, so the field-tree charge differs by a
+     * single node's name while every column's dotted name grows by 499 characters. The difference in what was held
+     * must therefore include the column-name charge, not just the one longer node name.
+     */
+    public void testChargesGrowWithColumnNameLength() throws IOException {
+        int columns = 200;
+        String[] parents = { "p", "p".repeat(500) };
+        long[] peak = new long[parents.length];
+        for (int i = 0; i < parents.length; i++) {
+            StringBuilder sb = new StringBuilder("{\"").append(parents[i]).append("\":{");
+            for (int c = 0; c < columns; c++) {
+                sb.append(c == 0 ? "" : ",").append("\"c").append(c).append("\":1");
+            }
+            PeakTrackingLimitedBreaker breaker = new PeakTrackingLimitedBreaker(ByteSizeValue.ofMb(16));
+            assertThat(infer(sb.append("}}\n").toString(), breaker).size(), equalTo(columns));
+            peak[i] = breaker.peak;
+        }
+        assertThat(peak[1] - peak[0], greaterThanOrEqualTo(columns * 499L * Character.BYTES));
+    }
+
+    /**
+     * A dotted key is split into one node per segment, which Jackson's nesting cap does not bound. A ~50 KB key of
+     * 25,000 segments must infer its one column without overflowing the stack, and every byte is released after.
+     */
+    public void testVeryDeepDottedKeyDoesNotOverflowTheStack() throws IOException {
+        String key = "a.".repeat(24_999) + "b";
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        List<Attribute> schema = infer("{\"" + key + "\":1}\n", breaker);
+        assertThat(schema.size(), equalTo(1));
+        assertThat(schema.get(0).name(), equalTo(key));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The dotted path is charged as it is spelled, including the prefixes of object nodes that are never columns, so a
+     * deep chain of objects with one leaf is held against the breaker for more than its single column name.
+     */
+    public void testObjectPathIsChargedWhileSpelled() throws IOException {
+        String key = "a.".repeat(2_000) + "b";
+        PeakTrackingLimitedBreaker breaker = new PeakTrackingLimitedBreaker(ByteSizeValue.ofMb(64));
+        infer("{\"" + key + "\":1}\n", breaker);
+        long nodes = 2_001L + 1; // one per segment, plus the root
+        long treeAndColumn = nodes * NdJsonSchemaInferrer.FIELD_INFO_BYTES + 2_000 * HeapEstimates.stringBytes("a") + HeapEstimates
+            .stringBytes("b") + HeapEstimates.stringBytes((String) null) + HeapEstimates.columnBytes(key.length());
+        assertThat(breaker.peak - treeAndColumn, equalTo((long) key.length() * Character.BYTES));
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {

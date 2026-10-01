@@ -39,7 +39,15 @@ public final class HeapEstimates {
      * @param nameLength {@code String#length()} of the column name
      */
     public static long columnBytes(int nameLength) {
-        return COLUMN_SHELL_BYTES + 40 + nameLength * (long) Character.BYTES;
+        return COLUMN_SHELL_BYTES + stringBytes(nameLength);
+    }
+
+    /**
+     * Heap one schema column keeps reachable when its name {@code String} is owned elsewhere, such as by a schema
+     * cache entry that is weighed against the cache budget: the attribute shell only.
+     */
+    public static long columnShellBytes() {
+        return COLUMN_SHELL_BYTES;
     }
 
     /**
@@ -49,7 +57,15 @@ public final class HeapEstimates {
      * cache outgrow its budget.
      */
     public static long stringBytes(@Nullable String s) {
-        return 40 + (s != null ? s.length() * (long) Character.BYTES : 0);
+        return stringBytes(s != null ? s.length() : 0);
+    }
+
+    /**
+     * {@link #stringBytes(String)} for a string of {@code length} characters that has not been built yet, so a charge
+     * can precede the allocation it covers.
+     */
+    public static long stringBytes(int length) {
+        return 40 + length * (long) Character.BYTES;
     }
 
     /**

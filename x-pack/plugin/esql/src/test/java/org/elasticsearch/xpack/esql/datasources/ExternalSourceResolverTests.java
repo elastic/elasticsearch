@@ -6097,7 +6097,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         Map<String, List<StorageEntry>> listings = Map.of("s3://bucket/data/", List.of(entry(file1, 100), entry(file2, 200)));
         Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
-        long oneList = SchemaInterner.privateListBytes(List.of(attr("id", DataType.INTEGER)));
+        long oneList = SchemaInterner.privateListBytes(List.of(attr("id", DataType.INTEGER)), false);
         long bothLists = oneList * 2;
 
         CircuitBreaker wide = requestBreaker("1gb");
@@ -6377,7 +6377,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(3, held.size());
         // Every fixture path has the same length, so the shell and location weigh the same for each file.
         long perFileFloor = 64L + HeapEstimates.stringBytes(fixture.paths().get(0)) + SchemaInterner.privateListBytes(
-            fixture.schemas().get(fixture.paths().get(0))
+            fixture.schemas().get(fixture.paths().get(0)),
+            false
         );
         long previous = 0L;
         for (long total : held) {

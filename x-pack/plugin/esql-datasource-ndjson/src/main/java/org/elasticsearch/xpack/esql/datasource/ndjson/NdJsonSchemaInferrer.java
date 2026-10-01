@@ -28,9 +28,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Deque;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +78,7 @@ public class NdJsonSchemaInferrer {
      * Allowance for one {@link FieldInfo}: the object, its {@link EnumSet}, and its slot in {@link #fields} and in the
      * parent's children map. The field name is charged on top. Not a measured deep size.
      */
-    private static final long FIELD_INFO_BYTES = 256L;
+    static final long FIELD_INFO_BYTES = 256L;
 
     /** Label the inference charges are made under, so a trip names the work that was refused. */
     static final String BREAKER_LABEL = "ndjson_schema_inference";
@@ -94,7 +97,9 @@ public class NdJsonSchemaInferrer {
      * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      * <p>
      * The field tree and the column list built from it are charged to {@code breaker} while they exist, and released
-     * before returning: the caller owns the returned attributes and accounts for them itself. A flattened nested field
+     * before returning, so the breaker bounds a schema while it is built. The returned attributes belong to the caller,
+     * and whether they stay charged after that is the caller's choice: the multi-file gather and the schema interner
+     * charge what they keep, while a single-file resolve and a data-node read keep it uncharged. A flattened nested field
      * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
      * produced it. A {@link org.elasticsearch.common.breaker.CircuitBreakingException} leaves this method unchanged and
      * stops inference. It is not a malformed line, so it must never be caught as one.
@@ -172,7 +177,7 @@ public class NdJsonSchemaInferrer {
 
         // Convert FieldInfo map to Attribute list
         List<Attribute> attributes = new ArrayList<>();
-        buildSchema(root, null, attributes);
+        buildSchema(root, attributes);
         return attributes;
     }
 
@@ -248,38 +253,58 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
-     * Build the list of Attribute by recursively traversing the FieldInfo tree. Each column is charged before its
-     * dotted name is built, from the lengths alone, so a refusal never follows the allocation it was meant to prevent.
+     * Build the list of Attribute by walking the FieldInfo tree depth first. A dotted key is split into one node per
+     * segment, which the parser's nesting cap does not bound, so the walk keeps its own stack rather than recursing and
+     * spells the dotted path in one shared buffer rather than building a string per ancestor. Only a column's own name
+     * is materialized, and it is charged from its length before it is built, so a refusal never follows the allocation
+     * it was meant to prevent. Each stack frame is covered by its node's {@link #FIELD_INFO_BYTES}.
      */
-    private void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
-        if (field.children == null) {
-            // No children were ever observed. Happens for the root when every sampled line was
-            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
-            // leaf fields during recursion. Nothing to contribute to the schema either way.
+    private void buildSchema(FieldInfo root, List<Attribute> attributes) {
+        if (root.children == null) {
+            // No children were ever observed. Happens when every sampled line was malformed (so
+            // {@link FieldInfo#getChild} was never called). Nothing to contribute to the schema.
             return;
         }
-        for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
-            var name = entry.getKey();
-            var info = entry.getValue();
-            int nameLength = parentName == null ? name.length() : parentName.length() + 1 + name.length();
+        StringBuilder path = new StringBuilder();
+        int chargedPathLength = 0;
+        Deque<SchemaFrame> stack = new ArrayDeque<>();
+        stack.push(new SchemaFrame(root.children.entrySet().iterator(), 0));
+        while (stack.isEmpty() == false) {
+            SchemaFrame frame = stack.peek();
+            if (frame.children().hasNext() == false) {
+                stack.pop();
+                continue;
+            }
+            Map.Entry<String, FieldInfo> entry = frame.children().next();
+            String name = entry.getKey();
+            FieldInfo info = entry.getValue();
+            int pathLength = frame.pathLength() == 0 ? name.length() : frame.pathLength() + 1 + name.length();
+            if (pathLength > chargedPathLength) {
+                // Two bytes per character also covers the builder's doubling growth for Latin-1 names.
+                charge((pathLength - chargedPathLength) * (long) Character.BYTES);
+                chargedPathLength = pathLength;
+            }
+            path.setLength(frame.pathLength());
+            if (frame.pathLength() > 0) {
+                path.append('.');
+            }
+            path.append(name);
+
             DataType dataType = info.resolveType();
             if (dataType != DataType.UNSUPPORTED) {
-                charge(HeapEstimates.columnBytes(nameLength));
-            }
-            if (parentName != null) {
-                name = parentName + "." + name;
-            }
-
-            if (dataType != DataType.UNSUPPORTED) {
                 // Unsupported is used for nested object properties
-                attributes.add(attribute(name, dataType, info.nullable));
+                charge(HeapEstimates.columnBytes(pathLength));
+                attributes.add(attribute(path.toString(), dataType, info.nullable));
             }
 
             if (info.children != null) {
-                buildSchema(info, name, attributes);
+                stack.push(new SchemaFrame(info.children.entrySet().iterator(), pathLength));
             }
         }
     }
+
+    /** One level of {@link #buildSchema}'s walk: the children still to visit and the length of their parent's path. */
+    private record SchemaFrame(Iterator<Map.Entry<String, FieldInfo>> children, int pathLength) {}
 
     public static Attribute attribute(String name, DataType type, boolean nullable) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);

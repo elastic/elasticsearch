@@ -518,6 +518,11 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    public long estimatedBytesForPartitioning() {
+        return estimatedKeyBytes(bytesRefHash.getBytesRefs());
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
     }

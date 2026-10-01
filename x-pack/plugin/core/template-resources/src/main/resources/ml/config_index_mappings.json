@@ -431,7 +431,7 @@
         "type" : "keyword"
       },
       "max_consecutive_extraction_failures" : {
-        "type" : "long"
+        "type" : "keyword"
       },
       "max_num_threads" : {
         "type" : "integer"

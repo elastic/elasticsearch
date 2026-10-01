@@ -422,6 +422,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
             }
             if (ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings)) {
+                if (docValuesParameters().multiValue() == false) {
+                    // Single-valued: guaranteed at most one non-null value per document, so no count is needed
+                    // and the payload overhead can be skipped entirely — write the raw bytes directly.
+                    return KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_SINGLE_VALUE;
+                }
                 // The codec cannot reach a companion field at flush, so the payload carries its own slot count;
                 // see ColumnarBinaryDocValuesField.
                 return KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
@@ -825,7 +830,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             /** A {@link MultiValuedBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#ARRAY_ORDER_INLINE_NULL}. */
             BINARY_ARRAY_ORDER_INLINE_NULL(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL),
             /** A {@link ColumnarBinaryDocValuesField} framed as {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}. */
-            BINARY_COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
+            BINARY_COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            /**
+             * A single-valued plain UTF-8 field in the ColumNAR codec, framed as {@link BinaryDocValuesFormat#PLAIN}.
+             * Requires {@code multi_value: false}; the blob is the value's raw bytes with no count or framing prefix.
+             */
+            BINARY_COLUMNAR_SINGLE_VALUE(BinaryDocValuesFormat.PLAIN);
 
             @Nullable
             private final BinaryDocValuesFormat binaryFormat;
@@ -1112,8 +1122,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
                     if (usesBinaryDocValues()) {
-                        // A columnar field carries its count in the blob even when single-valued, so it never takes
-                        // the bare-value reader.
+                        // Single-valued fields (BINARY_COLUMNAR_SINGLE_VALUE and non-columnar with multi_value:false)
+                        // store raw bytes — no count prefix — so the bare-value reader is correct.
+                        // BINARY_COLUMNAR_PAYLOAD carries its count in the blob and uses the multi-valued reader.
                         if (diskFormat != DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
                             && docValuesParams != null
                             && docValuesParams.multiValue() == false) {
@@ -1633,9 +1644,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     public StringColumnOptions columnarStringOptions() {
         // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
         // a bounded dictionary covers much of the column.
-        return fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
-            ? StringColumnOptions.DEFAULT
-            : null;
+        return switch (fieldType().diskFormat()) {
+            case BINARY_COLUMNAR_PAYLOAD, BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT;
+            case NONE, SORTED_SET, BINARY_SEPARATE_COUNT, BINARY_ARRAY_ORDER_INLINE_NULL -> null;
+        };
     }
 
     @Override
@@ -1976,14 +1988,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        // A columnar field's doc values are a payload even when the document holds a single value, so they are the one
-        // output here that is not the value's own bytes and cannot share the terms column's serialization; they get a
-        // column of their own. See ColumnarBinaryDocValuesField for why the count travels in the blob.
-        final boolean columnar = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
+        // A BINARY_COLUMNAR_PAYLOAD field's doc values are a payload even when the document holds a single
+        // value, so they are the one output here that is not the value's own bytes and cannot share the terms
+        // column's serialization; they get a column of their own. BINARY_COLUMNAR_SINGLE_VALUE writes raw
+        // bytes, which are the same bytes as the terms column, so it shares emitSharedColumn below.
+        final boolean columnarPayload = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
+        final boolean columnarSingleValue = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_SINGLE_VALUE;
         // SORTED_SET doc values share the fieldType column with terms (the frozen fieldType carries both features).
         final boolean sortedSetDvs = emitDvs && fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
         final boolean multiValue = docValuesParameters().multiValue();
-        final boolean emitSharedColumn = emitTerms || (emitDvs && columnar == false);
+        final boolean emitSharedColumn = emitTerms || (emitDvs && columnarPayload == false);
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
         // `values` is created lazily when the zero-copy plan is abandoned mid-loop, so it cannot sit in the
@@ -1992,7 +2006,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn
                 ? pending.add(mergeStringColumn())
                 : null;
-            final EscfColumnBuilder payloadDvs = emitDvs && columnar ? pending.add(mergeStringColumn()) : null;
+            final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn()) : null;
             final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
             final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
             // multi_value=true fallback needs a counts sidecar matching SeparateCount format.
@@ -2094,8 +2108,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     if (emitTerms || sortedSetDvs) {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
                     }
-                    if (emitDvs && columnar == false && sortedSetDvs == false) {
-                        ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                    if (emitDvs && columnarPayload == false && sortedSetDvs == false) {
+                        ctx.addColumn(
+                            LuceneBinaryColumn.of(
+                                data,
+                                fieldType().name(),
+                                columnarSingleValue ? SingleValuedColumnarBinaryDocValuesField.TYPE : BinaryDocValuesField.TYPE
+                            )
+                        );
                     }
                 }
                 // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
@@ -2159,7 +2179,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         context.doc(),
                         fieldType().name()
                     );
-                    case NONE, SORTED_SET, BINARY_SEPARATE_COUNT -> throw new IllegalStateException(
+                    case NONE, SORTED_SET, BINARY_SEPARATE_COUNT, BINARY_COLUMNAR_SINGLE_VALUE -> throw new IllegalStateException(
                         "field [" + fieldType().name() + "] keeps array order inline but has no layout that can record a null slot"
                     );
                 }
@@ -2286,6 +2306,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     binaryValue,
                     MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
+                case BINARY_COLUMNAR_SINGLE_VALUE ->
+                    // Single-valued columnar field: raw bytes, no payload framing. The FieldType attribute
+                    // flows into FieldInfo so the codec producer returns the value directly.
+                    context.doc().add(new SingleValuedColumnarBinaryDocValuesField(fieldType().name(), binaryValue));
                 case NONE, SORTED_SET -> throw new AssertionError(
                     "field [" + fieldType().name() + "] uses binary doc values but resolved to layout [" + fieldType().diskFormat() + "]"
                 );
@@ -2442,7 +2466,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 layers.add(switch (fieldType().diskFormat()) {
                     case BINARY_COLUMNAR_PAYLOAD -> new ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name());
                     case BINARY_ARRAY_ORDER_INLINE_NULL -> new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name());
-                    case BINARY_SEPARATE_COUNT -> new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), indexCreatedVersion);
+                    // BINARY_COLUMNAR_SINGLE_VALUE writes raw bytes just like BINARY_SEPARATE_COUNT on a single-valued field.
+                    case BINARY_SEPARATE_COUNT, BINARY_COLUMNAR_SINGLE_VALUE -> new BinaryDocValuesSyntheticFieldLoaderLayer(
+                        fieldType().name(),
+                        indexCreatedVersion
+                    );
                     case NONE, SORTED_SET -> throw new AssertionError(
                         "field ["
                             + fieldType().name()

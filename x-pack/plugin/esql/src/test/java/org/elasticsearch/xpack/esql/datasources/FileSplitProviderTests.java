@@ -2000,6 +2000,72 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(left.get(FileMetadataColumns.MODIFIED));
     }
 
+    /** A hive-only retain set has an empty overlay, so siblings in one directory are the same map. */
+    public void testHiveOnlyRetainSetSharesDirectoryTuple() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/b.parquet"), 20, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/month=01/*.parquet");
+        List<ExternalSplit> splits = provider.discoverSplits(retainedContext(fileList, meta, Set.of("year", "month"), List.of())).splits();
+
+        assertEquals(2, splits.size());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertSame(left, right);
+        assertEquals(Map.of("year", 2024, "month", 1), left);
+        expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
+    }
+
+    /** Each parent directory publishes one tuple. Files in that directory share it; the other directory does not. */
+    public void testTwoDirectoriesPublishTwoSharedTuples() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/b.parquet"), 20, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=02/c.parquet"), 30, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=02/d.parquet"), 40, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/month=*/*.parquet");
+        List<ExternalSplit> splits = provider.discoverSplits(retainedContext(fileList, meta, Set.of("year", "month"), List.of())).splits();
+
+        assertEquals(4, splits.size());
+        Map<String, Object> january = ((FileSplit) splits.get(0)).partitionValues();
+        assertSame(january, ((FileSplit) splits.get(1)).partitionValues());
+        Map<String, Object> february = ((FileSplit) splits.get(2)).partitionValues();
+        assertSame(february, ((FileSplit) splits.get(3)).partitionValues());
+        assertNotSame(january, february);
+        assertEquals(1, january.get("month"));
+        assertEquals(2, february.get("month"));
+    }
+
+    /** Hive values stay on the shared tuple. {@code _file.name} is an overlay, so the maps differ but compare equal to one flat map. */
+    public void testHivePlusFileNameUsesOverlay() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/b.parquet"), 20, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/*.parquet");
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        List<ExternalSplit> splits = provider.discoverSplits(
+            retainedContext(fileList, meta, Set.of("year", FileMetadataColumns.NAME), List.of())
+        ).splits();
+
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertNotSame(left, right);
+        assertSame(left.get("year"), right.get("year"));
+        assertEquals(2024, left.get("year"));
+        assertEquals(new BytesRef("a.parquet"), left.get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef("b.parquet"), right.get(FileMetadataColumns.NAME));
+        assertEquals(Map.of("year", 2024, FileMetadataColumns.NAME, new BytesRef("a.parquet")), left);
+        assertEquals(List.of("year", FileMetadataColumns.NAME), new ArrayList<>(left.keySet()));
+        expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
+    }
+
     /**
      * A directory-grouped listing stores one partition row per directory and maps files to it by position.
      * Every split must still carry its own directory's values on the filter path, the unfiltered path and

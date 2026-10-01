@@ -79,8 +79,31 @@ public class AssignmentPlanTests extends ESTestCase {
         // Cap by maxAllocations.
         assertThat(m.findOptimalAllocations(1, available), equalTo(1));
 
-        // Less than the minimum means 0.
+        // Below the minimum means 0. Note that in this linear-dominated case the zero comes from the division itself
+        // (floor((1799 MB - 1 - 300 MB) / 500 MB) = 0), not from the minimum-memory guard. See
+        // testFindOptimalAllocations_MinimumMemoryGuard_WhenBaseSizeDominates for a case that isolates the guard.
         assertThat(m.findOptimalAllocations(10, m.minimumMemoryRequiredBytes() - 1), equalTo(0));
+    }
+
+    public void testFindOptimalAllocations_MinimumMemoryGuard_WhenBaseSizeDominates() {
+        long perDeployment = ByteSizeValue.ofMb(10).getBytes();
+        long perAllocation = ByteSizeValue.ofMb(50).getBytes();
+        long modelBytes = ByteSizeValue.ofMb(100).getBytes();
+        // baseSize (MEMORY_OVERHEAD + 2 * modelBytes = 240 + 200 = 440 MB) dominates the linear estimate
+        // (perDeployment + perAllocation + modelBytes = 160 MB at one allocation), so the minimum memory required to
+        // run a single allocation is the 440 MB base size, not the linear figure.
+        Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", modelBytes, 10, 1, Map.of(), 0, null, perDeployment, perAllocation);
+        assertThat(m.minimumMemoryRequiredBytes(), equalTo(ByteSizeValue.ofMb(440).getBytes()));
+
+        // One byte below the base-size minimum: the guard must refuse all allocations. This is precisely the case the
+        // guard exists for - without it, the linear division alone would wrongly admit allocations here, since the
+        // fixed cost it subtracts (perDeployment + modelBytes = 110 MB) omits MEMORY_OVERHEAD:
+        // floor((440 MB - 1 - 110 MB) / 50 MB) = floor(329.99.. MB / 50 MB) = 6.
+        assertThat(m.findOptimalAllocations(10, m.minimumMemoryRequiredBytes() - 1), equalTo(0));
+
+        // Exactly at the minimum, a single allocation is affordable, so the guard admits it and the division governs
+        // the count from there.
+        assertThat(m.findOptimalAllocations(10, m.minimumMemoryRequiredBytes()), greaterThan(0));
     }
 
     public void testFindAllocations_NoMemoryBound_WhenPerAllocationMemoryIsZero() {

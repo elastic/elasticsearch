@@ -145,9 +145,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                     return 0;
                 }
                 // Subtract the fixed per-deployment overhead (present once any allocations are running) before
-                // dividing by the per-allocation cost. estimateMemoryUsageBytes(0) is always 0 because a deployment
-                // with zero allocations uses no memory, so use perDeploymentMemoryBytes + memoryBytes directly
-                // (the model definition must stay in memory for the lifetime of the deployment).
+                // dividing by the per-allocation cost. This mirrors the fixed terms of the linear branch of
+                // estimateMemoryUsageBytes: perDeploymentMemoryBytes plus memoryBytes. The latter is the model
+                // definition size, reserved as transient startup headroom to hold the model zip in memory while
+                // pytorch_inference loads it (see estimateMemoryUsageBytes) rather than retained for the deployment's
+                // lifetime; either way it is paid once, independently of the allocation count. estimateMemoryUsageBytes(0)
+                // is always 0, so we use these terms directly rather than calling it.
                 long fixedCostBytes = perDeploymentMemoryBytes + memoryBytes;
                 return (int) Math.max(
                     Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - fixedCostBytes, perAllocationMemoryBytes)),

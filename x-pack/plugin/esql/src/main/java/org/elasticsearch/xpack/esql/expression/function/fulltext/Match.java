@@ -208,6 +208,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             Unlike indexed fields, expressions are not scored with BM25, as there are no index statistics
             for an expression. In earlier versions, `MATCH` on an expression does not contribute to the
             score.
+            A filter on `_score` only sees that contribution when the `MATCH` appears earlier in the query,
+            or in the same `WHERE` combined with `AND`. A `_score` filter before the `MATCH` sees the score
+            from before it, which is 0.0 if no earlier search has contributed to it. Combining `_score` with
+            a `MATCH` on an expression using `OR` or `NOT` fails with an error, because the `_score` side
+            would see the score from before the search.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

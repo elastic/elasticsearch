@@ -309,6 +309,19 @@ a row scores the `boost` option (1.0 by default) for each query term occurrence 
 statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
 to the score.
 
+Queries that filter on `_score` (`| WHERE _score ...`) only see scores from searches on expressions
+that appear earlier in the query, or in the same `WHERE` combined with `AND`. A `_score` filter
+before the search sees the score from before it, which is 0.0 if no earlier search has contributed
+to it. Combining `_score` with a search on an expression using `OR` or `NOT` fails with an error,
+because the `_score` side would see the score from before the search. For example, the following
+query is rejected:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien") OR _score > 1.0
+```
+
 ### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
 
 Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,

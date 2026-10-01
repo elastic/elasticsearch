@@ -130,6 +130,11 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             When using `METADATA _score`, `MATCH_PHRASE` on an expression contributes to the relevance
             score: a matching row scores the `boost` option (1.0 by default). Unlike indexed fields,
             expressions are not scored with BM25, as there are no index statistics for an expression.
+            A filter on `_score` only sees that contribution when the `MATCH_PHRASE` appears earlier in the
+            query, or in the same `WHERE` combined with `AND`. A `_score` filter before the `MATCH_PHRASE`
+            sees the score from before it, which is 0.0 if no earlier search has contributed to it. Combining
+            `_score` with a `MATCH_PHRASE` on an expression using `OR` or `NOT` fails with an error, because
+            the `_score` side would see the score from before the search.
 
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
             (match_phrase query options) are supported. As on an indexed field, the `analyzer` option

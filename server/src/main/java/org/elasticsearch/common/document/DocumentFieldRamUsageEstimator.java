@@ -43,12 +43,6 @@ public final class DocumentFieldRamUsageEstimator {
     private static final int ARRAY_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
     private static final int OBJECT_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
 
-    private static final long DOUBLE_SIZE = RamUsageEstimator.shallowSizeOfInstance(Double.class);
-    private static final long FLOAT_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
-    private static final long BOOLEAN_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
-    private static final long SHORT_SIZE = RamUsageEstimator.shallowSizeOfInstance(Short.class);
-    private static final long BYTE_SIZE = RamUsageEstimator.shallowSizeOfInstance(Byte.class);
-
     private static final long HASH_MAP_ENTRY_BYTES;
     private static final long LINKED_HASH_MAP_ENTRY_BYTES;
     private static final long TREE_MAP_ENTRY_BYTES;
@@ -72,62 +66,6 @@ public final class DocumentFieldRamUsageEstimator {
 
     private DocumentFieldRamUsageEstimator() {}
 
-    /**
-     * Returns the full retained heap of a leaf value (one that is not a {@link Map},
-     * {@link Collection}, or {@code Object[]}).
-     */
-    private static long sizeOfLeaf(Object value) {
-        if (value == null) {
-            return 0L;
-        }
-        if (value instanceof Accountable a) {
-            return a.ramBytesUsed();
-        }
-        if (value instanceof String s) {
-            return RamUsageEstimator.sizeOf(s);
-        }
-        if (value instanceof byte[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof char[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof double[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof float[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof int[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof long[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof short[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof boolean[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        if (value instanceof Integer i) {
-            return RamUsageEstimator.sizeOf(i);
-        }
-        if (value instanceof Long l) {
-            return RamUsageEstimator.sizeOf(l);
-        }
-        if (value instanceof String[] a) {
-            return RamUsageEstimator.sizeOf(a);
-        }
-        // Boxed primitives have no reference fields, so shallow size equals full retained size.
-        if (value instanceof Double) return DOUBLE_SIZE;
-        if (value instanceof Float) return FLOAT_SIZE;
-        if (value instanceof Boolean) return BOOLEAN_SIZE;
-        if (value instanceof Short) return SHORT_SIZE;
-        if (value instanceof Byte) return BYTE_SIZE;
-        // Unknown type — may have reference fields; use Lucene's conservative fallback.
-        return RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED;
-    }
 
     /**
      * Returns a conservative upper bound on the retained heap of {@code field}.
@@ -152,7 +90,7 @@ public final class DocumentFieldRamUsageEstimator {
             if (value instanceof Map<?, ?> || value instanceof Collection<?> || value instanceof Object[]) {
                 return DEPTH_CAP_PENALTY_BYTES;
             }
-            return sizeOfLeaf(value);
+            return RamUsageEstimator.sizeOfObject(value);
         }
         if (value instanceof Map<?, ?> map) {
             return estimateMap(map, depth);
@@ -163,7 +101,7 @@ public final class DocumentFieldRamUsageEstimator {
         if (value instanceof Object[] array) {
             return estimateObjectArray(array, depth);
         }
-        return sizeOfLeaf(value);
+        return RamUsageEstimator.sizeOfObject(value);
     }
 
     private static long estimateMap(Map<?, ?> map, int depth) {

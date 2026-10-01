@@ -57,18 +57,6 @@ public final class DefBootstrap {
     public static final int ITERATOR = 5;
     /** static bootstrap parameter indicating a dynamic method reference, e.g. foo::bar */
     public static final int REFERENCE = 6;
-
-    /** Reference flag: the call site pushed the script after the receiver. */
-    static final int REFERENCE_SCRIPT_PUSHED = 1;
-
-    /** Reference flag: tracking is on, so charge the target if it has an estimator. */
-    static final int REFERENCE_CHARGES = 2;
-
-    /** The int a def reference call site passes as its trailing bootstrap argument. */
-    public static int referenceFlags(boolean pushesScript, boolean chargesAllocation) {
-        return (pushesScript ? REFERENCE_SCRIPT_PUSHED : 0) | (chargesAllocation ? REFERENCE_CHARGES : 0);
-    }
-
     /** static bootstrap parameter indicating a unary math operator, e.g. ~foo */
     public static final int UNARY_OPERATOR = 7;
     /** static bootstrap parameter indicating a binary math operator, e.g. foo / bar */
@@ -194,9 +182,10 @@ public final class DefBootstrap {
                     (String) args[0],
                     receiver,
                     nameValue,
-                    // optional trailing int flags; absent for ordinary references
-                    args.length > 1 && ((int) args[1] & REFERENCE_SCRIPT_PUSHED) != 0,
-                    args.length > 1 && ((int) args[1] & REFERENCE_CHARGES) != 0
+                    // the script, when pushed, follows the receiver
+                    type().parameterCount() == 2,
+                    // optional trailing int charge flag; absent for ordinary references
+                    args.length > 1 && ((int) args[1]) != 0
                 );
                 case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
                 default -> throw new AssertionError();
@@ -558,7 +547,7 @@ public final class DefBootstrap {
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
             case REFERENCE -> {
-                // args[0] is the interface class; an optional args[1] int carries the flags from referenceFlags.
+                // args[0] is the interface class; an optional args[1] int flag marks a charging def-receiver bound reference.
                 if (args.length < 1 || args.length > 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
@@ -566,7 +555,7 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
                 if (args.length == 2 && args[1] instanceof Integer == false) {
-                    throw new BootstrapMethodError("Illegal flags for reference call: " + args[1]);
+                    throw new BootstrapMethodError("Illegal charge flag for reference call: " + args[1]);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }

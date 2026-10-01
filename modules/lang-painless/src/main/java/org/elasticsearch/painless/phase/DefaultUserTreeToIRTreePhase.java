@@ -1529,9 +1529,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         // single-receiver list does not overwrite it.
         boolean typedChargeAllocation = false;
         boolean dynamicChargeAllocation = false;
-        // The variable a reference captures the script from: #scriptThis when cancellation or tracking defined it, else this.
         boolean tracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
-        String scriptCapture = tracking || scriptScope.getScriptClassInfo().supportsCancellation() ? "#scriptThis" : "#this";
 
         if (targetType == null) {
             Def.Encoding encoding = scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).encoding();
@@ -1540,10 +1538,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (scriptScope.getCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class)) {
                 defInterfaceReferenceNode.attachCondition(IRCInstanceCapture.class);
             }
-            // Charging def-receiver bound ref (`def s = obj; s::method`): the REFERENCE bootstrap dispatches on the receiver,
-            // so capture [receiver, #scriptThis] rather than IRCInstanceCapture (which prepends the script). Identified by
-            // isStatic==false with a receiver capture (external charging refs have none; typed-receiver ones are isStatic==true).
+            // Def-receiver bound ref (`def s = obj; s::method`) that takes the script: the REFERENCE bootstrap dispatches on the
+            // receiver, so the script is captured after it, from #scriptThis when cancellation or tracking defined it, else this.
             if (encoding.isStatic == false && encoding.numCaptures == 2 && capturesDecoration != null) {
+                String scriptCapture = tracking || scriptScope.getScriptClassInfo().supportsCancellation() ? "#scriptThis" : "#this";
                 List<String> captureNames = new ArrayList<>();
                 captureNames.add(capturesDecoration.captures().get(0).name());
                 captureNames.add(scriptCapture);
@@ -1553,23 +1551,18 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irReferenceNode = defInterfaceReferenceNode;
         } else if (capturesDecoration != null && capturesDecoration.captures().get(0).type() == def.class) {
             // Def-receiver bound ref with a known target type (e.g. `Optional.empty().orElseGet(s::method)`, `def s`): like
-            // the def-receiver ref above but emits a real REFERENCE invokedynamic. Under tracking, over-capture and charge it
-            // the same way (receiver type still unknown, so no pre-filter).
+            // the def-receiver ref above but emits a real REFERENCE invokedynamic.
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode(userFunctionRefNode.getLocation());
             typedCaptureReferenceNode.attachDecoration(new IRDName(userFunctionRefNode.getMethodName()));
-            // Push the script when tracking is on (to charge) or the name may be @script_aware (the target takes it).
+            // Push the script after the receiver when tracking is on (to charge) or the name may be @script_aware (the target
+            // takes it). The runtime decides by what the receiver resolves to.
             if (tracking
                 || scriptScope.getPainlessLookup()
                     .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, userFunctionRefNode.getMethodName())) {
-                List<String> captureNames = new ArrayList<>();
-                captureNames.add(capturesDecoration.captures().get(0).name());
-                captureNames.add(scriptCapture);
-                typedCaptureReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
-                typedCaptureReferenceNode.attachCondition(IRCScriptAware.class);
+                typedCaptureReferenceNode.attachCondition(IRCInstanceCapture.class);
                 if (tracking) {
                     typedCaptureReferenceNode.attachCondition(IRCChargeAllocation.class);
                 }
-                dynamicChargeAllocation = true;
             }
             irReferenceNode = typedCaptureReferenceNode;
         } else {

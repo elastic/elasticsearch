@@ -23,7 +23,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -449,8 +448,8 @@ public final class Def {
                     for (int capture = 0; capture < captures.length; capture++) {
                         captures[capture] = callSiteType.parameterType(i + 1 + capture + scriptThisOffset);
                     }
-                    // Charging def-receiver ref: captures are [receiver, #scriptThis]; the REFERENCE bootstrap dispatches on
-                    // the receiver and gets a charge flag so lookupReference charges the target and drops the script.
+                    // A def-receiver ref may capture the script after the receiver. The REFERENCE bootstrap sees that in the
+                    // type, and the flag says whether to charge.
                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                     CallSite nested = DefBootstrap.bootstrap(
                         painlessLookup,
@@ -462,7 +461,7 @@ public final class Def {
                         0,
                         DefBootstrap.REFERENCE,
                         PainlessLookupUtility.typeToCanonicalTypeName(interfaceType),
-                        DefBootstrap.referenceFlags(defEncoding.numCaptures == 2, defEncoding.chargesAllocation)
+                        defEncoding.chargesAllocation ? 1 : 0
                     );
                     filter = nested.dynamicInvoker();
                 }
@@ -511,8 +510,7 @@ public final class Def {
             );
         }
 
-        // A def-receiver ref may have the script captured after the receiver (tracking on, or a name that may be @script_aware).
-        // lookupReferenceInternal charges it, hands it to a @script_aware target, or drops it, by what the receiver resolved to.
+        // The script, if pushed, follows the receiver. What is done with it depends on the target the receiver resolved to.
         return lookupReferenceInternal(
             painlessLookup,
             functions,
@@ -531,10 +529,8 @@ public final class Def {
     /**
      * Returns a method handle to an implementation of clazz, given method reference signature.
      * <p>
-     * The call site may have pushed the script ahead of the captures ({@code needsScriptInstance}) or after them
-     * ({@code scriptAppended}, a def receiver). What the target does with it decides the factory shape, one case at a time
-     * below. A dropped slot is stripped by the charge bootstrap before the delegate runs, and charged first when there is an
-     * estimator; a fed slot also reaches a {@code @script_aware} target's own {@code PainlessScript} parameter.
+     * The call site may have pushed the script before the captures ({@code needsScriptInstance}) or after them
+     * ({@code scriptAppended}, a def receiver). What is done with it depends on the target.
      */
     private static MethodHandle lookupReferenceInternal(
         PainlessLookup painlessLookup,
@@ -562,80 +558,54 @@ public final class Def {
             needsScriptInstance
         );
         Class<?> scriptClass = methodHandlesLookup.lookupClass();
-        // Under tracking the estimator may still be null: the capture decision went by name across all arities, and the overload
-        // this reference resolved to may not be the annotated one. The slot is dropped either way, nothing is charged.
-        Method estimator = chargesAllocation ? ref.allocationEstimator : null;
+        // The captures, after a PainlessScript parameter when the target is @script_aware.
+        MethodType factoryMethodType = MethodType.methodType(clazz, ref.factoryMethodParameters(null));
 
-        Class<?>[] parameters;
-        int dropIndex = -1;
-        int feedFrom = -1;
-        int awareIndex = -1;
         if (needsScriptInstance && "this".equals(type)) {
-            // this::f with the script pushed. It is the delegate's receiver. A static lambda is also this::lambda$N but pushes
-            // nothing, and lands in the last case.
-            parameters = ref.factoryMethodParameters(scriptClass);
-        } else if (needsScriptInstance && ref.isScriptAware && chargesAllocation == false) {
-            // Pushed first for a @script_aware target. It already sits where the target's PainlessScript parameter is.
-            parameters = ref.factoryMethodParameters(null);
-        } else if (needsScriptInstance && ref.isScriptAware) {
-            // Pushed first for a @script_aware target under tracking. A leading slot is charged and dropped, and the same
-            // script also feeds the target's parameter next to it.
-            parameters = ref.factoryMethodParameters(scriptClass);
-            dropIndex = 0;
-            feedFrom = 0;
-            awareIndex = 1;
-        } else if (needsScriptInstance) {
-            // Pushed first for a plain target, by name or for a charge. A leading slot, dropped, charged under tracking.
-            parameters = ref.factoryMethodParameters(scriptClass);
-            dropIndex = 0;
-        } else if (scriptAppended && ref.isScriptAware) {
-            // Pushed after the captures for a def receiver that resolved to a @script_aware target. A trailing slot, dropped,
-            // charged under tracking, and fed to the target's parameter, which FunctionRef put first.
-            parameters = appendScript(ref.factoryMethodParameters(null), scriptClass);
-            dropIndex = parameters.length - 1;
-            feedFrom = dropIndex;
-            awareIndex = 0;
-        } else if (scriptAppended) {
-            // Pushed after the captures for a def receiver that resolved to a plain target. A trailing slot, dropped, charged
-            // under tracking.
-            parameters = appendScript(ref.factoryMethodParameters(null), scriptClass);
-            dropIndex = parameters.length - 1;
-        } else if (ref.isScriptAware) {
-            throw new IllegalArgumentException("reference to script-aware method [" + type + ", " + call + "] needs the script instance");
-        } else {
-            // Nothing pushed, plain target.
-            parameters = ref.factoryMethodParameters(null);
+            // this::f. The script is the delegate's receiver. A static lambda is also this::lambda$N, but pushes nothing.
+            return linkReference(methodHandlesLookup, ref, factoryMethodType.insertParameterTypes(0, scriptClass), -1, null);
+        }
+        if (needsScriptInstance == false && scriptAppended == false) {
+            // Nothing pushed.
+            if (ref.isScriptAware) {
+                throw new IllegalArgumentException(
+                    "reference to script-aware method [" + type + ", " + call + "] needs the script instance"
+                );
+            }
+            return linkReference(methodHandlesLookup, ref, factoryMethodType, -1, null);
+        }
+        if (needsScriptInstance && ref.isScriptAware && chargesAllocation == false) {
+            // Pushed first for a @script_aware target. It lands on the target's own PainlessScript parameter.
+            return linkReference(methodHandlesLookup, ref, factoryMethodType, -1, null);
         }
 
-        MethodType factoryMethodType = MethodType.methodType(clazz, parameters);
-        CallSite callSite = linkReference(methodHandlesLookup, ref, factoryMethodType, dropIndex, estimator);
-        MethodHandle handle = callSite.dynamicInvoker().asType(factoryMethodType);
-        if (feedFrom >= 0) {
-            handle = feedScript(handle, awareIndex, feedFrom, scriptClass);
+        // The pushed script is an extra slot, first or last. The charge bootstrap charges it when the target has an estimator
+        // and drops it. Under tracking the estimator may still be null: the capture went by name, across all arities.
+        int scriptIndex = needsScriptInstance ? 0 : factoryMethodType.parameterCount();
+        factoryMethodType = factoryMethodType.insertParameterTypes(scriptIndex, scriptClass);
+        Method estimator = chargesAllocation ? ref.allocationEstimator : null;
+        MethodHandle handle = linkReference(methodHandlesLookup, ref, factoryMethodType, scriptIndex, estimator);
+        if (ref.isScriptAware) {
+            // The same script also fills the target's PainlessScript parameter, which FunctionRef put first.
+            handle = feedScript(handle, scriptIndex == 0 ? 1 : 0, scriptIndex, scriptClass);
         }
         return handle;
     }
 
-    /** {@code parameters} with the script class added at the end. */
-    private static Class<?>[] appendScript(Class<?>[] parameters, Class<?> scriptClass) {
-        Class<?>[] withScript = Arrays.copyOf(parameters, parameters.length + 1);
-        withScript[parameters.length] = scriptClass;
-        return withScript;
-    }
-
     /**
-     * Links the lambda class for a reference. With {@code dropIndex} set, the charge bootstrap strips that factory parameter
-     * before the delegate runs, charging {@code estimator} first when there is one.
+     * Links the lambda class for a reference and returns its factory. With {@code dropIndex} set, the charge bootstrap strips
+     * that factory parameter before the delegate runs, charging {@code estimator} first when there is one.
      */
-    private static CallSite linkReference(
+    private static MethodHandle linkReference(
         MethodHandles.Lookup methodHandlesLookup,
         FunctionRef ref,
         MethodType factoryMethodType,
         int dropIndex,
         Method estimator
     ) throws Throwable {
+        CallSite callSite;
         if (dropIndex < 0) {
-            return LambdaBootstrap.lambdaBootstrap(
+            callSite = LambdaBootstrap.lambdaBootstrap(
                 methodHandlesLookup,
                 ref.interfaceMethodName,
                 factoryMethodType,
@@ -648,24 +618,26 @@ public final class Def {
                 ref.isDelegateAugmented ? 1 : 0,
                 ref.delegateInjections
             );
+        } else {
+            callSite = LambdaBootstrap.lambdaBootstrapWithAllocation(
+                methodHandlesLookup,
+                ref.interfaceMethodName,
+                factoryMethodType,
+                ref.interfaceMethodType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateMethodType,
+                ref.isDelegateInterface ? 1 : 0,
+                ref.isDelegateAugmented ? 1 : 0,
+                dropIndex,
+                estimator == null ? null : Type.getInternalName(estimator.getDeclaringClass()),
+                estimator == null ? null : estimator.getName(),
+                estimator == null ? null : Type.getMethodDescriptor(estimator),
+                ref.delegateInjections
+            );
         }
-        return LambdaBootstrap.lambdaBootstrapWithAllocation(
-            methodHandlesLookup,
-            ref.interfaceMethodName,
-            factoryMethodType,
-            ref.interfaceMethodType,
-            ref.delegateClassName,
-            ref.delegateInvokeType,
-            ref.delegateMethodName,
-            ref.delegateMethodType,
-            ref.isDelegateInterface ? 1 : 0,
-            ref.isDelegateAugmented ? 1 : 0,
-            dropIndex,
-            estimator == null ? null : Type.getInternalName(estimator.getDeclaringClass()),
-            estimator == null ? null : estimator.getName(),
-            estimator == null ? null : Type.getMethodDescriptor(estimator),
-            ref.delegateInjections
-        );
+        return callSite.dynamicInvoker().asType(factoryMethodType);
     }
 
     /** Removes parameter {@code awareIndex} and feeds it from the script at {@code pushedIndex}. */

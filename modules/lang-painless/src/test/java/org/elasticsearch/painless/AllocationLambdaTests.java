@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Allocation tracking for lambdas and method references (PR 8). The test context ({@link PainlessTestScript}) does not
@@ -154,11 +155,7 @@ public class AllocationLambdaTests extends AllocationTestCase {
         String functions = "String[] split(Function f) { f.apply('a,b,c') } ";
         long base = allocatedBytes(functions + "Pattern p = /,/; return 'x';");
         long withSplit = allocatedBytes(functions + "Pattern p = /,/; split(p::split); return 'x';");
-        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(
-            java.util.regex.Pattern.compile(","),
-            0,
-            "a,b,c"
-        );
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b,c");
 
         assertEquals(expected, withSplit - base);
     }

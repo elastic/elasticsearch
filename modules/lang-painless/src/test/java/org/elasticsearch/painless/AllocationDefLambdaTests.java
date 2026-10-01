@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Allocation tracking for {@code def}-typed lambdas and method references (PR 8.5). When the functional-interface target is
@@ -214,11 +215,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         String functions = "String[] split(Function f) { f.apply('a,b,c') } ";
         long base = allocatedBytes(functions + "def p = /,/; return 'x';");
         long withSplit = allocatedBytes(functions + "def p = /,/; split(p::split); return 'x';");
-        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(
-            java.util.regex.Pattern.compile(","),
-            0,
-            "a,b,c"
-        );
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b,c");
 
         assertEquals(expected, withSplit - base);
     }

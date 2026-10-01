@@ -1905,13 +1905,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irTypedCaptureReferenceNode.getLocation());
 
         String methodName = irTypedCaptureReferenceNode.getDecorationValue(IRDName.class);
-        List<String> captureNames = irTypedCaptureReferenceNode.getDecorationValue(IRDCaptureNames.class);
-        Variable captured = writeScope.getVariable(captureNames.get(0));
+        Variable captured = writeScope.getVariable(irTypedCaptureReferenceNode.getDecorationValue(IRDCaptureNames.class).get(0));
         Class<?> expressionType = irTypedCaptureReferenceNode.getDecorationValue(IRDExpressionType.class);
         String expressionCanonicalTypeName = irTypedCaptureReferenceNode.getDecorationString(IRDExpressionType.class);
+        boolean pushesScript = irTypedCaptureReferenceNode.hasCondition(IRCInstanceCapture.class);
+        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
 
         // The capture object holds the receiver and, when pushed, the script. Charged like the other reference forms.
-        writeAllocationCheck(writeScope, AllocSizes.captureSize(captureNames.size()));
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(pushesScript ? 2 : 1));
 
         methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
 
@@ -1919,12 +1920,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
-        boolean pushesScript = irTypedCaptureReferenceNode.hasCondition(IRCScriptAware.class);
-        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
-
         if (pushesScript) {
-            // Def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver. Def.lookupReference charges it when
-            // tracking is on and the target is annotated, hands it to a @script_aware target, and otherwise drops it.
+            // The script (typed CLASS_TYPE) goes after the receiver, which the REFERENCE call site dispatches on.
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
 

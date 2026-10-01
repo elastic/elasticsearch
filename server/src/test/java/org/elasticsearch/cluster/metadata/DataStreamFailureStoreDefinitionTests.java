@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition.INDEX_FAILURE_STORE_VERSION_SETTING_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
 
@@ -77,4 +78,30 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
         assertThat(DataStreamFailureStoreDefinition.filterUserDefinedSettings(builder).keys().contains(randomSetting), equalTo(false));
     }
 
+    public void testBuildFailureStoreIndexSettings() {
+        Settings builtSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(Settings.EMPTY);
+
+        assertThat(builtSettings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
+        assertThat(builtSettings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false), is(true));
+        assertThat(
+            builtSettings.getAsInt(INDEX_FAILURE_STORE_VERSION_SETTING_NAME, 0),
+            equalTo(DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION)
+        );
+        assertNull(builtSettings.get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()));
+
+        String refreshInterval = randomIntBetween(1, 10) + "s";
+        Settings nodeSettings = Settings.builder()
+            .put(DataStreamFailureStoreDefinition.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, refreshInterval)
+            .build();
+
+        Settings builtSettingsWithRefresh = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(nodeSettings);
+
+        assertThat(builtSettingsWithRefresh.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
+        assertThat(builtSettingsWithRefresh.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false), is(true));
+        assertThat(
+            builtSettingsWithRefresh.getAsInt(INDEX_FAILURE_STORE_VERSION_SETTING_NAME, 0),
+            equalTo(DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION)
+        );
+        assertThat(builtSettingsWithRefresh.get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()), equalTo(refreshInterval));
+    }
 }

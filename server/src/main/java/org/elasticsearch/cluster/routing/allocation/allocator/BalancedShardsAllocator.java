@@ -1106,7 +1106,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final var canAllocateDecisionType = (decision.getCanAllocateDecision() != null
                 ? decision.getCanAllocateDecision().type()
                 : Decision.Type.YES);
-            // We only attempt to populate the canAllocate decider if we're moving despite it being NOT_PREFERRED
+            // We only attempt to populate the canAllocate decider if we're moving despite canAllocate being NOT_PREFERRED
             // to keep cardinality to a minimum
             final var canAllocateNotPreferredDecider = canAllocateDecisionType == Decision.Type.NOT_PREFERRED
                 ? decision.getCanAllocateDecision().label()  // This can still be null

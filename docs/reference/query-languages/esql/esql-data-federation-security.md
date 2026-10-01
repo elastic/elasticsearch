@@ -1,5 +1,5 @@
 ---
-navigation_title: "Manage access"
+navigation_title: "Security"
 description: "Secure ES|QL Data Federation by controlling access to data sources and datasets, encrypting credentials, and configuring privileges."
 applies_to:
   stack: experimental =9.5
@@ -77,6 +77,8 @@ A role configures these privileges as follows. The example grants querying `sale
 ```
 
 ## Next steps
+
+Continue with the following security and configuration tasks:
 
 - To set up credentials for a data source, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
 - For the operator-level settings that gate managed identity and federated identity, refer to the [authentication cluster settings](esql-data-federation-cluster-settings.md#authentication).

@@ -698,3 +698,56 @@ redirects:
     many:
       - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
         anchors: { 'esql-limitations-text-fields' }
+
+  # ES|QL Data Federation: dataset management, settings, schema, and file formats split out of the datasets page
+  'reference/query-languages/esql/esql-data-federation-datasets.md':
+    to: 'reference/query-languages/esql/esql-data-federation-datasets.md'
+    anchors:
+      'next-steps': 'query-a-dataset'
+    many:
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-datasets.md'
+        anchors:
+          'manage-datasets-in-the-ui': 'manage-datasets-in-the-ui'
+          'add-a-new-dataset': 'add-a-new-dataset'
+          'manage-datasets-using-the-api': 'manage-datasets-using-the-api'
+          'create-or-update-a-dataset': 'create-or-update-a-dataset'
+          'get-a-dataset': 'get-a-dataset'
+          'list-all-datasets': 'list-all-datasets'
+          'delete-a-dataset': 'delete-a-dataset'
+      - to: 'reference/query-languages/esql/esql-data-federation-file-formats.md'
+        anchors:
+          'supported-file-formats':
+          'text-formats':
+          'compression-for-text-formats': 'compression'
+          'parquet':
+      - to: 'reference/query-languages/esql/esql-data-federation-dataset-settings.md'
+        anchors:
+          'dataset-settings':
+          'common-settings': 'common-settings'
+          'csv-and-tsv-settings': 'csv-and-tsv-settings'
+          'ndjson-settings': 'ndjson-settings'
+      - to: 'reference/query-languages/esql/esql-data-federation-patterns.md'
+        anchors:
+          'excluding-non-data-objects': 'exclude-non-data-objects'
+          's3-resource-requirements': 's3-resource-requirements'
+      - to: 'reference/query-languages/esql/esql-data-federation-schema.md'
+        anchors:
+          'how-schemas-are-inferred':
+          'declare-a-dataset-mapping': 'declare-a-schema-explicitly'
+          'schema-merge-strategies': 'choose-a-schema-resolution-strategy'
+          'first-file-wins-file-order': 'control-which-file-supplies-the-schema'
+          'first-last-declared-file-file_sort_by-list': 'use-resource-declaration-order'
+          'lexicographic-path-file_sort_by-name': 'sort-by-object-path'
+          'newest-oldest-object-file_sort_by-mtime': 'sort-by-modification-time'
+          'rejected-combinations': 'control-which-file-supplies-the-schema'
+  'reference/query-languages/esql/esql-data-federation-patterns.md':
+    to: 'reference/query-languages/esql/esql-data-federation-patterns.md'
+    anchors:
+      'how-a-resource-is-matched': 'how-resource-patterns-are-resolved'
+      '-and-': 'match-characters-within-a-path-segment'
+      'character-classes': 'match-one-character-from-a-set'
+      'matching-a-literal-metacharacter': 'match-literal-metacharacters'
+      'alternation-ab': 'match-one-of-several-alternatives'
+      'numeric-ranges-n..m': 'match-a-numeric-range'
+      'brace-groups-and-partition-placeholders': 'define-partition-paths'
+      'patterns-in-file_exclusions': 'exclude-non-data-objects'

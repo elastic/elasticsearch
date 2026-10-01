@@ -435,7 +435,11 @@ toc:
               - file: esql/esql-data-federation-static-credentials.md
           - file: esql/esql-data-federation-datasets.md
             children:
+              - file: esql/esql-data-federation-manage-datasets.md
+              - file: esql/esql-data-federation-file-formats.md
               - file: esql/esql-data-federation-patterns.md
+              - file: esql/esql-data-federation-schema.md
+              - file: esql/esql-data-federation-dataset-settings.md
           - file: esql/esql-data-federation-querying.md
           - file: esql/esql-data-federation-security.md
           - file: esql/esql-data-federation-cluster-settings.md

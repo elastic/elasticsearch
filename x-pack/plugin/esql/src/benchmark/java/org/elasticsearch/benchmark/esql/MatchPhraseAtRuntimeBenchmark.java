@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.benchmark.esql;
@@ -26,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -46,7 +44,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmarks for MATCH at runtime.
+ * Benchmarks for MATCH_PHRASE at runtime.
  * Uses Pages and evaluators to match production execution paths.
  * Suitable for before/after comparison of runtime lexical search.
  */
@@ -56,7 +54,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-public class MatchAtRuntimeBenchmark {
+public class MatchPhraseAtRuntimeBenchmark {
     static {
         BenchmarkLogging.configure();
     }
@@ -81,7 +79,8 @@ public class MatchAtRuntimeBenchmark {
 
         Attribute field = new ReferenceAttribute(Source.EMPTY, "field", DataType.TEXT);
 
-        Expression expr = new Match(Source.EMPTY, field, Literal.text(Source.EMPTY, "abc"), null);
+        // Two-term phrase so adjacency is actually checked. Tokens are 4–5 letters, so this misses.
+        Expression expr = new MatchPhrase(Source.EMPTY, field, Literal.text(Source.EMPTY, "abc def"), null);
 
         // Build evaluator through the standard eval pipeline
         Layout.Builder layoutBuilder = new Layout.Builder();

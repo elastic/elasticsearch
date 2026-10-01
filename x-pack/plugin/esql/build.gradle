@@ -62,6 +62,19 @@ dependencies {
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
   }
+
+  benchmarkImplementation(project('qa:testFixtures')) {
+    exclude(group: "org.elasticsearch.plugin", module: "esql")
+  }
+  benchmarkImplementation project(path: xpackModule('esql-datasource-csv'))
+  benchmarkImplementation project(path: xpackModule('esql-datasource-parquet'))
+  benchmarkImplementation project(path: xpackModule('esql-datasource-orc'))
+  benchmarkImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  // Writer-side dependencies for the in-memory Parquet/ORC fixtures; the datasource plugins expose only readers.
+  benchmarkImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  benchmarkImplementation "org.apache.orc:orc-core:${versions.orc}"
+  benchmarkImplementation 'org.apache.hive:hive-storage-api:2.8.1'
+  benchmarkImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   testImplementation(testArtifact(project(xpackModule('inference'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
@@ -941,4 +954,10 @@ tasks.withType(Javadoc).configureEach {
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/elastic/highlightjs-esql@1.2.2/dist/esql.min.js"></script>
 <script>hljs.highlightAll();</script>''').replaceAll(/[\r\n]+/, ''))
+}
+
+tasks.named('benchmark').configure {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED', '--enable-native-access=ALL-UNNAMED', '--add-modules=jdk.incubator.vector'
+  // Forward the same flags to JMH forked VMs, where the benchmark bodies execute.
+  args '-jvmArgsAppend', '--add-opens=java.base/java.nio=ALL-UNNAMED --enable-native-access=ALL-UNNAMED --add-modules=jdk.incubator.vector'
 }

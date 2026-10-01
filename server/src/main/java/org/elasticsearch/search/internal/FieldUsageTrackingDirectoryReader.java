@@ -288,7 +288,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public StoredFieldsReader getMergeInstance() {
+            public StoredFieldsReader getMergeInstance() throws IOException {
                 return new FieldUsageTrackingStoredFieldsReader(reader.getMergeInstance());
             }
 

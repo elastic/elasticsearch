@@ -93,7 +93,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         @Override
-        public StoredFieldsReader getMergeInstance() {
+        public StoredFieldsReader getMergeInstance() throws IOException {
             return new TSDBStoredFieldsReader(
                 storedFieldsReader.getMergeInstance(),
                 syntheticIdStoredFieldsReader != null ? syntheticIdStoredFieldsReader.getMergeInstance() : null

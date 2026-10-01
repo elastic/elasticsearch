@@ -254,7 +254,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
 
                 @Override
-                public StoredFieldsReader getSequentialStoredFieldsReader() {
+                public StoredFieldsReader getSequentialStoredFieldsReader() throws IOException {
                     return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
                 }
 

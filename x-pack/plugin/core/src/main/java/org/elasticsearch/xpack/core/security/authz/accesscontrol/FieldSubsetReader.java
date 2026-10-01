@@ -633,7 +633,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public StoredFieldsReader getMergeInstance() {
+        public StoredFieldsReader getMergeInstance() throws IOException {
             return new FieldSubsetStoredFieldsReader(reader.getMergeInstance(), ignoredSourceFormat);
         }
 

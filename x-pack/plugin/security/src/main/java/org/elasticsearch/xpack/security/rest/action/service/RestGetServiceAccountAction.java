@@ -53,7 +53,8 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
         final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(
             namespace,
             serviceName,
-            type(request, namespace)
+            type(request, namespace),
+            request.paramAsBoolean("with_profile_uid", false)
         );
         return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }

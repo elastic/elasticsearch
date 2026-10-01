@@ -60,11 +60,14 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
 
     private record Shape(String name, Function<BinaryDocValuesQueries, Query> build, Class<? extends Query> columnar) {}
 
+    /** Both framings the column holds, payload and single-valued alike, are answered by it. */
     public void testColumnarFormatReachesTheColumn() {
-        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
-        for (Shape shape : shapes()) {
-            final Query query = shape.build().apply(queries);
-            assertEquals(shape.name(), shape.columnar(), query.getClass());
+        for (BinaryDocValuesFormat format : List.of(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, BinaryDocValuesFormat.PLAIN)) {
+            final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(format);
+            for (Shape shape : shapes()) {
+                final Query query = shape.build().apply(queries);
+                assertEquals(format + " " + shape.name(), shape.columnar(), query.getClass());
+            }
         }
     }
 
@@ -121,6 +124,25 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
             () -> ScanningBinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
         );
         assertThat(e.getMessage(), containsString("not by scanning"));
+    }
+
+    /**
+     * A scanning query built directly for a column is refused where it is built, not where it would first scan, for
+     * every framing the column answers.
+     */
+    public void testAScanningQueryRefusesAColumn() {
+        for (BinaryDocValuesFormat format : List.of(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, BinaryDocValuesFormat.PLAIN)) {
+            final IllegalArgumentException term = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ScanningBinaryDocValuesTermQuery(FIELD, new BytesRef("a"), format)
+            );
+            assertThat(format.toString(), term.getMessage(), containsString("is not answered by scanning"));
+            final IllegalArgumentException length = expectThrows(
+                IllegalArgumentException.class,
+                () -> new BinaryDocValuesLengthQuery(FIELD, 1, format)
+            );
+            assertThat(format.toString(), length.getMessage(), containsString("is not answered by scanning"));
+        }
     }
 
     /** A description stands in for a predicate, so two equal queries share a cache entry. */

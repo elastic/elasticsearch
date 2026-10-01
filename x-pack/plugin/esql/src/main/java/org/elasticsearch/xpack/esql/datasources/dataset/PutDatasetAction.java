@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 
 /** Create or replace an ES|QL dataset. */
 public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
@@ -181,6 +182,15 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             }
             if (Strings.hasText(resource) == false) {
                 validationException = addValidationError("dataset resource is missing or empty", validationException);
+            }
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                validationException = addValidationError(
+                    "dataset description is too large: "
+                        + description.length()
+                        + " characters, the maximum allowed is "
+                        + MAX_DESCRIPTION_LENGTH,
+                    validationException
+                );
             }
             return validationException;
         }

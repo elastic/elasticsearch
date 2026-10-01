@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -68,6 +69,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private final String bucket;
     private final String objectName;
     private final StoragePath path;
+    private final StorageIdentity storageIdentity;
 
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
@@ -78,7 +80,26 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
     // them here would require wrapping the Storage instance. Not counted in this PR.
 
+    /**
+     * Creates an object whose identity is equal only to itself, so it never shares footer-cache entries.
+     * Providers must use the {@link StorageIdentity}-taking constructors so same-credential objects share.
+     */
     public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path) {
+        this(StorageIdentity.unique(), storage, bucket, objectName, path);
+    }
+
+    public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path, long length) {
+        this(StorageIdentity.unique(), storage, bucket, objectName, path, length);
+    }
+
+    public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path, long length, Instant lastModified) {
+        this(StorageIdentity.unique(), storage, bucket, objectName, path, length, lastModified);
+    }
+
+    GcsStorageObject(StorageIdentity storageIdentity, Storage storage, String bucket, String objectName, StoragePath path) {
+        if (storageIdentity == null) {
+            throw new IllegalArgumentException("storageIdentity cannot be null");
+        }
         if (storage == null) {
             throw new IllegalArgumentException("storage cannot be null");
         }
@@ -95,15 +116,24 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         this.bucket = bucket;
         this.objectName = objectName;
         this.path = path;
+        this.storageIdentity = storageIdentity;
     }
 
-    public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path, long length) {
-        this(storage, bucket, objectName, path);
+    GcsStorageObject(StorageIdentity storageIdentity, Storage storage, String bucket, String objectName, StoragePath path, long length) {
+        this(storageIdentity, storage, bucket, objectName, path);
         this.cachedLength = length;
     }
 
-    public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path, long length, Instant lastModified) {
-        this(storage, bucket, objectName, path, length);
+    GcsStorageObject(
+        StorageIdentity storageIdentity,
+        Storage storage,
+        String bucket,
+        String objectName,
+        StoragePath path,
+        long length,
+        Instant lastModified
+    ) {
+        this(storageIdentity, storage, bucket, objectName, path, length);
         this.cachedLastModified = lastModified;
     }
 
@@ -181,6 +211,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return storageIdentity;
     }
 
     @Override

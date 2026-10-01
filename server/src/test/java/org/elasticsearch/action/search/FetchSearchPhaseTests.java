@@ -252,7 +252,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 resp.decRef();
             }
         }
-        // The response has been released, so the charge for the hits it was holding is back.
+        // Released with the response.
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

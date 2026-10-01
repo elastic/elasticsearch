@@ -111,7 +111,7 @@ class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            // These hits ride inside the query result uncharged on the coordinator: a pre-existing gap, not new here.
+            // These hits arrive inside the query result, uncharged on the coordinator: a known gap.
             moveToNextPhase(searchPhaseShardResults, NO_COORDINATOR_FETCH_CHARGE, reducedQueryPhase, phaseStartTimeInNanos);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
@@ -145,7 +145,6 @@ class FetchSearchPhase extends SearchPhase {
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            // Deferred: transferCharge() must not run until moveToNextPhase's supplier below commits to it.
             () -> moveToNextPhase(fetchResults.getAtomicArray(), fetchResults::transferCharge, reducedQueryPhase, phaseStartTimeInNanos),
             context
         );
@@ -300,8 +299,8 @@ class FetchSearchPhase extends SearchPhase {
             .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
-            // executeNextPhase can fail the phase before this line ever runs. That is why coordinatorFetchCharge
-            // must stay deferred until here instead of being called eagerly above.
+            // executeNextPhase can fail the phase before this runs, so the charge stays deferred until there is
+            // a response to hand it to.
             resp.adoptCoordinatorFetchCharge(coordinatorFetchCharge.get());
             context.addReleasable(resp);
             return nextPhase(resp, searchPhaseShardResults);

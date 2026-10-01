@@ -85,7 +85,6 @@ public class SearchResponseTests extends ESTestCase {
         SearchResponseSections sections = emptySections();
         sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
 
-        // Mirrors how the constructor already takes over topHitsToRelease/completionOptionHitsToRelease.
         SearchResponse response = new SearchResponse(
             sections,
             null,

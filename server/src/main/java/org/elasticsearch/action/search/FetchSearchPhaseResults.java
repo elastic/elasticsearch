@@ -20,8 +20,8 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Collects the fetch results of a search on the coordinating node and charges the {@link CircuitBreaker#REQUEST}
- * breaker for the hits they carry. The charge is transferred to the {@link SearchResponse} once one is built;
+ * Collects the fetch results of a search on the coordinating node and owns the {@link CircuitBreaker#REQUEST}
+ * charge for the hits they carry. The charge moves to the {@link SearchResponse} once one is built;
  * {@link #doClose()} only releases it if one never is.
  */
 final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchResult> {
@@ -40,38 +40,39 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
     }
 
     /**
-     * Charges the breaker for the hits a shard has just sent back, unless they were assembled on this node and
-     * arrived charged. Called from {@link FetchSearchPhase} before the result is handed to the collector, so that
-     * a trip leaves the hits to the caller to release.
+     * Takes ownership of the charge for the hits a shard has just sent back, estimating them here unless they
+     * arrived already charged. Called before the result reaches the collector, so that a trip leaves the hits
+     * to the caller to release.
      *
      * @throws CircuitBreakingException if the coordinating node cannot hold these hits
      */
     void reserve(FetchSearchResult result) {
-        // The chunked path handed over what it charged for these hits, and the result gives that back when it is
-        // released, so charging here again would hold them twice.
+        final long bytes;
         if (result.isChargedOnCoordinator()) {
-            return;
+            // The chunked path already charged these hits, so take that charge over instead of estimating again.
+            bytes = result.transferCoordinatorCharge(circuitBreaker);
+        } else {
+            long estimated = 0L;
+            for (SearchHit hit : result.hits().getHits()) {
+                estimated += hit.ramBytesUsed();
+            }
+            if (estimated == 0L) {
+                return;
+            }
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimated, BREAKER_LABEL);
+            bytes = estimated;
         }
-        long bytes = 0L;
-        for (SearchHit hit : result.hits().getHits()) {
-            bytes += hit.ramBytesUsed();
-        }
-        if (bytes == 0L) {
-            return;
-        }
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
-        if (addToReservation(bytes) == false) {
+        if (bytes > 0L && addToReservation(bytes) == false) {
             // A phase failure released this collection while the shard was still in flight, so nothing else will.
             circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
         }
     }
 
     /**
-     * Hands the outstanding charge to the caller as a {@link Releasable}; a late {@link #reserve} or
-     * {@link #doClose()} will not touch it again. Must not be called until the caller is committed to using the
-     * result, since discarding it afterward leaks the charge.
+     * Hands the outstanding charge to the caller; a late {@link #reserve} or {@link #doClose()} will not touch it
+     * again. Must not be called until the caller is committed to using the result, since discarding it then leaks.
      *
-     * @return a releasable for the outstanding charge, or {@code null} if there is nothing outstanding
+     * @return the outstanding charge, or {@code null} if there is none
      */
     @Nullable
     Releasable transferCharge() {

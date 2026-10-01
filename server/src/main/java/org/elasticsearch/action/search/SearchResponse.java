@@ -106,10 +106,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     private transient long queryPhaseAggregationBreakerBytes = 0;
 
-    /**
-     * Coordinator fetch-breaker charge for the hits in this response, transferred from
-     * {@link SearchResponseSections} when this response is built. Released when this response is.
-     */
+    // Coordinator fetch-breaker charge for the hits below, released when this response is.
     @Nullable
     private transient Releasable coordinatorFetchCharge;
 

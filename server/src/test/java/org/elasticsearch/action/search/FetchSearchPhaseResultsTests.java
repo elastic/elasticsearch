@@ -88,7 +88,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         }
     }
 
-    public void testResultAlreadyChargedOnTheCoordinatorIsNotChargedAgain() {
+    public void testChargeHandedOverByTheChunkedPathIsTakenOverNotChargedAgain() {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult handedOver = fetchResult(0, 1);
         // What the chunked path does: it charged for these hits while accumulating them, then handed the charge over.
@@ -98,11 +98,79 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
             results.reserve(handedOver);
             assertThat("reserve must not estimate these hits a second time", breaker.getUsed(), equalTo(charged));
+            assertFalse("the collection owns the charge now", handedOver.isChargedOnCoordinator());
 
             results.close();
-            assertThat("the collection holds no charge for a result that carries its own", breaker.getUsed(), equalTo(charged));
+            assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
             handedOver.decRef();
+        }
+        // Releasing the result gave nothing back, since it no longer holds a charge.
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTransferCoversAChargeHandedOverByTheChunkedPath() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult handedOver = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            results.reserve(handedOver);
+
+            Releasable charge = results.transferCharge();
+            assertThat("the chunked route's charge has to reach the response too", charge, notNullValue());
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(charged));
+
+            charge.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            handedOver.decRef();
+        }
+    }
+
+    public void testChargeSumsAcrossChunkedAndEstimatedShards() {
+        // The route is picked per data node, so a rolling upgrade puts both kinds of shard in one fetch.
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult handedOver = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        FetchSearchResult estimated = fetchResult(1, 2);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+            results.reserve(handedOver);
+            results.reserve(estimated);
+            long expected = charged + hitBytes(estimated);
+            assertThat(breaker.getUsed(), equalTo(expected));
+
+            Releasable charge = results.transferCharge();
+            results.close();
+            assertThat("one charge covers both routes", breaker.getUsed(), equalTo(expected));
+
+            charge.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            handedOver.decRef();
+            estimated.decRef();
+        }
+    }
+
+    public void testChunkedShardArrivingAfterReleaseGivesItsChargeStraightBack() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult inFlight = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        inFlight.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+            // A phase failure released the collection while this shard was still in flight.
+            results.close();
+
+            results.reserve(inFlight);
+            assertThat("reserve has to give back a charge it took over but cannot hold", breaker.getUsed(), equalTo(0L));
+            assertFalse(inFlight.isChargedOnCoordinator());
+        } finally {
+            inFlight.decRef();
         }
         assertThat(breaker.getUsed(), equalTo(0L));
     }

@@ -28,6 +28,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+        assertEquals(25_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings));
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
@@ -313,8 +314,9 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(17, ExternalSourceSettings.settings().size());
+        assertEquals(18, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));

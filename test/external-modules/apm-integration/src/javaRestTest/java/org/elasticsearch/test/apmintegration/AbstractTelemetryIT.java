@@ -32,14 +32,9 @@ public abstract class AbstractTelemetryIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(AbstractTelemetryIT.class);
 
     /**
-     * The APM agent is reconfigured dynamically by the APM module after booting,
-     * and the agent only reloads its configuration every 30 seconds.
-     * The first telemetry can be blocked waiting for this, so let's give it
-     * a good long time before giving up.
-     * <p>
-     * This should be unnecessary when the APM agent is no longer used.
+     * Upper bound on how long a test waits for exported telemetry to arrive.
      */
-    static final int TELEMETRY_TIMEOUT = 40;
+    static final int TELEMETRY_TIMEOUT = 15;
 
     /**
      * Concrete subclasses supply their own {@link RecordingApmServer} static field

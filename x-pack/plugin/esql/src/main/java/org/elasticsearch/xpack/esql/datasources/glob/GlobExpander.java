@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -451,9 +452,7 @@ public final class GlobExpander {
                 false
             );
         } catch (IOException retryFailure) {
-            if (failure != null) {
-                retryFailure.addSuppressed(failure);
-            }
+            SuppressedFailures.attach(retryFailure, failure);
             throw retryFailure;
         }
     }

@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlFailureBounds;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -373,7 +374,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        activityLogger.wrapAndRun(listener, new EsqlLogContextBuilder(task, request), (l) -> innerExecute(task, request, l));
+        activityLogger.wrapAndRun(
+            listener,
+            new EsqlLogContextBuilder(task, request),
+            (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
+        );
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -15,12 +17,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests the generic parsed-footer cache without depending on any specific format. The cache treats
@@ -233,6 +242,77 @@ public class ParsedFooterCacheTests extends ESTestCase {
         });
         assertEquals("in-flight entry must be cleared so a later call loads again", 1, retryCount.get());
         assertSame(recoveredValue, recovered);
+    }
+
+    /**
+     * Every caller of a load that trips a breaker receives the loader's own exception from {@link ParsedFooterCache#getOrLoad}
+     * (see {@link #testThunderingHerdPropagatesLoaderFailureAndClearsInFlight}); {@link ParsedFooterCache#rethrowStructural}
+     * is where the sharing is broken, so each caller is routed through it and must get its own instance.
+     */
+    public void testCopiedBreakerFailureKeepsItsCause() {
+        IllegalStateException cause = new IllegalStateException("cause");
+        CircuitBreakingException shared = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        shared.initCause(cause);
+
+        CircuitBreakingException copy = expectThrows(
+            CircuitBreakingException.class,
+            () -> ParsedFooterCache.rethrowStructural(new ExecutionException(shared))
+        );
+
+        assertNotSame(shared, copy);
+        assertSame(cause, copy.getCause());
+    }
+
+    public void testWaitersOnAFailedLoadReceiveTheirOwnException() throws Exception {
+        FooterByteCache.Key k = key("tripped.parquet", 1000);
+        CircuitBreakingException boom = new CircuitBreakingException(
+            "[parent] Data too large, data for [parquet reader]",
+            1024,
+            512,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        CountDownLatch loaderStarted = new CountDownLatch(1);
+        CountDownLatch releaseLoader = new CountDownLatch(1);
+        AtomicReference<AssertionError> failure = new AtomicReference<>();
+        Queue<CircuitBreakingException> thrown = new ConcurrentLinkedQueue<>();
+
+        Thread loaderThread = startHerdThread("herd-cbe-loader", failure, () -> {
+            ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
+                loaderStarted.countDown();
+                safeAwait(releaseLoader, LOADER_HOLD_TIMEOUT);
+                throw boom;
+            }));
+            thrown.add(expectThrows(CircuitBreakingException.class, () -> ParsedFooterCache.rethrowStructural(ex)));
+        });
+        safeAwait(loaderStarted);
+
+        int waiterCount = randomIntBetween(3, 15);
+        List<Thread> waiters = new ArrayList<>(waiterCount);
+        for (int i = 0; i < waiterCount; i++) {
+            waiters.add(startHerdThread("herd-cbe-waiter-" + i, failure, () -> {
+                ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
+                    throw new AssertionError("waiter must not load");
+                }));
+                thrown.add(expectThrows(CircuitBreakingException.class, () -> ParsedFooterCache.rethrowStructural(ex)));
+            }));
+        }
+        try {
+            awaitBlockedOnInFlight(waiters, failure);
+        } finally {
+            releaseAndJoinHerd(releaseLoader, loaderThread, waiters, failure);
+        }
+
+        assertThat(thrown, hasSize(waiterCount + 1));
+        Set<CircuitBreakingException> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (CircuitBreakingException e : thrown) {
+            assertNotSame(boom, e);
+            assertTrue("each caller must get its own instance", distinct.add(e));
+            assertEquals(boom.getMessage(), e.getMessage());
+            assertEquals(boom.getBytesWanted(), e.getBytesWanted());
+            assertEquals(boom.getByteLimit(), e.getByteLimit());
+            assertEquals(boom.getDurability(), e.getDurability());
+            assertArrayEquals(boom.getStackTrace(), e.getStackTrace());
+        }
     }
 
     public void testGetOrLoadPropagatesLoaderException() {

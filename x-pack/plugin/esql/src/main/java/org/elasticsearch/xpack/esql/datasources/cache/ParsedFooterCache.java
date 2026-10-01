@@ -261,7 +261,7 @@ public final class ParsedFooterCache<T> {
      * @return the original cause (or the {@code ExecutionException} itself if the cause is null),
      *         for the caller to either rethrow or wrap
      * @throws IOException             if the cause is an {@link IOException}
-     * @throws CircuitBreakingException if the cause is a {@link CircuitBreakingException}
+     * @throws CircuitBreakingException a new copy, per caller, if the cause is a {@link CircuitBreakingException}
      * @throws ElasticsearchException  if the cause is an {@link ElasticsearchException}
      */
     public static Throwable rethrowStructural(ExecutionException e) throws IOException {
@@ -271,11 +271,31 @@ public final class ParsedFooterCache<T> {
             throw io;
         }
         if (cause instanceof CircuitBreakingException cbe) {
-            throw cbe;
+            throw copyOf(cbe);
         }
         if (cause instanceof ElasticsearchException ese) {
             throw ese;
         }
         return cause != null ? cause : e;
+    }
+
+    /**
+     * Every waiter on a failed load receives the loader's own exception. A breaker trip is the failure most likely to
+     * arrive in many splits at once, and splits suppress failures onto one another, so each caller gets its own copy
+     * rather than one instance live in dozens of exception graphs. The copy keeps the shared exception's cause but not
+     * its suppressed failures.
+     */
+    private static CircuitBreakingException copyOf(CircuitBreakingException shared) {
+        CircuitBreakingException copy = new CircuitBreakingException(
+            shared.getMessage(),
+            shared.getBytesWanted(),
+            shared.getByteLimit(),
+            shared.getDurability()
+        );
+        if (shared.getCause() != null) {
+            copy.initCause(shared.getCause());
+        }
+        copy.setStackTrace(shared.getStackTrace());
+        return copy;
     }
 }

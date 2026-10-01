@@ -256,4 +256,8 @@ public class DataStreamLifecycleSettings {
     private boolean isGlobalRetentionDefined(boolean failureStore) {
         return getDefaultRetention(failureStore) != null || getMaxRetention() != null;
     }
+
+    public boolean defaultLifecycleForTimeSeriesEnabled() {
+        return false;
+    }
 }

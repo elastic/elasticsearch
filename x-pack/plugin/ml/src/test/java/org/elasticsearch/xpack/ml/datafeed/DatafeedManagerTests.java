@@ -684,6 +684,8 @@ public class DatafeedManagerTests extends ESTestCase {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final String callerAuthentication = "caller-auth";
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, callerAuthentication);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
@@ -696,15 +698,19 @@ public class DatafeedManagerTests extends ESTestCase {
             listener.onResponse(Collections.emptySet());
             return null;
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+        AtomicReference<Map<String, String>> validationHeaders = new AtomicReference<>();
         doAnswer(invocation -> {
+            validationHeaders.set(invocation.getArgument(1));
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
+        AtomicReference<Map<String, String>> storedHeaders = new AtomicReference<>();
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
                 Tuple<DatafeedConfig, DocWriteResponse>>) invocation.getArguments()[2];
             DatafeedConfig cfg = invocation.getArgument(0);
+            storedHeaders.set(invocation.getArgument(1));
             listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
             return null;
         }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
@@ -723,10 +729,16 @@ public class DatafeedManagerTests extends ESTestCase {
             mockClusterStateWithNoTasks(),
             securityContext,
             threadPool,
-            ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
+            ActionTestUtils.assertNoFailureListener(response::set)
         );
 
         assertThat(response.get(), notNullValue());
+        // Index privileges are not checked at PUT for ES|QL datafeeds, so the LIMIT 0 validation and the persisted
+        // datafeed headers (used by every runtime query) are the only controls: both must carry the caller's identity.
+        assertThat(validationHeaders.get(), notNullValue());
+        assertThat(validationHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
+        assertThat(storedHeaders.get(), notNullValue());
+        assertThat(storedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
         verify(client, never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
         verify(client, never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
     }

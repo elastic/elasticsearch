@@ -39,15 +39,15 @@ import static org.hamcrest.Matchers.notNullValue;
  * <p>
  * A cancellation that arrives during the compute phase already aborts the drivers, so it never reaches expansion. To land a
  * cancellation inside an in-progress expansion deterministically (mirroring the manual async-cancel test that motivated the fix),
- * the test installs {@link ExpandUnmappedFieldsPostProcessor#expansionStartedForTest} to block the coordinator at the start of
- * expansion. It then cancels the query task and releases the block, so the per-row cancellation poll added by the fix observes the
+ * the test installs {@link ExpandUnmappedFieldsOperator#expansionStartedForTest} to block the coordinator at the start of
+ * expansion. It then cancels the query task and releases the block, so the driver's early-termination poll observes the
  * cancellation and aborts the expansion, releasing the partially built pages.
  */
 public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
 
     @After
     public void clearExpansionHook() {
-        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = null;
+        ExpandUnmappedFieldsOperator.expansionStartedForTest = null;
     }
 
     public void testCancelDuringUnmappedFieldExpansion() throws Exception {
@@ -65,7 +65,7 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
 
         CountDownLatch expansionStarted = new CountDownLatch(1);
         CountDownLatch proceedWithExpansion = new CountDownLatch(1);
-        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = () -> {
+        ExpandUnmappedFieldsOperator.expansionStartedForTest = () -> {
             expansionStarted.countDown();
             try {
                 assertTrue("expansion hook was never released", proceedWithExpansion.await(30, TimeUnit.SECONDS));
@@ -105,7 +105,7 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
         // Mirrors T4 of the manual "graceful termination" report: the node is healthy after a cancelled expansion. Clear the hook so
         // the next expansion runs unimpeded, confirm no ESQL task lingers, then run a fresh LOAD_ALL and check it expands cleanly -
         // proving a cancelled expansion left behind neither a stuck task nor corrupt breaker/seam state.
-        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = null;
+        ExpandUnmappedFieldsOperator.expansionStartedForTest = null;
         assertBusy(
             () -> assertThat(client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks(), empty())
         );

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -145,7 +144,6 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -169,7 +167,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -217,6 +214,16 @@ public class EsqlSession {
         );
 
         default void columnMetadata(Map<NameId, Map<String, Object>> columnMetadata) {}
+    }
+
+    /**
+     * Expands the synthetic {@code _unmapped_fields} column produced by {@code SET unmapped_fields="LOAD_ALL"} into per-field columns.
+     * Abstracts the coordinator-driver expansion (see {@code ComputeService#expandUnmappedFields}) away from the session, so the session
+     * need only hand back the {@link UnmappedFieldsOrdering} it captured during analysis. Results without an {@code _unmapped_fields}
+     * column are returned unchanged, inline.
+     */
+    public interface UnmappedFieldsExpander {
+        void expand(Result result, @Nullable UnmappedFieldsOrdering ordering, ActionListener<Result> listener);
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
@@ -405,7 +412,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
-        BooleanSupplier cancellation,
+        UnmappedFieldsExpander expander,
         ActionListener<Versioned<Result>> listener
     ) {
         executionInfo.queryProfile().planning().start();
@@ -486,7 +493,7 @@ public class EsqlSession {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
                 viewResolutionProfile.stop();
-                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, cancellation, l);
+                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, expander, l);
             })
         );
     }
@@ -498,7 +505,7 @@ public class EsqlSession {
         EsqlStatement statement,
         ResolvedSettings resolved,
         ViewResolver.ViewResolutionResult viewResolution,
-        BooleanSupplier cancellation,
+        UnmappedFieldsExpander expander,
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -663,47 +670,11 @@ public class EsqlSession {
                             );
                             Result inner = withAdditionalData.inner();
                             TransportVersion resultVersion = withAdditionalData.minimumVersion();
-                            if (ExpandUnmappedFieldsPostProcessor.hasUnmappedFields(inner.schema())) {
-                                // Under SET unmapped_fields="LOAD_ALL" the expansion is a CPU-heavy scan over every row of
-                                // every result page. This continuation runs on whichever thread completed the compute result
-                                // (the esql_worker pool, or the search pool when a data node completes it last), so a large
-                                // expansion could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
-                                // for CPU-bound ES|QL work. See https://github.com/elastic/elasticsearch/issues/160286.
-                                // wrapReleasing releases the buffered pages if esql_worker rejects the task (e.g. shutting
-                                // down); expand() releases them itself once it runs, and page release is idempotent.
-                                threadPool.executor(EsqlPlugin.computePool())
-                                    .execute(
-                                        ActionRunnable.wrapReleasing(l, () -> Releasables.closeExpectNoException(inner.pages()), ll -> {
-                                            assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
-                                            ll.onResponse(
-                                                new Versioned<>(
-                                                    ExpandUnmappedFieldsPostProcessor.expand(
-                                                        inner,
-                                                        unmappedFieldsOrdering,
-                                                        blockFactory,
-                                                        plannerSettings,
-                                                        cancellation
-                                                    ),
-                                                    resultVersion
-                                                )
-                                            );
-                                        })
-                                    );
-                            } else {
-                                // No LOAD_ALL expansion to do; complete inline to avoid an unnecessary thread hop.
-                                l.onResponse(
-                                    new Versioned<>(
-                                        ExpandUnmappedFieldsPostProcessor.expand(
-                                            inner,
-                                            unmappedFieldsOrdering,
-                                            blockFactory,
-                                            plannerSettings,
-                                            cancellation
-                                        ),
-                                        resultVersion
-                                    )
-                                );
-                            }
+                            // Under SET unmapped_fields="LOAD_ALL" the _unmapped_fields column is expanded in a dedicated coordinator
+                            // driver on the esql_worker pool, so the CPU-heavy per-row scan yields, cancels and profiles through the
+                            // compute framework rather than hogging whichever thread completed the compute. Results without that column
+                            // are returned inline. See https://github.com/elastic/elasticsearch/issues/160286.
+                            expander.expand(inner, unmappedFieldsOrdering, l.map(expanded -> new Versioned<>(expanded, resultVersion)));
                         })
                         .addListener(listener);
                 }

@@ -10,7 +10,7 @@ setup:
       reason: >
         LOAD and LOAD_ALL diverge on sub-queries. For a field named explicitly they are the same code:
         UnmappedKeywordValues is "shared by the per-document UnmappedKeywordBlockLoader and the
-        coordinator-side ExpandUnmappedFieldsPostProcessor so an explicitly referenced unmapped field and its
+        coordinator-side ExpandUnmappedFieldsOperator so an explicitly referenced unmapped field and its
         LOAD_ALL auto-expanded twin render identically", and DetermineUnmappedFieldsToKeep excludes every
         plan-output name from the discovery set precisely so the named field is served once, by the LOAD
         path. What is NOT shared is discovery, and discovery has to decide which relations to stamp.

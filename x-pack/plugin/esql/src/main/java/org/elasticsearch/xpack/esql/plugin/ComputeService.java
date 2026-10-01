@@ -30,8 +30,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
+import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -1050,6 +1053,124 @@ public class ComputeService {
     private static boolean isCollapsibleExchange(ExchangeExec exchange) {
         return exchange.child() instanceof ExternalSourceExec
             || (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
+    }
+
+    private static final String EXPAND_DESCRIPTION = "expand_unmapped_fields";
+
+    /**
+     * Expands the synthetic {@code _unmapped_fields} column produced by {@code SET unmapped_fields="LOAD_ALL"} into per-field columns,
+     * running the CPU-heavy per-row {@code _source} scan inside a dedicated coordinator {@link Driver} on the {@code esql_worker} pool.
+     * Modelling the expansion as a driver operator (rather than an inline post-processing step) hands the compute framework ownership of
+     * its yielding, cancellation, profiling and task description — see
+     * <a href="https://github.com/elastic/elasticsearch/issues/160286">#160286</a>.
+     *
+     * <p>If {@code result} carries no {@code _unmapped_fields} column there is nothing to expand, so the result is returned inline on the
+     * calling thread with no driver and no thread hop. Otherwise the driver replays {@code result}'s pages through
+     * {@link ExpandUnmappedFieldsOperator}, whose discovered output schema is published out-of-band and stitched into the returned
+     * {@link Result} (the compute framework's layout machinery can only express a plan-time-fixed schema, and the discovered columns are
+     * data-dependent). When profiling is enabled the expansion driver's profile is merged into the result's completion info so the phase
+     * is visible under {@code profile:true}.
+     */
+    public void expandUnmappedFields(
+        String sessionId,
+        CancellableTask task,
+        Result result,
+        @Nullable UnmappedFieldsOrdering ordering,
+        ActionListener<Result> listener
+    ) {
+        if (ExpandUnmappedFieldsOperator.hasUnmappedFields(result.schema()) == false) {
+            listener.onResponse(result);
+            return;
+        }
+        final boolean profile = result.configuration().profile() || LOGGER.isDebugEnabled();
+        boolean driverStarted = false;
+        Driver driver = null;
+        try {
+            var driverContext = new DriverContext(bigArrays, blockFactory, null, EXPAND_DESCRIPTION);
+            var expandOperator = new ExpandUnmappedFieldsOperator(
+                driverContext,
+                result.schema(),
+                ordering,
+                plannerSettings.get().sourceReservationFactor()
+            );
+            List<Page> collected = Collections.synchronizedList(new ArrayList<>(result.pages().size()));
+            driver = new Driver(
+                newChildSession(sessionId),
+                EXPAND_DESCRIPTION,
+                clusterService.getClusterName().value(),
+                transportService.getLocalNode().getName(),
+                System.currentTimeMillis(),
+                System.nanoTime(),
+                driverContext,
+                expandOperator::toString,
+                new PageListSourceOperator(result.pages()),
+                List.of(expandOperator),
+                new PageConsumerOperator(collected::add),
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
+            final Driver expandDriver = driver;
+            ActionListener<Void> doneListener = ActionListener.wrap(
+                ignored -> listener.onResponse(buildExpandedResult(result, expandOperator, collected, expandDriver, profile)),
+                failure -> {
+                    // On failure the expanded pages already emitted to the sink are not owned by anyone else yet; release them. The
+                    // driver's own close() (via releaseAfter below) releases the pages still buffered inside the operator.
+                    Releasables.closeExpectNoException(collected);
+                    listener.onFailure(failure);
+                }
+            );
+            driverRunner.executeDrivers(
+                task,
+                List.of(driver),
+                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
+                ActionListener.releaseAfter(doneListener, () -> Releasables.close(expandDriver))
+            );
+            driverStarted = true;
+        } finally {
+            if (driverStarted == false) {
+                // Building or dispatching the driver failed before it took ownership of the pages; release them here. Once the driver
+                // is running its operators own (and release) the pages, and page release is idempotent regardless.
+                Releasables.closeExpectNoException(driver);
+                Releasables.closeExpectNoException(result.pages());
+            }
+        }
+    }
+
+    private Result buildExpandedResult(
+        Result original,
+        ExpandUnmappedFieldsOperator expandOperator,
+        List<Page> pages,
+        Driver driver,
+        boolean profile
+    ) {
+        DriverCompletionInfo completionInfo = original.completionInfo();
+        if (profile) {
+            var accumulator = new DriverCompletionInfo.Accumulator();
+            accumulator.accumulate(completionInfo);
+            accumulator.accumulate(
+                DriverCompletionInfo.includingProfiles(
+                    List.of(driver),
+                    EXPAND_DESCRIPTION,
+                    clusterService.getClusterName().value(),
+                    transportService.getLocalNode().getName(),
+                    expandOperator.toString(),
+                    null,
+                    null,
+                    0L,
+                    false
+                )
+            );
+            completionInfo = accumulator.finish();
+        }
+        return new Result(
+            expandOperator.expandedSchema(),
+            new ArrayList<>(pages),
+            original.attributeMetadata(),
+            original.configuration(),
+            completionInfo,
+            original.executionInfo(),
+            original.approximationApplied()
+        );
     }
 
     public void execute(

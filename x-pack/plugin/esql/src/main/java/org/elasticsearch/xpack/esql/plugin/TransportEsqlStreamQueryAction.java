@@ -365,6 +365,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            (result, ordering, expandListener) -> computeService.expandUnmappedFields(
+                sessionId,
+                (CancellableTask) task,
+                result,
+                ordering,
+                expandListener
+            ),
             ActionListener.wrap(versionedResult -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 Result result = versionedResult.inner();

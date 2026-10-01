@@ -247,7 +247,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
     private static final String RANGE_STEP = "30s";
     private static final Instant QUERY_END = Instant.parse(RANGE_END);
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeRawOperandsMatchAcrossIngestionPaths() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeValues("tx / rx", 5, 10, 3);
@@ -259,7 +258,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("tx / rx", 5, 10, 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
@@ -271,7 +269,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeSumOverCrossMetricPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeValues("sum(tx / rx)", 18);
@@ -283,7 +280,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("sum(tx / rx)", 18);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeSumOverSameMetricPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeValues("sum(tx / tx)", 3);
@@ -295,7 +291,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("sum(tx / tx)", 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeSumOverChainedPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
@@ -307,7 +302,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeGroupedSumOverPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -319,7 +313,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeGroupedSumOverIncreasePairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -331,7 +324,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testRangeGroupedSumOverIratePairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);
         assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));

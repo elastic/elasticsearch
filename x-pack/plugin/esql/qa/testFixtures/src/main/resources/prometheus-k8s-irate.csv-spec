@@ -181,11 +181,11 @@ irate_bytes_in:double | step:datetime
 57.949735             | 2024-05-10T00:08:00.000Z
 ;
 
-// Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.
-irate_of_ratio_promql-Ignore
+irate_of_ratio_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v1
 
 PROMQL index=prometheus-k8s step=10m irate_of_ratio=(sum by (cluster) (irate(network.total_cost[10m]) / irate(network.total_bytes_in[10m])))
 | EVAL irate_of_ratio = round(irate_of_ratio, 6)

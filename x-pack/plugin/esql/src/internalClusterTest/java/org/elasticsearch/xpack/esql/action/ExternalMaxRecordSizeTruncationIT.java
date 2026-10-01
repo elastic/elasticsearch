@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -58,6 +59,17 @@ import static org.hamcrest.Matchers.greaterThan;
  * Follow-up to the record-boundary livelock fix (capped grow loop). See elastic/esql-planning#835.
  */
 public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourceIT {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // The oversized record is one repeated character gzip-compressed at ~1000:1, which exceeds the default
+            // decompression ratio limit of 200 before the record-size cap fires. Disable the ratio guard so this
+            // test exercises the record-size cap path it was designed to test.
+            .put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey(), 0)
+            .build();
+    }
 
     private static final int LEADING_ROWS = 5;
     /** {@code external_max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */

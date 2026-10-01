@@ -752,14 +752,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
         // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
         // so the OS can optimize read ahead in low memory situations.
+        final IOContext sequentialContext = IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL);
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
-                tempRawVectorsFileName,
-                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
-            );
-            IndexInput docs = docsFileName == null
-                ? null
-                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, sequentialContext);
+            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, sequentialContext)
         ) {
             final KMeansFloatVectorValues floatVectorValues;
             final KMeansByteVectorValues byteVectorValues;
@@ -770,7 +766,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 vectorValues = byteVectorValues;
             } else {
                 byteVectorValues = null;
-                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors, sequentialContext);
                 vectorValues = floatVectorValues;
             }
 
@@ -905,9 +901,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         IndexInput docs,
         IndexInput vectors,
-        int numVectors
+        int numVectors,
+        IOContext baseContext
     ) throws IOException {
-        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
+        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension(), baseContext);
     }
 
     private static int writeVectorValues(

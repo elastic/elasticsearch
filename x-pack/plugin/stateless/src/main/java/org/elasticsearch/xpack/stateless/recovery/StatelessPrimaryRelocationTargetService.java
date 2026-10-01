@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,9 +29,11 @@ import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.REFERENCED_BCCS_LOG_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Target-side stateless primary relocation: prewarm and primary-context handoff.
@@ -46,6 +49,7 @@ public class StatelessPrimaryRelocationTargetService {
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowRelocationWarningThreshold;
+    private final int referencedBccsLogThreshold;
 
     public StatelessPrimaryRelocationTargetService(
         ClusterService clusterService,
@@ -64,6 +68,7 @@ public class StatelessPrimaryRelocationTargetService {
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+        this.referencedBccsLogThreshold = REFERENCED_BCCS_LOG_THRESHOLD_SETTING.get(clusterService.getSettings());
     }
 
     void handlePrewarmRelocation(TransportStatelessPrimaryRelocationPrewarmAction.Request request, ActionListener<Void> listener) {
@@ -118,6 +123,32 @@ public class StatelessPrimaryRelocationTargetService {
         final var recoveryHintsFromSource = request.recoveryInfoFromSource();
         if (recoveryHintsFromSource != null) {
             statelessCommitService.putRecoveryInfoFromSourceEntry(request.shardId(), recoveryHintsFromSource);
+
+            final var lastCommitBlobs = recoveryHintsFromSource.lastCommitBlobs();
+            if (lastCommitBlobs != null) {
+                final int referencedBccs = lastCommitBlobs.size();
+                final Supplier<ESLogMessage> logMessage = () -> new ESLogMessage(
+                    "[{}] recovery [{}]: last commit references [{}] BCCs (log threshold is [{}])",
+                    request.shardId(),
+                    targetAllocationId,
+                    referencedBccs,
+                    referencedBccsLogThreshold
+                ).withFields(
+                    Map.of(
+                        "elasticsearch.primary.relocation.shard",
+                        request.shardId().toString(),
+                        "elasticsearch.primary.relocation.target_allocation_id",
+                        targetAllocationId,
+                        "elasticsearch.primary.relocation.referenced_bccs",
+                        referencedBccs
+                    )
+                );
+                if (referencedBccs >= referencedBccsLogThreshold) {
+                    logger.warn(logMessage);
+                } else {
+                    logger.debug(logMessage);
+                }
+            }
         }
 
         final var blobCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());

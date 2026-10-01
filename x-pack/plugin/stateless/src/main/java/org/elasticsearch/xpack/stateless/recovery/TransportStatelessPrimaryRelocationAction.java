@@ -58,6 +58,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         Setting.Property.NodeScope
     );
 
+    /// If a last commit references more BCCs than this setting, the target WARN logs information
+    /// because this can lead to a long BCC-chain walk and slow down relocation.
+    public static final Setting<Integer> REFERENCED_BCCS_LOG_THRESHOLD_SETTING = Setting.intSetting(
+        "stateless.cluster.primary_relocation.referenced_bccs_log_threshold",
+        100,
+        1,
+        Setting.Property.NodeScope
+    );
+
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;

@@ -20,7 +20,10 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -54,6 +57,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -108,6 +112,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -161,6 +166,7 @@ import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -916,6 +922,50 @@ public class SecurityTests extends ESTestCase {
     public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
         assertThatLogger(() -> Security.validateForFips(settings), Security.class);
+    }
+
+    public void testSystemDataStreamsNotManageableByDataStreamLifecycle() {
+        final String coveredName = ".fleet-actions-results";
+        final String uncoveredName = ".not-covered-with-lifecycle";
+        final String uncoveredWithoutLifecycleName = ".not-covered-without-lifecycle";
+        final SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-feature",
+                    "feature with system data streams for the data stream lifecycle user check",
+                    List.of(),
+                    List.of(
+                        systemDataStreamDescriptor(coveredName, true),
+                        systemDataStreamDescriptor(uncoveredName, true),
+                        systemDataStreamDescriptor(uncoveredWithoutLifecycleName, false)
+                    )
+                )
+            )
+        );
+        final RestrictedIndices restrictedIndices = new RestrictedIndices(systemIndices.getSystemNameAutomaton());
+
+        assertThat(Security.systemDataStreamsNotManageableByDataStreamLifecycle(systemIndices, restrictedIndices), contains(uncoveredName));
+    }
+
+    private static SystemDataStreamDescriptor systemDataStreamDescriptor(String name, boolean withLifecycle) {
+        final Template.Builder template = Template.builder();
+        if (withLifecycle) {
+            template.lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(1)));
+        }
+        return new SystemDataStreamDescriptor(
+            name,
+            "system data stream for testing",
+            SystemDataStreamDescriptor.Type.EXTERNAL,
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(name))
+                .template(template)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build(),
+            Map.of(),
+            List.of("test"),
+            "test",
+            null
+        );
     }
 
     public void testSecurityProvider() {

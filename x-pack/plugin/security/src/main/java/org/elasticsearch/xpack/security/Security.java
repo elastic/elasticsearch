@@ -19,8 +19,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -70,6 +72,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -227,12 +230,15 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
@@ -789,6 +795,41 @@ public class Security extends Plugin
         }
     }
 
+    /**
+     * Data stream lifecycle only manages restricted system data streams matched by a hard-coded list of patterns on its internal user,
+     * and it cannot see that list. A system data stream with a lifecycle that falls outside the list makes lifecycle rollover fail with a
+     * security exception at runtime, so this is checked at startup in tests via an assertion.
+     *
+     * @return the names of the system data streams that declare a lifecycle but cannot be rolled over by the data stream lifecycle user
+     */
+    // pkg private for testing
+    static List<String> systemDataStreamsNotManageableByDataStreamLifecycle(
+        SystemIndices systemIndices,
+        RestrictedIndices restrictedIndices
+    ) {
+        final SimpleRole role = Role.buildFromRoleDescriptor(
+            InternalUsers.DATA_STREAM_LIFECYCLE_USER.getLocalClusterRoleDescriptor().get(),
+            new FieldPermissionsCache(Settings.EMPTY),
+            restrictedIndices
+        );
+        final IndicesPermission.IsResourceAuthorizedPredicate canRollover = role.indices().allowedIndicesMatcher(RolloverAction.NAME);
+        return systemIndices.getFeatures()
+            .stream()
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .filter(Security::hasLifecycle)
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .filter(
+                name -> canRollover.test(name, null, IndexComponentSelector.DATA) == false
+                    || canRollover.test(name, null, IndexComponentSelector.FAILURES) == false
+            )
+            .toList();
+    }
+
+    private static boolean hasLifecycle(SystemDataStreamDescriptor descriptor) {
+        final var template = descriptor.getComposableIndexTemplate().template();
+        return template != null && template.lifecycle() != null;
+    }
+
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(
         Client client,
@@ -844,6 +885,11 @@ public class Security extends Plugin
         components.add(securityContext.get());
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
+        assert systemDataStreamsNotManageableByDataStreamLifecycle(coreSystemIndices, restrictedIndices).isEmpty()
+            : "system data streams with a lifecycle must be covered by the restricted index patterns of the ["
+                + InternalUsers.DATA_STREAM_LIFECYCLE_USER.principal()
+                + "] user in InternalUsers: "
+                + systemDataStreamsNotManageableByDataStreamLifecycle(coreSystemIndices, restrictedIndices);
 
         final TokenService tokenService = new TokenService(
             settings,

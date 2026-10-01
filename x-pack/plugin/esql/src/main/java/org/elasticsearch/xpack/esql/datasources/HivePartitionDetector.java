@@ -244,6 +244,19 @@ public final class HivePartitionDetector implements PartitionDetector {
         }
     }
 
+    /**
+     * The {@code key=value} bindings a single path carries, first binding per key.
+     * <p>
+     * The per-path read {@code PartitionMetadata.tokenFor} needs: it values one file's column from that file's own
+     * path rather than from metadata typed over a different set of paths. Same grammar as the walk, by construction -
+     * it is {@link #fillPartitions} - so a value read here and a value pruned on cannot disagree.
+     */
+    static Map<String, String> extractPartitions(StoragePath storagePath) {
+        LinkedHashMap<String, String> bindings = new LinkedHashMap<>();
+        fillPartitions(storagePath, bindings);
+        return bindings;
+    }
+
     /** Clears {@code into} and fills it with the first {@code key=value} binding of each directory segment. */
     private static void fillPartitions(StoragePath storagePath, LinkedHashMap<String, String> into) {
         into.clear();

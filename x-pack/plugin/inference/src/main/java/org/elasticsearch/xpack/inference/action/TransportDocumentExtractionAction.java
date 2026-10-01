@@ -19,6 +19,7 @@ import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
@@ -74,6 +75,7 @@ public class TransportDocumentExtractionAction extends BaseTransportInferenceAct
         Model model,
         DocumentExtractionAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         service.documentExtractionInfer(model, request.getDocumentExtractionRequest(), request.getTimeout(), listener);

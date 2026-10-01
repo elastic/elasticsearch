@@ -10,7 +10,6 @@ import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -35,18 +34,15 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
 
   private final BreakingBytesRefBuilder oScratch;
 
-  private final CircuitBreaker breaker;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public FromBase64Evaluator(Source source, ExpressionEvaluator field,
-      BreakingBytesRefBuilder oScratch, CircuitBreaker breaker, DriverContext driverContext) {
+      BreakingBytesRefBuilder oScratch, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.oScratch = oScratch;
-    this.breaker = breaker;
     this.driverContext = driverContext;
   }
 
@@ -86,7 +82,7 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
         }
         BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
         try {
-          result.appendBytesRef(FromBase64.process(field, this.oScratch, this.breaker));
+          result.appendBytesRef(FromBase64.process(field, this.oScratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -102,7 +98,7 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
         try {
-          result.appendBytesRef(FromBase64.process(field, this.oScratch, this.breaker));
+          result.appendBytesRef(FromBase64.process(field, this.oScratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -136,20 +132,16 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
 
     private final Function<DriverContext, BreakingBytesRefBuilder> oScratch;
 
-    private final Function<DriverContext, CircuitBreaker> breaker;
-
     public Factory(Source source, ExpressionEvaluator.Factory field,
-        Function<DriverContext, BreakingBytesRefBuilder> oScratch,
-        Function<DriverContext, CircuitBreaker> breaker) {
+        Function<DriverContext, BreakingBytesRefBuilder> oScratch) {
       this.source = source;
       this.field = field;
       this.oScratch = oScratch;
-      this.breaker = breaker;
     }
 
     @Override
     public FromBase64Evaluator get(DriverContext context) {
-      return new FromBase64Evaluator(source, field.get(context), oScratch.apply(context), breaker.apply(context), context);
+      return new FromBase64Evaluator(source, field.get(context), oScratch.apply(context), context);
     }
 
     @Override

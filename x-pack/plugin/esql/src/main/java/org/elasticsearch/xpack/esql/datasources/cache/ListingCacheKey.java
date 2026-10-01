@@ -19,11 +19,10 @@ import java.util.Map;
  * share across principals. The storage identity is included because the same bucket on different endpoints
  * contains different objects.
  *
- * <p>Both identities are supplied by the storage provider that would list the prefix, never derived here. This key
- * used to hold a hash it computed itself from seven credential names written beside it — which carried
- * {@code access_key} and {@code secret_key} and not {@code session_token}, {@code role_arn} or {@code auth}, so two
- * roles over one bucket addressed one listing, and that hash was the only thing between them on any path. A
- * provider knows which of its own fields are declared secret; a cache cannot.
+ * <p>Both identities are supplied by the storage provider that would list the prefix, never derived here. A cache
+ * computing a credential hash from its own list of setting names cannot keep that list complete — a provider knows
+ * which of its own fields are declared secret, and a cache cannot — and a name missing from it puts two roles over
+ * one bucket on one listing, which is a wrong answer rather than a slow one.
  *
  * <p>The {@code listingDiscriminatorH1/H2} are a 128-bit hash of everything about the query that changes which
  * files the listing contains — the filter hints that narrow it, and the resolved partition config (strategy and
@@ -55,8 +54,8 @@ public record ListingCacheKey(
     /**
      * @param storageIdentity what the storage provider that would list this prefix says identifies the objects it
      *                        reads. Passed in rather than read out of {@code config}: only that provider knows
-     *                        which of its settings name the same store twice, and this key used to guess with two
-     *                        literals that named nothing for a provider addressed by an account.
+     *                        which of its settings name the same store twice. Literals chosen here would name nothing
+     *                        for a provider addressed by an account rather than an endpoint.
      * @param secretIdentity  a digest of the declared-secret settings that provider consumed, from
      *                        {@code Configured.secretIdentityOf}. Empty when it consumed none, which is a correct
      *                        answer and not a missing one — an anonymous store has no credential to isolate by.

@@ -780,9 +780,10 @@ public class ExternalSourceResolver {
      * one component a key carries: what the storage provider says identifies the object, what the format reader says
      * identifies its own configuration, and what the coordinator says identifies its own.
      * <p>
-     * Folded here rather than in the key, because none of the three is the cache's to derive. The key used to derive
-     * all of it — a hand-written list of twenty-five setting names for the format and coordinator halves, and two
-     * string literals for the storage half, which named nothing for a provider addressed by an account.
+     * Folded here rather than in the key, because none of the three is the cache's to derive. A key deriving them
+     * itself needs a hand-written list of setting names for the format and coordinator halves and a literal for the
+     * storage half, and both go stale silently: a name missing from the list, or a literal that names nothing for a
+     * provider addressed by an account rather than an endpoint, puts two different reads on one entry.
      */
     private String cacheIdentity(String objectName, String storageIdentity, Map<String, Object> config) {
         return Configured.fold(storageIdentity, formatConfigIdentity(objectName, config), FileSourceFactory.coordinatorIdentity(config));

@@ -37,10 +37,9 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity, 
         secretIdentity = Objects.requireNonNullElse(secretIdentity, "");
     }
 
-    // There is deliberately no three-argument convenience constructor. One existed for a few minutes and
-    // StorageProviderFactory silently dropped the secret identity through it, which is the same failure this class
-    // exists to remove: a participant that reports what it consumed and silently reports no identity. A participant
-    // with no secrets passes "" and says so.
+    // There is deliberately no three-argument convenience constructor: one would let a participant default its
+    // secret identity away silently, which is the failure this class exists to remove -- reporting what was consumed
+    // while reporting no identity. A participant with no secrets passes "" and says so.
 
     public static <T> Configured<T> empty(T value) {
         return new Configured<>(value, Set.of(), "", "");
@@ -62,8 +61,8 @@ public record Configured<T>(T value, Set<String> consumedKeys, String identity, 
      * so it identifies the read. That value is also the fingerprint the reader stamps on a harvest, and the two must
      * be the same string: the coordinator seeds a cache entry with the identity the reader vends, and the data node
      * stamps the harvest, and {@code ExternalSourceCacheService.matchesContribution} enriches the entry only when
-     * they compare equal. Deriving them separately is how a strict dataset stopped warming while every assertion
-     * about correctness stayed green.
+     * they compare equal. Derive them separately and a dataset silently stops warming, with every assertion about
+     * correctness still passing.
      */
     public static <T> Configured<T> fromKnownSubsetWithIdentity(
         T value,

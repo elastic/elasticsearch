@@ -16,7 +16,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
  *
  * @param storageIdentity what the storage provider that would read this object says identifies it. Passed in
  *                        rather than read out of a config map, because only that provider knows which of its
- *                        settings name the same object twice — this key used to guess with two literals and
- *                        named nothing for a provider addressed by an account.
+ *                        settings name the same object twice. Two literals chosen here would name nothing for a
+ *                        provider addressed by an account rather than an endpoint.
  */
 public record FileMetadataCacheKey(String canonicalPath, String storageIdentity) {}

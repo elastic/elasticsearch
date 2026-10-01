@@ -717,12 +717,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
         }
 
+        final String targetNodeId = getNodeId(targetSearchNode);
         for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
-            assertThat(
-                "shard " + shardIndex + " should have relocated to the target node",
-                findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId(),
-                equalTo(getNodeId(targetSearchNode))
-            );
+            final String nodeId = findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId();
+            assertThat("shard " + shardIndex + " should have relocated to the target node", nodeId, equalTo(targetNodeId));
         }
 
         final var plansAfterShutdown = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()

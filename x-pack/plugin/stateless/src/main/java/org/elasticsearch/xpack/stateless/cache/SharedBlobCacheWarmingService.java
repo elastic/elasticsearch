@@ -423,7 +423,7 @@ public class SharedBlobCacheWarmingService {
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting
         .timeSetting(
             SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation.min_budget_per_pending_shard",
-            TimeValue.timeValueSeconds(1),
+            TimeValue.timeValueMillis(200),
             TimeValue.ZERO,
             Setting.Property.NodeScope,
             Setting.Property.Dynamic

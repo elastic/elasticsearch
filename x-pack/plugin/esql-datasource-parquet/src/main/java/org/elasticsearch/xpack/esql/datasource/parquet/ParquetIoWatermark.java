@@ -8,13 +8,18 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
@@ -22,14 +27,33 @@ import java.util.concurrent.atomic.AtomicLong;
  * shared by every query on the node. Crossing the limit does not fail the query; the REQUEST
  * circuit breaker remains the hard stop. Look-ahead is refused once {@code used + next} would
  * exceed the cap. One in-flight group may overshoot when it is larger than the remaining budget,
- * so a scan cannot stall; that overshoot is node-wide, not per iterator.
+ * so a scan cannot stall; that overshoot is node-wide, not per iterator, and belongs to one
+ * owner lease until {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than
+ * fail the query. {@link #admitWait} timeout or cancellation fails that GET with
+ * {@link EsRejectedExecutionException}. The REQUEST circuit breaker remains the hard stop for
+ * allocation.
  */
 final class ParquetIoWatermark {
 
     static final int HEAP_DIVISOR = 8;
 
+    /**
+     * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
+     * {@link #forceAdd} (footer metadata, sliding window). {@link #GROUP_HOLD} is a footer
+     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} waits per miss via
+     * {@link #admitWait}. A null hold is never {@link #PER_GET}.
+     */
+    enum ByteGate {
+        UNGATED,
+        GROUP_HOLD,
+        PER_GET
+    }
+
     private final long limit;
     private final AtomicLong used = new AtomicLong();
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition notFull = lock.newCondition();
+    private RowGroupIo overshootOwner;
 
     static ParquetIoWatermark forHeap() {
         long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
@@ -55,27 +79,24 @@ final class ParquetIoWatermark {
         if (bytes == 0L) {
             return true;
         }
-        while (true) {
+        lock.lock();
+        try {
             long current = used.get();
             long next = current + bytes;
             if (next < 0L) {
                 return false;
             }
             if (next <= limit) {
-                if (used.compareAndSet(current, next)) {
-                    return true;
-                }
-                continue;
-            }
-            if (lookahead || current > limit) {
-                if (used.get() != current) {
-                    continue;
-                }
-                return false;
-            }
-            if (used.compareAndSet(current, next)) {
+                used.set(next);
                 return true;
             }
+            if (lookahead || current > limit) {
+                return false;
+            }
+            used.set(next);
+            return true;
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -93,11 +114,146 @@ final class ParquetIoWatermark {
     }
 
     /**
+     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code timeoutMs} elapses.
+     * Byte wait and permit wait are separate full clocks; this deadline covers only this wait.
+     * The caller supplies {@code timeoutMs} from {@code StorageObject#admissionWaitTimeoutMs()}.
+     * <p>
+     * Lock order: this watermark lock, then the budget lock inside
+     * {@link RowGroupIo#tryPinOvershoot()}. Never the reverse. {@link #clearOwner} runs after
+     * the budget {@code finish()} has released its lock.
+     */
+    AdmitHold admitWait(long bytes, RowGroupIo lease, long timeoutMs) {
+        if (lease == null) {
+            throw new IllegalArgumentException("lease is required");
+        }
+        if (bytes < 0L) {
+            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
+        }
+        if (bytes == 0L) {
+            return new AdmitHold(this, 0L);
+        }
+        // Independent of the query-budget acquire clock and the node-limiter clock.
+        long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        lock.lock();
+        try {
+            while (true) {
+                if (lease.isCancelled()) {
+                    throw cancelled();
+                }
+                long current = used.get();
+                long next = current + bytes;
+                if (next < 0L) {
+                    throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
+                }
+                if (next <= limit) {
+                    used.set(next);
+                    return new AdmitHold(this, bytes);
+                }
+                if (overshootOwner == lease) {
+                    used.set(next);
+                    return new AdmitHold(this, bytes);
+                }
+                if (overshootOwner == null) {
+                    if (tryBecomeOwner(lease, next)) {
+                        return new AdmitHold(this, bytes);
+                    }
+                }
+                lease.setWake(this::signalWaiters);
+                if (lease.isCancelled()) {
+                    throw cancelled();
+                }
+                long waitNanos = deadlineNanos - System.nanoTime();
+                if (waitNanos <= 0L) {
+                    throw rejected(timeoutMs);
+                }
+                try {
+                    notFull.awaitNanos(waitNanos);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Caller holds the watermark lock. Budget lock is taken inside {@code tryPinOvershoot} /
+     * {@code unpin} and released before this returns. A null scheduler (file:// and
+     * {@code max_concurrent_requests=0}) assigns the owner without pinning.
+     */
+    private boolean tryBecomeOwner(RowGroupIo lease, long nextUsed) {
+        if (lease.scheduler() != null) {
+            if (lease.tryPinOvershoot()) {
+                overshootOwner = lease;
+                lease.setWake(this::signalWaiters);
+                used.set(nextUsed);
+                return true;
+            }
+            lease.unpin();
+            return false;
+        }
+        overshootOwner = lease;
+        used.set(nextUsed);
+        return true;
+    }
+
+    /**
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
+     * Does not release bytes; those already returned from {@link DirectReadBuffer#close()}.
+     * No-op when another lease is the owner. Signals waiters. Call after budget {@code finish()}
+     * has released the budget lock.
+     */
+    void clearOwner(RowGroupIo lease) {
+        if (lease == null) {
+            return;
+        }
+        lock.lock();
+        try {
+            if (overshootOwner == lease) {
+                overshootOwner = null;
+                notFull.signalAll();
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Nullable
+    RowGroupIo overshootOwner() {
+        lock.lock();
+        try {
+            return overshootOwner;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void signalWaiters() {
+        lock.lock();
+        try {
+            notFull.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static EsRejectedExecutionException rejected(long timeoutMs) {
+        return new EsRejectedExecutionException("Timed out waiting for parquet I/O bytes after [" + timeoutMs + "]ms");
+    }
+
+    private static EsRejectedExecutionException cancelled() {
+        return new EsRejectedExecutionException("Cancelled while waiting for parquet I/O bytes");
+    }
+
+    /**
      * Unconditional charge used for buffers that must exist (sliding window on first use, actual
      * coalesced {@code DirectReadBuffer} size). Admission of look-ahead happens in
      * {@link #tryReserve}. When a prefetch already {@link #tryAdmit}ted a footer estimate,
      * {@link #accountingFactory(CircuitBreaker, AdmitHold)} drops that many estimate bytes on
-     * each alloc so in-flight sibling GETs keep their hold until they allocate.
+     * each alloc so in-flight sibling GETs keep their hold until they allocate. Does not set
+     * the overshoot owner.
      */
     void forceAdd(long bytes) {
         if (bytes < 0L) {
@@ -106,7 +262,12 @@ final class ParquetIoWatermark {
         if (bytes == 0L) {
             return;
         }
-        used.addAndGet(bytes);
+        lock.lock();
+        try {
+            used.addAndGet(bytes);
+        } finally {
+            lock.unlock();
+        }
     }
 
     void release(long bytes) {
@@ -116,10 +277,16 @@ final class ParquetIoWatermark {
         if (bytes == 0L) {
             return;
         }
-        used.updateAndGet(current -> {
-            long next = current - bytes;
-            return next < 0L ? 0L : next;
-        });
+        lock.lock();
+        try {
+            used.updateAndGet(current -> {
+                long next = current - bytes;
+                return next < 0L ? 0L : next;
+            });
+            notFull.signalAll();
+        } finally {
+            lock.unlock();
+        }
     }
 
     long used() {

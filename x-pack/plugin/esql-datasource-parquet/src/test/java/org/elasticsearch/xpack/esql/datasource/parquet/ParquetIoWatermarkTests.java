@@ -10,13 +10,22 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetIoWatermarkTests extends ESTestCase {
 
@@ -155,5 +164,187 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         }
         assertEquals("overshoot is node-wide", 1, admitted.get());
         assertEquals(50, watermark.used());
+    }
+
+    public void testNonFavouredWaitsUntilRelease() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        RowGroupIo favoured = lease(true);
+        RowGroupIo other = lease(false);
+        watermark.admitWait(80, favoured, 1_000L);
+        assertSame(favoured, watermark.overshootOwner());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
+        Thread waiter = new Thread(() -> {
+            entered.countDown();
+            hold.set(watermark.admitWait(10, other, 5_000L));
+            done.countDown();
+        });
+        waiter.start();
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        assertFalse("non-favoured must wait while the owner sits above the cap", done.await(50, TimeUnit.MILLISECONDS));
+        watermark.release(80);
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        waiter.join();
+        assertNotNull(hold.get());
+        assertEquals(10, watermark.used());
+        assertSame("release under the cap must not hand the owner slot to the waiter", favoured, watermark.overshootOwner());
+    }
+
+    public void testFavouredContinuesPastCap() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        RowGroupIo favoured = lease(true);
+        RowGroupIo other = lease(false);
+        watermark.admitWait(10, favoured, 1_000L);
+        assertEquals(10, watermark.used());
+        watermark.admitWait(1, favoured, 1_000L);
+        assertEquals(11, watermark.used());
+        assertSame(favoured, watermark.overshootOwner());
+        watermark.admitWait(1, favoured, 1_000L);
+        assertEquals(12, watermark.used());
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        Thread waiter = new Thread(() -> {
+            try {
+                watermark.admitWait(1, other, 200L);
+            } catch (Throwable t) {
+                error.set(t);
+            } finally {
+                done.countDown();
+            }
+        });
+        waiter.start();
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        waiter.join();
+        assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
+        assertSame(favoured, watermark.overshootOwner());
+        assertEquals(12, watermark.used());
+    }
+
+    public void testSecondQueryDoesNotTakeSecondOvershoot() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        RowGroupIo first = lease(true);
+        RowGroupIo second = lease(true);
+        watermark.admitWait(80, first, 1_000L);
+        assertSame(first, watermark.overshootOwner());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        Thread waiter = new Thread(() -> {
+            entered.countDown();
+            watermark.admitWait(40, second, 5_000L);
+            done.countDown();
+        });
+        waiter.start();
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        assertFalse(done.await(50, TimeUnit.MILLISECONDS));
+        watermark.release(80);
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        waiter.join();
+        assertEquals(40, watermark.used());
+        assertSame("the second query must not become a second owner", first, watermark.overshootOwner());
+    }
+
+    public void testNullSchedulerCrossesOnce() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        RowGroupIo first = new RowGroupIo();
+        RowGroupIo second = new RowGroupIo();
+        watermark.admitWait(80, first, 1_000L);
+        assertSame(first, watermark.overshootOwner());
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        Thread waiter = new Thread(() -> {
+            entered.countDown();
+            watermark.admitWait(10, second, 5_000L);
+            done.countDown();
+        });
+        waiter.start();
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        assertFalse("a second null-scheduler lease must not take another overshoot", done.await(50, TimeUnit.MILLISECONDS));
+        watermark.clearOwner(first);
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        waiter.join();
+        assertSame(second, watermark.overshootOwner());
+        assertEquals(90, watermark.used());
+    }
+
+    public void testAdmitWaitTimeoutUsesArgument() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(20, owner, 1_000L);
+        RowGroupIo waiter = new RowGroupIo();
+        long start = System.nanoTime();
+        EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, () -> watermark.admitWait(1, waiter, 50L));
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertThat(e.getMessage(), containsString("[50]ms"));
+        assertTrue("timeout must honour the caller argument, took " + elapsedMs + "ms", elapsedMs < 1_000L);
+    }
+
+    public void testThirteenPartialGroupsUnblockAfterOwnerFinish() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        RowGroupIo owner = new RowGroupIo();
+        watermark.admitWait(150, owner, 1_000L);
+        int waiters = 12;
+        CyclicBarrier start = new CyclicBarrier(waiters + 1);
+        CountDownLatch done = new CountDownLatch(waiters);
+        AtomicInteger admitted = new AtomicInteger();
+        Thread[] threads = new Thread[waiters];
+        for (int i = 0; i < waiters; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    start.await(5, TimeUnit.SECONDS);
+                    watermark.admitWait(5, new RowGroupIo(), 5_000L);
+                    admitted.incrementAndGet();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                } finally {
+                    done.countDown();
+                }
+            });
+            threads[i].start();
+        }
+        start.await(5, TimeUnit.SECONDS);
+        assertFalse("waiters stay blocked while the owner sits above the cap", done.await(50, TimeUnit.MILLISECONDS));
+        watermark.release(150);
+        owner.finish();
+        watermark.clearOwner(owner);
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertEquals(waiters, admitted.get());
+        assertEquals(60, watermark.used());
+        assertNull("under-cap admits must not keep an owner", watermark.overshootOwner());
+    }
+
+    public void testOwnerClearedOnFinishLetsSecondLeaseCross() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        RowGroupIo first = lease(true);
+        RowGroupIo second = lease(true);
+        watermark.admitWait(80, first, 1_000L);
+        first.finish();
+        watermark.clearOwner(first);
+        assertNull(watermark.overshootOwner());
+        watermark.admitWait(80, second, 1_000L);
+        assertSame(second, watermark.overshootOwner());
+        assertEquals(160, watermark.used());
+    }
+
+    private static RowGroupIo lease(boolean pin) {
+        RowGroupIo io = new RowGroupIo();
+        io.attachScheduler(new RowGroupScheduler() {
+            @Override
+            public boolean tryPinOvershoot(RowGroupIo candidate) {
+                return pin && candidate == io;
+            }
+
+            @Override
+            public void unpin(RowGroupIo candidate) {}
+
+            @Override
+            public void finish(RowGroupIo candidate) {
+                candidate.markFinished();
+            }
+        });
+        return io;
     }
 }

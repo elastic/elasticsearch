@@ -793,15 +793,16 @@ final class CsvRecordSplitter implements RecordSplitter {
      * <p>
      * Both step a byte at a time, and {@link BufferedInputStream#read()} is {@code synchronized}, so taking the
      * bytes from one costs a monitor enter and exit per byte of the span - on a stream the scanner is the only
-     * reader of, so the lock guards nothing. The block size is the size {@link BufferedInputStream} defaults to,
-     * which keeps the read-ahead a scan may hold to what it was before.
+     * reader of, so the lock guards nothing. The block is 8kb, the size {@link BufferedInputStream} defaults to,
+     * so a scan holds at most that much read-ahead.
      * <p>
      * Read-ahead is bounded by one block, and {@code RecordBoundaryProbe.provenBoundaries} aborts both streams
      * whatever they read, so the position a scan leaves the stream in is not observable.
      * <p>
      * {@code read()} is the whole surface on purpose: a caller settling a lookahead reads the next byte and, if it
-     * turns out not to belong to that lookahead, keeps it in a local until it is read as itself. Offering a
-     * {@code peek()} instead would owe every caller a rule about when a peeked byte stays valid across a refill.
+     * turns out not to belong to that lookahead, keeps it in a local until it is read as itself. A cursor that
+     * handed out a byte without consuming it would owe every caller a rule about when that byte stays valid
+     * across a refill.
      */
     private static final class BlockCursor {
 
@@ -824,8 +825,8 @@ final class CsvRecordSplitter implements RecordSplitter {
 
         /**
          * A zero-length read is reported as end of stream, which is what {@link BufferedInputStream} does with
-         * one. Nothing is latched, so a stream that answers zero and then yields bytes can still be read from
-         * by a later call - the same as before this cursor existed.
+         * one. Nothing is latched: a stream that answers zero and then yields bytes is still readable by a
+         * later call.
          */
         private boolean fill() throws IOException {
             pos = 0;

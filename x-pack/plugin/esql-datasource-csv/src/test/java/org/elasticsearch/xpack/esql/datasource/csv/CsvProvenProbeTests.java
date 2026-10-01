@@ -120,13 +120,13 @@ public class CsvProvenProbeTests extends ESTestCase {
         // a boundary puts it there, and the oracle - the same bytes read by a different scanner - says where the
         // record starts actually are.
         //
-        // The CRLF leg is the one that catches a lost refill, and the other two cannot, for reasons worth writing
-        // down rather than rediscovering. The doubled-quote decision is unobservable through any output: closing the
-        // field and reopening it on the next byte leaves the same inQuotes and the same consumed as consuming the
-        // pair as a literal, because fieldHasNonWhitespace is never set while inQuotes, so the reopen always takes.
-        // The escaped byte is fetched with a read rather than a peek, which every fixture longer than a block
-        // already exercises. They stay because they are the same construct at the same offsets for a scanner that
-        // may not always treat them this way, not because they guard the peek.
+        // Only the CRLF leg discriminates a lost refill, for reasons worth writing down rather than
+        // rediscovering. The doubled-quote decision is unobservable through any output: closing the field and
+        // reopening it on the next byte leaves the same inQuotes and the same consumed as consuming the pair as a
+        // literal, because fieldHasNonWhitespace is never set while inQuotes, so the reopen always takes. The
+        // escaped byte is taken by an ordinary read, which every fixture longer than a block already exercises.
+        // Both legs stay because they put the same constructs at the same offsets, not because they guard a
+        // refill.
         for (int pad = CsvRecordSplitter.BLOCK_BYTES - 8; pad <= CsvRecordSplitter.BLOCK_BYTES + 8; pad++) {
             String filler = "x".repeat(pad);
             // A CRLF terminator, its \r at offset 2 + pad.
@@ -139,9 +139,9 @@ public class CsvProvenProbeTests extends ESTestCase {
     }
 
     public void testExactWalkLookaheadAtEndOfStream() throws IOException {
-        // Both peeks can fall on the last byte of the stream, where there is nothing to look ahead at and a refill
-        // finds end of stream rather than a byte. A bare \r closes a record there; a quote inside a quoted field
-        // closes the field and leaves no record start behind it.
+        // Either lookahead can fall on the last byte of the stream, where the read that settles it finds end of
+        // stream rather than a byte. A bare \r closes a record there; a quote inside a quoted field closes the
+        // field and leaves no record start behind it.
         assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\nsecond\r"));
         assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\n2,\"unterminated\""));
     }

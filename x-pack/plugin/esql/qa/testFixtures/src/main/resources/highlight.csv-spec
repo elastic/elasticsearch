@@ -2247,6 +2247,7 @@ null
 # The nested UNION ALL's branches agree on title's analyzer, but its rows still come from books, not books_english. No warning.
 highlightPerIndexAnalyzerAcrossNestedUnionAll
 required_capability: highlight_mapping_analyzer
+required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 
 FROM (FROM (FROM books | WHERE book_no == "2714"), (FROM books | WHERE book_no == "2714")),

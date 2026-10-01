@@ -43,7 +43,7 @@ public abstract class HeapAttackTestCase extends HeapAttackRestHelpers {
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return Clusters.testRestCluster(cluster);
     }
 
     protected void initSensorData(int docCount, int sensorCount, int joinFieldCount, boolean expressionBasedJoin) throws IOException {

@@ -2028,7 +2028,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
 
         CloseableIterator<Page> pages = null;
-        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(errorPolicy, fileSplit.path().toString());
+        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(
+            errorPolicy,
+            ExternalFailures.redactHttpUrl(fileSplit.path().toString())
+        );
         // true on text-reader path: reader owns its parse-error budget separately; adapter must own rowCount
         // so max_error_ratio applies to reconciliation-cast drops (parse-error drops stay in reader's budget).
         boolean adapterOwnsRowCount = false;
@@ -2338,7 +2341,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 ),
                 filePath.objectName()
             );
-            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, filePath.toString());
+            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, ExternalFailures.redactHttpUrl(filePath.toString()));
             pages = openWithParallelism(
                 fileReader,
                 obj,
@@ -2971,7 +2974,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // first (releasing the Arena) then aborts raw through the provider's abort path (S3
                 // ResponseInputStream.abort()), keeping both codecs with and without JDK Cleaner support
                 // on equal footing and matching the abort-chain contract tested in StorageObjectAbortChainTests.
-                DecompressingStorageObject decompressing = new DecompressingStorageObject(obj, codec, streamingBreaker);
+                DecompressingStorageObject decompressing = new DecompressingStorageObject(
+                    obj,
+                    codec,
+                    streamingBreaker,
+                    cdr.maxDecompressionRatio()
+                );
                 InputStream stream = decompressing.newStream();
                 try {
                     return StreamingParallelParsingCoordinator.parallelRead(

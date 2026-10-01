@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -191,6 +192,53 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
             is(
                 "task_type ["
                     + TaskType.EMBEDDING
+                    + "] is not supported by all nodes in the cluster; "
+                    + "please complete upgrades before creating an endpoint with this task_type"
+            )
+        );
+    }
+
+    public void testDocumentExtractionTaskType_withUnsupportedNodeFeature_returnsStatusException() throws Exception {
+        var featureServiceMock = mock(FeatureService.class);
+        var clusterServiceMock = mock(ClusterService.class);
+        when(featureServiceMock.clusterHasFeature(any(), eq(EMBEDDING_TASK_TYPE))).thenReturn(true);
+        when(featureServiceMock.clusterHasFeature(any(), eq(DOCUMENT_EXTRACTION_TASK_TYPE))).thenReturn(false);
+        when(clusterServiceMock.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(InferencePlugin.SKIP_VALIDATE_AND_START))
+        );
+        var localAction = new TransportPutInferenceModelAction(
+            mock(),
+            clusterServiceMock,
+            mock(),
+            mock(),
+            mock(),
+            mock(),
+            mock(),
+            Settings.EMPTY,
+            mock(),
+            featureServiceMock
+        );
+
+        var taskMock = mock(Task.class);
+        var request = new PutInferenceModelAction.Request(
+            TaskType.DOCUMENT_EXTRACTION,
+            randomIdentifier(),
+            new BytesArray(""),
+            XContentType.JSON,
+            null
+        );
+        var state = mock(ClusterState.class);
+        var listener = new TestPlainActionFuture<PutInferenceModelAction.Response>();
+
+        localAction.masterOperation(taskMock, request, state, listener);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "task_type ["
+                    + TaskType.DOCUMENT_EXTRACTION
                     + "] is not supported by all nodes in the cluster; "
                     + "please complete upgrades before creating an endpoint with this task_type"
             )

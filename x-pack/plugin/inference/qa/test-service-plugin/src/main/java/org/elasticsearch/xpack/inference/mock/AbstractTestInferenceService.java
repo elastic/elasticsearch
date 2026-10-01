@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mock;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
@@ -16,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -28,6 +30,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.NoopChunker;
@@ -120,6 +123,21 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return new TestServiceModel(config, secrets);
+    }
+
+    @Override
+    public void documentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        listener.onFailure(
+            new ElasticsearchStatusException(
+                TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                RestStatus.BAD_REQUEST
+            )
+        );
     }
 
     protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {

@@ -281,7 +281,10 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
                     new MatchPhraseQueryBuilder("entries.body", "quick brown"),
                     ScoreMode.Avg
                 );
-                for (var hit : newSearcher(wrapInMockESDirectoryReader(reader)).search(nested.toQuery(context), 10).scoreDocs) {
+                // The searcher must not wrap the reader again: a nested query reads the shard id off the Elasticsearch
+                // reader, and a wrapper of its own hides it.
+                final IndexSearcher searcher = newSearcher(wrapInMockESDirectoryReader(reader), false);
+                for (var hit : searcher.search(nested.toQuery(context), 10).scoreDocs) {
                     hits.add(hit.doc);
                 }
             });

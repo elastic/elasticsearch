@@ -44,7 +44,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -70,6 +69,7 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -1207,12 +1207,12 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            return confirmIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), new MatchAllDocsQuery(), context);
+            return confirmIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
         }
 
         @Override
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-            return confirmIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), new MatchAllDocsQuery(), context);
+            return confirmIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
         }
 
         @Override
@@ -1225,7 +1225,7 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             return confirmIntervals(
                 Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 context
             );
         }

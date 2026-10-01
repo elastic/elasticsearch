@@ -1255,8 +1255,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             TestShardRouting.newShardRouting(
                 new ShardId(randomIdentifier(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
                 randomIdentifier(),
-                true,
-                STARTED
+                false,
+                STARTED,
+                ShardRouting.Role.SEARCH_ONLY
             )
         );
     }
@@ -1271,11 +1272,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10)
                 ),
-                () -> null, // unused in this test case
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -1336,7 +1337,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             Exception thrown = safeAwaitFailure(
                 Void.class,
                 resumeListener -> service.searchRecoveryWarmingListener(
-                    new SharedBlobCacheWarmingService.SearchRecoveryTimeout(
+                    SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(
                         TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                         randomAlphaOfLength(10)
                     ),
@@ -1667,9 +1668,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var service = newWarmingService(threadPool);
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(timeout, timeoutContext),
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(timeout, timeoutContext),
                 () -> null, // unused in this test case
-                mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
+                mockIndexShard(
+                    TestShardRouting.newShardRouting(shardId, randomIdentifier(), false, STARTED, ShardRouting.Role.SEARCH_ONLY)
+                ),
                 // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported
                 mockDirectory(dataSetSize.getBytes(), bytesWarmedBefore.getBytes(), bytesWarmedBefore.getBytes() + bytesWarmed.getBytes()),
                 bytesToWarm.getBytes(),

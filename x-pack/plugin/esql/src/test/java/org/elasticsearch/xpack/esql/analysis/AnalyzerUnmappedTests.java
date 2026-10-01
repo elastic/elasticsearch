@@ -1648,17 +1648,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllModeAllowsNonBranchingView() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM v | KEEP emp_no"));
     }
 
     public void testLoadAllModeAllowsBranchingView() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM test, v | KEEP emp_no"));
     }
 
     public void testLoadAllViewEvalThenKeepExactNamesDoesNotExpand() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         LogicalPlan plan = partialMappingTest().addView("v", "FROM partial_mapping_sample_data").statement(setUnmappedLoadAll("""
             FROM v
             | EVAL dur = unmapped_event_duration::long

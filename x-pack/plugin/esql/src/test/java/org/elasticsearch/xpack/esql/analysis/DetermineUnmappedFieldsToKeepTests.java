@@ -529,7 +529,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testViewNoKeepAnnotatesRelation() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM v"));
         UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
             CollectionUtils.collect(EsqlTestUtils.singleValue(plan.collect(EsRelation.class)).output(), UnmappedFieldsAttribute.class)
@@ -539,7 +538,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testViewUnionAllSurfacesUnmappedFieldsAttribute() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM test, v"));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         List<EsRelation> relations = plan.collect(EsRelation.class);
@@ -554,7 +552,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testViewKeepInOneBranchOmitsThatBranch() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         LogicalPlan plan = test().addView("kept", "FROM test | KEEP emp_no").statement(setUnmappedLoadAll("FROM test, kept"));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         int withAttribute = 0;
@@ -957,12 +954,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private UnmappedFieldsPattern patternForView(String view, String query) {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         return patternOf(test().addView("v", view).statement(setUnmappedLoadAll(query)));
     }
 
     private void assertViewHasNoUnmappedFieldsAttribute(String view, String query) {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
         LogicalPlan plan = test().addView("v", view).statement(setUnmappedLoadAll(query));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
         for (EsRelation relation : plan.collect(EsRelation.class)) {

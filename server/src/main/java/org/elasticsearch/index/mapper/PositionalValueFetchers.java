@@ -24,21 +24,18 @@ import java.util.List;
 
 /**
  * Where {@link SourceConfirmedTextQuery} and {@link SourceIntervalsSource} read a document's values from when they
- * verify positions a field did not index.
- *
- * <p>Any of these stands in for {@code _source}: the values are the field's own, so a field holding them in doc values
- * is read there and never goes near the source. That is what lets a field index no positions without the verification
- * costing a source lookup, and it is why a columnar field, whose values are a column, takes this path.
+ * confirm positions a field did not index. A field holding its values in doc values is read there rather than from
+ * {@code _source}.
  */
 public final class PositionalValueFetchers {
 
     private PositionalValueFetchers() {}
 
     /**
-     * A document's values read from its binary doc values, decoded the way they were written.
+     * A document's values read from its binary doc values.
      *
-     * <p>Which decoder that is has to follow the layout: they are not interchangeable, and reading one as another
-     * returns wrong values rather than failing, which a phrase query shows as a document that simply does not match.
+     * <p>The decoder has to follow the layout: they are not interchangeable, and reading one as another returns wrong
+     * values rather than failing, which a phrase query shows as a document that simply does not match.
      */
     public static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> fromBinaryDocValues(
         String fieldName,

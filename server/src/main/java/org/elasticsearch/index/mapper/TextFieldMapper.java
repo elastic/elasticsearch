@@ -1166,7 +1166,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            // The prefix subfield indexes its own positions, so an interval answered there needs no confirming.
+            // Answered by the prefix subfield, which indexes its own positions.
             if (prefixFieldType != null && prefixFieldType.getTextSearchInfo().hasPositions()) {
                 return prefixFieldType.intervals(term);
             }
@@ -1232,19 +1232,14 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether a query over positions the field did not index can be answered by reading the field's values back and
-         * checking them, which needs those values to be somewhere other than {@code _source}: the field's own doc
-         * values. A columnar field holds them in a column, which is what makes this worth doing there.
+         * Whether a query over positions this field did not index can be confirmed against its own values, which needs
+         * them in doc values rather than {@code _source}.
          */
         private boolean verifiesPositionsFromDocValues() {
             return getTextSearchInfo().hasPositions() == false && hasDocValues();
         }
 
-        /**
-         * Reads this field's values back, for the queries that confirm against them what the index does not hold.
-         *
-         * @see PositionalValueFetchers
-         */
+        /** Reads this field's values back, for the queries that confirm against them. */
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
             SearchExecutionContext context
         ) {
@@ -1266,8 +1261,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * The same for an interval, which needs {@code approximation} as the query that finds the documents worth
-         * reading the values of: the interval itself cannot be run against an index holding no positions.
+         * The same for an interval, which also takes the query that finds the documents worth reading: an interval
+         * cannot run against an index holding no positions.
          */
         private IntervalsSource confirmIntervals(IntervalsSource source, Query approximation, SearchExecutionContext context) {
             if (getTextSearchInfo().hasPositions()) {
@@ -1313,7 +1308,7 @@ public final class TextFieldMapper extends FieldMapper {
                 builder.add(new Term(field, termAtt.getBytesRef()), position);
             }
 
-            // The shingle subfield indexes its own positions, so a phrase answered there needs no confirming.
+            // Answered by the shingle subfield, which indexes its own positions.
             return field.equals(name()) ? confirmPositions(builder.build(), context) : builder.build();
         }
 
@@ -1329,7 +1324,7 @@ public final class TextFieldMapper extends FieldMapper {
                 field = field + FAST_PHRASE_SUFFIX;
             }
             final Query query = createPhraseQuery(stream, field, slop, enablePositionIncrements);
-            // The shingle subfield indexes its own positions, so a phrase answered there needs no confirming.
+            // Answered by the shingle subfield, which indexes its own positions.
             return field.equals(name()) ? confirmPositions(query, context) : query;
         }
 

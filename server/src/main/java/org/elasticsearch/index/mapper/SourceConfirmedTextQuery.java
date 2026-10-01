@@ -62,8 +62,9 @@ import java.util.Set;
 
 /**
  * A variant of {@link TermQuery}, {@link PhraseQuery}, {@link MultiPhraseQuery}
- * and span queries that uses postings for its approximation, but falls back to
- * stored fields or _source whenever term frequencies or positions are needed.
+ * and span queries that uses postings for its approximation and reads the
+ * document's own values back wherever term frequencies or positions are needed.
+ * Where those values live is the caller's to say; see {@link PositionalValueFetchers}.
  * This query matches and scores the same way as the wrapped query.
  */
 public final class SourceConfirmedTextQuery extends Query {
@@ -156,57 +157,64 @@ public final class SourceConfirmedTextQuery extends Query {
     }
 
     /**
-     * How often {@code terms} occur in order and adjacent in {@code value}, which is the frequency an index of it would
-     * report, counted over the analyzer's tokens instead of building that index.
+     * How often {@code terms} occur in order and adjacent across {@code values}, which is the frequency an index of
+     * them reports. Positions run on from one value to the next, as that index joins them.
      *
-     * <p>A prefix of the phrase can only ever be continued by the token at the position after the one it ended at, and
-     * positions only advance, so one end position per prefix length is all there is to carry. Lengths are extended
-     * longest-first so that a prefix recorded for this very position is not read as if it had ended at the last one.
+     * <p>A prefix of the phrase can only be continued by the token at the position after the one it ended at, and
+     * positions only advance, so one end position per prefix length is all there is to carry. What ends at the
+     * position in hand is held apart until that position is done, since several tokens can share one and a prefix
+     * starting on one of them must not be offered to the others.
      */
     static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
-        final int[] endOfPrefix = new int[terms.length];
-        Arrays.fill(endOfPrefix, Integer.MIN_VALUE);
-        final int[] freqs = new int[1];
+        final int[] endedBefore = new int[terms.length];
+        final int[] endedHere = new int[terms.length];
+        Arrays.fill(endedBefore, Integer.MIN_VALUE);
+        Arrays.fill(endedHere, Integer.MIN_VALUE);
+        int freq = 0;
         int position = -1;
+        int positionInHand = -1;
         for (Object value : values) {
             if (value == null) {
                 continue;
             }
             final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
-            position = walkValue(terms, field, analyzer, text, endOfPrefix, position, freqs);
-        }
-        return freqs[0];
-    }
-
-    private static int walkValue(Term[] terms, String field, Analyzer analyzer, String value, int[] endOfPrefix, int position, int[] freqs)
-        throws IOException {
-        try (TokenStream stream = analyzer.tokenStream(field, value)) {
-            final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
-            stream.reset();
-            while (stream.incrementToken()) {
-                position += increment.getPositionIncrement();
-                final BytesRef token = term.getBytesRef();
-                for (int length = terms.length - 1; length >= 1; length--) {
-                    if (endOfPrefix[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
-                        if (length == terms.length - 1) {
-                            freqs[0]++;
+            try (TokenStream stream = analyzer.tokenStream(field, text)) {
+                final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+                final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
+                stream.reset();
+                while (stream.incrementToken()) {
+                    position += increment.getPositionIncrement();
+                    if (position != positionInHand) {
+                        for (int length = 0; length < terms.length; length++) {
+                            if (endedHere[length] != Integer.MIN_VALUE) {
+                                endedBefore[length] = endedHere[length];
+                                endedHere[length] = Integer.MIN_VALUE;
+                            }
+                        }
+                        positionInHand = position;
+                    }
+                    final BytesRef token = term.getBytesRef();
+                    if (terms[0].bytes().equals(token)) {
+                        if (terms.length == 1) {
+                            freq++;
                         } else {
-                            endOfPrefix[length] = position;
+                            endedHere[0] = position;
+                        }
+                    }
+                    for (int length = 1; length < terms.length; length++) {
+                        if (endedBefore[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
+                            if (length == terms.length - 1) {
+                                freq++;
+                            } else {
+                                endedHere[length] = position;
+                            }
                         }
                     }
                 }
-                if (terms[0].bytes().equals(token)) {
-                    if (terms.length == 1) {
-                        freqs[0]++;
-                    } else {
-                        endOfPrefix[0] = position;
-                    }
-                }
+                stream.end();
             }
-            stream.end();
         }
-        return position;
+        return freq;
     }
 
     private static final Similarity FREQ_SIMILARITY = new Similarity() {
@@ -447,7 +455,6 @@ public final class SourceConfirmedTextQuery extends Query {
 
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
         private final Term[] walkablePhrase;
-        /** The values of the document in hand. Reading them is the expensive part, so it happens once per document. */
         private int valuesDocID = -1;
         private List<Object> values;
 
@@ -477,9 +484,8 @@ public final class SourceConfirmedTextQuery extends Query {
 
                 @Override
                 public float matchCost() {
-                    // Both paths are dominated by reading the document's values and analyzing them, so this stays
-                    // high enough to run last among cheaper checks. Walking the tokens is the cheaper of the two,
-                    // since it compares terms as they come instead of indexing them all and then searching.
+                    // Reading the values and analyzing them dominates either way, so both stay high enough to run
+                    // last among cheaper checks. The walk compares terms as they come rather than indexing them all.
                     return walkablePhrase != null ? 1_000f : 10_000f;
                 }
             };
@@ -544,7 +550,7 @@ public final class SourceConfirmedTextQuery extends Query {
             return cacheEntry.memoryIndex;
         }
 
-        /** The document's values, read once however many of the paths below ask for them. */
+        /** The document's values, read once however many of the paths below ask for them: reading is what costs. */
         private List<Object> values() throws IOException {
             if (valuesDocID != docID()) {
                 valuesDocID = docID();

@@ -10,7 +10,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -31,7 +39,58 @@ import java.util.List;
 public class PhraseWalkEquivalenceTests extends ESTestCase {
 
     private static final String FIELD = "body";
-    private static final String[] WORDS = { "a", "b", "c", "the", "quick", "brown" };
+    private static final String[] WORDS = { "a", "b", "c", "the", "quick", "brown", "syn" };
+
+    /** Drops {@code the}, so a position increment of more than one reaches the walk. */
+    private static Analyzer withStopWords() {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                final Tokenizer source = new WhitespaceTokenizer();
+                return new TokenStreamComponents(source, new StopFilter(source, new CharArraySet(List.of("the"), false)));
+            }
+        };
+    }
+
+    /** Emits {@code syn} beside every {@code quick}, so two tokens reach the walk at one position. */
+    private static Analyzer withSynonyms() {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                final Tokenizer source = new WhitespaceTokenizer();
+                final TokenStream filtered = new TokenFilter(source) {
+                    private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+                    private final PositionIncrementAttribute increment = addAttribute(PositionIncrementAttribute.class);
+                    private State pending;
+
+                    @Override
+                    public boolean incrementToken() throws IOException {
+                        if (pending != null) {
+                            restoreState(pending);
+                            pending = null;
+                            term.setEmpty().append("syn");
+                            increment.setPositionIncrement(0);
+                            return true;
+                        }
+                        if (input.incrementToken() == false) {
+                            return false;
+                        }
+                        if (term.toString().equals("quick")) {
+                            pending = captureState();
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public void reset() throws IOException {
+                        super.reset();
+                        pending = null;
+                    }
+                };
+                return new TokenStreamComponents(source, filtered);
+            }
+        };
+    }
 
     /** The similarity SourceConfirmedTextQuery scores with, so a search returns the frequency itself. */
     private static final Similarity FREQ = new Similarity() {
@@ -61,7 +120,18 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
     }
 
     public void testWalkReportsTheSameFrequency() throws IOException {
-        final Analyzer analyzer = new WhitespaceAnalyzer();
+        check(new WhitespaceAnalyzer(), "whitespace");
+    }
+
+    public void testWalkReportsTheSameFrequencyWithPositionGaps() throws IOException {
+        check(withStopWords(), "stop words");
+    }
+
+    public void testWalkReportsTheSameFrequencyWithTokensSharingAPosition() throws IOException {
+        check(withSynonyms(), "synonyms");
+    }
+
+    private void check(Analyzer analyzer, String what) throws IOException {
         int multiValued = 0;
         int nonZero = 0;
         for (int iter = 0; iter < 2000; iter++) {
@@ -95,6 +165,6 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
             }
             assertEquals("values=" + values + " phrase=" + List.of(terms), (int) expected, actual);
         }
-        logger.info("{} iterations, {} multi-valued, {} with a match", 2000, multiValued, nonZero);
+        logger.info("{}: {} iterations, {} multi-valued, {} with a match", what, 2000, multiValued, nonZero);
     }
 }

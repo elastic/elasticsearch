@@ -381,7 +381,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    public void testCoalesceNullabilityIsUnknown() {
+    public void testCoalesceNullabilityIsTrue() {
         assertThat(buildFieldExpression(testCase).nullable(), equalTo(Nullability.TRUE));
     }
 

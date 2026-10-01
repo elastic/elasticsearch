@@ -202,11 +202,6 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 return Nullability.FALSE;
             }
         }
-        /*
-         * Otherwise let’s call this one "unknown". If we returned TRUE here
-         * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don’t want that at all.
-         */
         return Nullability.TRUE;
     }
 

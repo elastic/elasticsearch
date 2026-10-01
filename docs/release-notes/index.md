@@ -746,7 +746,7 @@ defaults, suitable for general-purpose indices and data streams.
 Improved columnar storage: An optimized doc values format is used by default,
 further reducing storage footprint, especially when combined with index sorting.
 
-Read more about these changes in the [{{es-labs}} blog](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage).
+Read more about these changes in {{es-labs}} blogs: [Why {{es}} is becoming a columnar database](https://www.elastic.co/search-labs/blog/elasticsearch-columnar-storage), [How {{es}} columnar storage drops the inverted index](https://www.elastic.co/search-labs/blog/columnar-storage-elasticsearch-index-modes), and [What columnar mode brings to {{es}}](https://www.elastic.co/search-labs/blog/elasticsearch-doc-values-columnar-database).
 ::::
 
 ::::{dropdown} Create backing indices for backfilling past timestamps in TSDB (opt-in)

@@ -663,3 +663,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/160055
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testTrackOldSearchNodesWhenIndexingShardRelocates
+  issue: https://github.com/elastic/elasticsearch/issues/160699

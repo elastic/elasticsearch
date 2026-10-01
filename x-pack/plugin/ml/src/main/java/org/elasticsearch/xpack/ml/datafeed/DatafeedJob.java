@@ -70,6 +70,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 class DatafeedJob {
 
+    /**
+     * Appended to {@link Messages#DATAFEED_ESQL_INCOMPLETE_CHUNK}: the source checkpoint moves past an incomplete chunk, so
+     * the truncated interval is not extracted again. Lives here rather than in Messages until the two can be merged.
+     */
+    private static final String INCOMPLETE_ESQL_CHUNK_SKIPPED_SUFFIX = " The interval was skipped and its data will not be "
+        + "re-extracted; the buckets covering it were analysed from the truncated rows only.";
+
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
 
@@ -760,7 +767,10 @@ class DatafeedJob {
                     notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
                 }
 
-                if (isEsqlDatafeed && dataExtractor.isCancelled() == false && incompleteSearchInterval.isEmpty()) {
+                // An incomplete chunk does not hold the checkpoint back: the flush above has already finalised the buckets
+                // up to the window end, so re-querying the window next cycle could not repair them (it would only be
+                // dropped as out of order), and holding would grow the window every cycle. The gap is audited instead.
+                if (isEsqlDatafeed && dataExtractor.isCancelled() == false) {
                     commitEsqlSourceCheckpoint(dataExtractor.getEndTime());
                 }
             }
@@ -780,7 +790,7 @@ class DatafeedJob {
             Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
             Instant.ofEpochMilli(interval.startMs()),
             Instant.ofEpochMilli(interval.endMs())
-        );
+        ) + INCOMPLETE_ESQL_CHUNK_SKIPPED_SUFFIX;
         LOGGER.warn("[{}] {}", jobId, message);
         auditor.warning(jobId, message);
     }
@@ -1040,7 +1050,7 @@ class DatafeedJob {
 
     /**
      * Persist the exclusive source upper bound after extraction, post, and flush all succeed.
-     * Truncation (Task 6) must not call this until a complete window is committed; cancel/isolate
+     * An incomplete (truncated) chunk is committed too, after its gap is audited; cancel/isolate
      * paths skip this call entirely. The persister blocks on bulk index ack (RefreshPolicy.NONE);
      * {@link #esqlSourceEndMs} updates only after that ack returns. Restart load uses realtime GET,
      * so the unrefreshed write is visible without waiting for a refresh.

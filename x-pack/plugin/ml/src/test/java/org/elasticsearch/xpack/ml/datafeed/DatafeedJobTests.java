@@ -1732,7 +1732,9 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
     }
 
-    public void testEsqlTruncatedChunkShouldNotifyAndHoldSourceCheckpoint() throws Exception {
+    // Replaces testEsqlTruncatedChunkShouldNotifyAndHoldSourceCheckpoint: a truncated chunk no longer holds the checkpoint
+    // (the flush has already finalised its buckets, so a retry cannot repair them); the window is committed and the gap audited.
+    public void testEsqlTruncatedChunkShouldNotifyAndCommitSourceCheckpoint() throws Exception {
         long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
         AtomicReference<Long> persistedSourceEnd = new AtomicReference<>();
         Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnd.set(checkpoint.getSourceEndMs());
@@ -1744,8 +1746,8 @@ public class DatafeedJobTests extends ESTestCase {
         DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
         datafeedJob.runLookBack(0L, 3_600_000L);
 
-        assertThat(persistedSourceEnd.get(), nullValue());
-        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        assertThat(persistedSourceEnd.get(), equalTo(3_600_000L));
+        assertThat(datafeedJob.esqlSourceEndMs(), equalTo(3_600_000L));
         verify(auditor).warning(
             eq(jobId),
             argThat(
@@ -1754,8 +1756,41 @@ public class DatafeedJobTests extends ESTestCase {
                     && message.contains("chunker could not cover the interval")
                     && message.contains("Pre-aggregate")
                     && message.contains("narrower chunk")
+                    && message.contains("skipped")
             )
         );
+    }
+
+    public void testEsqlTruncatedChunkInRealtimeShouldAdvanceNextWindowAndAuditOnce() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        List<Long> persistedSourceEnds = new ArrayList<>();
+        SearchInterval incompleteInterval = new SearchInterval(60_000L, 120_000L);
+        // only the first window is truncated
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(incompleteInterval)).thenReturn(Optional.empty());
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(
+            60_000L,
+            0L,
+            hour,
+            -1L,
+            null,
+            checkpoint -> persistedSourceEnds.add(checkpoint.getSourceEndMs())
+        );
+        currentTime = 2 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        currentTime = 3 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(0L, 2 * hour);
+        // the second cycle starts where the truncated first one ended instead of re-querying the growing window
+        verify(dataExtractorFactory).newExtractor(2 * hour, 3 * hour);
+        assertThat(persistedSourceEnds, equalTo(List.of(2 * hour, 3 * hour)));
+        verify(auditor, times(1)).warning(eq(jobId), any());
     }
 
     public void testEsqlCheckpointShouldNotAdvanceWhenIsolated() throws Exception {

@@ -81,7 +81,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertLimitOracle(index, "esql-user-limit", "FROM esql-limit-oracle | KEEP event_time, value | LIMIT 20", 20);
     }
 
-    public void testEsqlDatafeedWithUnshrinkableChunkShouldWarnAndHoldCheckpoint() throws Exception {
+    public void testEsqlDatafeedWithUnshrinkableChunkShouldWarnAndCommitCheckpoint() throws Exception {
         String index = "esql-truncation-oracle";
         String jobId = "esql-truncation-job";
         String datafeedId = jobId + "-datafeed";
@@ -108,7 +108,8 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(fetchAllAuditMessages(jobId), equalTo(auditMessagesBeforePreview));
         openJob(jobId);
         runLookback(datafeedId, jobId, FIRST_WINDOW_END, SECOND_WINDOW_END, 10_001L);
-        assertThat(sourceCheckpointEnd(jobId), equalTo(FIRST_WINDOW_END));
+        // the truncated window is audited and the checkpoint moves past it instead of being held back
+        assertThat(sourceCheckpointEnd(jobId), equalTo(SECOND_WINDOW_END));
         assertBusy(
             () -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("chunker could not cover the interval")),
             60,
@@ -188,7 +189,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private DatafeedConfig createDatafeed(String datafeedId, String jobId, String query, ChunkingConfig chunkingConfig) {
-        // These tests exercise LIMIT injection and chunk-truncation/checkpoint-hold behavior, not delayed
+        // These tests exercise LIMIT injection and chunk-truncation/checkpoint-commit behavior, not delayed
         // data detection, which for ES|QL datafeeds separately requires summary_count_field_name.
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(query)
             .setSourceTimeField("source_time")

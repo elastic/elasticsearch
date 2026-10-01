@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.mapper.CompositeRuntimeField;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -607,17 +609,33 @@ public class SearchContextStats implements SearchStats {
      *       {@code geo_point}/{@code geo_shape}, {@code histogram}, {@code aggregate_metric_double}, vectors, ...), or any
      *       leaf with {@code ignore_malformed} enabled (which may retain a malformed object). Such a value expands to
      *       dotted sub-columns, so the field contributes when the pattern wants the field name or anything in its subtree.
-     *       Plain scalar leaves (see {@link #SCALAR_SOURCE_TYPES}) contribute only when the pattern wants their exact name —
-     *       which can happen for a field mapped on this shard after the coordinator built its column list (e.g. a
-     *       {@code subobjects:false} dotted key such as {@code host.name}).</li>
+     *       A plain scalar leaf under a {@code subobjects:false} object is also treated as structured, because
+     *       {@code DocumentParser} flattens an object written to it into dotted sub-fields. Other plain scalar leaves (see
+     *       {@link #SCALAR_SOURCE_TYPES}) contribute only when the pattern wants their exact name — which can happen for a
+     *       field mapped on this shard after the coordinator built its column list (e.g. a {@code subobjects:false} dotted
+     *       key such as {@code host.name}).</li>
      *   <li>A runtime field (including one minted by {@code dynamic:runtime}) whose name the pattern still wants — runtime
-     *       fields are stored beside the mapped fields and are read from {@code _source}.</li>
-     *   <li>A top-level object/nested field any of whose descendants the pattern could match; nested objects are covered by
-     *       their top-level ancestor. This is deliberately conservative — the optimisation targets flat, fully-mapped
-     *       indices where no object fields appear.</li>
+     *       fields are stored beside the mapped fields and are read from {@code _source}. A {@code CompositeRuntimeField}
+     *       exposes dotted descendants ({@code obj.long}, ...) and may leave an unmapped sibling in {@code _source}, so its
+     *       whole subtree is tested, not just the composite's own name.</li>
+     *   <li>An object/nested field any of whose descendants the pattern could match; descendant objects are covered by their
+     *       top-most object ancestor. Ancestry is decided by walking dotted path prefixes rather than by the presence of a
+     *       dot, so a {@code subobjects:false} root holding a dotted object mapper directly (e.g. {@code metrics.service}) is
+     *       still checked. This is deliberately conservative — the optimisation targets flat, fully-mapped indices where no
+     *       object fields appear.</li>
      * </ul>
      * Multi-fields (e.g. {@code height.keyword}) are ignored: they share their parent's {@code _source} key and add none of
      * their own.
+     *
+     * <p><b>Known limitation — mapping history.</b> The decision is taken from the current, merged {@link MappingLookup},
+     * which does not record prior {@code dynamic} settings. If an index was {@code dynamic:false}/{@code dynamic:flattened}
+     * at some point in the past, documents indexed then can retain {@code _source} keys that are now absent from
+     * {@link MappingLookup#fieldMappers()}; a later flip to {@code dynamic:true} makes those historical keys invisible to
+     * this check, so a pattern that still wants them could be wrongly skipped. Elasticsearch keeps no mapping history (and
+     * even {@code dynamic:strict} is not history-proof, e.g. a {@code strict -> false -> strict} sequence), so no mapping- or
+     * index-metadata-level signal can prove the absence of such keys. This edge is accepted rather than declining the
+     * optimization for every {@code dynamic:true} index (its primary target); closing it would require a new index-level
+     * invariant tracking that {@code dynamic} was never relaxed.
      */
     static boolean isNoop(UnmappedFieldsPattern pattern, MappingLookup mappingLookup, IndexSettings indexSettings) {
         if (pattern.isNone()) {
@@ -650,7 +668,7 @@ public class SearchContextStats implements SearchStats {
                 if (mappingLookup.isMultiField(fullPath)) {
                     continue;
                 }
-                if (leafCouldContribute(pattern, fullPath, fieldMapper)) {
+                if (leafCouldContribute(pattern, fullPath, fieldMapper, mappingLookup)) {
                     return false;
                 }
             } else {
@@ -661,12 +679,45 @@ public class SearchContextStats implements SearchStats {
         return true;
     }
 
-    private static boolean leafCouldContribute(UnmappedFieldsPattern pattern, String fullPath, FieldMapper fieldMapper) {
-        if (SCALAR_SOURCE_TYPES.contains(fieldMapper.typeName()) && fieldMapper.ignoreMalformed() == false) {
+    private static boolean leafCouldContribute(
+        UnmappedFieldsPattern pattern,
+        String fullPath,
+        FieldMapper fieldMapper,
+        MappingLookup mappingLookup
+    ) {
+        // The scalar fast-path (the field only ever contributes a column under its own name) is sound only when the leaf
+        // cannot hold a structured value in _source. Besides ignore_malformed, a scalar under a subobjects:false object is
+        // one such case: DocumentParser#shouldFlattenObject flattens an object written to it into dotted sub-fields, so an
+        // exact-exclude of the leaf name can still leave a wanted descendant.
+        if (SCALAR_SOURCE_TYPES.contains(fieldMapper.typeName())
+            && fieldMapper.ignoreMalformed() == false
+            && enclosingSubobjectsDisabled(fullPath, mappingLookup) == false) {
             return pattern.matches(fullPath);
         }
-        // Structured or ignore_malformed (or unrecognised) leaf: its _source value can expand to dotted sub-columns.
+        // Structured or ignore_malformed (or object-flattenable, or unrecognised) leaf: its _source value can expand to
+        // dotted sub-columns.
         return pattern.matches(fullPath) || pattern.objectSubfieldsCouldMatch(fullPath);
+    }
+
+    /**
+     * Whether the nearest enclosing object of {@code fullPath} has {@code subobjects:false}. Only the scalar types in
+     * {@link #SCALAR_SOURCE_TYPES} reach this check, and none of them can parse an object directly
+     * ({@code FieldMapper#supportsParsingObject() == false}), so a {@code subobjects:false} parent is exactly the condition
+     * under which {@code DocumentParser#shouldFlattenObject} flattens an object value into dotted sub-fields.
+     */
+    private static boolean enclosingSubobjectsDisabled(String fullPath, MappingLookup mappingLookup) {
+        Map<String, ObjectMapper> objectMappers = mappingLookup.objectMappers();
+        int dot = fullPath.lastIndexOf('.');
+        while (dot > 0) {
+            String ancestor = fullPath.substring(0, dot);
+            ObjectMapper objectMapper = objectMappers.get(ancestor);
+            if (objectMapper != null) {
+                return objectMapper.subobjects() == ObjectMapper.Subobjects.DISABLED;
+            }
+            dot = ancestor.lastIndexOf('.');
+        }
+        Mapping mapping = mappingLookup.getMapping();
+        return mapping != null && mapping.getRoot().subobjects() == ObjectMapper.Subobjects.DISABLED;
     }
 
     private static boolean noRuntimeFieldCouldContribute(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
@@ -674,15 +725,47 @@ public class SearchContextStats implements SearchStats {
         if (mapping == null) {
             return true;
         }
-        return mapping.getRoot().runtimeFields().stream().noneMatch(runtimeField -> pattern.matches(runtimeField.name()));
+        return mapping.getRoot().runtimeFields().stream().noneMatch(runtimeField -> runtimeFieldCouldContribute(pattern, runtimeField));
+    }
+
+    private static boolean runtimeFieldCouldContribute(UnmappedFieldsPattern pattern, RuntimeField runtimeField) {
+        // A composite runtime field (e.g. one minted by dynamic:runtime) exposes its mapped leaves as dotted descendants of
+        // the field name (obj -> obj.long, obj.bool, ...), and _source can still carry an unmapped sibling under that prefix
+        // until the dynamic mapping update lands. The field name itself (obj) is not a _source key, so test the whole subtree
+        // conservatively rather than only the composite's own name.
+        if (runtimeField instanceof CompositeRuntimeField) {
+            return pattern.matches(runtimeField.name()) || pattern.objectSubfieldsCouldMatch(runtimeField.name());
+        }
+        return pattern.matches(runtimeField.name());
     }
 
     private static boolean noObjectCouldContribute(UnmappedFieldsPattern pattern, MappingLookup mappingLookup) {
-        return mappingLookup.objectMappers()
-            .values()
-            .stream()
-            .filter(objectMapper -> objectMapper.fullPath().indexOf('.') < 0)
-            .noneMatch(objectMapper -> pattern.objectSubfieldsCouldMatch(objectMapper.fullPath()));
+        Map<String, ObjectMapper> objectMappers = mappingLookup.objectMappers();
+        for (ObjectMapper objectMapper : objectMappers.values()) {
+            // Only the roots of the object hierarchy need checking: a descendant object is covered by its top-most object
+            // ancestor, whose objectSubfieldsCouldMatch already spans the whole subtree. Ancestry is decided by walking dotted
+            // path prefixes rather than by the presence of a dot, because a subobjects:false root can retain a dotted object
+            // mapper (e.g. "metrics.service") directly, with no object ancestor.
+            if (hasObjectAncestor(objectMapper.fullPath(), objectMappers)) {
+                continue;
+            }
+            if (pattern.objectSubfieldsCouldMatch(objectMapper.fullPath())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasObjectAncestor(String fullPath, Map<String, ObjectMapper> objectMappers) {
+        int dot = fullPath.lastIndexOf('.');
+        while (dot > 0) {
+            String ancestor = fullPath.substring(0, dot);
+            if (objectMappers.containsKey(ancestor)) {
+                return true;
+            }
+            dot = ancestor.lastIndexOf('.');
+        }
+        return false;
     }
 
     @Override

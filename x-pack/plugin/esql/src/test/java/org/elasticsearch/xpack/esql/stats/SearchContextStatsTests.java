@@ -32,7 +32,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
@@ -1356,8 +1360,90 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("field1", "field2")));
     }
 
+    /**
+     * A scalar leaf under a {@code subobjects:false} object can still keep a structured value in {@code _source}: when an
+     * object is written to it, {@code DocumentParser#shouldFlattenObject} flattens it into dotted sub-fields. So even
+     * exact-excluding the leaf name ({@code flat}) does not cover a wanted descendant such as {@code flat.inner}, and the
+     * read must not be skipped — unlike the equivalent {@code subobjects:true} index, which can skip.
+     */
+    public void testCannotSkipWhenScalarUnderSubobjectsFalseCouldBeFlattened() throws IOException {
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("id").field("type", "keyword").endObject();
+            b.startObject("flat").field("type", "keyword").endObject();
+        }));
+        SearchStats stats = SearchContextStats.from(List.of(contextFor(mapperService)));
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id", "flat")));
+    }
+
+    /**
+     * A composite runtime field {@code obj} exposes dotted descendants ({@code obj.long}, ...) and {@code _source} can still
+     * hold an unmapped sibling such as {@code obj.bool} until the dynamic runtime mapping update lands. The composite's own
+     * name {@code obj} is not a {@code _source} key, so testing only {@code pattern.matches("obj")} is unsound: with only
+     * {@code id} excluded the pattern still wants {@code obj.*}, so the read must not be skipped.
+     */
+    public void testCannotSkipWhenCompositeRuntimeFieldDescendantWanted() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("runtime");
+            b.startObject("obj");
+            b.field("type", "composite");
+            b.startObject("script").field("source", "dummy").endObject();
+            b.startObject("fields");
+            b.startObject("long").field("type", "long").endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.startObject("properties");
+            b.startObject("id").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        SearchStats stats = SearchContextStats.from(List.of(contextFor(mapperService)));
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id")));
+    }
+
+    /**
+     * A {@code subobjects:false} root can hold a dotted object mapper directly (here a {@code nested} {@code metrics.service})
+     * with no object ancestor. Deciding "top-level object" by the absence of a dot would wrongly skip it; its descendants
+     * ({@code metrics.service.*}) could still be unmapped {@code _source} keys, so with only {@code id} excluded the read must
+     * not be skipped.
+     */
+    public void testCannotSkipWhenSubobjectsFalseRootHoldsDottedObject() throws IOException {
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("id").field("type", "keyword").endObject();
+            b.startObject("metrics.service");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("latency").field("type", "long").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SearchStats stats = SearchContextStats.from(List.of(contextFor(mapperService)));
+        assertFalse(stats.canSkipUnmappedFieldsExtraction(excludingAll("id")));
+    }
+
     private static UnmappedFieldsPattern excludingAll(String... names) {
         return UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of(names));
+    }
+
+    /**
+     * Only the composite runtime field context is needed (see {@link #testCannotSkipWhenCompositeRuntimeFieldDescendantWanted});
+     * the script is never executed because the {@code isNoop} decision reads the mapping only, so the factory is a stub.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context == CompositeFieldScript.CONTEXT) {
+            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup, onScriptError) -> ctx -> new CompositeFieldScript(
+                fieldName,
+                params,
+                searchLookup,
+                OnScriptError.FAIL,
+                ctx
+            ) {
+                @Override
+                public void execute() {}
+            };
+        }
+        return super.compileScript(script, context);
     }
 
     private SearchStats statsForMapping(String mappingJson) throws IOException {

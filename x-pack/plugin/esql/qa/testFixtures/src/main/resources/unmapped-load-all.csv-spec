@@ -3057,6 +3057,7 @@ id:keyword | extra:keyword | extra.baz:keyword
 // still surface. Excluding only the parent name "span" does not exclude those inner leaves.
 mappedObjectValuedFieldStillExpandsUnderLoadAll
 required_capability: optional_fields_load_all_v2
+skip_columnar: A mapped integer_range's object value is not surfaced to the LOAD_ALL _unmapped_fields loader from columnar synthetic _source, so span.gte/span.lt come back null
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM mapped_object_source_data

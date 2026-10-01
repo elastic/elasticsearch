@@ -851,7 +851,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    public void testFailedOrAbortedMergeRecordedSeparately() throws IOException {
+    public void testFailedMergeIsCountedAsFailure() throws IOException {
         DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
         Settings settings = Settings.builder()
             // disable fs available disk space feature for this test
@@ -889,31 +889,65 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
             when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
             when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
-            // IndexWriter swallows aborts, so an aborted merge returns normally with isAborted() set while a failed merge throws
-            Throwable error = randomBoolean() ? null : randomFrom(new IOException("boom"), new IllegalStateException("boom"));
+            Throwable error = randomFrom(new IOException("boom"), new IllegalStateException("boom"));
             doAnswer(invocation -> {
                 when(oneMerge.isAborted()).thenReturn(true);
-                if (error != null) {
-                    throw error;
-                }
+                throw error;
+            }).when(mergeSource).merge(any(OneMerge.class));
+            threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+            if (rethrowMergeException) {
+                assertSame(error, expectThrows(MergePolicy.MergeException.class, threadPoolTaskQueue::runAllTasks).getCause());
+            } else {
+                threadPoolTaskQueue.runAllTasks();
+            }
+
+            // a real exception goes to onFailure; setting the merge aborted too must not also trigger onAborted
+            verify(mergeMetrics, times(1)).onFailure(eq(indexMode), same(error));
+            verify(mergeMetrics, times(0)).onAborted(any());
+            verify(mergeMetrics, times(0)).markMergeMetrics(any(), anyLong(), anyLong());
+        }
+    }
+
+    public void testAbortedMergeIsCountedAsAbort() throws IOException {
+        DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
+        Settings settings = Settings.builder()
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+        nodeEnvironment = newNodeEnvironment(settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
+            .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settings, nodeEnvironment);
+        IndexMode indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.LOOKUP);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder().put(IndexSettings.MODE.getKey(), indexMode).build()
+        );
+        var mergeMetrics = mock(MergeMetrics.class);
+        try (
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                indexSettings,
+                threadPoolMergeExecutorService,
+                merge -> 0,
+                mergeMetrics
+            )
+        ) {
+            MergeSource mergeSource = mock(MergeSource.class);
+            OneMerge oneMerge = mock(OneMerge.class);
+            when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+            when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+            when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+            // IndexWriter swallows the MergeAbortedException and returns normally with isAborted() set
+            doAnswer(invocation -> {
+                when(oneMerge.isAborted()).thenReturn(true);
                 return null;
             }).when(mergeSource).merge(any(OneMerge.class));
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
-            if (error == null || rethrowMergeException == false) {
-                threadPoolTaskQueue.runAllTasks();
-            } else {
-                assertSame(error, expectThrows(MergePolicy.MergeException.class, threadPoolTaskQueue::runAllTasks).getCause());
-            }
+            threadPoolTaskQueue.runAllTasks();
 
-            if (error != null) {
-                // a real exception goes to onFailure; setting the merge aborted too must not also trigger onAborted
-                verify(mergeMetrics, times(1)).onFailure(eq(indexMode), same(error));
-                verify(mergeMetrics, times(0)).onAborted(any());
-            } else {
-                // IndexWriter swallowed the MergeAbortedException and returned normally — goes to onAborted, not onFailure
-                verify(mergeMetrics, times(1)).onAborted(eq(indexMode));
-                verify(mergeMetrics, times(0)).onFailure(any(), any());
-            }
+            // an abort goes to onAborted, not onFailure
+            verify(mergeMetrics, times(1)).onAborted(eq(indexMode));
+            verify(mergeMetrics, times(0)).onFailure(any(), any());
             verify(mergeMetrics, times(0)).markMergeMetrics(any(), anyLong(), anyLong());
         }
     }

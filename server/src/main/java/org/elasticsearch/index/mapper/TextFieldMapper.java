@@ -1360,14 +1360,18 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            if (countTokens(stream) > 1 && verifiesPositionsFromDocValues(context) == false) {
+            final boolean confirms = verifiesPositionsFromDocValues(context);
+            if (countTokens(stream) > 1 && confirms == false) {
                 checkForPositions(false);
             }
-            return confirmPositions(analyzePhrasePrefix(stream, slop, maxExpansions), context);
+            return confirmPositions(analyzePhrasePrefix(stream, slop, maxExpansions, confirms), context);
         }
 
-        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
+        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions, boolean confirmsFromDocValues)
+            throws IOException {
+            // The prefix subfield indexes no positions either, and the confirmation reads this field's values, so the
+            // query it confirms has to ask about this field's terms.
+            String prefixField = prefixFieldType == null || slop > 0 || confirmsFromDocValues ? null : prefixFieldType.name();
             IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
             return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }

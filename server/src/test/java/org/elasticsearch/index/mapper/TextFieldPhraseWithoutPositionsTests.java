@@ -63,10 +63,31 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     );
 
     private MapperService mapper(String indexOptions) throws IOException {
-        return createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
-            mapping(b -> b.startObject("body").field("type", "text").field("index_options", indexOptions).endObject())
+        return mapper(indexOptions, false);
+    }
+
+    private MapperService mapper(String indexOptions, boolean indexPrefixes) throws IOException {
+        return createMapperService(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(), mapping(b -> {
+            b.startObject("body").field("type", "text").field("index_options", indexOptions);
+            if (indexPrefixes) {
+                b.startObject("index_prefixes").field("min_chars", 2).field("max_chars", 5).endObject();
+            }
+            b.endObject();
+        }));
+    }
+
+    /** A phrase prefix over a field that also indexes prefixes, which it may with positions off. */
+    public void testWithIndexPrefixes() throws IOException {
+        final List<QueryBuilder> queries = List.of(
+            new MatchPhrasePrefixQueryBuilder("body", "quick bro"),
+            new MatchPhrasePrefixQueryBuilder("body", "brown f"),
+            new MatchPhraseQueryBuilder("body", "quick brown")
         );
+        final List<List<Integer>> withPositions = matching(mapper("positions", true), queries);
+        final List<List<Integer>> withoutPositions = matching(mapper("docs", true), queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), withPositions.get(q), withoutPositions.get(q));
+        }
     }
 
     public void testIndexOptionsAreWhatTheMappingAsksFor() throws IOException {

@@ -237,13 +237,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit test, so we
-        // substitute a breaker that always trips to verify the confirmation query consults the request breaker and passes 0 bytes.
+        // substitute a breaker that trips on the confirmation query's doc-values checkpoint to verify it consults the request breaker
+        // and passes 0 bytes. Non-zero calls (e.g. the guarded wildcard automaton build) are let through: they are covered elsewhere and
+        // would otherwise trip before the checkpoint under test ever runs.
         AtomicLong checkpointedBytes = new AtomicLong(-1);
         CircuitBreaker breaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                checkpointedBytes.set(bytes);
-                throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                if (bytes == 0) {
+                    checkpointedBytes.set(bytes);
+                    throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                }
             }
         };
 

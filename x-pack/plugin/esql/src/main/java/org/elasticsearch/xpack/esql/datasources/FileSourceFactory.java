@@ -153,6 +153,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
      */
     private final StreamingSegmentatorAdmission segmentatorAdmission;
+    /**
+     * Handed to every split provider this factory makes, so a query whose schema's listing was a prefix lists the
+     * rest under the cluster's live caps and through the listing cache resolution uses. {@code null} gives each
+     * provider one over this factory's own settings with no cache, which is what the test-only constructors want.
+     */
+    @Nullable
+    private final DatasetListingService listingService;
+    /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
+    private final NodeWarningThrottle warnings = new NodeWarningThrottle();
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -221,6 +230,30 @@ final class FileSourceFactory implements ExternalSourceFactory {
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            splitDiscoveryExecutor,
+            blockFactory,
+            localFileAccess,
+            externalSourceMetrics,
+            null
+        );
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        LocalFileAccess localFileAccess,
+        ExternalSourceMetrics externalSourceMetrics,
+        @Nullable DatasetListingService listingService
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -232,6 +265,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
+        this.listingService = listingService;
     }
 
     @Override
@@ -488,7 +522,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             storageRegistry,
             formatRegistry,
             settings,
-            splitDiscoveryExecutor
+            splitDiscoveryExecutor,
+            listingService,
+            warnings
         );
     }
 

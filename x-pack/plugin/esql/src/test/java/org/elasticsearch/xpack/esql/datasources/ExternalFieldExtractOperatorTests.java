@@ -19,14 +19,20 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,6 +40,8 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +50,7 @@ import static org.mockito.Mockito.when;
  * {@code _rowPosition} from the page, materialises deferred columns via the driver-shared
  * {@link SourceExtractors} registry, and assembles the output page in declared output order.
  */
-public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
+public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
 
     // Leak-tracking factory: ComputeTestCase's teardown asserts every block allocated by any
     // test is released, so each test doubles as a leak test. Initialized in a @Before method
@@ -52,6 +60,78 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
     @Before
     public void initBlockFactory() {
         blockFactory = blockFactory();
+    }
+
+    @Override
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        long[] sortKeys = new long[size];
+        long[] rowPositions = new long[size];
+        int[] passThrough = new int[size];
+        for (int p = 0; p < size; p++) {
+            sortKeys[p] = p;
+            rowPositions[p] = SourceExtractors.encode(0, p);
+            passThrough[p] = p;
+        }
+        Page page = new Page(
+            size,
+            blockFactory.newLongArrayVector(sortKeys, size).asBlock(),
+            blockFactory.newLongArrayVector(rowPositions, size).asBlock(),
+            blockFactory.newIntArrayVector(passThrough, size).asBlock()
+        );
+        return new CannedSourceOperator(List.of(page).iterator());
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        assertEquals(input.size(), results.size());
+        for (int pageIndex = 0; pageIndex < input.size(); pageIndex++) {
+            Page inputPage = input.get(pageIndex);
+            Page resultPage = results.get(pageIndex);
+            assertEquals(inputPage.getPositionCount(), resultPage.getPositionCount());
+            assertEquals(3, resultPage.getBlockCount());
+            LongVector inputSortKeys = ((LongBlock) inputPage.getBlock(0)).asVector();
+            IntVector inputPassThrough = ((IntBlock) inputPage.getBlock(2)).asVector();
+            LongVector resultSortKeys = ((LongBlock) resultPage.getBlock(0)).asVector();
+            IntVector resultPassThrough = ((IntBlock) resultPage.getBlock(1)).asVector();
+            IntVector resultExtracted = ((IntBlock) resultPage.getBlock(2)).asVector();
+            assertNotNull(inputSortKeys);
+            assertNotNull(inputPassThrough);
+            assertNotNull(resultSortKeys);
+            assertNotNull(resultPassThrough);
+            assertNotNull(resultExtracted);
+            for (int p = 0; p < inputPage.getPositionCount(); p++) {
+                assertEquals(inputSortKeys.getLong(p), resultSortKeys.getLong(p));
+                assertEquals(inputPassThrough.getInt(p), resultPassThrough.getInt(p));
+                assertEquals(p, resultExtracted.getInt(p));
+            }
+        }
+    }
+
+    @Override
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return new ExternalFieldExtractOperator.Factory(1, List.of(0, 2), List.of("col"), List.of(DataType.INTEGER), driverContext -> {
+            SourceExtractors registry = new SourceExtractors();
+            registry.register(new PositionExtractor());
+            return registry;
+        }, Runnable::run);
+    }
+
+    @Override
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("ExternalFieldExtractOperator[rowPositionChannel=1, passThrough=2, deferred=[col]]");
+    }
+
+    @Override
+    protected Matcher<String> expectedToStringOfSimple() {
+        return expectedDescriptionOfSimple();
+    }
+
+    @Override
+    protected MapMatcher extendStatusMatcher(MapMatcher mapMatcher, List<Page> input, List<Page> output) {
+        return mapMatcher.entry("pages_processed", input.size())
+            .entry("rows_extracted", input.stream().mapToInt(Page::getPositionCount).sum())
+            .entry("extract_nanos", greaterThanOrEqualTo(0))
+            .entry("extract_cpu_nanos", greaterThanOrEqualTo(0));
     }
 
     public void testReshapeAndExtract() {
@@ -585,6 +665,38 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 return result;
             } finally {
                 if (built == false) org.elasticsearch.core.Releasables.closeExpectNoException(result);
+            }
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class PositionExtractor implements ColumnExtractor {
+        @Override
+        public long rowCount() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory) {
+            Block[] result = new Block[columnNames.length];
+            boolean built = false;
+            try {
+                for (int c = 0; c < columnNames.length; c++) {
+                    try (IntBlock.Builder builder = factory.newIntBlockBuilder(localPositions.length)) {
+                        for (long position : localPositions) {
+                            builder.appendInt(Math.toIntExact(position));
+                        }
+                        result[c] = builder.build();
+                    }
+                }
+                built = true;
+                return result;
+            } finally {
+                if (built == false) {
+                    org.elasticsearch.core.Releasables.closeExpectNoException(result);
+                }
             }
         }
 

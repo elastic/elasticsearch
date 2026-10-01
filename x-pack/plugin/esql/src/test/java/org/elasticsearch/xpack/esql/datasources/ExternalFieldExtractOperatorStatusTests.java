@@ -54,7 +54,10 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
         ExternalFieldExtractOperator.Status status = new ExternalFieldExtractOperator.Status(12, 4096, 1_500_000, 1_200_000);
         assertThat(
             Strings.toString(status),
-            equalTo("{\"pages_processed\":12,\"rows_extracted\":4096,\"extract_nanos\":1500000,\"extract_cpu_nanos\":1200000}")
+            equalTo(
+                "{\"process_nanos\":1500000,\"pages_received\":12,\"pages_completed\":12,\"pages_processed\":12,"
+                    + "\"rows_extracted\":4096,\"extract_nanos\":1500000,\"extract_cpu_nanos\":1200000}"
+            )
         );
     }
 

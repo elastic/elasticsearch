@@ -141,6 +141,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private volatile String defaultRepository;
 
+    /**
+     * Notified as repositories' shard snapshots change, so a deployment can track what they occupy. {@link ShardSnapshotFilesObserver#NOOP}
+     * unless something registers otherwise.
+     */
+    private final ShardSnapshotFilesObserver shardSnapshotFilesObserver;
+
     @SuppressWarnings("this-escape")
     public RepositoriesService(
         Settings settings,
@@ -150,8 +156,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         ThreadPool threadPool,
         NodeClient client,
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks,
-        SnapshotMetrics snapshotMetrics
+        SnapshotMetrics snapshotMetrics,
+        ShardSnapshotFilesObserver shardSnapshotFilesObserver
     ) {
+        this.shardSnapshotFilesObserver = shardSnapshotFilesObserver;
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
         this.clusterService = clusterService;
@@ -849,7 +857,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             projectId,
                             repositoryMetadata,
                             typesRegistry,
-                            RepositoriesService::createUnknownTypeRepository
+                            RepositoriesService::createUnknownTypeRepository,
+                            shardSnapshotFilesObserver
                         );
                     } catch (RepositoryException ex) {
                         // TODO: this catch is bogus, it means the old repo is already closed,
@@ -864,7 +873,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         projectId,
                         repositoryMetadata,
                         typesRegistry,
-                        RepositoriesService::createUnknownTypeRepository
+                        RepositoriesService::createUnknownTypeRepository,
+                        shardSnapshotFilesObserver
                     );
                 } catch (RepositoryException ex) {
                     logger.warn(() -> "failed to create repository " + projectRepoString(projectId, repositoryMetadata.name()), ex);
@@ -1034,7 +1044,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 projectId,
                 metadata,
                 internalTypesRegistry,
-                RepositoriesService::throwRepositoryTypeDoesNotExists
+                RepositoriesService::throwRepositoryTypeDoesNotExists,
+                shardSnapshotFilesObserver
             );
             final var newRepos = new HashMap<>(existingRepos);
             newRepos.put(name, repo);
@@ -1114,7 +1125,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         @Nullable ProjectId projectId,
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
-        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory,
+        ShardSnapshotFilesObserver shardSnapshotFilesObserver
     ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
@@ -1124,6 +1136,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Repository repository = null;
         try {
             repository = factory.create(projectId, repositoryMetadata, factories::get);
+            // Before start(), so that nothing the repository does can be missed.
+            repository.setShardSnapshotFilesObserver(shardSnapshotFilesObserver);
             repository.start();
             return repository;
         } catch (Exception e) {
@@ -1154,7 +1168,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             Objects.requireNonNull(projectId),
             repositoryMetadata,
             typesRegistry,
-            RepositoriesService::throwRepositoryTypeDoesNotExists
+            RepositoriesService::throwRepositoryTypeDoesNotExists,
+            shardSnapshotFilesObserver
         );
     }
 
@@ -1165,7 +1180,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public Repository createNonProjectRepository(RepositoryMetadata repositoryMetadata) {
         assert DiscoveryNode.isStateless(clusterService.getSettings())
             : "outside stateless only project level repositories are allowed: " + repositoryMetadata;
-        return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+        return createRepository(
+            null,
+            repositoryMetadata,
+            typesRegistry,
+            RepositoriesService::throwRepositoryTypeDoesNotExists,
+            shardSnapshotFilesObserver
+        );
     }
 
     private Collection<LongWithAttributes> getShardSnapshotsInProgress() {

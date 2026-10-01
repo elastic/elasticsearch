@@ -120,6 +120,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -154,6 +155,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -305,6 +307,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * All {@link BlobStoreRepository} implementations can be made read-only by setting this key to {@code true} in their settings.
      */
     public static final String READONLY_SETTING_KEY = "readonly";
+
+    /**
+     * Notified as this repository's shard snapshots change. {@link ShardSnapshotFilesObserver#NOOP} unless a deployment registers one, so
+     * that tracking what snapshots occupy costs nothing where nobody is tracking it.
+     */
+    private volatile ShardSnapshotFilesObserver shardSnapshotFilesObserver = ShardSnapshotFilesObserver.NOOP;
 
     /**
      * Prefix used for the identifiers of data blobs that were not actually written to the repository physically because their contents are
@@ -1144,6 +1152,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final RepositoryData originalRepositoryData;
 
         /**
+         * The snapshots surviving this deletion, oldest first. Computed on first use and shared by every shard, since a deletion of the
+         * oldest snapshot visits every shard in the repository.
+         */
+        private final SetOnce<List<SnapshotId>> retainedSnapshotsOldestFirst;
+
+        /**
          * Executor to use for all repository interactions.
          */
         private final Executor snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -1180,6 +1194,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.originalRootBlobs = originalRootBlobs;
             this.originalIndexContainers = originalIndexContainers;
             this.originalRepositoryData = originalRepositoryData;
+            this.retainedSnapshotsOldestFirst = new SetOnce<>();
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1324,6 +1339,53 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
         }
 
+        /**
+         * Tells the observer how this shard now stands, along with the repository-wide facts only available here. Guarded so that a failing
+         * observer cannot fail a deletion that has already done its work.
+         */
+        private void notifyShardSnapshotFilesRemoved(IndexId indexId, int shardId) {
+            final var observer = shardSnapshotFilesObserver;
+            if (observer == ShardSnapshotFilesObserver.NOOP) {
+                return;
+            }
+            try {
+                observer.onShardSnapshotFilesRemoved(getProjectRepo(), indexId, shardId);
+            } catch (Exception e) {
+                logger.warn(() -> format("failed to notify shard snapshot files observer of removal of [%s][%d]", indexId, shardId), e);
+            }
+        }
+
+        private void notifyShardSnapshotFilesRebased(
+            IndexId indexId,
+            int shardId,
+            ShardGeneration shardGeneration,
+            BlobStoreIndexShardSnapshots shardSnapshots
+        ) {
+            final var observer = shardSnapshotFilesObserver;
+            if (observer == ShardSnapshotFilesObserver.NOOP) {
+                return;
+            }
+            try {
+                retainedSnapshotsOldestFirst.trySet(retainedSnapshotsOldestFirst(originalRepositoryData, snapshotIds));
+                final var retained = retainedSnapshotsOldestFirst.get();
+
+                final boolean indexInOldest = retained.isEmpty() == false
+                    && originalRepositoryData.getSnapshots(indexId).contains(retained.get(0));
+
+                observer.onShardSnapshotFilesRebased(
+                    getProjectRepo(),
+                    indexId,
+                    shardId,
+                    shardGeneration,
+                    shardSnapshots,
+                    retained.stream().map(SnapshotId::getName).toList(),
+                    indexInOldest
+                );
+            } catch (Exception e) {
+                logger.warn(() -> format("failed to notify shard snapshot files observer for [%s][%d]", indexId, shardId), e);
+            }
+        }
+
         private class IndexSnapshotsDeletion {
             private final IndexId indexId;
             private final Set<SnapshotId> snapshotsWithIndex;
@@ -1448,6 +1510,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     try {
                         if (updatedSnapshots.snapshots().isEmpty()) {
                             blobsToDelete.addShardDeleteResult(indexId, shardId, ShardGenerations.DELETED_SHARD_GEN, originalShardBlobs);
+                            // Nothing references this shard any more, so it occupies nothing. Told separately from a rebase because there
+                            // is no longer a size to report — an observer should drop the shard, not record zero for it.
+                            notifyShardSnapshotFilesRemoved(indexId, shardId);
                         } else {
                             if (indexGeneration < 0L) {
                                 writtenGeneration = ShardGeneration.newGeneration();
@@ -1470,6 +1535,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 writtenGeneration,
                                 unusedBlobs(originalShardBlobs, survivingSnapshotUUIDs, updatedSnapshots)
                             );
+                            // The surviving snapshots of this shard, after the deletion. Handed over here because this traversal has
+                            // already read the shard's blob; recovering the same information later would mean reading it again.
+                            notifyShardSnapshotFilesRebased(indexId, shardId, writtenGeneration, updatedSnapshots);
                         }
                     } catch (IOException e) {
                         throw new RepositoryException(
@@ -3465,6 +3533,47 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
+    public void setShardSnapshotFilesObserver(ShardSnapshotFilesObserver observer) {
+        this.shardSnapshotFilesObserver = Objects.requireNonNull(observer);
+    }
+
+    /**
+     * The snapshots surviving a deletion, ordered by when they were taken. Computed once per deletion rather than per shard: the ordering
+     * is a property of the repository, and a deletion can touch a hundred thousand shards.
+     * <p>
+     * Public because a caller deciding what a repository held at its earliest retained point has to order the snapshots the same way this
+     * does. Two callers sorting by different notions of "oldest" would disagree about the repository's baseline.
+     *
+     * @param beingDeleted snapshots to leave out, for use mid-deletion when {@code repositoryData} still lists them. Pass an empty
+     *                     collection to order everything the repository currently holds.
+     */
+    public static List<SnapshotId> retainedSnapshotsOldestFirst(RepositoryData repositoryData, Collection<SnapshotId> beingDeleted) {
+        final var deleted = Set.copyOf(beingDeleted);
+        return repositoryData.getSnapshotIds()
+            .stream()
+            .filter(snapshotId -> deleted.contains(snapshotId) == false)
+            .sorted(Comparator.comparingLong(snapshotId -> repositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis()))
+            .toList();
+    }
+
+    /**
+     * Passes a shard's updated snapshots to the observer. The caller has already completed successfully, so a failing observer must not be
+     * allowed to change that outcome.
+     */
+    private void notifyShardSnapshotFilesUpdated(
+        IndexId indexId,
+        int shardId,
+        ShardGeneration shardGeneration,
+        BlobStoreIndexShardSnapshots shardSnapshots
+    ) {
+        try {
+            shardSnapshotFilesObserver.onShardSnapshotFilesUpdated(getProjectRepo(), indexId, shardId, shardGeneration, shardSnapshots);
+        } catch (Exception e) {
+            logger.warn(() -> format("failed to notify shard snapshot files observer for [%s][%d]", indexId, shardId), e);
+        }
+    }
+
+    @Override
     public void snapshotShard(SnapshotShardContext context) {
         context.status().updateStatusDescription("queued in snapshot task runner");
         shardSnapshotTaskRunner.enqueueShardSnapshot(context);
@@ -3736,6 +3845,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 snapshotStatus.updateStatusDescription("all files uploaded: done");
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
+                // Hand the updated shard snapshots to whoever is observing, while they are still in memory. Deliberately after the shard
+                // snapshot has succeeded, so nothing is recorded for a snapshot that did not complete.
+                notifyShardSnapshotFilesUpdated(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
                 context.onResponse(shardSnapshotResult);
             }, e -> {
                 try {

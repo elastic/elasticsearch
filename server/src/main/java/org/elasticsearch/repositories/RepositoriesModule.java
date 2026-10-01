@@ -49,7 +49,8 @@ public final class RepositoriesModule {
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider,
-        SnapshotMetrics snapshotMetrics
+        SnapshotMetrics snapshotMetrics,
+        ShardSnapshotFilesObserver shardSnapshotFilesObserver
     ) {
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
@@ -138,7 +139,8 @@ public final class RepositoriesModule {
             threadPool,
             client,
             preRestoreChecks,
-            snapshotMetrics
+            snapshotMetrics,
+            shardSnapshotFilesObserver
         );
     }
 

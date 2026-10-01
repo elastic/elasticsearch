@@ -32,7 +32,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
  */
 public final class MoveDecision extends AbstractAllocationDecision {
 
-    private static final org.elasticsearch.TransportVersion MOVE_DECISION_CAN_ALLOCATE_DECISION = fromName(
+    public static final org.elasticsearch.TransportVersion MOVE_DECISION_CAN_ALLOCATE_DECISION = fromName(
         "move_decision_can_allocate_decision"
     );
 

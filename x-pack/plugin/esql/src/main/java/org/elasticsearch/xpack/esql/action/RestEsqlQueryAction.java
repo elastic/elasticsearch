@@ -142,7 +142,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
-            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
+            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel, client.threadPool().getThreadContext());
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
                 esqlRequest,
                 restListener.resultStreamListener(),

@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -288,6 +289,10 @@ public final class EsqlStreamTestUtils {
 
         if (outcome.terminal() == Terminal.ERROR) {
             assertNoDisallowedErrorType(outcome);
+            assertTrue(
+                "F22: a 200 response that ends in an error must have at least one values line before the error",
+                lines.subList(1, lines.size()).stream().anyMatch(line -> line.containsKey("values"))
+            );
         }
 
         assertThat("rowCount exceeds query LIMIT — a page was likely double-delivered", outcome.rowCount(), lessThanOrEqualTo(limit));

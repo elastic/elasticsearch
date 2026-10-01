@@ -48,7 +48,7 @@ import java.util.TreeMap;
  * <h2>Output columns (both modes)</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
- *   <li>{@code data_stream} – keyword (multi-valued); data stream names</li>
+ *   <li>{@code data_stream} – keyword (multi-valued); data stream or standalone index names</li>
  *   <li>{@code unit} – keyword (multi-valued when backing indices differ; may be null)</li>
  *   <li>{@code metric_type} – keyword (multi-valued when definitions differ)</li>
  *   <li>{@code field_type} – keyword (multi-valued when definitions differ)</li>
@@ -61,36 +61,36 @@ public class TsInfoOperator implements Operator {
     public static final int NUM_BLOCKS = 7;
 
     /**
-     * Key for grouping per (metric, data-stream, dimensions) in INITIAL mode.
+     * Key for grouping per metric, parent data-stream or concrete index, and dimensions in INITIAL mode.
      */
-    private record TsInfoKey(String metricName, String dataStreamName, String dimensionsJson) {}
+    private record TsInfoKey(String metricName, String indexAbstractionName, String dimensionsJson) {}
 
     /**
-     * Intermediate state grouped by (metric, data-stream, dimensions).
+     * Intermediate state grouped by metric, parent data-stream or concrete index, and dimensions.
      */
     private static class TsInfoEntry {
         final String metricName;
-        final String dataStream;
+        final String indexAbstractionName;
         final String dimensionsJson;
         final Set<String> units = new HashSet<>();
         final Set<String> metricTypes = new HashSet<>();
         final Set<String> fieldTypes = new HashSet<>();
         final Set<String> dimensionFieldKeys = new HashSet<>();
 
-        TsInfoEntry(String metricName, String dataStream, String dimensionsJson) {
+        TsInfoEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
             this.metricName = metricName;
-            this.dataStream = dataStream;
+            this.indexAbstractionName = indexAbstractionName;
             this.dimensionsJson = dimensionsJson;
         }
     }
 
     /**
-     * Merged output row: multiple data streams with the same signature are combined.
+     * Merged output row: indices and data streams with the same signature are combined.
      */
     private static class TsInfoRow {
         final String metricName;
         final String dimensionsJson;
-        final Set<String> dataStreams = new HashSet<>();
+        final Set<String> indexAbstractionNames = new HashSet<>();
         final Set<String> units;
         final Set<String> fieldTypes;
         final Set<String> metricTypes;
@@ -129,7 +129,7 @@ public class TsInfoOperator implements Operator {
      * Factory for INITIAL mode (data nodes).
      *
      * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param dataStreamsByIndex   concrete index names mapped to their parent data streams, including cluster qualifiers
+     * @param dataStreamsByIndex   backing index names mapped to their parent data streams, including cluster qualifiers
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
      * @param indexChannel          channel index for {@code _index} block
      */
@@ -260,7 +260,7 @@ public class TsInfoOperator implements Operator {
                 }
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-                String dataStreamName = dataStreamsByIndex.getOrDefault(indexName, indexName);
+                String indexAbstractionName = dataStreamsByIndex.getOrDefault(indexName, indexName);
                 Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;
@@ -271,7 +271,7 @@ public class TsInfoOperator implements Operator {
                 Set<String> dimensionKeys = new HashSet<>();
                 Set<TsInfoEntry> touchedEntries = new HashSet<>();
 
-                collectFields(metadata, null, indexName, dataStreamName, dimensionKeyValues, dimensionKeys, touchedEntries);
+                collectFields(metadata, null, indexName, indexAbstractionName, dimensionKeyValues, dimensionKeys, touchedEntries);
 
                 // Assign dimension keys to all metrics touched by this tsid
                 if (dimensionKeys.isEmpty() == false) {
@@ -291,7 +291,7 @@ public class TsInfoOperator implements Operator {
      *   <li>First pass: classifies each leaf — metric fields are skipped (but their keys
      *       are noted), non-metric leaves are collected as dimension key-values.</li>
      *   <li>Second pass (at the root level): creates {@link TsInfoEntry} objects for each
-     *       metric, keyed by (metricName, dataStream, dimensionsJson).</li>
+     *       metric, keyed by (metricName, indexAbstractionName, dimensionsJson).</li>
      * </ol>
      * The field lookup is checked <em>before</em> inspecting the value type so that nested
      * metric types (histogram, exponential_histogram, tdigest) are not recursed into.
@@ -301,7 +301,7 @@ public class TsInfoOperator implements Operator {
         Map<String, Object> metadata,
         String prefix,
         String indexName,
-        String dataStreamName,
+        String indexAbstractionName,
         Map<String, String> dimensionKeyValues,
         Set<String> dimensionKeys,
         Set<TsInfoEntry> touchedEntries
@@ -317,7 +317,7 @@ public class TsInfoOperator implements Operator {
                         (Map<String, Object>) nested,
                         key,
                         indexName,
-                        dataStreamName,
+                        indexAbstractionName,
                         dimensionKeyValues,
                         dimensionKeys,
                         touchedEntries
@@ -331,7 +331,7 @@ public class TsInfoOperator implements Operator {
 
         if (prefix == null) {
             String dimensionsJson = buildDimensionsJson(dimensionKeyValues);
-            collectMetrics(metadata, null, indexName, dataStreamName, dimensionsJson, touchedEntries);
+            collectMetrics(metadata, null, indexName, indexAbstractionName, dimensionsJson, touchedEntries);
         }
     }
 
@@ -345,7 +345,7 @@ public class TsInfoOperator implements Operator {
         Map<String, Object> metadata,
         String prefix,
         String indexName,
-        String dataStreamName,
+        String indexAbstractionName,
         String dimensionsJson,
         Set<TsInfoEntry> touchedEntries
     ) {
@@ -355,11 +355,11 @@ public class TsInfoOperator implements Operator {
 
             MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
             if (fieldInfo != null) {
-                TsInfoKey infoKey = new TsInfoKey(fieldInfo.name(), dataStreamName, dimensionsJson);
+                TsInfoKey infoKey = new TsInfoKey(fieldInfo.name(), indexAbstractionName, dimensionsJson);
                 TsInfoEntry tsEntry = entriesByKey.get(infoKey);
                 if (tsEntry == null) {
-                    trackNewEntry(fieldInfo.name(), dataStreamName, dimensionsJson);
-                    tsEntry = new TsInfoEntry(infoKey.metricName(), infoKey.dataStreamName(), infoKey.dimensionsJson());
+                    trackNewEntry(fieldInfo.name(), indexAbstractionName, dimensionsJson);
+                    tsEntry = new TsInfoEntry(infoKey.metricName(), infoKey.indexAbstractionName(), infoKey.dimensionsJson());
                     entriesByKey.put(infoKey, tsEntry);
                 }
                 touchedEntries.add(tsEntry);
@@ -368,7 +368,7 @@ public class TsInfoOperator implements Operator {
                 trackSetAdd(tsEntry.fieldTypes, fieldInfo.fieldType());
                 trackSetAdd(tsEntry.metricTypes, fieldInfo.metricType());
             } else if (value instanceof Map<?, ?> nested) {
-                collectMetrics((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionsJson, touchedEntries);
+                collectMetrics((Map<String, Object>) nested, key, indexName, indexAbstractionName, dimensionsJson, touchedEntries);
             }
         }
     }
@@ -409,18 +409,18 @@ public class TsInfoOperator implements Operator {
                     dimensionsJson = "{}";
                 }
 
-                Set<String> dataStreams = readMultiValue(dsBlock, pos, scratch);
+                Set<String> indexAbstractionNames = readMultiValue(dsBlock, pos, scratch);
                 Set<String> units = readMultiValue(unitBlock, pos, scratch);
                 Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
                 Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
                 Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
 
-                for (String ds : dataStreams) {
-                    TsInfoKey key = new TsInfoKey(metricName, ds, dimensionsJson);
+                for (String indexAbstractionName : indexAbstractionNames) {
+                    TsInfoKey key = new TsInfoKey(metricName, indexAbstractionName, dimensionsJson);
                     TsInfoEntry entry = entriesByKey.get(key);
                     if (entry == null) {
-                        trackNewEntry(metricName, ds, dimensionsJson);
-                        entry = new TsInfoEntry(key.metricName(), key.dataStreamName(), key.dimensionsJson());
+                        trackNewEntry(metricName, indexAbstractionName, dimensionsJson);
+                        entry = new TsInfoEntry(key.metricName(), key.indexAbstractionName(), key.dimensionsJson());
                         entriesByKey.put(key, entry);
                     }
                     trackSetAddAll(entry.units, units);
@@ -459,11 +459,10 @@ public class TsInfoOperator implements Operator {
         trackedBytes += delta;
     }
 
-    private void trackNewEntry(String metricName, String dataStream, String dimensionsJson) {
+    private void trackNewEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
         trackBytes(
-            ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(metricName) + RamUsageEstimator.sizeOf(dataStream) + RamUsageEstimator.sizeOf(
-                dimensionsJson
-            )
+            ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(metricName) + RamUsageEstimator.sizeOf(indexAbstractionName) + RamUsageEstimator
+                .sizeOf(dimensionsJson)
         );
     }
 
@@ -491,7 +490,7 @@ public class TsInfoOperator implements Operator {
                 s -> new TsInfoRow(s.metricName(), s.dimensionsJson(), s.units(), s.fieldTypes(), s.metricTypes())
             );
 
-            row.dataStreams.add(entry.dataStream);
+            row.indexAbstractionNames.add(entry.indexAbstractionName);
             row.dimensionFieldKeys.addAll(entry.dimensionFieldKeys);
         }
 
@@ -561,7 +560,7 @@ public class TsInfoOperator implements Operator {
         ) {
             for (TsInfoRow row : rows) {
                 nameBuilder.appendBytesRef(new BytesRef(row.metricName));
-                appendMultiValued(dsBuilder, row.dataStreams);
+                appendMultiValued(dsBuilder, row.indexAbstractionNames);
                 appendMultiValued(unitBuilder, row.units);
                 appendMultiValued(mtBuilder, row.metricTypes);
                 appendMultiValued(ftBuilder, row.fieldTypes);

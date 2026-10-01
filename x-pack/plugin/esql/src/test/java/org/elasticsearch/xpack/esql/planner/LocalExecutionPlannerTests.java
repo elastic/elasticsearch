@@ -1301,15 +1301,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             for (String name : backingNames) {
                 assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + name), equalTo(prefix + "metrics"));
             }
-            assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + standaloneIndex), equalTo(prefix + standaloneIndex));
+            assertNull(LocalExecutionPlanner.resolveDataStreamName(metadata, prefix + standaloneIndex));
             String missingIndex = prefix + ".ds-deleted-2024.01.15-000001";
-            assertThat(LocalExecutionPlanner.resolveDataStreamName(metadata, missingIndex), equalTo(missingIndex));
-            assertThat(
+            assertNull(LocalExecutionPlanner.resolveDataStreamName(metadata, missingIndex));
+            assertNull(
                 LocalExecutionPlanner.resolveDataStreamName(
                     ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
                     prefix + backingNames.getFirst()
-                ),
-                equalTo(prefix + backingNames.getFirst())
+                )
             );
         }
     }

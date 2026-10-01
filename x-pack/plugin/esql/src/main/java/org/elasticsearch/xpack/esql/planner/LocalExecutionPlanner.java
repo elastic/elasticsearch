@@ -2179,12 +2179,16 @@ public class LocalExecutionPlanner {
         return Map.copyOf(dataStreamsByIndex);
     }
 
-    /** Resolves membership from the local project's metadata while preserving the query's cluster qualifier. */
+    /**
+     * Resolves the parent data stream from the local project's metadata while preserving the query's cluster qualifier.
+     * Returns {@code null} for missing or standalone indices so the lookup stores only data-stream membership.
+     */
+    @Nullable
     static String resolveDataStreamName(ProjectMetadata projectMetadata, String indexName) {
         var split = RemoteClusterAware.splitIndexName(indexName);
         var index = projectMetadata.getIndicesLookup().get(split.indexExpression());
         if (index == null || index.getParentDataStream() == null) {
-            return indexName;
+            return null;
         }
         return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), index.getParentDataStream().getName());
     }

@@ -44,17 +44,17 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
      * index itself, and each is a separate branch. {@code FROM airports*} alone likewise returns two rows.
      */
     public void testViewAndIndexInMainQueryWithSubquery() {
-        assertWildcardViewUnionWithSubquery("FROM airports*, (FROM employees)");
+        assertWildcardViewUnionWithSubquery("SET wildcards_match_views=true; FROM airports*, (FROM employees)");
     }
 
     /** As {@link #testViewAndIndexInMainQueryWithSubquery}, with the wildcard inside the subquery instead of the main query. */
     public void testViewAndIndexInsideSubquery() {
-        assertWildcardViewUnionWithSubquery("FROM employees, (FROM airports*)");
+        assertWildcardViewUnionWithSubquery("SET wildcards_match_views=true; FROM employees, (FROM airports*)");
     }
 
     /** As {@link #testViewAndIndexInMainQueryWithSubquery}, with the wildcard in one of several sibling subqueries. */
     public void testViewAndIndexInOneOfMultipleSubqueries() {
-        assertWildcardViewUnionWithSubquery("FROM (FROM airports*), (FROM employees)");
+        assertWildcardViewUnionWithSubquery("SET wildcards_match_views=true; FROM (FROM airports*), (FROM employees)");
     }
 
     /**
@@ -88,6 +88,7 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
      * no column-type conflicts that would fail verification.
      */
     private void setupWildcardMatchingViewAndIndices() {
+        assumeTrue("Requires views matching wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
         client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
         client().prepareBulk()
             .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))

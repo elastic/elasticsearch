@@ -285,6 +285,101 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    /**
+     * {@code discard()} before the body finishes must release the subscriber's buffer once. A late
+     * {@code onComplete} must not refund again: the breaker charge is a CAS, so only a counting
+     * close proves exactly-once.
+     */
+    public void testDiscardBeforeBodyReleasesChargeOnce() {
+        CircuitBreaker breaker = new LimitedBreaker("discard-before-body", ByteSizeValue.ofMb(16));
+        AtomicInteger closeCalls = new AtomicInteger();
+        byte[] payload = randomByteArrayOfLength(64);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            countingFactory(breaker, closeCalls),
+            PATH
+        );
+        transformer.prepare();
+        AtomicReference<Subscriber<? super ByteBuffer>> subscriber = new AtomicReference<>();
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new TestSubscription());
+                subscriber.set(s);
+            }
+        });
+
+        assertEquals(payload.length, breaker.getUsed());
+        transformer.discard();
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(1, closeCalls.get());
+
+        subscriber.get().onNext(ByteBuffer.wrap(payload));
+        subscriber.get().onComplete();
+        assertEquals("late onComplete must not refund again", 1, closeCalls.get());
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * The heap-dump state: {@code onComplete} parked the buffer in the result future, and
+     * {@code exceptionOccurred} would return immediately because that future is done. {@code discard()}
+     * still has to close it.
+     */
+    public void testDiscardAfterCompletionReleasesParkedBuffer() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("discard-parked-buffer", ByteSizeValue.ofMb(16));
+        byte[] payload = randomByteArrayOfLength(256);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            DirectBufferFactory.forBreaker(breaker),
+            PATH
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(payload.length));
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new TestSubscription());
+                s.onNext(ByteBuffer.wrap(payload));
+                s.onComplete();
+            }
+        });
+
+        assertTrue(future.isDone());
+        assertFalse(future.isCompletedExceptionally());
+        assertEquals(payload.length, breaker.getUsed());
+        transformer.discard();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /** A second {@code discard()} must not throw and must not refund the charge twice. */
+    public void testDiscardTwiceIsSafe() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("discard-twice", ByteSizeValue.ofMb(16));
+        AtomicInteger closeCalls = new AtomicInteger();
+        byte[] payload = randomByteArrayOfLength(128);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            countingFactory(breaker, closeCalls),
+            PATH
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(payload.length));
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new TestSubscription());
+                s.onNext(ByteBuffer.wrap(payload));
+                s.onComplete();
+            }
+        });
+
+        assertEquals(payload.length, breaker.getUsed());
+        transformer.discard();
+        transformer.discard();
+        assertTrue(future.isDone());
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(1, closeCalls.get());
+    }
+
     public void testLateOnNextAfterCompletionIsIgnored() throws Exception {
         byte[] payload = randomByteArrayOfLength(32);
         KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
@@ -599,6 +694,16 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertEquals(1, closeCalls.get());
         assertTrue(subscription.cancelled.get());
         assertEquals(0L, subscription.requested.get());
+    }
+
+    private static DirectBufferFactory countingFactory(CircuitBreaker breaker, AtomicInteger closeCalls) {
+        return length -> {
+            breaker.addEstimateBytesAndMaybeBreak(length, "discard-test");
+            return new DirectReadBuffer(ByteBuffer.allocate(length), () -> {
+                closeCalls.incrementAndGet();
+                breaker.addWithoutBreaking(-length);
+            });
+        };
     }
 
     private static DirectBufferFactory overAllocatingFactory(AtomicInteger closeCalls) {

@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -19,8 +21,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -148,6 +152,75 @@ public final class SchemaReconciliation {
     }
 
     /**
+     * A per-file schema map covering every file in {@code files}, given one keyed by whichever listing resolution
+     * held.
+     * <p>
+     * The map tells each file's reader what schema to parse it under, and a file with no entry is read under its
+     * own instead. Where the dataset's schema came from one file — an anchor under {@code first_file_wins}, a
+     * declared mapping under {@code strict} — that is the wrong answer twice over: the pin is the point of those
+     * modes, and a file whose columns differ from the anchor would be read in its own shape and emitted into
+     * blocks the plan built in the anchor's. Resolution cannot key an entry for a file it never listed, so the
+     * gap is filled here, once the scan knows which files those are.
+     * <p>
+     * Both modes that can answer a schema from part of a dataset build every entry from one read contract — one
+     * file schema, one mapping — and differ per file only in the harvest each carries: statistics and footer
+     * types, cache-derived, absent on a miss. So an unlisted file reads under that same contract with no harvest,
+     * and a map whose entries disagree about the contract cannot have come from a listing that was a prefix,
+     * which is why that is an error rather than a fallback.
+     */
+    public static Map<StoragePath, FileSchemaInfo> pinnedOver(Map<StoragePath, FileSchemaInfo> known, FileList files) {
+        if (known.isEmpty()) {
+            // No map at all: no file is pinned, so there is no contract to extend to the ones resolution missed.
+            return known;
+        }
+        List<StoragePath> unlisted = new ArrayList<>(0);
+        for (int i = 0; i < files.fileCount(); i++) {
+            StoragePath path = files.path(i);
+            if (known.containsKey(path) == false) {
+                unlisted.add(path);
+            }
+        }
+        if (unlisted.isEmpty()) {
+            return known;
+        }
+        FileSchemaInfo pin = sharedReadContract(known);
+        Map<StoragePath, FileSchemaInfo> pinned = Maps.newHashMapWithExpectedSize(known.size() + unlisted.size());
+        pinned.putAll(known);
+        for (StoragePath path : unlisted) {
+            pinned.put(path, pin);
+        }
+        return Collections.unmodifiableMap(pinned);
+    }
+
+    /**
+     * The one read contract every entry of {@code known} was built from, carrying no harvest: statistics and
+     * footer types are the individual file's, and a file nobody listed has neither.
+     */
+    private static FileSchemaInfo sharedReadContract(Map<StoragePath, FileSchemaInfo> known) {
+        Iterator<FileSchemaInfo> entries = known.values().iterator();
+        FileSchemaInfo first = entries.next();
+        while (entries.hasNext()) {
+            FileSchemaInfo other = entries.next();
+            if (sameContract(first, other) == false) {
+                throw new IllegalStateException(
+                    "["
+                        + known.size()
+                        + "] files were resolved under per-file read schemas, so there is no dataset-wide schema to "
+                        + "read the files resolution did not list under"
+                );
+            }
+        }
+        return new FileSchemaInfo(first.fileSchema(), first.mapping(), null, null);
+    }
+
+    private static boolean sameContract(FileSchemaInfo a, FileSchemaInfo b) {
+        // The rails that build one contract put the same two instances in every entry, so identity answers first
+        // and the equality walk over attribute lists is the fallback rather than the cost of each comparison.
+        return (a.fileSchema() == b.fileSchema() || a.fileSchema().equals(b.fileSchema()))
+            && (a.mapping() == b.mapping() || Objects.equals(a.mapping(), b.mapping()));
+    }
+
+    /**
      * Safe type widening for schema reconciliation: the common supertype when one exists without
      * loss, else {@code null}.
      * <p>
@@ -189,6 +262,26 @@ public final class SchemaReconciliation {
      * @throws IllegalArgumentException if any file's schema doesn't match
      */
     public static Result reconcileStrict(StoragePath referenceFile, Map<StoragePath, SourceMetadata> fileMetadata) {
+        return reconcileStrict(referenceFile, fileMetadata, new SchemaInterner(null, 0));
+    }
+
+    /**
+     * Same as {@link #reconcileStrict(StoragePath, Map)}, sharing file schemas and mappings through {@code interner}.
+     * The reference schema on the result is not interned.
+     *
+     * @param referenceFile path of the first (reference) file
+     * @param fileMetadata ordered map of file path → metadata (first entry is the reference)
+     * @param interner shares file schemas and mappings inside this resolve. Callers that do not have a planning
+     *                 reservation pass {@code new SchemaInterner(null, 0)}, which shares without charging.
+     * @return reconciliation result with the reference schema and per-file info
+     * @throws IllegalArgumentException if any file's schema doesn't match
+     */
+    public static Result reconcileStrict(
+        StoragePath referenceFile,
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        SchemaInterner interner
+    ) {
+        Objects.requireNonNull(interner, "interner");
         SourceMetadata refMeta = fileMetadata.get(referenceFile);
         if (refMeta == null) {
             throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile);
@@ -210,17 +303,18 @@ public final class SchemaReconciliation {
                 validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName);
             }
 
+            List<Attribute> canonical = interner.canonicalize(fileSchema);
             ColumnMapping mapping;
             if (compareByName) {
-                mapping = computeMapping(refSchema, fileSchema);
+                mapping = interner.intern(computeMapping(refSchema, canonical));
             } else {
-                int[] identity = new int[refSchema.size()];
+                int[] identity = new int[canonical.size()];
                 for (int i = 0; i < identity.length; i++) {
                     identity[i] = i;
                 }
-                mapping = new ColumnMapping(identity, null);
+                mapping = interner.intern(new ColumnMapping(identity, null));
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -332,6 +426,25 @@ public final class SchemaReconciliation {
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
+        return reconcileUnionByName(fileMetadata, warningSink, new SchemaInterner(null, 0));
+    }
+
+    /**
+     * Same as {@link #reconcileUnionByName(Map, Consumer)}, sharing file schemas and mappings through {@code interner}.
+     * The unified output schema is not interned: its {@code NameId}s belong to the plan.
+     *
+     * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
+     * @param warningSink where the widening notices (keyword fallback, long/double precision loss) go
+     * @param interner shares file schemas and mappings inside this resolve. Callers without a planning reservation pass
+     *                 {@code new SchemaInterner(null, 0)}
+     * @return reconciliation result with unified schema and per-file mappings
+     */
+    public static Result reconcileUnionByName(
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        Consumer<String> warningSink,
+        SchemaInterner interner
+    ) {
+        Objects.requireNonNull(interner, "interner");
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Warning detail quotes at most MAX_FILES_IN_WARNING_DETAIL paths, then "+N more", then the
@@ -411,13 +524,16 @@ public final class SchemaReconciliation {
                     // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
                     // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
                     // safe-miss rather than fold a stale count/extremum.
+                    // The fan-out already interned the inferred shape. The pinned list is a second shape charge.
+                    // That extra charge is not refunded.
                     inferredTypes = typeMap(prePin);
                 }
             }
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
-            ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));
+            List<Attribute> canonical = interner.canonicalize(fileSchema);
+            ColumnMapping mapping = interner.intern(computeMapping(unifiedSchema, canonical));
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, inferredTypes));
         }
 
         return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));

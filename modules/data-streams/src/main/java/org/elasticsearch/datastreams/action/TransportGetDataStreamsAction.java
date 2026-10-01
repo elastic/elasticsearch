@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -77,7 +77,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final IndexSettingProviders indexSettingProviders;
     private final Client client;
@@ -98,7 +98,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         IndexSettingProviders indexSettingProviders,
         Client client,
@@ -114,7 +114,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         clusterSettings = clusterService.getClusterSettings();
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.indexSettingProviders = indexSettingProviders;
@@ -160,7 +160,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                             indexNameExpressionResolver,
                             systemIndices,
                             clusterSettings,
-                            globalRetentionSettings,
+                            dataStreamLifecycleSettings,
                             dataStreamFailureStoreSettings,
                             indexSettingProviders,
                             maxTimestamps,
@@ -182,7 +182,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     indexNameExpressionResolver,
                     systemIndices,
                     clusterSettings,
-                    globalRetentionSettings,
+                    dataStreamLifecycleSettings,
                     dataStreamFailureStoreSettings,
                     indexSettingProviders,
                     null,
@@ -240,7 +240,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
         ClusterSettings clusterSettings,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         IndexSettingProviders indexSettingProviders,
         @Nullable Map<String, Long> maxTimestamps,
@@ -409,8 +409,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            globalRetentionSettings.get(false),
-            globalRetentionSettings.get(true)
+            dataStreamLifecycleSettings.getGlobalRetention(false),
+            dataStreamLifecycleSettings.getGlobalRetention(true)
         );
     }
 

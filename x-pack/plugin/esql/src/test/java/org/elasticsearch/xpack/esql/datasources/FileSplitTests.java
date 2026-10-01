@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -333,5 +335,36 @@ public class FileSplitTests extends ESTestCase {
         mutable.put("extra", 1);
         assertNull(split.partitionValues().get("extra"));
         assertEquals(2024, split.partitionValues().get("year"));
+    }
+
+    /** A layered view is frozen as-is and round-trips by value. Copying it would drop the shared directory tuple. */
+    public void testLayeredPartitionMapRoundTripsAndIsNotCopied() throws IOException {
+        Map<String, Object> shared = new LinkedHashMap<>();
+        shared.put("year", 2024);
+        shared.put(FileMetadataColumns.DIRECTORY, new BytesRef("s3://bucket/year=2024"));
+        Map<String, Object> overlay = new LinkedHashMap<>();
+        overlay.put(FileMetadataColumns.NAME, new BytesRef("a.parquet"));
+        LayeredPartitionMap view = new LayeredPartitionMap(Collections.unmodifiableMap(shared), Collections.unmodifiableMap(overlay));
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        StoragePath path = StoragePath.of("s3://bucket/year=2024/a.parquet");
+        FileSplit split = new FileSplit("file", path, 0, 10, ".parquet", Map.of(), view);
+
+        assertSame(view, split.partitionValues());
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        expectThrows(UnsupportedOperationException.class, () -> split.partitionValues().put("x", 1));
+        assertEquals(
+            List.of("year", FileMetadataColumns.NAME, FileMetadataColumns.DIRECTORY),
+            new ArrayList<>(split.partitionValues().keySet())
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(split);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(split.partitionValues(), deserialized.partitionValues());
+        assertEquals(split, deserialized);
+        assertEquals(new BytesRef("a.parquet"), deserialized.partitionValues().get(FileMetadataColumns.NAME));
+        assertEquals(2024, deserialized.partitionValues().get("year"));
     }
 }

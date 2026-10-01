@@ -45,6 +45,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -3139,6 +3140,57 @@ public class DocumentParserTests extends MapperServiceTestCase {
             { "host": { "name": "localhost" } }
             """));
         assertThat(doc.rootDoc().getField("host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+    }
+
+    /**
+     * An array of objects under a mapped prefix must reach the mapped dotted leaf, like a single object does, rather than being skipped by
+     * dynamic:false or rejected by dynamic:strict. Covers an explicit subobjects:false root and the implicit one of a columnar index mode.
+     */
+    public void testSubobjectsFalseArrayOfObjectsUnderMappedPrefixNonDynamic() throws Exception {
+        String dynamic = randomFrom("false", "strict");
+        for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
+                b.field("dynamic", dynamic);
+                if (indexMode == IndexMode.STANDARD) {
+                    b.field("subobjects", false);
+                }
+                b.startObject("properties");
+                {
+                    // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
+                    b.startObject("@timestamp").field("type", "date").endObject();
+                    b.startObject("o.k").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            })).documentMapper();
+
+            List<String> values = randomList(1, 5, () -> randomAlphaOfLength(8));
+            ParsedDocument doc = mapper.parse(columnarSource(b -> {
+                b.startArray("o");
+                for (String value : values) {
+                    b.startObject().field("k", value).endObject();
+                }
+                b.endArray();
+            }));
+
+            assertFalse(indexMode + " must index the mapped leaf [o.k]", doc.rootDoc().getFields("o.k").isEmpty());
+
+            if (indexMode == IndexMode.STANDARD) {
+                assertThat(
+                    doc.rootDoc().getFields("o.k").stream().map(f -> f.binaryValue().utf8ToString()).toList(),
+                    containsInAnyOrder(values.toArray())
+                );
+            }
+
+            // unmapped leaves inside the array elements still follow the dynamic setting
+            SourceToParse unmapped = columnarSource(b -> b.startArray("o").startObject().field("other", "x").endObject().endArray());
+            if (dynamic.equals("strict")) {
+                DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(unmapped));
+                assertThat(e.getMessage(), containsString("dynamic introduction of [o.other]"));
+            } else {
+                assertTrue(mapper.parse(unmapped).rootDoc().getFields("o.other").isEmpty());
+            }
+        }
     }
 
     public void testSubobjectsFalseWithStrictDynamicRejectsUnmappedPrefix() throws Exception {

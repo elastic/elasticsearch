@@ -643,9 +643,14 @@ public final class DocumentParser {
             } else {
                 parseArrayElements(context, mapper, lastFieldName, lastFieldName);
             }
-        } else {
-            parseArrayDynamic(context, lastFieldName);
-        }
+        } else if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+            && context.parent().hasMappedFieldsWithPrefix(lastFieldName)) {
+                // With subobjects disabled there is no object mapper for the prefix, but the array elements may hold mapped dotted leaves.
+                // Parse each element so parseObject flattens it, instead of treating the array as unmapped.
+                parseArrayElements(context, null, lastFieldName, lastFieldName);
+            } else {
+                parseArrayDynamic(context, lastFieldName);
+            }
         // Reset previous immediate parent
         context.setImmediateXContentParent(prev);
     }

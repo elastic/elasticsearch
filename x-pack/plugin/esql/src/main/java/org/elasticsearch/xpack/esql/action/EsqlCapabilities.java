@@ -3584,6 +3584,12 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(),
 
+        /**
+         * With {@code subobjects: false}, an array of objects under a mapped dotted prefix (e.g. {@code "objarr":[{"k":"p"}]} with
+         * {@code objarr.k} mapped) is indexed into the mapped leaves instead of being dropped as unmapped.
+         */
+        SUBOBJECTS_FALSE_INDEXES_OBJECT_ARRAYS_UNDER_MAPPED_PREFIX,
+
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**

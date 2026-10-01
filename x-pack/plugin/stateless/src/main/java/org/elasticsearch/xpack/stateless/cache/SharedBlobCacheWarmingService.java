@@ -415,15 +415,16 @@ public class SharedBlobCacheWarmingService {
     );
 
     /**
-     * Minimum grace-period budget reserved per pending shard on the relocation source when computing the timeout slice for a relocating
-     * shard. For each STARTED (not yet relocating) shard still on the source, this many milliseconds are subtracted from the available
-     * budget before capping the current shard's slice. This prevents in-flight re-evaluations from consuming all remaining grace time and
-     * leaving later-starting shards with no warming budget at all.
+     * Minimum grace-period budget reserved per wave of pending shards on the relocation source when computing the timeout slice for a
+     * relocating shard. Pending (STARTED, not yet relocating) shards still on the source are expected to relocate in parallel waves, whose
+     * size is approximated by the number of relocations currently in flight from the source to the target. For each such wave, this many
+     * milliseconds are subtracted from the available budget before capping the current shard's slice. This prevents in-flight
+     * re-evaluations from consuming all remaining grace time and leaving later-starting shards with no warming budget at all.
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting
         .timeSetting(
             SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation.min_budget_per_pending_shard",
-            TimeValue.timeValueMillis(200),
+            TimeValue.timeValueMillis(500),
             TimeValue.ZERO,
             Setting.Property.NodeScope,
             Setting.Property.Dynamic
@@ -1505,7 +1506,8 @@ public class SharedBlobCacheWarmingService {
         // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
         // grace-period time and leave those shards with no budget when their recovery eventually starts.
         final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
-        final long reservedForPendingMs = pendingShards * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
+        final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
+        final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
         final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
         final String finalContext = cappedTimeoutMs < timeoutMs
             ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"

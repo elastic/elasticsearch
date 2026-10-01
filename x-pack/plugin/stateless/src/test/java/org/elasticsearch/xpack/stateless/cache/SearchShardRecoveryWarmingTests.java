@@ -882,7 +882,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
     /**
      * When some shards on the shutting-down source are still STARTED (not yet relocating), the timeout for the
-     * currently relocating shard is reduced to reserve budget for those pending shards.
+     * currently relocating shard is reduced to reserve budget for those pending shards. Pending shards relocate in parallel waves,
+     * approximated by the number of relocations currently in flight, so the budget is reserved once per wave, not once per shard.
      */
     public void testPendingShardBudgetReservationCapsRelocatingShard() {
         try (
@@ -892,16 +893,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
             )
         ) {
-            // 1 shard relocating, 2 shards STARTED (pending) on source; grace cap=10s; minBudgetPerPendingShard=3s
-            // reservedForPendingMs = 2 * 3000 = 6000ms; remaining after 2s elapsed = 8000ms
-            // equalShareMs = 8000/3 * 1.0 ≈ 2667ms; timeoutMs = min(8000, 2667*1) ≈ 2667ms
-            // cappedTimeoutMs = clamp(8000 - 6000, 0, 2667) = 2000ms
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(
                     SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
                         .getKey(),
-                    "3000ms"
+                    "5000ms"
                 )
                 .build();
             final var service = newWarmingService(threadPool, TelemetryProvider.NOOP, settings, null, null);
@@ -917,13 +914,13 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
             final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                1,
-                1,
+                4,
+                4,
                 index,
                 sourceNodeId,
                 targetNodeId,
                 startedAtMillis,
-                2
+                4
             );
 
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
@@ -934,12 +931,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService.SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
 
             assertThat(plan.awaitWarming(), is(true));
-            assertThat(plan.timeout().millis(), equalTo(2000L));
+            assertThat(plan.timeout().millis(), equalTo(3000L));
             assertThat(
                 plan.timeoutContext(),
                 equalTo(
                     "relocation source shutting down (equal share of remaining time to capped grace deadline)"
-                        + ", capped to reserve time for [2] pending shards"
+                        + ", capped to reserve time for [4] pending shards"
                 )
             );
         }

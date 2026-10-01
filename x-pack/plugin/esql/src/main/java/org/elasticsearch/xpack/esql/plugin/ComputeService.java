@@ -1068,7 +1068,6 @@ public class ComputeService {
             listener.onResponse(result);
             return;
         }
-        final boolean profile = result.configuration().profile() || LOGGER.isDebugEnabled();
         boolean driverStarted = false;
         Driver driver = null;
         try {
@@ -1097,7 +1096,7 @@ public class ComputeService {
             );
             final Driver expandDriver = driver;
             ActionListener<Void> doneListener = ActionListener.wrap(
-                ignored -> listener.onResponse(buildExpandedResult(result, expandOperator, collected, expandDriver, profile)),
+                ignored -> listener.onResponse(buildExpandedResult(result, expandOperator, collected, expandDriver)),
                 failure -> {
                     // On failure the expanded pages already emitted to the sink are not owned by anyone else yet; release them. The
                     // driver's own close() (via releaseAfter below) releases the pages still buffered inside the operator.
@@ -1122,41 +1121,50 @@ public class ComputeService {
         }
     }
 
-    private Result buildExpandedResult(
-        Result original,
-        ExpandUnmappedFieldsOperator expandOperator,
-        List<Page> pages,
-        Driver driver,
-        boolean profile
-    ) {
-        DriverCompletionInfo completionInfo = original.completionInfo();
-        if (profile) {
-            var accumulator = new DriverCompletionInfo.Accumulator();
-            accumulator.accumulate(completionInfo);
-            accumulator.accumulate(
-                DriverCompletionInfo.includingProfiles(
-                    List.of(driver),
-                    EXPAND_DESCRIPTION,
-                    clusterService.getClusterName().value(),
-                    transportService.getLocalNode().getName(),
-                    expandOperator.toString(),
-                    null,
-                    null,
-                    0L,
-                    false
-                )
-            );
-            completionInfo = accumulator.finish();
-        }
+    private Result buildExpandedResult(Result original, ExpandUnmappedFieldsOperator expandOperator, List<Page> pages, Driver driver) {
+        var accumulator = new DriverCompletionInfo.Accumulator();
+        accumulator.accumulate(original.completionInfo());
+        accumulator.accumulate(expansionCompletionInfo(original.configuration().profile(), expandOperator, driver));
         return new Result(
             expandOperator.expandedSchema(),
             new ArrayList<>(pages),
             original.attributeMetadata(),
             original.configuration(),
-            completionInfo,
+            accumulator.finish(),
             original.executionInfo(),
             original.approximationApplied()
         );
+    }
+
+    /**
+     * Completion info contributed by the expansion driver. Its document/value accounting is always folded into the result, but the
+     * profile payload is only surfaced when the query requested {@code profile:true}. DEBUG logging may still emit the profile to the
+     * log, but — mirroring the main compute path ({@code addCompletionInfo}) — it must not leak profiles into the returned
+     * {@link Result} or alter completion data for ordinary queries.
+     */
+    private DriverCompletionInfo expansionCompletionInfo(
+        boolean profileRequested,
+        ExpandUnmappedFieldsOperator expandOperator,
+        Driver driver
+    ) {
+        if (profileRequested || LOGGER.isDebugEnabled()) {
+            DriverCompletionInfo withProfiles = DriverCompletionInfo.includingProfiles(
+                List.of(driver),
+                EXPAND_DESCRIPTION,
+                clusterService.getClusterName().value(),
+                transportService.getLocalNode().getName(),
+                expandOperator.toString(),
+                null,
+                null,
+                0L,
+                false
+            );
+            LOGGER.debug("finished {}", withProfiles);
+            if (profileRequested) {
+                return withProfiles;
+            }
+        }
+        return DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
     }
 
     public void execute(

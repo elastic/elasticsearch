@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /// Some safety measures are in place to prevent the cache from growing too large.
 public class LabelledDecisionCache {
 
+    /// This is a hard limit on how many decisions we'll cache per decision type, we shouldn't hit it if things are working as expected.
     private static final int DECIDER_SIZE_LIMIT = 500;
     private static final Set<Decision.Type> INTERESTING_DECISION_TYPES = Set.of(Decision.Type.NO, Decision.Type.NOT_PREFERRED);
     private final EnumMap<Decision.Type, Map<String, Decision>> decisionCache = new EnumMap<>(Decision.Type.class);
@@ -33,20 +34,14 @@ public class LabelledDecisionCache {
     }
 
     public Decision get(Decision decision, String label) {
-        assert cacheIsNotGrowingUnreasonably() : "Decision cache is growing beyond expectations, please investigate";
         final var type = decision.type();
         if (INTERESTING_DECISION_TYPES.contains(type) && label != null) {
-            return decisionCache.get(type).computeIfAbsent(label, k -> new Decision.Single(type, k, null));
+            final var stringDecisionMap = decisionCache.get(type);
+            if (stringDecisionMap.size() >= DECIDER_SIZE_LIMIT) {
+                return stringDecisionMap.getOrDefault(label, decision);
+            }
+            return stringDecisionMap.computeIfAbsent(label, k -> new Decision.Single(type, k, null));
         }
         return decision;
-    }
-
-    private boolean cacheIsNotGrowingUnreasonably() {
-        for (Map<String, Decision> typeCache : decisionCache.values()) {
-            if (typeCache.size() > DECIDER_SIZE_LIMIT) {
-                return false;
-            }
-        }
-        return true;
     }
 }

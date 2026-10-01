@@ -48,10 +48,27 @@ public class LabelledDecisionCacheTests extends ESTestCase {
         }
     }
 
-    public void testAssertionTripsWhenCacheGrowsUnreasonably() {
-        for (int i = 0; i <= 500; i++) {
+    public void testFullCacheStillServesCachedLabelsButDoesNotCacheNewOnes() {
+        final var first = cache.get(Decision.NO, "label-0");
+        for (int i = 1; i < 500; i++) {
             cache.get(Decision.NO, "label-" + i);
         }
-        expectThrows(AssertionError.class, () -> cache.get(Decision.NO, "one-more"));
+
+        // Cache is full: known labels are still served from the cache
+        assertThat(cache.get(Decision.NO, "label-0"), sameInstance(first));
+
+        // Unknown labels fall back to the original decision, and are not added
+        assertThat(cache.get(Decision.NO, "one-more"), sameInstance(Decision.NO));
+        assertThat(cache.get(Decision.NO, "one-more"), sameInstance(Decision.NO));
+    }
+
+    public void testSizeLimitIsAppliedPerDecisionType() {
+        for (int i = 0; i < 500; i++) {
+            cache.get(Decision.NO, "label-" + i);
+        }
+        assertThat(cache.get(Decision.NO, "one-more"), sameInstance(Decision.NO));
+
+        final var notPreferred = (Decision.Single) cache.get(Decision.NOT_PREFERRED, "one-more");
+        assertThat(notPreferred.label(), equalTo("one-more"));
     }
 }

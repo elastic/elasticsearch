@@ -80,6 +80,16 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
         );
     }
 
+    private static ByteRunAutomaton buildAutomaton(
+        String fieldName,
+        String pattern,
+        boolean caseInsensitive,
+        @Nullable CircuitBreaker breaker
+    ) {
+        Term term = new Term(Objects.requireNonNull(fieldName), Objects.requireNonNull(pattern));
+        return AutomatonQueries.toWildcardByteRunAutomaton(term, caseInsensitive, breaker);
+    }
+
     /**
      * Creates a case-insensitive term query, using the same Unicode case-folding automaton as
      * {@link org.elasticsearch.common.lucene.search.CaseInsensitiveTermQuery}.
@@ -123,14 +133,6 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
             binaryFormat,
             "fuzzy,term=" + term + ",maxEdits=" + maxEdits
         );
-    }
-
-    private static Automaton buildAutomaton(String fieldName, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
-        Term term = new Term(Objects.requireNonNull(fieldName), Objects.requireNonNull(pattern));
-        if (caseInsensitive) {
-            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, breaker);
-        }
-        return AutomatonQueries.toWildcardAutomaton(term, breaker);
     }
 
     /**

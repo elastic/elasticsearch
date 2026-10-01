@@ -10,8 +10,6 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -36,17 +34,14 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
             script,
             leafFactory,
             fieldName,
-            new ByteRunAutomaton(buildAutomaton(new Term(fieldName, Objects.requireNonNull(pattern)), caseInsensitive, circuitBreaker))
+            AutomatonQueries.toWildcardByteRunAutomaton(
+                new Term(fieldName, Objects.requireNonNull(pattern)),
+                caseInsensitive,
+                circuitBreaker
+            )
         );
         this.pattern = pattern;
         this.caseInsensitive = caseInsensitive;
-    }
-
-    private static Automaton buildAutomaton(Term term, boolean caseInsensitive, @Nullable CircuitBreaker circuitBreaker) {
-        if (caseInsensitive) {
-            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker);
-        }
-        return AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
     }
 
     @Override

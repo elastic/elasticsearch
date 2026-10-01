@@ -145,17 +145,11 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
                     return ColumnarStringTermQuery.contains(field, new BytesRef(inside), BUDGET);
                 }
             }
-            return new ColumnarStringAutomatonQuery(
-                field,
-                AutomatonQueries.toWildcardAutomaton(new Term(field, pattern), breaker),
-                "pattern=" + pattern,
-                BUDGET
-            );
         }
         return new ColumnarStringAutomatonQuery(
             field,
-            AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, pattern), breaker),
-            "pattern=" + pattern + ",caseInsensitive=true",
+            AutomatonQueries.toWildcardByteRunAutomaton(new Term(field, pattern), caseInsensitive, breaker),
+            "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive,
             BUDGET
         );
     }

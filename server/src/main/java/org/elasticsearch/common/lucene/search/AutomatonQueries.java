@@ -118,6 +118,36 @@ public class AutomatonQueries {
     }
 
     /**
+     * Build a {@link ByteRunAutomaton} from a wildcard pattern. This is the same idea as
+     * {@link #toWildcardAutomaton(Term, CircuitBreaker)} / {@link #toCaseInsensitiveWildcardAutomaton(Term, CircuitBreaker)} but with
+     * one extra step, so when a breaker is supplied two steps are guarded: determinizing the pattern's NFA, and converting the DFA
+     * into a {@code ByteRunAutomaton} (which expands it to UTF-8 and determinizes again).
+     */
+    public static ByteRunAutomaton toWildcardByteRunAutomaton(
+        Term wildcardquery,
+        boolean caseInsensitive,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        if (circuitBreaker == null) {
+            Automaton dfa = caseInsensitive
+                ? toCaseInsensitiveWildcardAutomaton(wildcardquery)
+                : WildcardQuery.toAutomaton(wildcardquery, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return new ByteRunAutomaton(dfa);
+        }
+        Automaton dfa = caseInsensitive
+            ? toCaseInsensitiveWildcardAutomaton(wildcardquery, circuitBreaker)
+            : toWildcardAutomaton(wildcardquery, circuitBreaker);
+        String label = ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + (caseInsensitive ? "[ci]:" : ":") + wildcardquery.field();
+        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, label);
+        try {
+            return new ByteRunAutomaton(dfa);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, label);
+        }
+    }
+
+    /**
      * Build a deterministic automaton from a regular expression, using the circuit breaker to avoid running
      * out of memory on huge patterns. Two steps can use a lot of heap and are each guarded:
      * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions

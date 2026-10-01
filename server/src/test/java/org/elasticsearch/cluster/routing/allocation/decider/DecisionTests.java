@@ -137,7 +137,9 @@ public class DecisionTests extends ESTestCase {
     }
 
     public void testMultiLabelForTiedDecisionsIsFirstEncountered() {
-        final var multi = new Decision.Multi().add(new Decision.Single(NO, "first", null)).add(new Decision.Single(NO, "second", null));
+        final var decisionType = randomFrom(NO, NOT_PREFERRED);
+        final var multi = new Decision.Multi().add(new Decision.Single(decisionType, "first", null))
+            .add(new Decision.Single(decisionType, "second", null));
         assertThat(multi.label(), equalTo("first"));
     }
 

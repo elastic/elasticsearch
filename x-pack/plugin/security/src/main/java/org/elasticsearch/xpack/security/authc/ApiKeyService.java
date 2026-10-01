@@ -148,6 +148,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
@@ -1870,14 +1871,31 @@ public class ApiKeyService implements Closeable {
                             listener.onResponse(Map.of());
                             return;
                         }
+                        final Filters.Bucket active = counts.getBucketByKey("active");
+                        final Filters.Bucket invalidated = counts.getBucketByKey("invalidated");
+                        final Filters.Bucket expired = counts.getBucketByKey("expired");
+                        if (active == null || invalidated == null || expired == null) {
+                            // partial counts would misrepresent the cluster just as zeros would, so report none
+                            logger.debug(
+                                () -> format(
+                                    "buckets %s missing from the [%s] aggregation in the search response for REST API key usage",
+                                    Stream.of("active", "invalidated", "expired")
+                                        .filter(key -> counts.getBucketByKey(key) == null)
+                                        .toList(),
+                                    countsAgg.getName()
+                                )
+                            );
+                            listener.onResponse(Map.of());
+                            return;
+                        }
                         listener.onResponse(
                             Map.of(
                                 "active",
-                                counts.getBucketByKey("active").getDocCount(),
+                                active.getDocCount(),
                                 "invalidated",
-                                counts.getBucketByKey("invalidated").getDocCount(),
+                                invalidated.getDocCount(),
                                 "expired",
-                                counts.getBucketByKey("expired").getDocCount()
+                                expired.getDocCount()
                             )
                         );
                     }, listener::onFailure)

@@ -82,6 +82,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1526,6 +1527,53 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKeyService apiKeyService = createApiKeyService();
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         apiKeyService.restApiKeyUsageStats(future);
+
+        assertThat(future.actionGet(), anEmptyMap());
+    }
+
+    /**
+     * The filters aggregation returns a bucket for every filter it declares, so a missing bucket can only mean the aggregation and the
+     * code reading it back disagree on bucket names. Partial counts would misrepresent the cluster, so none are reported, and the
+     * missing buckets are logged to tell which names disagree.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.security.authc.ApiKeyService:DEBUG", reason = "missing buckets are logged at DEBUG")
+    public void testRestApiKeyUsageStatsAreEmptyWhenResponseLacksABucket() {
+        when(clock.instant()).thenReturn(Instant.now());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+        final List<String> bucketKeys = List.of("active", "invalidated", "expired");
+        final List<String> presentKeys = randomSubsetOf(randomIntBetween(0, 2), bucketKeys);
+        final List<String> missingKeys = bucketKeys.stream().filter(key -> presentKeys.contains(key) == false).toList();
+        final List<InternalFilters.InternalBucket> buckets = presentKeys.stream()
+            .map(key -> new InternalFilters.InternalBucket(key, randomLongBetween(0, 100), InternalAggregations.EMPTY))
+            .toList();
+        doAnswer(invocationOnMock -> {
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(2);
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .tookInMillis(1L)
+                    .aggregations(InternalAggregations.from(List.of(new InternalFilters("rest_api_key_counts", buckets, true, true, null))))
+                    .build()
+            );
+            return null;
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        MockLog.assertThatLogger(
+            () -> apiKeyService.restApiKeyUsageStats(future),
+            ApiKeyService.class,
+            new MockLog.SeenEventExpectation(
+                "missing buckets",
+                ApiKeyService.class.getName(),
+                Level.DEBUG,
+                "buckets "
+                    + missingKeys
+                    + " missing from the [rest_api_key_counts] aggregation in the search response for REST API key usage"
+            )
+        );
 
         assertThat(future.actionGet(), anEmptyMap());
     }

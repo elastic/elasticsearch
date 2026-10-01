@@ -557,17 +557,23 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
      * cross-cluster API keys (reported separately under {@code remote_cluster_server}) are left out of them.
      */
     public void testRestApiKeyUsageStats() throws Exception {
-        final int activeKeys = randomIntBetween(1, 5);
+        final long activeKeys = randomLongBetween(1, 5);
         for (int i = 0; i < activeKeys; i++) {
             // cover both kinds of active key: those that never expire and those that expire in the future
             createRestApiKey("active-" + i, randomBoolean() ? null : TimeValue.timeValueDays(1));
         }
-        final int invalidatedKeys = randomIntBetween(1, 3);
+        final long invalidatedKeys = randomLongBetween(1, 3);
         for (int i = 0; i < invalidatedKeys; i++) {
             final String apiKeyId = createRestApiKey("invalidated-" + i, null);
             client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, false)).actionGet();
         }
-        final int expiredKeys = randomIntBetween(1, 3);
+        // created ahead of the expired keys with the same lifetime, so these have expired by the time the expired keys have
+        final long invalidatedAndExpiredKeys = randomLongBetween(1, 3);
+        for (int i = 0; i < invalidatedAndExpiredKeys; i++) {
+            final String apiKeyId = createRestApiKey("invalidated-and-expired-" + i, TimeValue.timeValueMillis(1));
+            client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, false)).actionGet();
+        }
+        final long expiredKeys = randomLongBetween(1, 3);
         for (int i = 0; i < expiredKeys; i++) {
             createRestApiKey("expired-" + i, TimeValue.timeValueMillis(1));
         }
@@ -579,13 +585,14 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         client().execute(CreateCrossClusterApiKeyAction.INSTANCE, crossClusterRequest).actionGet();
 
         final ApiKeyService apiKeyService = getInstanceFromNode(ApiKeyService.class);
-        // the short-lived keys only move from `active` to `expired` once their expiration time has actually passed
+        // the short-lived keys only move from `active` to `expired` once their expiration time has actually passed, while keys that are
+        // both invalidated and expired stay under `invalidated` only
         assertBusy(() -> {
             final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
             apiKeyService.restApiKeyUsageStats(future);
             assertThat(
                 future.actionGet(),
-                equalTo(Map.of("active", (long) activeKeys, "invalidated", (long) invalidatedKeys, "expired", (long) expiredKeys))
+                equalTo(Map.of("active", activeKeys, "invalidated", invalidatedKeys + invalidatedAndExpiredKeys, "expired", expiredKeys))
             );
         });
 

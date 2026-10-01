@@ -356,7 +356,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         if (debugDecision()) {
             return Decision.single(decision.type(), deciderLabel, reason, params);
         } else {
-            return LABELLED_DECISION_CACHE.get(decision.type(), deciderLabel);
+            return LABELLED_DECISION_CACHE.get(decision, deciderLabel);
         }
     }
 

@@ -126,7 +126,7 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
                 .stream()
                 .filter(d -> expectedLabel.matches(d.label()))
                 .findFirst()
-                .map(explanationMatcher::matches)
+                .map(d -> explanationMatcher.matches(d.getExplanation()))
                 .orElse(false);
         };
     }

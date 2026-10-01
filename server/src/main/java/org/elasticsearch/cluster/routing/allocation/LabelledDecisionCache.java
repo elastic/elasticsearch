@@ -13,16 +13,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/// When a decider returns a [Decision.Type#NO] or [Decision.Type#NOT_PREFERRED] decision, this cache
+/// When a decider returns a decision of one of the types in [#INTERESTING_DECISION_TYPES], this cache
 /// stores the decision with the label populated. Useful for tracking metrics.
 ///
 /// Some safety measures are in place to prevent the cache from growing too large.
 public class LabelledDecisionCache {
 
     private static final int DECIDER_SIZE_LIMIT = 500;
-    private static final Decision.Type[] INTERESTING_DECISION_TYPES = new Decision.Type[] { Decision.Type.NO, Decision.Type.NOT_PREFERRED };
+    private static final Set<Decision.Type> INTERESTING_DECISION_TYPES = Set.of(Decision.Type.NO, Decision.Type.NOT_PREFERRED);
     private final EnumMap<Decision.Type, Map<String, Decision>> decisionCache = new EnumMap<>(Decision.Type.class);
 
     public LabelledDecisionCache() {
@@ -31,9 +32,13 @@ public class LabelledDecisionCache {
         }
     }
 
-    public Decision get(Decision.Type type, String label) {
+    public Decision get(Decision decision, String label) {
         assert cacheIsNotGrowingUnreasonably() : "Decision cache is growing beyond expectations, please investigate";
-        return decisionCache.get(type).computeIfAbsent(label, k -> new Decision.Single(type, k, null));
+        final var type = decision.type();
+        if (INTERESTING_DECISION_TYPES.contains(type)) {
+            return decisionCache.get(type).computeIfAbsent(label, k -> new Decision.Single(type, k, null));
+        }
+        return decision;
     }
 
     private boolean cacheIsNotGrowingUnreasonably() {

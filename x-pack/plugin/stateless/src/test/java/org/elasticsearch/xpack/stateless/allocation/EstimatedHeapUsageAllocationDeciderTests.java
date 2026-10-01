@@ -360,7 +360,9 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             );
             assertTrue("move decision should be taken for started shard", explainDecision.getMoveDecision().isDecisionTaken());
             final Decision canRemainDecision = explainDecision.getMoveDecision().getCanRemainDecision();
-            assertThat(canRemainDecision, isNoDecision(EstimatedHeapUsageAllocationDecider.NAME));
+            // The overall decision is NO because it's an index shard on a search node
+            assertThat(canRemainDecision, isNoDecision(StatelessAllocationDecider.NAME));
+            // The EstimatedHeapUsageAllocationDecider returns YES though
             assertCanRemainResults(
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),

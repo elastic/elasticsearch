@@ -974,3 +974,9 @@ tasks.named('benchmark').configure {
     exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
   }
 }
+
+// benchmarkTest inherits the inference test dependencies, which bring in the real commons-lang3. The ORC datasource jar
+// ships a same-FQN StringUtils stub, so the two collide in the JarHell check. Keep the stub, as the ORC reader does.
+configurations.named('benchmarkTestRuntimeClasspath').configure {
+  exclude group: 'org.apache.commons', module: 'commons-lang3'
+}

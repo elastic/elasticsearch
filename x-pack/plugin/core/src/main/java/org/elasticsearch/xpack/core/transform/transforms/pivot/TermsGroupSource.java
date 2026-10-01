@@ -93,7 +93,6 @@ public class TermsGroupSource extends SingleGroupSource {
      * Accepted values:
      * <ul>
      *   <li>{@code null} -- unlimited (default); never disable terms-based filtering</li>
-     *   <li>{@code -1}   -- unlimited; equivalent to {@code null}</li>
      *   <li>{@code 0}    -- always disable terms-based filtering for this group</li>
      *   <li>positive integer -- the maximum number of changed terms before disabling filtering</li>
      * </ul>
@@ -109,15 +108,22 @@ public class TermsGroupSource extends SingleGroupSource {
         return maxTermsForChangeDetection;
     }
 
+    /**
+     * Resolves the effective max terms threshold. {@code null} (not configured) is treated as
+     * unlimited and returns {@link Integer#MAX_VALUE}; any configured value is returned as-is.
+     */
+    public int resolveMaxTermsForChangeDetection() {
+        return maxTermsForChangeDetection == null ? Integer.MAX_VALUE : maxTermsForChangeDetection;
+    }
+
     @Override
     ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         validationException = super.validate(validationException);
-        if (maxTermsForChangeDetection != null && maxTermsForChangeDetection < -1) {
+        if (maxTermsForChangeDetection != null && maxTermsForChangeDetection < 0) {
             validationException = addValidationError(
                 "max_terms_for_change_detection ["
                     + maxTermsForChangeDetection
-                    + "] is out of range. Use -1 to disable the limit, 0 to disable change filtering,"
-                    + " or a positive integer to set the limit",
+                    + "] is out of range. Use 0 to disable change filtering, or a positive integer to set the limit",
                 validationException
             );
         }

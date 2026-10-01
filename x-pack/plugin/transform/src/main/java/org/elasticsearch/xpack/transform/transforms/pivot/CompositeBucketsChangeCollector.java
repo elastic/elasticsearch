@@ -229,9 +229,9 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                 }
             }
 
-            totalTermsSeen += changedTerms.size();
+            totalTermsSeen += changedTerms.size() + (foundNullBucket ? 1 : 0);
             if (totalTermsSeen > maxTermsForChangeDetection) {
-                logger.warn(
+                logger.debug(
                     "Change detection overflow for field [{}]: [{}] changed terms exceeds limit of [{}], "
                         + "disabling terms-based change detection optimization for this checkpoint",
                     targetFieldName,
@@ -908,7 +908,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                         entry.getValue().getField(),
                         entry.getKey(),
                         entry.getValue().getMissingBucket(),
-                        resolveMaxTerms((TermsGroupSource) entry.getValue())
+                        ((TermsGroupSource) entry.getValue()).resolveMaxTermsForChangeDetection()
                     )
                 );
                 case HISTOGRAM -> fieldCollectors.put(
@@ -946,19 +946,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             }
         }
         return fieldCollectors;
-    }
-
-    /**
-     * Resolves the effective max terms threshold from a {@link TermsGroupSource}.
-     * Both {@code null} (not configured) and {@code -1} (explicit unlimited) are treated
-     * as unlimited (returns {@link Integer#MAX_VALUE}).
-     */
-    private static int resolveMaxTerms(TermsGroupSource termsGroupSource) {
-        Integer configured = termsGroupSource.getMaxTermsForChangeDetection();
-        if (configured == null || configured == -1) {
-            return Integer.MAX_VALUE;
-        }
-        return configured;
     }
 
 }

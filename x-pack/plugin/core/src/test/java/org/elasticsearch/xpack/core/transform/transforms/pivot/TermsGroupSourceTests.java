@@ -59,7 +59,7 @@ public class TermsGroupSourceTests extends AbstractSerializingTransformTestCase<
         }
 
         boolean missingBucket = version.onOrAfter(TransformConfigVersion.V_7_10_0) ? randomBoolean() : false;
-        Integer maxTermsForChangeDetection = randomBoolean() ? null : randomFrom(-1, 0, randomIntBetween(1, 100_000));
+        Integer maxTermsForChangeDetection = randomBoolean() ? null : randomFrom(0, randomIntBetween(1, 100_000));
         return new TermsGroupSource(field, scriptConfig, missingBucket, maxTermsForChangeDetection);
     }
 
@@ -110,24 +110,21 @@ public class TermsGroupSourceTests extends AbstractSerializingTransformTestCase<
         group = new TermsGroupSource("field", null, false, 0);
         assertThat(group.validate(null), is(nullValue()));
 
-        group = new TermsGroupSource("field", null, false, -1);
-        assertThat(group.validate(null), is(nullValue()));
-
         group = new TermsGroupSource("field", null, false, 1);
         assertThat(group.validate(null), is(nullValue()));
 
         group = new TermsGroupSource("field", null, false, 10_000);
         assertThat(group.validate(null), is(nullValue()));
 
-        group = new TermsGroupSource("field", null, false, -3);
+        group = new TermsGroupSource("field", null, false, -1);
         ValidationException validationException = group.validate(null);
         assertThat(validationException, is(notNullValue()));
-        assertThat(validationException.getMessage(), containsString("max_terms_for_change_detection [-3] is out of range"));
+        assertThat(validationException.getMessage(), containsString("max_terms_for_change_detection [-1] is out of range"));
 
-        group = new TermsGroupSource("field", null, false, -2);
+        group = new TermsGroupSource("field", null, false, -3);
         validationException = group.validate(null);
         assertThat(validationException, is(notNullValue()));
-        assertThat(validationException.getMessage(), containsString("max_terms_for_change_detection [-2] is out of range"));
+        assertThat(validationException.getMessage(), containsString("max_terms_for_change_detection [-3] is out of range"));
     }
 
     public void testMaxTermsForChangeDetectionParsing() throws IOException {

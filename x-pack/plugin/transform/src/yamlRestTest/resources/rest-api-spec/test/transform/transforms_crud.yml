@@ -919,7 +919,7 @@ setup:
 ---
 "Test put config with invalid max_terms_for_change_detection in terms group-by":
   - do:
-      catch: /max_terms_for_change_detection \[-3\] is out of range. Use -1 to disable the limit, 0 to disable change filtering, or a positive integer to set the limit/
+      catch: /max_terms_for_change_detection \[-3\] is out of range. Use 0 to disable change filtering, or a positive integer to set the limit/
       transform.put_transform:
         transform_id: "airline-transform"
         body: >
@@ -956,10 +956,11 @@ setup:
   - match: { transforms.0.pivot.group_by.airline.terms.max_terms_for_change_detection: 5000 }
 
 ---
-"Test put config with max_terms_for_change_detection disabled in terms group-by":
+"Test put config with negative max_terms_for_change_detection in terms group-by":
   - do:
+      catch: /max_terms_for_change_detection \[-1\] is out of range. Use 0 to disable change filtering, or a positive integer to set the limit/
       transform.put_transform:
-        transform_id: "airline-transform-terms-disabled"
+        transform_id: "airline-transform-terms-negative"
         body: >
           {
             "source": { "index": "airline-data" },
@@ -969,14 +970,6 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
-  - match: { acknowledged: true }
-
-  - do:
-      transform.get_transform:
-        transform_id: "airline-transform-terms-disabled"
-  - match: { count: 1 }
-  - match: { transforms.0.id: "airline-transform-terms-disabled" }
-  - match: { transforms.0.pivot.group_by.airline.terms.max_terms_for_change_detection: -1 }
 
 ---
 "Test put config with max_terms_for_change_detection set to 0 in terms group-by":

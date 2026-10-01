@@ -53,14 +53,14 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### Caching
 
-{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (30 seconds by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
+{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (5 minutes by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
 
 ### File discovery limits
 
 A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. These cluster settings bound file discovery:
 
 - `esql.external.max_listed_objects` (default 1,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list. {applies_to}`stack: experimental 9.6+`
-- `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
+- `esql.external.max_discovered_files` (default 25,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
 If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.
@@ -178,7 +178,7 @@ Slow queries
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
 New files not appearing in query results
-:   {{es}} caches file listings for each dataset. If you recently added files to your bucket, they might not appear until the listing cache expires. The default listing cache TTL is 30 seconds. Refer to [cluster settings](esql-data-federation-cluster-settings.md) to adjust it.
+:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. The default listing cache TTL is 5 minutes. Lower `esql.external.cache.listing.ttl` when new or removed files must be visible sooner. Refer to [cluster settings](esql-data-federation-cluster-settings.md).
 
 Columns with unexpected types or missing values
 :   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. Use dataset [mappings](esql-data-federation-datasets.md#declare-a-dataset-mapping) to declare column types explicitly, or adjust the [`datetime_format`](esql-data-federation-datasets.md#csv-and-tsv-settings) setting. If some rows have null values for a column that exists in other files, check the dataset's [`schema_resolution`](esql-data-federation-datasets.md#schema-merge-strategies) setting.

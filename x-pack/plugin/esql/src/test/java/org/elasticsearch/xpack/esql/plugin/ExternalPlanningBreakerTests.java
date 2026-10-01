@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -115,6 +117,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -150,6 +153,36 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         done.actionGet(30, TimeUnit.SECONDS);
         assertEquals("a prefix's phase-2 structures are never built, so nothing is reserved for them", 0L, run.held());
         assertEquals(baseline, breaker.getUsed());
+    }
+
+    /**
+     * Charge for one listing at the default discovered-files cap, on the compacted form planning keeps.
+     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes of schema-map
+     * slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
+     * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
+     */
+    public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
+        int files = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(Settings.EMPTY);
+        assertEquals(25_000, files);
+        List<StorageEntry> entries = new ArrayList<>(files);
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/part-" + i + ".parquet"), 1024L, Instant.EPOCH));
+        }
+        FileList raw = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+        FileList compact = GlobExpander.compact(raw, "s3://bucket/data/");
+        assertEquals(files, compact.fileCount());
+
+        long listing = ExternalSourceResolver.listingPlanningCharge(compact);
+        long phase2 = files * Phase2Reservation.SHELL_BYTES;
+        long oneGbRequestBreaker = ByteSizeValue.ofGb(1).getBytes() * 60 / 100;
+        assertThat(listing + phase2, lessThan(oneGbRequestBreaker));
+        logger.info(
+            "25k-file planning charge: listing=[{}] phase2=[{}] total=[{}] oneGbRequestBreaker=[{}]",
+            listing,
+            phase2,
+            listing + phase2,
+            oneGbRequestBreaker
+        );
     }
 
     public void testLocalPhase2ChargesResolvedFilesBeforeDiscovery() throws Exception {
@@ -320,7 +353,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
         FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob).fileList();
-        long seam1 = listing.planningBytes() + listing.fileCount() * 760L;
+        long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));
         assertEquals(seam1, reservation.queryHeld());
         assertEquals(baseline + seam1, breaker.getUsed());

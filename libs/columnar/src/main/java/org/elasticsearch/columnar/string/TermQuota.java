@@ -58,4 +58,12 @@ record TermQuota(long budget, int minCount) {
     static TermQuota forMergedSummary(SummaryPolicy summaryPolicy) {
         return new TermQuota(summaryPolicy.maxBytes(), 2);
     }
+
+    /**
+     * What a merged summary asks for the terms it retained once, beside {@link #forMergedSummary}. Bounded by
+     * the column's share, so a column of values unique to the index is not recorded whole every generation.
+     */
+    static TermQuota forMergedSummaryTail(DictionaryPolicy dictionaryPolicy, long columnBytes) {
+        return new TermQuota(dictionaryPolicy.budgetFor(columnBytes), 1);
+    }
 }

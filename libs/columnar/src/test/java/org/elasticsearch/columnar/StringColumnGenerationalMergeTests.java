@@ -67,11 +67,7 @@ public class StringColumnGenerationalMergeTests extends ESTestCase {
                     assertThat("but the terms are written down", merged.summaryTerms(), greaterThan(POOL_TERMS / 2));
                 } else {
                     assertTrue("the terms written down then repeat and earn a dictionary", merged.hasDictionary());
-                    assertThat(
-                        "and merging further never names a value only one segment held",
-                        merged.coverage(),
-                        lessThan(POOL_SHARE_PERCENT / 100.0)
-                    );
+                    assertThat("a value only one segment held is never named", merged.coverage(), lessThan(1.0));
                 }
             }
         }

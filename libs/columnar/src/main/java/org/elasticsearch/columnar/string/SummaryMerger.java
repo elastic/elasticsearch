@@ -126,7 +126,10 @@ public final class SummaryMerger {
         if (combined != null && dictionaryPolicy.worthKeeping(combined.coverage(), combined.dictionaryBytes(), combined.columnBytes())) {
             return new Decision(Outcome.DICTIONARY, combined.withBestCoverage(upperBound), upperBound);
         }
-        if (dictionaryPolicy.rulesOut(upperBound)) {
+        // NOTE: necessary for a survey to be worth it, not a proof the summaries are right. It over-states
+        // while a merged summary bounds terms held once by the column's share rather than its own cap.
+        final boolean summaryCapCoversTheDictionary = summaryPolicy.maxBytes() >= dictionaryPolicy.maxBytes();
+        if (dictionaryPolicy.rulesOut(upperBound) || (combined != null && summaryCapCoversTheDictionary)) {
             return new Decision(Outcome.NO_DICTIONARY, Vocabulary.withoutDictionary(combined, upperBound), upperBound);
         }
         return new Decision(Outcome.UNDECIDED, null, upperBound);

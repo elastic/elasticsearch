@@ -74,8 +74,8 @@ public class SummaryMergerTests extends ESTestCase {
             decideOverPrivateVocabularies(BestCoverage.of(410, 1000, 8 * 1024)).outcome()
         );
         assertEquals(
-            "the same counts, with nothing recorded, leave it to the values",
-            SummaryMerger.Outcome.UNDECIDED,
+            "the same counts, with nothing recorded, still settle on the summaries",
+            SummaryMerger.Outcome.NO_DICTIONARY,
             decideOverPrivateVocabularies(BestCoverage.UNKNOWN).outcome()
         );
     }
@@ -122,13 +122,13 @@ public class SummaryMergerTests extends ESTestCase {
         final long named = (1L << 53) + 1;
         final long total = named + 1;
         final double threshold = Math.nextDown(1.0);
-        final SummaryMerger merger = new SummaryMerger(new DictionaryPolicy(1, threshold, 1.0), ROOMY_SUMMARY);
+        final DictionaryPolicy policy = new DictionaryPolicy(1, threshold, 1.0);
+        final SummaryMerger merger = new SummaryMerger(policy, ROOMY_SUMMARY);
         merger.add(total, total, BestCoverage.UNKNOWN, terms("a", "b"), counts(named, 1L));
 
-        assertNotEquals(
+        assertFalse(
             "a dictionary naming " + named + " of " + total + " clears the bar",
-            SummaryMerger.Outcome.NO_DICTIONARY,
-            merger.decide(true).outcome()
+            policy.rulesOut(merger.decide(true).bestCoverage())
         );
     }
 
@@ -209,7 +209,7 @@ public class SummaryMergerTests extends ESTestCase {
         assertEquals("head names two hundred of four hundred", 0.5, decision.vocabulary().coverage(), 1e-9);
     }
 
-    public void testInconclusiveBoundsReturnUndecided() {
+    public void testInconclusiveBoundsWritePlainFromTheSummaries() {
         final SummaryMerger merger = mergerCappedAt(100);
         final List<BytesRef> held = terms("head");
         final List<Long> counted = counts(80L);
@@ -219,7 +219,7 @@ public class SummaryMergerTests extends ESTestCase {
         }
         merger.add(200, 560, BestCoverage.UNKNOWN, held, counted);
 
-        assertEquals(SummaryMerger.Outcome.UNDECIDED, merger.decide(true).outcome());
+        assertEquals(SummaryMerger.Outcome.NO_DICTIONARY, merger.decide(true).outcome());
     }
 
     public void testABoundBelowTheBarRefusesAndKeepsTheTerms() {

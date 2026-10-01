@@ -129,7 +129,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
         }
         final long uniqueBytes = 40_000 + 2_000L * "an-identifier-held-once-0000".length();
         final Vocabulary.Terms refused = Vocabulary.combined(unique, uniqueBytes, 12_000, fifth, StringColumnOptions.DEFAULT_SUMMARY);
-        assertEquals("the head alone, since recording the rest is recording the column", 1, refused.summarySize());
+        assertEquals("the head and what the share affords, not the whole column", 716, refused.summarySize());
     }
 
     public void testACombinedVocabularyIsBoundedAndKeepsWhatRepeats() {

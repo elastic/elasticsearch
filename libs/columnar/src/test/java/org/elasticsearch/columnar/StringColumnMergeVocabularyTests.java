@@ -375,7 +375,7 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         final MergedColumn merged = merge("out of reach", unreachableSegments(), tinyCap);
         assertTrue("every segment records its terms", merged.segmentsSummariseTerms());
         assertFalse("no dictionary", merged.hasDictionary());
-        assertFalse("and values unique to the index are not recorded twice", merged.hasSummaryTerms());
+        assertTrue("and it records what it saw for the next merge", merged.hasSummaryTerms());
     }
 
     private static final int UNREACHABLE_TERMS_PER_SEGMENT = 2_000;
@@ -638,7 +638,7 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         }
     }
 
-    public void testAMergeThatNeitherBoundSettlesReadsTheValues() throws IOException {
+    public void testAMergeThatNeitherBoundSettlesWritesPlainFromTheSummaries() throws IOException {
         final DictionaryPolicy policy = new DictionaryPolicy(100, 0.5, 1.0);
         final List<List<String>> segments = new ArrayList<>();
         for (int segment = 0; segment < 2; segment++) {
@@ -651,8 +651,8 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             flushSegments(dir, segments, policy, StringColumnOptions.DEFAULT_SUMMARY);
             assertEquals(
-                "neither summed counts nor the bound settle it",
-                MergedVocabulary.Source.SURVEY,
+                "neither summed counts nor the bound settle it, and the summaries decide anyway",
+                MergedVocabulary.Source.SUMMARY_REFUSAL,
                 settledBy(dir, policy, StringColumnOptions.DEFAULT_SUMMARY)
             );
             forceMerge(dir, policy, StringColumnOptions.DEFAULT_SUMMARY);
@@ -1112,8 +1112,8 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             outgrown.dictionaryTerms(),
             outgrown.bytes()
         );
-        assertEquals("past it the summaries cannot show it", MergedVocabulary.Source.SURVEY, outgrown.settled());
-        assertEquals("and neither can the survey", 0, outgrown.dictionaryTerms());
+        assertEquals("past it the summaries cannot show it", MergedVocabulary.Source.SUMMARY_REFUSAL, outgrown.settled());
+        assertEquals("and the column goes plain without reading a value", 0, outgrown.dictionaryTerms());
     }
 
     private Census settle(String shape, List<List<String>> segments) throws IOException {

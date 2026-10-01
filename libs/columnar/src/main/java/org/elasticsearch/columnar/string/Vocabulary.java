@@ -219,31 +219,14 @@ public final class Vocabulary {
         }
         final TermSelection selection = new TermSelection(terms, occurrences);
         final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
-        final int[] repeatedTermsOnly = selection.thatFit(TermQuota.forMergedSummary(summaryPolicy));
-        final int[] withTermsCountedOnce = selection.thatFit(TermQuota.forSummary(summaryPolicy));
         // NOTE: counts are summed across the inputs, so a term counted once was seen by one input and by no
         // other. It may still turn out to repeat: a later merge can bring a segment holding it too, but only
-        // if this merge records it now. That is what the wider quota is for. It is bounded twice over,
-        // because it is a first-fit walk of its own and can drop a repeated term to afford cheaper ones,
-        // and because a column of values unique to the index would otherwise be recorded whole every time.
-        final boolean keepsEveryRepeatedTerm = containsAll(withTermsCountedOnce, repeatedTermsOnly);
-        final boolean withinTheColumnsShare = selection.bytesOf(withTermsCountedOnce) <= dictionaryPolicy.budgetFor(columnBytes);
-        final int[] summaryIds = keepsEveryRepeatedTerm && withinTheColumnsShare ? withTermsCountedOnce : repeatedTermsOnly;
+        // if this merge records it now. Its own budget keeps it from displacing a term that already repeats.
+        final int[] summaryIds = selection.thatFit(
+            TermQuota.forMergedSummary(summaryPolicy),
+            TermQuota.forMergedSummaryTail(dictionaryPolicy, columnBytes)
+        );
         return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
-    }
-
-    /** Whether every id in {@code narrower} is also in {@code wider}. Both are in term order, so one pass does it. */
-    private static boolean containsAll(int[] wider, int[] narrower) {
-        int at = 0;
-        for (int id : narrower) {
-            while (at < wider.length && wider[at] != id) {
-                at++;
-            }
-            if (at == wider.length) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**

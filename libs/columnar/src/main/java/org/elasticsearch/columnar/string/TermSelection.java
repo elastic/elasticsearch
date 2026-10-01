@@ -165,6 +165,34 @@ final class TermSelection {
     }
 
     /**
+     * The ids two quotas admit together: {@code repeated} first, so they are exactly what it admits alone,
+     * then the terms below its minimum count into whatever room is left, bounded also by {@code tail}.
+     */
+    int[] thatFit(TermQuota repeated, TermQuota tail) {
+        final int[] thatRepeat = thatFit(repeated);
+        final long room = Math.min(tail.budget(), repeated.budget() - bytesOf(thatRepeat));
+        final int[] admitted = new int[byDensity.length];
+        System.arraycopy(thatRepeat, 0, admitted, 0, thatRepeat.length);
+        int keptCount = thatRepeat.length;
+        long bytes = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : byDensity) {
+            if (counts[id] >= repeated.minCount() || counts[id] < tail.minCount()) {
+                continue;
+            }
+            terms.get(id, scratch);
+            final long cost = TermQuota.cost(scratch);
+            if (bytes + cost <= room) {
+                bytes += cost;
+                admitted[keptCount++] = id;
+            }
+        }
+        final int[] kept = ArrayUtil.copyOfSubArray(admitted, 0, keptCount);
+        ordering.byTerm(kept, 0, keptCount);
+        return kept;
+    }
+
+    /**
      * Cross multiplication orders by count per byte without dividing, across 128 bits since the products
      * can pass what a long holds. An order that wrapped would stop the walk in {@link #bestCoverage} being
      * the optimum of its relaxation, which is the one place a greedy walk here is exact.

@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -115,6 +117,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -150,6 +153,36 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         done.actionGet(30, TimeUnit.SECONDS);
         assertEquals("a prefix's phase-2 structures are never built, so nothing is reserved for them", 0L, run.held());
         assertEquals(baseline, breaker.getUsed());
+    }
+
+    /**
+     * Charge for one listing at the default discovered-files cap, on the compacted form planning keeps.
+     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes of schema-map
+     * slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
+     * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
+     */
+    public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
+        int files = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(Settings.EMPTY);
+        assertEquals(25_000, files);
+        List<StorageEntry> entries = new ArrayList<>(files);
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/part-" + i + ".parquet"), 1024L, Instant.EPOCH));
+        }
+        FileList raw = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+        FileList compact = GlobExpander.compact(raw, "s3://bucket/data/");
+        assertEquals(files, compact.fileCount());
+
+        long listing = ExternalSourceResolver.listingPlanningCharge(compact);
+        long phase2 = files * Phase2Reservation.SHELL_BYTES;
+        long oneGbRequestBreaker = ByteSizeValue.ofGb(1).getBytes() * 60 / 100;
+        assertThat(listing + phase2, lessThan(oneGbRequestBreaker));
+        logger.info(
+            "25k-file planning charge: listing=[{}] phase2=[{}] total=[{}] oneGbRequestBreaker=[{}]",
+            listing,
+            phase2,
+            listing + phase2,
+            oneGbRequestBreaker
+        );
     }
 
     public void testLocalPhase2ChargesResolvedFilesBeforeDiscovery() throws Exception {
@@ -320,7 +353,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
         FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob).fileList();
-        long seam1 = listing.planningBytes() + listing.fileCount() * 760L;
+        long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));
         assertEquals(seam1, reservation.queryHeld());
         assertEquals(baseline + seam1, breaker.getUsed());
@@ -474,6 +507,50 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
     private static StorageEntry entry(String path) {
         return new StorageEntry(StoragePath.of(path), 100, Instant.EPOCH);
+    }
+
+    /**
+     * Location keys are derived at read, so a bound path does not grow the charge and path length is never read.
+     * Size and hive keys still bill a map. Hive plus size and modified bills both layers.
+     */
+    public void testPhase2ChargeFollowsRetainedKeysNotPathLength() {
+        List<Attribute> dataOnly = List.of(referenceAttribute("x", DataType.INTEGER));
+        assertEquals(2 * ComputeService.SHELL_BYTES, ComputeService.phase2Bytes(dataOnly, resolvedFiles(2)));
+        assertEquals(0L, ComputeService.phase2Bytes(dataOnly, FileList.UNRESOLVED));
+        assertEquals(0L, ComputeService.phase2Bytes(dataOnly, FileList.EMPTY));
+
+        StoragePath shortPath = StoragePath.of("s3://b/a.parquet");
+        StoragePath longPath = StoragePath.of("s3://b/" + "p".repeat(4000) + "/a.parquet");
+        List<Attribute> locationBound = List.of(
+            referenceAttribute("x", DataType.INTEGER),
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD),
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.NAME, DataType.KEYWORD),
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.DIRECTORY, DataType.KEYWORD)
+        );
+        assertEquals(ComputeService.SHELL_BYTES, ComputeService.phase2Bytes(locationBound, oneFile(shortPath, null)));
+        assertEquals(ComputeService.SHELL_BYTES, ComputeService.phase2Bytes(locationBound, oneFile(longPath, null)));
+
+        List<Attribute> sizeBound = List.of(new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG));
+        assertEquals(
+            ComputeService.SHELL_BYTES + ComputeService.perMap(1),
+            ComputeService.phase2Bytes(sizeBound, oneFile(shortPath, null))
+        );
+
+        StoragePath hivePath = StoragePath.of("s3://b/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(hivePath, Map.of("year", 2024)));
+        List<Attribute> hiveBound = List.of(referenceAttribute("year", DataType.INTEGER));
+        assertEquals(
+            ComputeService.SHELL_BYTES + ComputeService.perMap(1),
+            ComputeService.phase2Bytes(hiveBound, oneFile(hivePath, partitions))
+        );
+
+        List<Attribute> hiveAndSize = List.of(
+            referenceAttribute("year", DataType.INTEGER),
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG),
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.MODIFIED, DataType.DATETIME)
+        );
+        long bothLayers = ComputeService.SHELL_BYTES + ComputeService.perMap(1) + ComputeService.perMap(2) + ComputeService.VIEW_BYTES;
+        assertEquals(bothLayers, ComputeService.phase2Bytes(hiveAndSize, oneFile(hivePath, partitions)));
     }
 
     public void testReleaseReturnsSuccessAndFailureToBaseline() {
@@ -709,6 +786,55 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             output.add(referenceAttribute("k" + c, DataType.INTEGER));
         }
         return output;
+    }
+
+    private static FileList oneFile(StoragePath path, PartitionMetadata partitions) {
+        return new FileList() {
+            @Override
+            public int fileCount() {
+                return 1;
+            }
+
+            @Override
+            public StoragePath path(int i) {
+                return path;
+            }
+
+            @Override
+            public long size(int i) {
+                return 1L;
+            }
+
+            @Override
+            public long lastModifiedMillis(int i) {
+                return 0L;
+            }
+
+            @Override
+            public String originalPattern() {
+                return path.toString();
+            }
+
+            @Override
+            public PartitionMetadata partitionMetadata() {
+                return partitions;
+            }
+
+            @Override
+            public boolean isResolved() {
+                return true;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+
+            @Override
+            public long estimatedBytes() {
+                return path.toString().length();
+            }
+        };
     }
 
     private static Configuration configuration() {

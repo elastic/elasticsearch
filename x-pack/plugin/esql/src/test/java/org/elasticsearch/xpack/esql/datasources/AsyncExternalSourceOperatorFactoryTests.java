@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -1254,6 +1256,58 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(fileList, factory.fileList());
         assertTrue(factory.fileList().isResolved());
         assertEquals(2, factory.fileList().fileCount());
+    }
+
+    /**
+     * Each slice-queue page takes {@code _file.path} from that split. The factory path is the glob, so a
+     * page that showed it would mean the overlay used the source path instead of {@code fileSplit.path()}.
+     */
+    public void testSliceQueueFilePathComesFromEachSplit() throws Exception {
+        StoragePath factoryPath = StoragePath.of("s3://bucket/*.parquet");
+        StoragePath first = StoragePath.of("s3://bucket/f1.parquet");
+        StoragePath second = StoragePath.of("s3://bucket/f2.parquet");
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", first, 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", second, 0, 200, "parquet", Map.of(), Map.of())
+        );
+        FormatReader formatReader = new SinglePageReader(() -> new Page(1));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            factoryPath,
+            List.of(new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<String> paths = new ArrayList<>();
+        List<Page> pages = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page == null) {
+                    continue;
+                }
+                pages.add(page);
+                BytesRefBlock pathBlock = page.getBlock(0);
+                paths.add(pathBlock.getBytesRef(0, scratch).utf8ToString());
+            }
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
+            operator.close();
+        }
+        assertEquals(List.of(first.toString(), second.toString()), paths);
     }
 
     // ===== Slice Queue tests =====

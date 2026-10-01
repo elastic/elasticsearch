@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,8 +32,9 @@ import java.util.Set;
  * {@code auth}. Two data sources assuming different roles over one bucket therefore produced identical
  * keys, and whichever queried second was served the file set the first identity could see. Adding the
  * missing names would have fixed the reported pair and left the mechanism: the next authentication
- * setting has to be remembered too, and forgetting is silent. A version computed from the definitions in
- * full has no list to omit a name from.
+ * setting has to be remembered too, and forgetting is silent. Neither replacement carries a list: the
+ * version is computed from the definitions in full, and a secret is digested over the set of fields the
+ * configuration itself declares secret.
  */
 public class CacheKeyDefinitionVersionTests extends ESTestCase {
 
@@ -44,36 +47,64 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
         return config;
     }
 
-    /** A data source as stored, with its secrets marked secret. */
+    /**
+     * A data source as production stores one: a secret is an {@link EncryptedData} carrier, never plaintext. The
+     * shape matters here — over a plaintext carrier the version folds the token's value and this case separates
+     * for a reason that does not hold on a cluster with encryption configured.
+     */
     private static DataSource sourceWithToken(String sessionToken) {
         Map<String, DataSourceSetting> settings = new LinkedHashMap<>();
         settings.put("auth", new DataSourceSetting("static_credentials", false));
-        settings.put("access_key", new DataSourceSetting("AKIAEXAMPLE", true));
-        settings.put("session_token", new DataSourceSetting(sessionToken, true));
+        settings.put("access_key", new DataSourceSetting(encrypted("AKIAEXAMPLE"), true));
+        settings.put("session_token", new DataSourceSetting(encrypted(sessionToken), true));
         return new DataSource("src", "s3", null, settings);
     }
 
+    private static EncryptedData encrypted(String plaintext) {
+        return new EncryptedData("project-key-1", plaintext.getBytes(StandardCharsets.UTF_8));
+    }
+
     /**
-     * The case from the security report, computed rather than assumed: one bucket, one prefix, two
-     * identities differing only in the session token. The version is derived from each definition by
-     * {@link DefinitionVersion#of}, so this fails if that value stops distinguishing them — which
-     * asserting two different literals could not detect.
+     * The case from the security report, computed rather than assumed: one bucket, one prefix, two identities
+     * differing only in the session token. Every value here is derived — the version by
+     * {@link DefinitionVersion#of} and the secret identity by {@link Configured#secretIdentityOf} — so the case
+     * fails if either stops distinguishing them, which asserting two literals could not detect.
      * <p>
-     * {@code session_token} appears on no list anywhere. That is the point: a version computed from the
-     * definitions in full has no list to omit a name from.
+     * It also pins WHICH of the two separates them. Stored encrypted, as production stores a secret, the token
+     * does not reach the version at all: ciphertext carries a fresh IV per write, so folding it would version
+     * definitions that had not changed. The separation is the secret identity, digested from the decrypted
+     * values the provider is handed. {@code session_token} appears on no hand-written list in either — the
+     * version walks the definitions in full, and the digest covers the fields the configuration declares secret.
      */
     public void testTwoIdentitiesOverOneBucketDoNotShareAListing() {
         Dataset dataset = new Dataset("parts", new DataSourceReference("src"), "s3://warehouse/data/*.parquet", null, Map.of());
         String readerVersion = DefinitionVersion.of(dataset, sourceWithToken("READERTOKEN"));
         String auditorVersion = DefinitionVersion.of(dataset, sourceWithToken("AUDITORTOKEN"));
-        assertNotEquals("two identities must not compute one definition version", readerVersion, auditorVersion);
+        assertEquals("an encrypted secret must not reach the definition version", readerVersion, auditorVersion);
 
+        Set<String> declaredSecrets = Set.of("access_key", "secret_key", "session_token");
         Map<String, Object> reader = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "READERTOKEN");
         Map<String, Object> auditor = Map.of("auth", "static_credentials", "access_key", "AKIAEXAMPLE", "session_token", "AUDITORTOKEN");
         assertNotEquals(
             "two identities over one prefix must not address one listing",
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", "", config(readerVersion, reader), ""),
-            ListingCacheKey.build("s3", "warehouse", "data/*.parquet", "", "", config(auditorVersion, auditor), "")
+            ListingCacheKey.build(
+                "s3",
+                "warehouse",
+                "data/*.parquet",
+                "",
+                Configured.secretIdentityOf(reader, declaredSecrets),
+                config(readerVersion, reader),
+                ""
+            ),
+            ListingCacheKey.build(
+                "s3",
+                "warehouse",
+                "data/*.parquet",
+                "",
+                Configured.secretIdentityOf(auditor, declaredSecrets),
+                config(auditorVersion, auditor),
+                ""
+            )
         );
     }
 

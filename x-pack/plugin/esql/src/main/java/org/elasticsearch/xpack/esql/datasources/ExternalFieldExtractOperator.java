@@ -282,18 +282,22 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
 
         SubscribableListener<Void> ready = new SubscribableListener<>();
         materializationBlocked = new IsBlockedResult(ready, "external field materialization");
-        var registryRef = Releasables.releaseOnce(registryRefs.acquire());
-        ActionListener<Result> completion = ActionListener.releaseAfter(
-            ActionListener.runAfter(listener, () -> ready.onResponse(null)),
-            registryRef
-        );
+        var registryRef = registryRefs.acquire();
+        ActionListener<Result> completion = ActionListener.runAfter(listener, () -> {
+            try {
+                ready.onResponse(null);
+            } finally {
+                registryRef.close();
+            }
+        });
         try {
+            var context = driverContext();
             executor.execute(() -> {
                 long start = System.nanoTime();
                 long cpuStart = ThreadCpuTimer.currentNanos();
                 Result result;
                 try {
-                    driverContext().checkForEarlyTermination();
+                    context.checkForEarlyTermination();
                     result = Result.materialized(
                         page,
                         registry.materialize(refs, refs.length, deferredColumnNames, deferredColumnTypes, blockFactory.parent())

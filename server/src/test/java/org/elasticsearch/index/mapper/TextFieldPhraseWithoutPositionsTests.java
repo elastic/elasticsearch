@@ -13,9 +13,14 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.IntervalQueryBuilder;
+import org.elasticsearch.index.query.IntervalsSourceProvider;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
@@ -54,7 +59,52 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         }
     }
 
+    public void testMultiPhraseAndPhrasePrefix() throws IOException {
+        final MapperService withPositions = columnarMapper("positions");
+        final MapperService withoutPositions = columnarMapper("docs");
+        for (String phrase : List.of("quick bro", "brown fo", "the quick brown f", "fox th")) {
+            final List<Integer> expected = matching(withPositions, new MatchPhrasePrefixQueryBuilder("body", phrase));
+            final List<Integer> actual = matching(withoutPositions, new MatchPhrasePrefixQueryBuilder("body", phrase));
+            assertEquals("phrase_prefix [" + phrase + "]", expected, actual);
+            logger.info("phrase_prefix [{}] matched {}", phrase, expected);
+        }
+        // A slop lets match_phrase build a multi-phrase query over the stream.
+        for (int slop : new int[] { 1, 2 }) {
+            final QueryBuilder q = new MatchPhraseQueryBuilder("body", "quick fox").slop(slop);
+            final List<Integer> expected = matching(withPositions, q);
+            final List<Integer> actual = matching(withoutPositions, q);
+            assertEquals("slop " + slop, expected, actual);
+            logger.info("phrase slop {} matched {}", slop, expected);
+        }
+    }
+
+    public void testIntervals() throws IOException {
+        final MapperService withPositions = columnarMapper("positions");
+        final MapperService withoutPositions = columnarMapper("docs");
+        record Case(String what, IntervalsSourceProvider source) {}
+        final List<Case> cases = List.of(
+            new Case("match quick brown ordered", new IntervalsSourceProvider.Match("quick brown", 0, true, null, null, null)),
+            new Case("match quick fox slop 1", new IntervalsSourceProvider.Match("quick fox", 1, true, null, null, null)),
+            new Case("prefix bro", new IntervalsSourceProvider.Prefix("bro", null, null)),
+            new Case("wildcard qu*ck", new IntervalsSourceProvider.Wildcard("qu*ck", null, null)),
+            new Case("regexp q.*k", new IntervalsSourceProvider.Regexp("q.*k", null, null)),
+            new Case("fuzzy quikc", new IntervalsSourceProvider.Fuzzy("quikc", 0, true, Fuzziness.AUTO, null, null)),
+            new Case("range brown..fox", new IntervalsSourceProvider.Range("brown", "fox", true, true, null, null))
+        );
+        for (Case c : cases) {
+            final QueryBuilder q = new IntervalQueryBuilder("body", c.source());
+            final List<Integer> expected = matching(withPositions, q);
+            final List<Integer> actual = matching(withoutPositions, q);
+            assertEquals(c.what(), expected, actual);
+            logger.info("intervals {} matched {}", c.what(), expected);
+        }
+    }
+
     private List<Integer> matching(MapperService mapperService, String phrase) throws IOException {
+        return matching(mapperService, new MatchPhraseQueryBuilder("body", phrase));
+    }
+
+    private List<Integer> matching(MapperService mapperService, QueryBuilder builder) throws IOException {
         final List<Integer> hits = new java.util.ArrayList<>();
         withLuceneIndex(mapperService, iw -> {
             for (String doc : DOCS) {
@@ -62,7 +112,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             }
         }, reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
-            final Query query = new MatchPhraseQueryBuilder("body", phrase).toQuery(context);
+            final Query query = builder.toQuery(context);
             final IndexSearcher searcher = newSearcher(reader);
             for (var doc : searcher.search(query, 10).scoreDocs) {
                 hits.add(doc.doc);

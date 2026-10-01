@@ -44,6 +44,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -1160,21 +1161,20 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.term(term);
+            return confirmIntervals(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
         }
 
         @Override
         public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            if (prefixFieldType != null) {
+            // The prefix subfield indexes its own positions, so an interval answered there needs no confirming.
+            if (prefixFieldType != null && prefixFieldType.getTextSearchInfo().hasPositions()) {
                 return prefixFieldType.intervals(term);
             }
-            return Intervals.prefix(term, IndexSearcher.getMaxClauseCount());
+            return confirmIntervals(
+                Intervals.prefix(term, IndexSearcher.getMaxClauseCount()),
+                new PrefixQuery(new Term(name(), term)),
+                context
+            );
         }
 
         @Override
@@ -1185,9 +1185,6 @@ public final class TextFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
             FuzzyQuery fq = FuzzyQueries.create(
                 new Term(name(), term),
                 maxDistance,
@@ -1198,23 +1195,17 @@ public final class TextFieldMapper extends FieldMapper {
                 context,
                 name()
             );
-            return Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
+            return confirmIntervals(Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term), fq, context);
         }
 
         @Override
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount());
+            return confirmIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), new MatchAllDocsQuery(), context);
         }
 
         @Override
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount());
+            return confirmIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), new MatchAllDocsQuery(), context);
         }
 
         @Override
@@ -1225,10 +1216,11 @@ public final class TextFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount());
+            return confirmIntervals(
+                Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
+                new MatchAllDocsQuery(),
+                context
+            );
         }
 
         private void checkForPositions(boolean multi) {
@@ -1273,6 +1265,20 @@ public final class TextFieldMapper extends FieldMapper {
             return new SourceConfirmedTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
         }
 
+        /**
+         * The same for an interval, which needs {@code approximation} as the query that finds the documents worth
+         * reading the values of: the interval itself cannot be run against an index holding no positions.
+         */
+        private IntervalsSource confirmIntervals(IntervalsSource source, Query approximation, SearchExecutionContext context) {
+            if (getTextSearchInfo().hasPositions()) {
+                return source;
+            }
+            if (verifiesPositionsFromDocValues() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            return new SourceIntervalsSource(source, approximation, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+        }
+
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
@@ -1315,12 +1321,16 @@ public final class TextFieldMapper extends FieldMapper {
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            checkForPositions(true);
+            if (verifiesPositionsFromDocValues() == false) {
+                checkForPositions(true);
+            }
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
-            return createPhraseQuery(stream, field, slop, enablePositionIncrements);
+            final Query query = createPhraseQuery(stream, field, slop, enablePositionIncrements);
+            // The shingle subfield indexes its own positions, so a phrase answered there needs no confirming.
+            return field.equals(name()) ? confirmPositions(query, context) : query;
         }
 
         private static int countTokens(TokenStream ts) throws IOException {
@@ -1335,10 +1345,10 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            if (countTokens(stream) > 1) {
+            if (countTokens(stream) > 1 && verifiesPositionsFromDocValues() == false) {
                 checkForPositions(false);
             }
-            return analyzePhrasePrefix(stream, slop, maxExpansions);
+            return confirmPositions(analyzePhrasePrefix(stream, slop, maxExpansions), context);
         }
 
         private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {

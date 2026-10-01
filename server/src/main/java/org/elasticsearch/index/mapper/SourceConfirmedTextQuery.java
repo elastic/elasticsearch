@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -49,6 +52,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -130,6 +134,81 @@ public final class SourceConfirmedTextQuery extends Query {
     /**
      * Similarity that produces the frequency as a score.
      */
+    /**
+     * The terms of a phrase that can be confirmed by walking a document's values rather than indexing them, or null
+     * where it cannot: anything but an exact phrase, whose terms sit at consecutive positions, on one field.
+     */
+    static Term[] walkablePhrase(Query query) {
+        if (query instanceof PhraseQuery phrase && phrase.getSlop() == 0) {
+            final Term[] terms = phrase.getTerms();
+            final int[] positions = phrase.getPositions();
+            if (terms.length == 0) {
+                return null;
+            }
+            for (int i = 0; i < positions.length; i++) {
+                if (positions[i] != i) {
+                    return null;
+                }
+            }
+            return terms;
+        }
+        return null;
+    }
+
+    /**
+     * How often {@code terms} occur in order and adjacent in {@code value}, which is the frequency an index of it would
+     * report, counted over the analyzer's tokens instead of building that index.
+     *
+     * <p>A prefix of the phrase can only ever be continued by the token at the position after the one it ended at, and
+     * positions only advance, so one end position per prefix length is all there is to carry. Lengths are extended
+     * longest-first so that a prefix recorded for this very position is not read as if it had ended at the last one.
+     */
+    static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
+        final int[] endOfPrefix = new int[terms.length];
+        Arrays.fill(endOfPrefix, Integer.MIN_VALUE);
+        final int[] freqs = new int[1];
+        int position = -1;
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+            position = walkValue(terms, field, analyzer, text, endOfPrefix, position, freqs);
+        }
+        return freqs[0];
+    }
+
+    private static int walkValue(Term[] terms, String field, Analyzer analyzer, String value, int[] endOfPrefix, int position, int[] freqs)
+        throws IOException {
+        try (TokenStream stream = analyzer.tokenStream(field, value)) {
+            final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+            final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
+            stream.reset();
+            while (stream.incrementToken()) {
+                position += increment.getPositionIncrement();
+                final BytesRef token = term.getBytesRef();
+                for (int length = terms.length - 1; length >= 1; length--) {
+                    if (endOfPrefix[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
+                        if (length == terms.length - 1) {
+                            freqs[0]++;
+                        } else {
+                            endOfPrefix[length] = position;
+                        }
+                    }
+                }
+                if (terms[0].bytes().equals(token)) {
+                    if (terms.length == 1) {
+                        freqs[0]++;
+                    } else {
+                        endOfPrefix[0] = position;
+                    }
+                }
+            }
+            stream.end();
+        }
+        return position;
+    }
+
     private static final Similarity FREQ_SIMILARITY = new Similarity() {
 
         @Override
@@ -367,6 +446,10 @@ public final class SourceConfirmedTextQuery extends Query {
         private final NumericDocValues norms;
 
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
+        private final Term[] walkablePhrase;
+        /** The values of the document in hand. Reading them is the expensive part, so it happens once per document. */
+        private int valuesDocID = -1;
+        private List<Object> values;
 
         private int doc = -1;
         private float freq;
@@ -384,6 +467,7 @@ public final class SourceConfirmedTextQuery extends Query {
             this.valueFetcher = valueFetcher;
             this.field = field;
             this.query = query;
+            this.walkablePhrase = walkablePhrase(query);
             twoPhase = new TwoPhaseIterator(approximation) {
 
                 @Override
@@ -393,9 +477,10 @@ public final class SourceConfirmedTextQuery extends Query {
 
                 @Override
                 public float matchCost() {
-                    // TODO what is a right value?
-                    // Defaults to a high-ish value so that it likely runs last.
-                    return 10_000f;
+                    // Both paths are dominated by reading the document's values and analyzing them, so this stays
+                    // high enough to run last among cheaper checks. Walking the tokens is the cheaper of the two,
+                    // since it compares terms as they come instead of indexing them all and then searching.
+                    return walkablePhrase != null ? 1_000f : 10_000f;
                 }
             };
         }
@@ -436,10 +521,14 @@ public final class SourceConfirmedTextQuery extends Query {
         private MemoryIndex getOrCreateMemoryIndex() throws IOException {
             if (cacheEntry.docID != docID()) {
                 cacheEntry.docID = docID();
-                cacheEntry.memoryIndex = new MemoryIndex(true, false);
+                // One index per scorer, emptied between documents: the buffers it holds are the point of keeping it.
+                if (cacheEntry.memoryIndex == null) {
+                    cacheEntry.memoryIndex = new MemoryIndex(true, false);
+                } else {
+                    cacheEntry.memoryIndex.reset();
+                }
                 cacheEntry.memoryIndex.setSimilarity(FREQ_SIMILARITY);
-                List<Object> values = valueFetcher.apply(docID());
-                for (Object value : values) {
+                for (Object value : values()) {
                     if (value == null) {
                         continue;
                     }
@@ -455,7 +544,19 @@ public final class SourceConfirmedTextQuery extends Query {
             return cacheEntry.memoryIndex;
         }
 
+        /** The document's values, read once however many of the paths below ask for them. */
+        private List<Object> values() throws IOException {
+            if (valuesDocID != docID()) {
+                valuesDocID = docID();
+                values = valueFetcher.apply(docID());
+            }
+            return values;
+        }
+
         private float computeFreq() throws IOException {
+            if (walkablePhrase != null) {
+                return walkPhraseFreq(walkablePhrase, field, indexAnalyzer, values());
+            }
             return getOrCreateMemoryIndex().search(query);
         }
 

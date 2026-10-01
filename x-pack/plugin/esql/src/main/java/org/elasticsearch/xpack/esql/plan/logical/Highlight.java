@@ -313,6 +313,22 @@ public class Highlight extends UnaryPlan
         );
     }
 
+    public Highlight withFieldMappings(Map<String, TextEsField> newFieldMappings) {
+        return new Highlight(
+            source(),
+            child(),
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields,
+            indexKey,
+            newFieldMappings
+        );
+    }
+
     /**
      * Keeps {@link #derivedFields}. Pass {@code newGeneratedFields} unchanged unless {@code newFields} changed:
      * {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.

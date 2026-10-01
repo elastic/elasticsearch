@@ -1029,28 +1029,28 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@code COST_ORDERED_SWEEPS} sorts entries so that costs are monotonically
+     * Verifies that {@code buildCostOrderedSweeps} sorts entries so that costs are monotonically
      * non-decreasing, doc-bit levels are monotonically non-decreasing (tier separation, no
      * higher-dbits entry can precede a lower-dbits entry), rerank depths are non-decreasing within
      * each tier, and the {@code DOC_BITS_WEIGHT} constant satisfies the mathematical guarantee that
      * tiers never interleave regardless of which rerank depth is chosen.
      */
     public void testCostOrderedSweepsOrdering() {
-        double[][] entries = IvfAutoCalibration.costOrderedSweepEntries();
+        List<IvfAutoCalibration.CalibrationSweep> sweeps = IvfAutoCalibration.buildCostOrderedSweeps(UNCAPPED_MAX_DOC_BITS);
         double docBitsWeight = IvfAutoCalibration.docBitsWeight();
         double rerankCostWeight = IvfAutoCalibration.rerankCostWeight();
 
-        assertEquals("5 candidate encodings x 6 rerank depths", 30, entries.length);
+        assertEquals("5 candidate encodings x 6 rerank depths", 30, sweeps.size());
 
         double prevCost = Double.NEGATIVE_INFINITY;
         int prevDbits = 0;
         double prevRerankDepth = Double.NEGATIVE_INFINITY;
         int prevQbits = 0;
 
-        for (double[] entry : entries) {
-            int dbits = (int) entry[0];
-            int qbits = (int) entry[1];
-            double rerankDepth = entry[2];
+        for (IvfAutoCalibration.CalibrationSweep sweep : sweeps) {
+            int dbits = sweep.candidate().dbits();
+            int qbits = sweep.candidate().qbits();
+            double rerankDepth = sweep.rerankDepth();
             double cost = docBitsWeight * dbits + rerankCostWeight * rerankDepth;
 
             assertTrue("costs must be non-decreasing: got " + cost + " after " + prevCost, cost >= prevCost);

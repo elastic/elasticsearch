@@ -130,22 +130,6 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * For testing: each cost-ordered sweep entry as {@code {dbits, qbits, rerankDepth}} in the order
-     * they are evaluated during calibration.
-     */
-    static double[][] costOrderedSweepEntries() {
-        List<CalibrationSweep> sweeps = buildCostOrderedSweeps(UNCAPPED_MAX_DOC_BITS);
-        double[][] entries = new double[sweeps.size()][3];
-        for (int i = 0; i < sweeps.size(); i++) {
-            CalibrationSweep s = sweeps.get(i);
-            entries[i][0] = s.candidate().dbits();
-            entries[i][1] = s.candidate().qbits();
-            entries[i][2] = s.rerankDepth();
-        }
-        return entries;
-    }
-
-    /**
      * Weight applied to doc bits in the calibration cost model
      * ({@code DOC_BITS_WEIGHT * dbits + RERANK_COST_WEIGHT * rerankDepth}).
      * Doc bits represent a permanent per-segment storage and memory cost, so they are weighted
@@ -605,7 +589,7 @@ public class IvfAutoCalibration {
         });
     }
 
-    private static List<CalibrationSweep> buildCostOrderedSweeps(int maxDocBits) {
+    static List<CalibrationSweep> buildCostOrderedSweeps(int maxDocBits) {
         List<CalibrationSweep> sweeps = new ArrayList<>();
         for (CandidateEncoding candidate : CANDIDATES) {
             if (candidate.dbits() > maxDocBits) {
@@ -726,8 +710,6 @@ public class IvfAutoCalibration {
         double errorStd(CandidateEncoding candidate, boolean precondition) throws IOException;
     }
 
-    private record CalibrationSweep(CandidateEncoding candidate, double rerankDepth, double cost) {}
-
     /**
      * Outcome of the quantization sweep. Either a {@link Success} when some (encoding, rerank) combination
      * met the target recall, or a {@link BestEffort} when no combination did.
@@ -742,7 +724,9 @@ public class IvfAutoCalibration {
         record BestEffort(IvfSegmentConfig config, double bestRecall) implements SweepOutcome {}
     }
 
-    private record CandidateEncoding(QuantEncoding encoding, int qbits, int dbits) {}
+    record CalibrationSweep(CandidateEncoding candidate, double rerankDepth, double cost) {}
+
+    record CandidateEncoding(QuantEncoding encoding, int qbits, int dbits) {}
 
     /** Selects the calibration strategy used by {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int, CalibrationMode)}. */
     enum CalibrationMode {

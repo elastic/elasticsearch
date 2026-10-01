@@ -1355,8 +1355,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
@@ -1374,32 +1372,23 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNestedSubqueries() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
-                        testIndexName(),
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // subquery1: 10(0-9) rows, subquery2: 8(0-7) rows, subquery3: 6(2-7) rows, total 24 rows
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                    testIndexName(),
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Nested subqueries are not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(24)));
     }
 
     public void testSubqueryWithFork() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         ResponseException re = expectThrows(
@@ -1527,7 +1516,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         Response response = performRequest(request);
@@ -1562,7 +1551,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1652,13 +1641,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return removeAsyncProperties(result);
     }
 
-    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+    private static void prepareProfileLogger(@Nullable ProfileLogger profileLogger) {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
-            if (isProfileSafe) {
-                requestObject.profile(true);
-            }
         }
     }
 
@@ -2067,7 +2052,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
         requestObject.keepOnCompletion(keepOnCompletion);
-        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
+        // capped at 7d so it stays within serverless's async_search.max_keep_alive
+        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 7)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.

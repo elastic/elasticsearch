@@ -17,8 +17,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -458,12 +460,12 @@ public class CsvModeReadTests extends ESTestCase {
         List<String> configWarnings = reader.configWarnings();
         assertTrue(
             "expected a config-time decode-disabled warning, got: " + configWarnings,
-            configWarnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
+            configWarnings.stream().anyMatch(w -> w.contains("turns off the [escaped] mode"))
         );
         List<String> fileWarnings = reader.metadata(object).warnings();
         assertTrue(
             "a file's metadata must not repeat the dataset-level notice, got: " + fileWarnings,
-            fileWarnings.stream().noneMatch(w -> w.contains("disables the escaped-mode decode"))
+            fileWarnings.stream().noneMatch(w -> w.contains("turns off the [escaped] mode"))
         );
         assertTrue("the notice must never land on this thread's response headers", drainWarnings().isEmpty());
     }
@@ -603,9 +605,9 @@ public class CsvModeReadTests extends ESTestCase {
             "expected an undecoded null-marker response warning, got: " + warnings,
             warnings.stream()
                 .anyMatch(
-                    w -> w.contains("null marker, but the current mode keeps it as literal text")
-                        && w.contains("data row [")
-                        && w.contains("Set ")
+                    w -> w.contains("N] at sample row [")
+                        && w.contains("is read as text")
+                        && w.contains("; set [mode] to [escaped] to read it as null")
                 )
         );
     }
@@ -746,6 +748,11 @@ public class CsvModeReadTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://csv-mode-read-tests");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

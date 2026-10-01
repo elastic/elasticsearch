@@ -30,6 +30,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -40,6 +41,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
@@ -642,7 +644,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
             calls.incrementAndGet();
             AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
-            return failTransformer(transformer, S3Exception.builder().statusCode(403).message("Access Denied").build());
+            return failTransformer(transformer, s3Error(403, "AccessDenied"));
         });
 
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
@@ -657,6 +659,46 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals("a 403 must not be retried", 1, calls.get());
         assertThat(error.get(), instanceOf(IOException.class));
+        assertThat(error.get().getMessage(), containsString("Access denied"));
+        assertNull(ExceptionsHelper.unwrap(error.get(), ExternalCredentialsExpiredException.class));
+    }
+
+    public void testExpiredTokenFailsWithoutRetry() throws Exception {
+        assertCredentialsExpiredFailsWithoutRetry("ExpiredToken");
+    }
+
+    public void testInvalidTokenFailsWithoutRetry() throws Exception {
+        assertCredentialsExpiredFailsWithoutRetry("InvalidToken");
+    }
+
+    public void testTokenRefreshRequiredFailsWithoutRetry() throws Exception {
+        assertCredentialsExpiredFailsWithoutRetry("TokenRefreshRequired");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertCredentialsExpiredFailsWithoutRetry(String errorCode) throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            calls.incrementAndGet();
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            return failTransformer(transformer, s3Error(400, errorCode));
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, ActionListener.wrap(buffer -> fail("expected failure"), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals("expired session tokens must not be retried", 1, calls.get());
+        assertThat(error.get(), instanceOf(ExternalCredentialsExpiredException.class));
+        assertThat(error.get().getMessage(), containsString("expired or invalid"));
+        assertThat(error.get().getMessage(), containsString("Refresh the data source credentials"));
+        assertThat(error.get().getMessage(), containsString(errorCode));
     }
 
     /** When every attempt fails with a retryable error, the Standard budget (3 attempts) is honored. */
@@ -872,6 +914,196 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     }
 
     /**
+     * {@code getObject} returns a future that is not the transformer's result future. Cancelling
+     * while the subscriber still holds the destination must refund the charge, and a later body
+     * must not refund it again.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCancelWhileSubscriberHoldsBufferRefundsCharge() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("cancel-subscriber-holds-buffer", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        byte[] payload = new byte[32];
+        AtomicReference<Subscriber<? super ByteBuffer>> subscriber = new AtomicReference<>();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            transformer.prepare();
+            transformer.onStream(new SdkPublisher<>() {
+                @Override
+                public void subscribe(Subscriber<? super ByteBuffer> s) {
+                    s.onSubscribe(new Subscription() {
+                        @Override
+                        public void request(long n) {}
+
+                        @Override
+                        public void cancel() {}
+                    });
+                    subscriber.set(s);
+                }
+            });
+            // Distinct from transformer.prepare(): cancelling it must not complete the buffer's own future.
+            return new CompletableFuture<DirectReadBuffer>();
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = obj.startReadBytesAsync(0, payload.length, factory, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+
+        assertNotNull(subscriber.get());
+        assertEquals(payload.length, breaker.getUsed());
+        cancel.close();
+
+        assertTrue("listener must be notified after in-flight cancel", listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals(0L, breaker.getUsed());
+
+        subscriber.get().onNext(ByteBuffer.wrap(payload));
+        subscriber.get().onComplete();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Body finishes into the transformer future while the SDK future is still pending. Cancelling
+     * the SDK future is the reported leak: the charge must return to zero.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCancelAfterTransformerCompletionRefundsCharge() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("cancel-after-transformer-completion", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        GetObjectResponse response = GetObjectResponse.builder().contentLength((long) PAYLOAD.length).build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            CompletableFuture<DirectReadBuffer> parked = parkCompletedBuffer(transformer, response, PAYLOAD);
+            assertTrue("transformer future holds the buffer before the SDK future completes", parked.isDone());
+            assertFalse(parked.isCompletedExceptionally());
+            return new CompletableFuture<DirectReadBuffer>();
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = obj.startReadBytesAsync(0, PAYLOAD.length, factory, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+
+        assertEquals(PAYLOAD.length, breaker.getUsed());
+        cancel.close();
+
+        assertTrue(listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Same split as {@link #testCancelAfterTransformerCompletionRefundsCharge}, but the SDK future
+     * fails with a retryable {@link IOException} instead of being cancelled. The parked buffer must
+     * still be released and the listener failed. {@code maxAttempts(1)} keeps Standard's
+     * retry-on-IOException classification while making this undelivered attempt terminal.
+     */
+    @SuppressWarnings("unchecked")
+    public void testRetryableFailureAfterTransformerCompletionRefundsCharge() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("retryable-after-transformer-completion", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        GetObjectResponse response = GetObjectResponse.builder().contentLength((long) PAYLOAD.length).build();
+        AtomicReference<CompletableFuture<DirectReadBuffer>> sdkFuture = new AtomicReference<>();
+        RetryStrategy singleAttempt = AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .maxAttempts(1)
+            .backoffStrategy(BackoffStrategy.retryImmediately())
+            .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
+            .build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            CompletableFuture<DirectReadBuffer> parked = parkCompletedBuffer(transformer, response, PAYLOAD);
+            assertTrue(parked.isDone());
+            assertFalse(parked.isCompletedExceptionally());
+            CompletableFuture<DirectReadBuffer> sdk = new CompletableFuture<>();
+            sdkFuture.set(sdk);
+            return sdk;
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, singleAttempt, BUCKET, KEY, PATH);
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        obj.readBytesAsync(0, PAYLOAD.length, factory, Runnable::run, ActionListener.wrap(buffer -> fail("expected failure"), e -> {
+            error.set(e);
+            listenerCalled.countDown();
+        }));
+
+        assertEquals(PAYLOAD.length, breaker.getUsed());
+        sdkFuture.get().completeExceptionally(new IOException("connection reset by peer"));
+
+        assertTrue(listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(IOException.class));
+        assertThat(error.get().getMessage(), containsString("Failed to read object from"));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * A distinct SDK future that forwards the transformer value is the success path. The charge
+     * stays until the caller closes the delivered buffer.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSuccessfulReadThroughDistinctSdkFutureStaysChargedUntilClose() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("distinct-sdk-future-success", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        GetObjectResponse response = GetObjectResponse.builder().contentLength((long) PAYLOAD.length).build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            CompletableFuture<DirectReadBuffer> parked = parkCompletedBuffer(transformer, response, PAYLOAD);
+            CompletableFuture<DirectReadBuffer> sdkFuture = new CompletableFuture<>();
+            parked.whenComplete((buffer, error) -> {
+                if (error != null) {
+                    sdkFuture.completeExceptionally(error);
+                } else {
+                    sdkFuture.complete(buffer);
+                }
+            });
+            return sdkFuture;
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        obj.readBytesAsync(0, PAYLOAD.length, factory, Runnable::run, ActionListener.wrap(buffer -> {
+            result.set(buffer);
+            latch.countDown();
+        }, e -> fail("read should succeed, but failed with: " + e)));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals(PAYLOAD.length, breaker.getUsed());
+        byte[] bytes = new byte[result.get().buffer().remaining()];
+        result.get().buffer().get(bytes);
+        assertArrayEquals(PAYLOAD, bytes);
+        result.get().close();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
      * If the user-supplied executor rejects the task when the backoff timer fires, the listener
      * must be notified with the rejection error rather than being silently stranded.
      */
@@ -915,6 +1147,14 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
      * error: the stream is wired and the subscriber's {@code onError} carries the failure, which
      * completes (fails) the attempt future.
      */
+    private static S3Exception s3Error(int status, String errorCode) {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(status)
+            .message(errorCode)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
+            .build();
+    }
+
     private static CompletableFuture<DirectReadBuffer> failTransformer(
         AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer,
         Throwable error
@@ -934,6 +1174,36 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             }
         });
         return future;
+    }
+
+    /**
+     * Drives {@code transformer} through a successful body, then returns that attempt's own future.
+     * Callers that need the production split must return a different future from {@code getObject}:
+     * {@link #completeTransformer} returns {@code transformer.prepare()}, so cancelling it completes
+     * the buffer's own future and {@code onComplete} already closes it.
+     */
+    private static CompletableFuture<DirectReadBuffer> parkCompletedBuffer(
+        AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer,
+        GetObjectResponse response,
+        byte[] payload
+    ) {
+        CompletableFuture<DirectReadBuffer> parked = transformer.prepare();
+        transformer.onResponse(response);
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new Subscription() {
+                    @Override
+                    public void request(long n) {}
+
+                    @Override
+                    public void cancel() {}
+                });
+                s.onNext(ByteBuffer.wrap(payload));
+                s.onComplete();
+            }
+        });
+        return parked;
     }
 
     private static CompletableFuture<DirectReadBuffer> completeTransformer(

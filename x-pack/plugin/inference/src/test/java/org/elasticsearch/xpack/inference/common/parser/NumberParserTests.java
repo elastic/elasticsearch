@@ -70,6 +70,50 @@ public class NumberParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(NOT_A_NUMBER));
     }
 
+    public void testExtractInteger_HandlesInteger() {
+        var map = new HashMap<String, Object>();
+        map.put(VERSION, 7);
+
+        var result = NumberParser.extractInteger(map, VERSION, ROOT);
+
+        assertThat(result, equalTo(7));
+    }
+
+    public void testExtractInteger_HandlesLongWithinIntRange() {
+        var map = new HashMap<String, Object>();
+        map.put(VERSION, 1050000L);
+
+        var result = NumberParser.extractInteger(map, VERSION, ROOT);
+
+        assertThat(result, equalTo(1050000));
+    }
+
+    public void testExtractInteger_ReturnsNull_WhenKeyMissing() {
+        var map = new HashMap<String, Object>();
+
+        var result = NumberParser.extractInteger(map, VERSION, ROOT);
+
+        assertThat(result, nullValue());
+    }
+
+    public void testExtractInteger_Throws_WhenLongOverflowsInt() {
+        var map = new HashMap<String, Object>();
+        map.put(VERSION, Integer.MAX_VALUE + 1L);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> NumberParser.extractInteger(map, VERSION, ROOT));
+        assertThat(e.getMessage(), containsString(pathToKey(ROOT, VERSION)));
+        assertThat(e.getMessage(), containsString(Integer.class.getSimpleName()));
+    }
+
+    public void testExtractInteger_Throws_WhenWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(VERSION, NOT_A_NUMBER);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> NumberParser.extractInteger(map, VERSION, ROOT));
+        assertThat(e.getMessage(), containsString(pathToKey(ROOT, VERSION)));
+        assertThat(e.getMessage(), containsString(NOT_A_NUMBER));
+    }
+
     public void testValidatePositiveInteger_NullValue_DoesNotThrow() {
         NumberParser.validatePositiveInteger(null, DIMENSIONS);
     }

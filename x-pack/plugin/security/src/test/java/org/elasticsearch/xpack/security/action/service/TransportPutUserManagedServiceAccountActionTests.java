@@ -48,12 +48,14 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
     public void testTheRequestIsUnpackedForTheService() {
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
+        final String description = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final PutUserManagedServiceAccountRequest request = new PutUserManagedServiceAccountRequest(
             "engineering",
             "deploy_bot",
             roles,
             enabled,
+            description,
             refreshPolicy
         );
 
@@ -63,6 +65,7 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
             eq(new ServiceAccountId("engineering", "deploy_bot")),
             eq(roles),
             eq(enabled),
+            eq(description),
             eq(refreshPolicy),
             any()
         );
@@ -78,15 +81,15 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
     }
 
     private static PutUserManagedServiceAccountRequest newRequest() {
-        return new PutUserManagedServiceAccountRequest("engineering", "deploy_bot", List.of("deployer"), randomBoolean());
+        return new PutUserManagedServiceAccountRequest("engineering", "deploy_bot", List.of("deployer"), randomBoolean(), null);
     }
 
     private void stubPutResult(PutResult result) {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<PutResult> listener = (ActionListener<PutResult>) invocation.getArguments()[4];
+            final ActionListener<PutResult> listener = (ActionListener<PutResult>) invocation.getArguments()[5];
             listener.onResponse(result);
             return null;
-        }).when(serviceAccountService).putUserManagedAccount(any(), any(), anyBoolean(), any(), any());
+        }).when(serviceAccountService).putUserManagedAccount(any(), any(), anyBoolean(), any(), any(), any());
     }
 }

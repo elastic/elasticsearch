@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecider {
 
     private static final String NAME = "replica_after_primary_active";
-    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -33,7 +32,7 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
         }
         ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
         if (primary == null) {
-            return allocation.decision(NO_DECISION, NAME, "primary shard for this replica is not yet active");
+            return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
         }
         return allocation.decision(Decision.YES, NAME, "primary shard for this replica is already active");
     }

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 public class IndexVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "index_version";
-    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -77,7 +76,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             );
         } else {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "cannot relocate primary shard from a node with index version [%s] to a node with older index version [%s]",
                 source.node().getMaxIndexVersion().toReleaseVersion(),
@@ -107,7 +106,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             );
         } else {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "cannot allocate replica shard to a node with index version [%s]"
                     + " since this is older than the primary index version [%s]",
@@ -133,7 +132,7 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             );
         } else {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "max supported index version [%s] is older than the snapshot version [%s]",
                 target.node().getMaxIndexVersion().toReleaseVersion(),

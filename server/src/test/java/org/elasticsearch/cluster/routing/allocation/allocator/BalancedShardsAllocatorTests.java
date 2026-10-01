@@ -1092,7 +1092,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 RoutingNode node,
                 RoutingAllocation allocation
             ) {
-                return allocation.decision(TestDecisions.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+                return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
             }
         }).mutable();
 

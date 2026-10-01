@@ -44,8 +44,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "shards_limit";
 
-    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
-
     private volatile int clusterShardLimit;
 
     /**
@@ -123,7 +121,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
         if (clusterShardLimit > 0 && decider.test(nodeShardCount, clusterShardLimit)) {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "too many shards [%d] allocated to this node, cluster setting [%s=%d]",
                 nodeShardCount,
@@ -135,7 +133,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             final int indexShardCount = node.numberOfOwningShardsForIndex(shardRouting.index());
             if (decider.test(indexShardCount, indexShardLimit)) {
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
                     indexShardCount,

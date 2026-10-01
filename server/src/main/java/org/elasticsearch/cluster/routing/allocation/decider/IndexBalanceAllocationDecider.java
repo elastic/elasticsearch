@@ -49,8 +49,6 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "index_balance";
 
-    private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
-
     private final IndexBalanceConstraintSettings indexBalanceConstraintSettings;
     private final boolean isStateless;
 
@@ -189,15 +187,15 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
             logger.trace(explanation);
 
-            return allocation.decision(NOT_PREFERRED_DECISION, NAME, explanation);
+            return allocation.decision(Decision.NOT_PREFERRED, NAME, explanation);
         }
 
         return allocation.decision(Decision.YES, NAME, "Node index shard allocation is under the threshold.");
     }
 
     /**
-     * When checking <code>canRemain</code>, we return {@link #NOT_PREFERRED_DECISION} if the node is allocated <code>&gt; threshold</code>
-     * shards. When checking <code>canAllocate</code>, we return {@link #NOT_PREFERRED_DECISION} if the node is allocated
+     * When checking <code>canRemain</code>, we return {@link Decision#NOT_PREFERRED} if the node is allocated <code>&gt; threshold</code>
+     * shards. When checking <code>canAllocate</code>, we return {@link Decision#NOT_PREFERRED} if the node is allocated
      * <code>&gt;= threshold</code> shards.
      * <p>
      * This interface allows us to pass that check into {@link #checkAllocationIsConsistentWithBalance}

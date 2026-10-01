@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -72,7 +71,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return TestDecisions.NO;
+            return Decision.NO;
         }
     }
 
@@ -84,7 +83,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return TestDecisions.NO;
+            return Decision.NO;
         }
     }
 
@@ -96,7 +95,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return TestDecisions.NO;
+            return Decision.NO;
         }
     }
 
@@ -108,7 +107,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
         @Override
         public Decision canRebalance(RoutingAllocation allocation) {
-            return TestDecisions.NO;
+            return Decision.NO;
         }
     }
 

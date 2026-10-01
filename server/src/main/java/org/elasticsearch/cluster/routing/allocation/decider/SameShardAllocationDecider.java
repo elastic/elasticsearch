@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 public class SameShardAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "same_shard";
-    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.same_shard.host",
@@ -91,7 +90,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.getHostAddress()) : checkNode;
                 if (checkNode.getHostAddress().equals(node.node().getHostAddress())) {
-                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, checkNode, allocation) : NO_DECISION;
+                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, checkNode, allocation) : Decision.NO;
                 }
             }
         }
@@ -105,7 +104,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     private static Decision debugNoAlreadyAllocatedToHost(RoutingNode newNode, DiscoveryNode existingNode, RoutingAllocation allocation) {
         return allocation.decision(
-            NO_DECISION,
+            Decision.NO,
             NAME,
             """
                 cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
@@ -132,22 +131,19 @@ public class SameShardAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation,
         Iterable<ShardRouting> assignedShards
     ) {
-        boolean debug = allocation.debugDecision();
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                return debug ? debugNo(shardRouting, assignedShard) : NO_DECISION;
+                return debugNo(allocation, shardRouting, assignedShard);
             }
         }
         return YES_NO_COPY;
     }
 
-    private static Decision debugNo(ShardRouting shardRouting, ShardRouting assignedShard) {
-        final String explanation;
+    private static Decision debugNo(RoutingAllocation allocation, ShardRouting shardRouting, ShardRouting assignedShard) {
         if (assignedShard.isSameAllocation(shardRouting)) {
-            explanation = "this shard is already allocated to this node [" + shardRouting.toString() + "]";
+            return allocation.decision(Decision.NO, NAME, "this shard is already allocated to this node [%s]", shardRouting);
         } else {
-            explanation = "a copy of this shard is already allocated to this node [" + assignedShard + "]";
+            return allocation.decision(Decision.NO, NAME, "a copy of this shard is already allocated to this node [%s]", assignedShard);
         }
-        return Decision.single(Decision.Type.NO, NAME, explanation);
     }
 }

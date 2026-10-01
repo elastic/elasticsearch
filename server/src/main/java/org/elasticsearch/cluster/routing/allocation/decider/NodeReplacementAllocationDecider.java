@@ -27,8 +27,6 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     static final Decision YES__RECONCILING = Decision.single(Decision.Type.YES, NAME, "this decider is ignored during reconciliation");
 
-    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
-
     static final Decision YES__NO_REPLACEMENTS = Decision.single(Decision.Type.YES, NAME, "there are no ongoing node replacements");
 
     static final Decision YES__NO_APPLICABLE_REPLACEMENTS = Decision.single(
@@ -57,7 +55,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             }
 
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "node [%s] is being replaced, and its shards may only be allocated to the replacement target [%s]",
                 shardRouting.currentNodeId(),
@@ -65,7 +63,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             );
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "node [%s] is being replaced by [%s], so no data may be allocated to it",
                 node.nodeId(),
@@ -88,7 +86,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             if (sourceNode != null) {
                 if (sourceNode.isEmpty() == false) {
                     return allocation.decision(
-                        NO_DECISION,
+                        Decision.NO,
                         NAME,
                         "node [%s] is replacing the vacating node [%s], only data currently allocated to the source node "
                             + "may be allocated to it until the replacement is complete",
@@ -122,7 +120,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                         );
                     } else {
                         return allocation.decision(
-                            NO_DECISION,
+                            Decision.NO,
                             NAME,
                             "the vacating node [%s] is no longer in the cluster and has left unassigned shards, "
                                 + "the replacing node [%s] can only receive those unassigned shards until the replacement is complete",
@@ -152,7 +150,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return YES__NO_REPLACEMENTS;
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "node [%s] is being replaced by node [%s], so no data may remain on it",
                 node.nodeId(),
@@ -184,7 +182,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 );
             } else {
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "node [%s] is a node replacement target for node [%s], "
                         + "shards cannot auto expand to be on it until the replacement is complete",
@@ -210,7 +208,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 );
             } else {
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
                     node.getId(),
@@ -239,7 +237,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             );
         } else {
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "shard is not on the source of a node replacement relocated to the replacement target"
             );

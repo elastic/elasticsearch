@@ -153,8 +153,6 @@ public class DiskThresholdDecider extends AllocationDecider {
         return totalSize;
     }
 
-    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
-
     private static final Decision YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS = Decision.single(
         Decision.Type.YES,
         NAME,
@@ -206,7 +204,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             );
 
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "the node has fewer free bytes remaining than the total size of all incoming shards: "
                     + "free space [%sB], relocating shards [%sB]",
@@ -238,7 +236,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     );
                 }
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "the node is above the low watermark cluster setting [%s], having less than the minimum required [%s] free "
                         + "space, actual free: [%s], actual used: [%s]",
@@ -273,7 +271,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     );
                 }
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "the node is above the high watermark cluster setting [%s], having less than the minimum required [%s] free "
                         + "space, actual free: [%s], actual used: [%s]",
@@ -316,7 +314,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 );
             }
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "allocating the shard to this node will bring the node above the high watermark cluster setting [%s] "
                     + "and cause it to have less than the minimum required [%s] of free space (free: [%s], used: [%s], estimated "
@@ -445,7 +443,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 sizeOfRelocatingShards
             );
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "the shard cannot remain on this node because the node has fewer free bytes remaining than the total size of all "
                     + "incoming shards: free space [%s], relocating shards [%s]",
@@ -466,7 +464,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 );
             }
             return allocation.decision(
-                NO_DECISION,
+                Decision.NO,
                 NAME,
                 "the shard cannot remain on this node because it is above the high watermark cluster setting [%s] "
                     + "and there is less than the required [%s] free space on node, actual free: [%s], actual used: [%s]",

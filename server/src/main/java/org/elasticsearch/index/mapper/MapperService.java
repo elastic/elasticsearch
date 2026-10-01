@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -53,6 +56,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
@@ -227,6 +231,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperService(
         ClusterService clusterService,
+        FeatureService featureService,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -242,6 +247,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
+            clusterHasFeature(clusterService, featureService),
             indexSettings,
             indexAnalyzers,
             parserConfiguration,
@@ -260,6 +266,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @SuppressWarnings("this-escape")
     public MapperService(
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -285,6 +292,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             clusterTransportVersion,
+            // Cluster state isn't available in MAPPING_RECOVERY, so we can't check if the cluster actually supports a feature.
+            // Assume all features are supported. If an unsupported feature is in use by a mapper, which would indicate an invalid mapping,
+            // parsing will fail downstream. However, we should never reach this state because the cluster feature check should prevent
+            // invalid mappings from being written to (and therefore recovered from) cluster state.
+            reason == MergeReason.MAPPING_RECOVERY ? f -> true : clusterSupportsFeature,
             searchExecutionContextSupplier,
             scriptCompiler,
             indexAnalyzers,
@@ -661,6 +673,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
+    }
+
+    private static Predicate<NodeFeature> clusterHasFeature(ClusterService clusterService, FeatureService featureService) {
+        return f -> {
+            ClusterState state = clusterService.state();
+            assert state.clusterRecovered() : "Cluster state should always be recovered when clusterHasFeature is called";
+            return featureService.clusterHasFeature(state, f);
+        };
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {

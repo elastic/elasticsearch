@@ -293,6 +293,26 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a
 ;
 
+dropUnmappedByBackquotedPattern
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP `unmapped_`*
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a
+;
+
 // A KEEP wildcard that matches only unmapped source fields is tolerated under LOAD_ALL: the wildcard
 // matches nothing visible at analysis time, but instead of failing with "No matches found" the pattern
 // is captured and applied during _unmapped_fields expansion. Keeps @timestamp plus every unmapped source
@@ -3170,10 +3190,9 @@ null             | z                      | 2          | web          | "{""id""
 null             | null                   | 3          | web          | "{""id"":""3"",""tags"":""web""}"
 ;
 
-# Temporarily ignored since a KEEP wildcard with a backquoted leg drops the column instead of matching it. See https://github.com/elastic/elasticsearch/issues/158466
-# The rows below are the expected results once fixed - identical to what the equivalent KEEP id, tags* produces above.
-backquotedPrefixWildcardKeepLosesUnmappedField-Ignore
+backquotedPrefixWildcardKeepMatchesUnmappedField
 required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_array_data
@@ -3185,6 +3204,92 @@ id:keyword | tags:keyword
 1          | [web, api]
 2          | web
 3          | web
+;
+
+backquotedInteriorLegKeepMatchesUnmappedField
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, t`ag`s*
+| SORT id
+;
+
+id:keyword | tags:keyword
+1          | [web, api]
+2          | web
+3          | web
+;
+
+backquotedDottedLegKeepMatchesUnmappedLeaf
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data METADATA _source
+| KEEP id, `samples`.n*, _source
+| SORT id
+;
+
+id:keyword | samples.nested:keyword | _source:_source
+1          | [x, y]                 | "{""id"":""1"",""tags"":[""web"",""api""],""samples"":[{""nested"":""x""},{""nested"":""y""}]}"
+2          | z                      | "{""id"":""2"",""tags"":""web"",""samples"":{""nested"":""z""}}"
+3          | null                   | "{""id"":""3"",""tags"":""web""}"
+;
+
+// The * inside the backquotes is a literal character, so only a field whose name starts with "tags*" would match.
+backquotedLiteralStarLegKeepMatchesNothing
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| KEEP id, `tags*`*
+| SORT id
+;
+
+id:keyword
+1
+2
+3
+;
+
+backquotedLiteralStarLegDropKeepsTags
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| DROP `tags*`*, samples*
+| SORT id
+;
+
+id:keyword | tags:keyword
+1          | [web, api]
+2          | web
+3          | web
+;
+
+forkBackquotedKeepPerBranch
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_fork
+required_capability: optional_fields_load_all_quoted_patterns
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| FORK (KEEP id, `tags*`*) (KEEP id, `tags`*)
+| SORT id, _fork
+;
+
+id:keyword | _fork:keyword | tags:keyword
+1          | fork1         | null
+1          | fork2         | [web, api]
+2          | fork1         | null
+2          | fork2         | web
+3          | fork1         | null
+3          | fork2         | web
 ;
 
 unescapedWildcardKeepNameMatchesLeaves
@@ -3359,6 +3464,26 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
 | SORT id
 | DROP unmapped.deep*
+;
+
+id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.foo:keyword
+1          | null             | null                 | foo1
+2          | null             | bar2                 | null
+3          | null             | null                 | foo3
+4          | scalar4          | null                 | null
+5          | null             | null                 | [arr1, arr2]
+6          | null             | null                 | null
+7          | null             | bar7                 | null
+;
+
+multiIndexDropBackquotedNestedObjectWildcardHidesSyntheticLeaf
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_quoted_patterns
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthetic, unmapped_multi_stored_mixed
+| SORT id
+| DROP `unmapped`.`deep`*
 ;
 
 id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.foo:keyword

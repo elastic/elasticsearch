@@ -35,7 +35,7 @@ import java.util.concurrent.TimeoutException;
  * This wrapper is applied on top of the global {@link ConcurrencyLimitedStorageObject} to provide
  * two-level concurrency control: per-query fairness (this layer) + global hard cap (inner layer).
  */
-class QueryBudgetedStorageObject implements StorageObject {
+class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final QueryConcurrencyBudget budget;
@@ -132,6 +132,16 @@ class QueryBudgetedStorageObject implements StorageObject {
         // Not a stream we produced — should be unreachable since the SPI contract requires
         // the exact instance returned from newStream(). Fall back to the SPI default.
         stream.close();
+    }
+
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
     }
 
     @Override

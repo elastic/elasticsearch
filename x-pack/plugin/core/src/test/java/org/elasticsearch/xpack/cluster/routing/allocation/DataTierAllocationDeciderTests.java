@@ -133,7 +133,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     projectId,
                     n,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_warm, data_cold], "
+                    "index has a preference for tiers [data_warm,data_cold], "
                         + "but no nodes for any of those tiers are available in the cluster"
                 );
             }
@@ -155,7 +155,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     projectId,
                     n,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_warm, data_cold] and node does not meet the required [data_cold] tier"
+                    "index has a preference for tiers [data_warm,data_cold] and node does not meet the required [data_cold] tier"
                 );
             }
 
@@ -164,7 +164,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 projectId,
                 COLD_NODE,
                 Decision.Type.YES,
-                "index has a preference for tiers [data_warm, data_cold] and node has tier [data_cold]"
+                "index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"
             );
         }
 
@@ -185,7 +185,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     projectId,
                     node,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_cold, data_warm] and node does not meet the required [data_warm] tier"
+                    "index has a preference for tiers [data_cold,data_warm] and node does not meet the required [data_warm] tier"
                 );
             }
 
@@ -194,7 +194,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 projectId,
                 WARM_NODE,
                 Decision.Type.YES,
-                "index has a preference for tiers [data_cold, data_warm] and node has tier [data_warm]"
+                "index has a preference for tiers [data_cold,data_warm] and node has tier [data_warm]"
             );
         }
 
@@ -230,7 +230,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     Decision.Type.NO,
                     org.elasticsearch.core.Strings.format(
                         "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
-                        tierPreference.replace(",", ", ")
+                        tierPreference
                     )
                 );
             }

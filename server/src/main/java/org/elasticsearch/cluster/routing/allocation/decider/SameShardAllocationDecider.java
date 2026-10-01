@@ -131,19 +131,22 @@ public class SameShardAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation,
         Iterable<ShardRouting> assignedShards
     ) {
+        boolean debug = allocation.debugDecision();
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                return debugNo(allocation, shardRouting, assignedShard);
+                return debug ? debugNo(shardRouting, assignedShard) : Decision.NO;
             }
         }
         return YES_NO_COPY;
     }
 
-    private static Decision debugNo(RoutingAllocation allocation, ShardRouting shardRouting, ShardRouting assignedShard) {
+    private static Decision debugNo(ShardRouting shardRouting, ShardRouting assignedShard) {
+        final String explanation;
         if (assignedShard.isSameAllocation(shardRouting)) {
-            return allocation.decision(Decision.NO, NAME, "this shard is already allocated to this node [%s]", shardRouting);
+            explanation = "this shard is already allocated to this node [" + shardRouting.toString() + "]";
         } else {
-            return allocation.decision(Decision.NO, NAME, "a copy of this shard is already allocated to this node [%s]", assignedShard);
+            explanation = "a copy of this shard is already allocated to this node [" + assignedShard + "]";
         }
+        return Decision.single(Decision.Type.NO, NAME, explanation);
     }
 }

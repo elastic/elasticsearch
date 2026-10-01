@@ -1102,39 +1102,35 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
 
-        private static Map<String, Object> cannotRemainMoveAttributes(
-            String canRemainDecision,
-            @Nullable String canRemainDecider,
-            @Nullable String canAllocateNotPreferredDecider,
-            boolean primary,
-            String sourceNode,
-            @Nullable String targetNode
-        ) {
-            // Target node and canAllocate decider are only included when canRemain=NO clashes with canAllocate=NOT_PREFERRED,
-            // to keep metric cardinality manageable.
-            final String targetNodeOrOmitted = canAllocateNotPreferredDecider == null || targetNode == null ? "omitted" : targetNode;
-            final String canRemainDeciderOrNone = canRemainDecider == null ? "none" : canRemainDecider;
-            final String canAllocateDecision = canAllocateNotPreferredDecider == null ? "yes" : "not_preferred";
-            // The canAllocate decider is only interesting if it returned not-preferred, another measure to keep
-            // the cardinality of the metric manageable.
-            final String canAllocateNotPreferredDeciderOrOmitted = canAllocateNotPreferredDecider == null
-                ? "omitted"
-                : canAllocateNotPreferredDecider;
+        private Map<String, Object> cannotRemainMoveAttributes(MoveDecision decision, ShardRouting shardRouting) {
+            final var canAllocateDecisionType = (decision.getCanAllocateDecision() != null
+                ? decision.getCanAllocateDecision().type()
+                : Decision.Type.YES);
+            // We only attempt to populate the canAllocate decider if we're moving despite it being NOT_PREFERRED
+            // to keep cardinality to a minimum
+            final var canAllocateNotPreferredDecider = canAllocateDecisionType == Decision.Type.NOT_PREFERRED
+                ? decision.getCanAllocateDecision().label()  // This can still be null
+                : "omitted";
+            final String canRemainDecider = decision.getCanRemainDecision().label(); // This can still be null
+            // Only populate target node when canAllocate=NOT_PREFERRED
+            final String targetNode = canAllocateDecisionType == Type.NOT_PREFERRED && decision.getTargetNode() != null
+                ? nodeName(decision.getTargetNode())
+                : "omitted";
             return Map.of(
                 "es_can_remain_decision",
-                canRemainDecision,
+                decision.getCanRemainDecision().type().name(),
                 "es_can_remain_decider",
-                canRemainDeciderOrNone,
+                canRemainDecider == null ? "missing" : canRemainDecider,
                 "es_can_allocate_decision",
-                canAllocateDecision,
+                canAllocateDecisionType.name(),
                 "es_can_allocate_decider",
-                canAllocateNotPreferredDeciderOrOmitted,
+                canAllocateNotPreferredDecider == null ? "missing" : canAllocateNotPreferredDecider,
                 "es_shard_primary",
-                primary,
+                shardRouting.primary(),
                 "es_source_node",
-                sourceNode,
+                nodeName(shardRouting.currentNodeId()),
                 "es_target_node",
-                targetNodeOrOmitted
+                targetNode
             );
         }
 
@@ -1168,21 +1164,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
             }
-            if (type != MoveType.REBALANCE) {
-                assert type == MoveType.CANNOT_REMAIN || type == MoveType.NOT_PREFERRED;
-                final boolean isNotPreferred = type == MoveType.NOT_PREFERRED;
-                final Decision canAllocateDecision = moveDecision.getCanAllocateDecision();
-                cannotRemainMoveCounter.incrementBy(
+            switch (type) {
+                case CANNOT_REMAIN, NOT_PREFERRED -> cannotRemainMoveCounter.incrementBy(
                     1,
-                    cannotRemainMoveAttributes(
-                        isNotPreferred ? "not_preferred" : "no",
-                        moveDecision.getCanRemainDecision().label(),
-                        canAllocateDecision != null ? canAllocateDecision.label() : null,
-                        shardRouting.primary(),
-                        nodeName(shardRouting.currentNodeId()),
-                        isNotPreferred ? null : nodeName(moveDecision.getTargetNode())
-                    )
+                    cannotRemainMoveAttributes(moveDecision, shardRouting)
                 );
+                case REBALANCE -> {
+                }
             }
         }
 

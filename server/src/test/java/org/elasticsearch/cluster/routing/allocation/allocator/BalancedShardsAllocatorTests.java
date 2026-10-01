@@ -1841,6 +1841,56 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
+    public void testCanRemainNoMovesWithoutLabelAreCountedAsMissing() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new NoLabelCanRemainDecider()).mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "missing"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    public void testCanRemainNotPreferredMovesWithoutLabelAreCountedAsMissing() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new NoLabelNotPreferredCanRemainDecider())
+                .mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NOT_PREFERRED"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "missing"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    public void testCanRemainNoWithNotPreferredTargetAndMissingLabelsAreCountedAsMissing() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var allNodeIds = clusterState.nodes().stream().map(DiscoveryNode::getId).map(n -> (Object) n).collect(toSet());
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new NoLabelMustMoveToNotPreferredTargetDecider())
+                .mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "missing"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "NOT_PREFERRED"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "missing"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry(equalTo("es_target_node"), allOf(is(Matchers.in(allNodeIds)), not(equalTo(sourceNodeId)))));
+    }
+
     public void testCanRemainNotPreferredMovesAreCountedWithDeciderLabel() {
         final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
         final var sourceNodeId = startedShardSourceNodeName(clusterState);
@@ -1849,9 +1899,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 .allocationDeciders(new AlwaysNotPreferredCanRemainDecider())
                 .mutable()
         );
-        assertThat(attributes, hasEntry("es_can_remain_decision", "not_preferred"));
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NOT_PREFERRED"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNotPreferredCanRemainDecider"));
-        assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
         assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
@@ -1864,9 +1914,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var attributes = allocateAndGetCanRemainMetricAttributes(
             TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AlwaysNoCanRemainDecider()).mutable()
         );
-        assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNoCanRemainDecider"));
-        assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
         assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
@@ -1883,9 +1933,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 .allocationDeciders(new MustMoveToNotPreferredTargetDecider())
                 .mutable()
         );
-        assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "MustMoveToNotPreferredTargetDecider"));
-        assertThat(attributes, hasEntry("es_can_allocate_decision", "not_preferred"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "NOT_PREFERRED"));
         assertThat(attributes, hasEntry("es_can_allocate_decider", "MustMoveToNotPreferredTargetDecider"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
@@ -1905,9 +1955,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         allocation.addIgnoreShardForNode(startedShard.shardId(), startedShard.currentNodeId());
         final var attributes = allocateAndGetCanRemainMetricAttributes(allocation);
-        assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "ignored_shards_for_node"));
-        assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
         assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasKey("es_source_node"));
@@ -2029,6 +2079,35 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             return NO_DECISION;
+        }
+    }
+
+    /** canRemain always returns NO without a label. */
+    private static class NoLabelCanRemainDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+    }
+
+    /** canRemain always returns NOT_PREFERRED without a label. */
+    private static class NoLabelNotPreferredCanRemainDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NOT_PREFERRED;
+        }
+    }
+
+    /** Forces canRemain=NO (no label) and allows only NOT_PREFERRED canAllocate targets (no label; NO on the source to prevent bounce-back). */
+    private static class NoLabelMustMoveToNotPreferredTargetDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return node.nodeId().equals(shardRouting.currentNodeId()) ? Decision.NO : Decision.NOT_PREFERRED;
         }
     }
 

@@ -422,7 +422,8 @@ public class SearchTransportService {
                 connection.getNode(),
                 headers,
                 requestBytesConsumer,
-                resultBytesConsumer
+                resultBytesConsumer,
+                e -> context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e)
             );
             transportService.sendChildRequest(
                 localConnection,

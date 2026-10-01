@@ -223,7 +223,8 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                             (fieldName, type) -> NumericPipeline::defaultPipeline,
                             field -> ColumnarFieldType.STRING,
                             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                            shape.policy()
+                            shape.policy(),
+                            ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY
                         )
                     )
                 ).setMergePolicy(new LogDocMergePolicy());
@@ -364,6 +365,54 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         containing(values, probe),
                         found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
+                }
+            }
+        }
+    }
+
+    /**
+     * A single-valued field read as an overlay, whose blobs are each document's value rather than a payload. Values
+     * shorter than the probes are here, so a prefix has to refuse a value it would run off the end of, along with the
+     * empty string and documents without the field. Through the column too, so both readings are pinned to the values.
+     */
+    public void testMatchesThroughAnOverlaidSingleValuedColumn() throws IOException {
+        final String[] shapes = { "alpha", "alpine", "al", "a", "", "delta" };
+        final List<String> values = values(between(600, 2000), d -> d % 7 == 3 ? null : shapes[d % shapes.length]);
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (String value : values) {
+                    final Document doc = new Document();
+                    if (value != null) {
+                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (DirectoryReader searched : List.of(reader, ColumnarTestUtils.hideTheColumn(reader))) {
+                    final String how = searched == reader ? "through the column" : "through an overlay";
+                    final IndexSearcher searcher = new IndexSearcher(searched);
+                    for (String probe : Arrays.asList("alpha", "al", "alp", "a", "", "alphabet", "absent")) {
+                        assertEquals(
+                            "term [" + probe + "] " + how,
+                            expected(values, probe, true),
+                            found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
+                        );
+                        assertEquals(
+                            "prefix [" + probe + "] " + how,
+                            expected(values, probe, false),
+                            found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
+                        );
+                        assertEquals(
+                            "contains [" + probe + "] " + how,
+                            containing(values, probe),
+                            found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
+                        );
+                    }
                 }
             }
         }

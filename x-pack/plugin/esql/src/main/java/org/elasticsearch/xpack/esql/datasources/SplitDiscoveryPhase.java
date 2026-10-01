@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -402,13 +402,8 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
         // introduce an attribute that SHARES A NAME with a partition column (e.g. `EVAL year = ...`) whose filter
@@ -417,10 +412,11 @@ public final class SplitDiscoveryPhase {
         // whose every attribute reference resolves by id into exec.output() drops those shadowing filters; the split
         // provider's per-file matcher then sees only genuine partition/data-column predicates.
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
+        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             new SimpleSourceMetadata(
-                queryDataAttributes,
+                querySchema.attributes(),
                 exec.sourceType(),
                 exec.sourcePath(),
                 null,
@@ -438,7 +434,8 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             isCancelled,
             exec.declaredReadSpec(),
-            ExternalMetadataColumns.metadataNames(exec.output())
+            metadataColumnNames,
+            PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames)
         );
 
         SplitDiscoveryResult result;
@@ -466,18 +463,14 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
+        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             new SimpleSourceMetadata(
-                queryDataAttributes,
+                querySchema.attributes(),
                 exec.sourceType(),
                 exec.sourcePath(),
                 null,
@@ -495,7 +488,8 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             isCancelled,
             exec.declaredReadSpec(),
-            ExternalMetadataColumns.metadataNames(exec.output())
+            metadataColumnNames,
+            PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames)
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
@@ -541,12 +535,13 @@ public final class SplitDiscoveryPhase {
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
-            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
-            // filter still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an
-            // honest zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty
-            // file list, or a provider that could not certify its prune) falls through to the whole read.
+            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing, and
+            // drop schemaMap: nothing left to read still held the per-file schema on the coordinator. A row filter
+            // still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an honest
+            // zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty file
+            // list, or a provider that could not certify its prune) falls through to the whole read.
             if (result.exhaustivelyPruned()) {
-                return exec.withFileList(FileList.EMPTY);
+                return exec.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
             }
             // The fall-through reads every file in the resolved list, each as one unit, so the accounting must say
             // that: reporting zeros here would describe a full-dataset read as no work at all. An unresolved list

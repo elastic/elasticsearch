@@ -2109,9 +2109,9 @@ Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
-# books and books_english disagree on title's analyzer, so each row is highlighted with its own index's analyzer:
-# english stems "Rings" for the books_english row, standard does not for the books row. No warning.
-# SORT | LIMIT moves HIGHLIGHT to the coordinator, where the row's index still has to be known.
+# books and books_english disagree on title's analyzer, so HIGHLIGHT uses each row's own index analyzer.
+# english stems "Rings" for the books_english row, and standard does not for the books row. No warning.
+# SORT | LIMIT moves HIGHLIGHT to the coordinator, which still needs each row's index.
 highlightPerIndexAnalyzerUsesEachIndexAnalyzer
 required_capability: highlight_mapping_analyzer
 
@@ -2130,7 +2130,7 @@ books_english  | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
-# Without METADATA _index the row's index is still known to HIGHLIGHT, and carried through a KEEP below it.
+# Without METADATA _index, HIGHLIGHT still gets each row's index, through the KEEP below it.
 # Only books_english matches "ring" against "Rings". Also runs against remote indices in the CCS suite.
 highlightPerIndexAnalyzerThroughKeep
 required_capability: highlight_mapping_analyzer
@@ -2147,7 +2147,7 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# Bare HIGHLIGHT without METADATA _index: the query and fields come from the WHERE, the row's index from a synthetic _index.
+# Bare HIGHLIGHT without METADATA _index. The query and fields come from the WHERE, and the row's index from a synthetic _index.
 highlightPerIndexAnalyzerImplicitQueryWithoutMetadata
 required_capability: highlight_mapping_analyzer
 
@@ -2183,7 +2183,7 @@ Fellowship of the Ring 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
-# FORK's merged title carries no mapping of its own, so HIGHLIGHT uses the mapping analyzer both branches agree on:
+# FORK's merged title carries no mapping of its own, so HIGHLIGHT uses the mapping analyzer both branches agree on.
 # english stems "Rings", so "ring" matches it.
 highlightMappingAnalyzerAfterFork
 required_capability: highlight_mapping_analyzer
@@ -2204,8 +2204,8 @@ fork2         | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
-# After FORK over indices that disagree on title's analyzer, each branch still knows its rows' index, so every row is
-# highlighted with its own: the books_english rows match "Rings", the books row does not. No warning.
+# After FORK over indices that disagree on title's analyzer, each branch still carries its rows' index, so HIGHLIGHT
+# uses each row's own index analyzer. The books_english rows match "Rings", and the books row does not. No warning.
 highlightPerIndexAnalyzerAfterFork
 required_capability: highlight_mapping_analyzer
 required_capability: fork_v9
@@ -2226,8 +2226,8 @@ fork2         | null
 ;
 
 
-# UNION ALL branches read books and books_english, which disagree on title's analyzer, yet each row comes from one index:
-# english stems "Rings" for the books_english row, standard does not for the books row. No warning.
+# UNION ALL branches read books and books_english, which disagree on title's analyzer, yet each row comes from one index.
+# english stems "Rings" for the books_english row, and standard does not for the books row. No warning.
 highlightPerIndexAnalyzerAcrossUnionAllBranches
 required_capability: highlight_mapping_analyzer
 required_capability: subquery_in_from_command

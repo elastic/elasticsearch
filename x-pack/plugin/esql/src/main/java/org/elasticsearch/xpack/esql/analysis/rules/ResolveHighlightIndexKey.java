@@ -56,20 +56,26 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
- * Hands HIGHLIGHT what it needs to analyze each row with its mapping analyzer where the plan above the relation loses it.
+ * Gives HIGHLIGHT the mapping and the source index it needs to pick each row's mapping analyzer, when the plan between
+ * the relation and HIGHLIGHT drops them.
  * <p>
- * A column FORK or UNION ALL merges is a {@link ReferenceAttribute}, which does not carry the mapping of the fields it
- * was merged from, so HIGHLIGHT gets the mapping of each such ON column: the one every branch agrees on, one naming the
- * analyzer of each index when branches over different indices disagree, or a {@link UnknownAnalyzer#BRANCH_CONFLICT} that
- * falls back to {@code standard} with a warning. A column no branch maps is analyzed like any computed column.
+ * FORK and UNION ALL output each merged column as a {@link ReferenceAttribute}, which has no mapping. For each such text
+ * ON column, this rule gives HIGHLIGHT one of these mappings:
+ * <ul>
+ *     <li>the mapping every branch agrees on;</li>
+ *     <li>a mapping that names each index's analyzer, when branches over different indices disagree;</li>
+ *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT}, which falls back to {@code standard} with a warning.</li>
+ * </ul>
+ * A column no branch maps gets no mapping, and HIGHLIGHT analyzes it like any computed column.
  * <p>
- * When the queried indices disagree on an ON field's analyzer, HIGHLIGHT also gets each row's {@code _index}, so the row
- * is highlighted with the analyzer of the index it came from instead of {@code standard}. The key is a synthetic alias
- * of {@code _index} evaluated right above each relation and carried through every projection and every FORK or UNION ALL
- * branch up to HIGHLIGHT. A projection restores HIGHLIGHT's original output so the injected columns cannot affect later
- * commands, and a user {@code METADATA _index} that was renamed or dropped stays renamed or dropped. Rows that STATS and
- * ROW produce have no single source index, and DEDUP would group by the key, so those plans keep the {@code standard}
- * fallback and its warning.
+ * When the queried indices disagree on an ON field's analyzer, this rule also passes HIGHLIGHT each row's {@code _index},
+ * so HIGHLIGHT uses the analyzer of the row's index instead of {@code standard}. The key is a synthetic alias of
+ * {@code _index}. This rule evaluates it right above each relation and adds it to every projection and every FORK or
+ * UNION ALL branch up to HIGHLIGHT. A projection above HIGHLIGHT restores HIGHLIGHT's original output, so later commands
+ * never see the added columns. A user {@code METADATA _index} that was renamed or dropped stays renamed or dropped.
+ * <p>
+ * STATS and ROW rows have no single source index, and DEDUP would group by the key. Those plans keep the
+ * {@code standard} fallback and its warning.
  */
 public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -88,7 +94,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             if (highlight.fields().stream().anyMatch(field -> HighlightAnalyzers.analyzerGroups(field, mappings) != null)) {
                 LogicalPlan child = withIndexKey(highlight.child());
                 if (child != null) {
-                    // Keep execution-only columns below this boundary: DEDUP groups by every input column.
+                    // Project away the key and any added _index, which a later DEDUP would group by.
                     return new Project(
                         highlight.source(),
                         highlight.withIndexKeyAndMappings(child, indexKey(child), mappings),
@@ -117,7 +123,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         return Map.copyOf(mappings);
     }
 
-    /** The mapping of {@code column}, which {@code plan} outputs, when it comes unchanged out of a FORK or UNION ALL. */
+    /** The mapping of {@code column}, an output of {@code plan}, if the column comes unchanged out of a FORK or UNION ALL. */
     private static @Nullable TextEsField mergedMapping(LogicalPlan plan, Attribute column, BranchOutputs outputs) {
         if (plan instanceof MergePlan merge) {
             return branchesMapping(merge, column.name(), outputs);
@@ -131,10 +137,15 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * The mapping the branches of {@code merge} agree on for column {@code name}, or one naming the analyzer of each index
-     * when branches that read different indices disagree. {@code null} when no branch maps the column, which is then
-     * analyzed like any computed column, and a {@link UnknownAnalyzer#BRANCH_CONFLICT} when branches mix mapped and computed
-     * values or disagree otherwise.
+     * The mapping of column {@code name} across the branches of {@code merge}:
+     * <ul>
+     *     <li>the mapping every branch agrees on;</li>
+     *     <li>a mapping that names each index's analyzer, when branches that read different indices disagree;</li>
+     *     <li>{@code null} when no branch maps the column and the branches that compute it agree on its analyzer, so
+     *     HIGHLIGHT analyzes it like any computed column;</li>
+     *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT} when branches mix mapped and computed values, or disagree in any
+     *     other way.</li>
+     * </ul>
      */
     private static @Nullable TextEsField branchesMapping(MergePlan merge, String name, BranchOutputs outputs) {
         TextEsField conflict = mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.BRANCH_CONFLICT, null);
@@ -142,7 +153,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         List<BranchColumn> mapped = new ArrayList<>();
         for (BranchColumn b : branchColumns(merge, name, outputs)) {
             if (b.found() == null) {
-                // Computed, so analyzed like any column without a mapping: with the analyzer it declares, or standard.
+                // The branch computes the column, so HIGHLIGHT uses the analyzer the column declares, or standard.
                 String declared = AnalyzedTextExpression.valuesAnalyzerOf(b.column());
                 computedAnalyzers.add(Objects.requireNonNullElse(declared, AnalyzedTextExpression.STANDARD_ANALYZER));
             } else {
@@ -165,7 +176,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         return perIndex == null ? conflict : mapping(name, null, gap, UnknownAnalyzer.CONFLICT, perIndex);
     }
 
-    /** Column {@code name} of a branch that has values of it, with its mapping, or {@code null} when the branch computes it. */
+    /** A branch's column of a given name. {@code found} is its mapping, or {@code null} when the branch computes the column. */
     private record BranchColumn(LogicalPlan branch, Attribute column, @Nullable TextEsField found) {}
 
     private static List<BranchColumn> branchColumns(MergePlan merge, String name, BranchOutputs outputs) {
@@ -185,13 +196,13 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * The columns each branch of a FORK or UNION ALL has values of, by name. Built once per merge: looking every ON column
-     * up in every branch output would be quadratic in the width of the queried indices.
+     * The columns each branch of a FORK or UNION ALL has values of, by name. Each merge is indexed once, because looking up
+     * every ON column in every branch output is quadratic in the number of columns of the queried indices.
      */
     private static final class BranchOutputs {
         private final Map<MergePlan, List<Map<String, Attribute>>> byMerge = new IdentityHashMap<>();
 
-        /** One map per branch of {@code merge}, in its order, without the columns the branch fills with nulls. */
+        /** One map per branch of {@code merge}, in branch order, without the columns the branch fills with nulls. */
         List<Map<String, Attribute>> of(MergePlan merge) {
             return byMerge.computeIfAbsent(merge, m -> m.children().stream().map(BranchOutputs::valuedColumns).toList());
         }
@@ -207,7 +218,10 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         }
     }
 
-    /** The analyzer of each index the rows of {@code branches} are read from, or {@code null} when some branch names none. */
+    /**
+     * The analyzer of each index that {@code branches} read rows from. {@code null} when a branch cannot name its indices,
+     * or when two branches give one index different analyzers.
+     */
     private static @Nullable List<IndexAnalyzerGroup> indexGroups(List<BranchColumn> branches, BranchOutputs outputs) {
         List<IndexAnalyzerGroup> groups = new ArrayList<>();
         for (BranchColumn b : branches) {
@@ -221,8 +235,9 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * Which indices of {@code branch} analyze {@code column}, mapped as {@code found}, with which analyzer, or {@code null}
-     * when the column is not read off the plan the branch's rows come from, like a LOOKUP JOIN field.
+     * The analyzer each index of {@code branch} uses for {@code column}, whose mapping is {@code found}. {@code null} when
+     * the column does not come from the plan that produces the branch's rows, like a LOOKUP JOIN field, or when the
+     * mapping is a conflict that names no indices.
      */
     private static @Nullable List<IndexAnalyzerGroup> indexGroups(
         LogicalPlan branch,
@@ -255,8 +270,8 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * The relation, or nested FORK or UNION ALL, the rows of {@code plan} come from: where {@link #withIndexKey} reads
-     * their {@code _index} off.
+     * The relation, or nested FORK or UNION ALL, that produces the rows of {@code plan}. {@link #withIndexKey} reads their
+     * {@code _index} there.
      */
     private static @Nullable LogicalPlan rowSource(LogicalPlan plan) {
         return switch (plan) {
@@ -269,7 +284,10 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         };
     }
 
-    /** {@code groups} of several branches as one per analyzer, or {@code null} when two name different analyzers for an index. */
+    /**
+     * Merges the {@code groups} of several branches into one group per analyzer. {@code null} when two groups give one index
+     * different analyzers.
+     */
     private static @Nullable List<IndexAnalyzerGroup> byAnalyzer(List<IndexAnalyzerGroup> groups) {
         record Analyzer(@Nullable String name, boolean indexLocal, int positionIncrementGap) {}
         Map<String, Analyzer> analyzerByIndex = new TreeMap<>();
@@ -294,7 +312,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         return mapping(name, found.analyzerName(), found.positionIncrementGap(), found.unknownAnalyzer(), found.analyzerGroups());
     }
 
-    /** Only what picks the analyzer: branches that agree on it may still differ on sub-fields or doc values. */
+    /** A mapping with only what picks the analyzer. Branches that agree on the analyzer may still differ on sub-fields or doc values. */
     private static TextEsField mapping(
         String name,
         @Nullable String analyzerName,
@@ -317,7 +335,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
 
     /** Returns {@code plan} with the key in its output, or {@code null} when its rows have no single source index. */
     private static LogicalPlan withIndexKey(LogicalPlan plan) {
-        // Reuse the key an earlier HIGHLIGHT carries up: a second alias of the same name would shadow it in Eval's output.
+        // Reuse the key of an earlier HIGHLIGHT. A second alias of the same name would shadow it in Eval's output.
         if (indexKey(plan) != null) {
             return plan;
         }
@@ -331,14 +349,14 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 Alias alias = new Alias(relation.source(), INDEX_KEY_NAME, index, null, true);
                 yield new Eval(relation.source(), relation, List.of(alias));
             }
-            case LeafPlan ignored -> null; // ROW, LocalRelation, ExternalRelation: no source index per row
+            case LeafPlan ignored -> null; // ROW, LocalRelation and ExternalRelation rows have no source index
             case Project project -> {
                 LogicalPlan child = withIndexKey(project.child());
                 if (child == null) {
                     yield null;
                 }
                 List<NamedExpression> projections = CollectionUtils.combine(project.projections(), indexKey(child));
-                // A user KEEP stays a Keep: UnionTypesCleanup reads the virtual columns it lists off Keep nodes only.
+                // A user KEEP stays a Keep, because UnionTypesCleanup only reads explicitly kept virtual columns from Keep nodes.
                 yield project instanceof Keep
                     ? new Keep(project.source(), child, projections)
                     : new Project(project.source(), child, projections);
@@ -346,7 +364,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             // DEDUP groups by every column of its input, so the key would split rows that only differ by index.
             case Dedup ignored -> null;
             case InlineStats inlineStats -> {
-                // Every input row survives, so the key goes into the aggregate's input rather than its output.
+                // INLINE STATS keeps every input row, so the key goes into the aggregate's input rather than its output.
                 Aggregate aggregate = inlineStats.aggregate();
                 LogicalPlan child = withIndexKey(aggregate.child());
                 yield child == null ? null : inlineStats.replaceChild(aggregate.replaceChild(child));
@@ -378,7 +396,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         return result != null && indexKey(result) != null ? result : null;
     }
 
-    /** The key in {@code plan}'s output: only this rule makes a synthetic column of that name. */
+    /** The key in {@code plan}'s output. Matching by name is safe because only this rule makes a synthetic column of that name. */
     private static @Nullable Attribute indexKey(LogicalPlan plan) {
         return firstNamed(plan.output(), INDEX_KEY_NAME, Attribute::synthetic);
     }

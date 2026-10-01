@@ -6780,9 +6780,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * When the indices disagree on an ON field's analyzer, HIGHLIGHT gets a synthetic alias of each row's
-     * {@code _index}, carried through the projections below it, and no fallback warning. The alias stays out of the
-     * final output, and so does a user {@code _index} that was renamed away.
+     * When the indices disagree on an ON field's analyzer, HIGHLIGHT gets a synthetic alias of each row's {@code _index}
+     * through the projections below it, and emits no fallback warning. The alias stays out of the final output, and a
+     * renamed user {@code _index} appears only under its new name.
      */
     public void testHighlightPerIndexAnalyzerThreadsIndexKey() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -6800,7 +6800,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(highlight.child().outputSet(), hasItem(key));
         assertThat(highlight.references(), hasItem(key));
         assertThat(fieldNames(plan.output()), equalTo(List.of("title", "book_no", "highlight_title")));
-        // The KEEP below HIGHLIGHT carries the key, the alias sits right above the relation on a synthetic _index.
+        // The KEEP below HIGHLIGHT projects the key. The alias is in an EVAL right above the relation, over a synthetic _index.
         Project keep = highlight.child().collect(Project.class).getFirst();
         assertThat(List.<NamedExpression>copyOf(keep.projections()), hasItem(key));
         Eval alias = highlight.child().collect(Eval.class).getFirst();
@@ -6817,7 +6817,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertNotNull(soleHighlight(plan).indexKey());
         assertThat(fieldNames(plan.output()), equalTo(List.of("book_no", "title", "idx", "highlight_title")));
 
-        // A second HIGHLIGHT reuses the key the first one carries up.
+        // A second HIGHLIGHT reuses the first one's key.
         plan = booksWithConflictingTitleAnalyzer().query("""
             FROM books*
             | HIGHLIGHT "ring" ON title
@@ -6829,11 +6829,14 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertNotNull(highlights.getFirst().indexKey());
         assertThat(highlights.getLast().indexKey(), equalTo(highlights.getFirst().indexKey()));
         assertThat(fieldNames(plan.output()), equalTo(List.of("title", "highlight_title", "again_title")));
-        // No warning: every row is highlighted with its own index's analyzer.
+        // HIGHLIGHT uses each row's own index analyzer, so it emits no warning.
         assertWarnings();
     }
 
-    /** Without a source index per row, or with WITH analyzer, or towards an older node, HIGHLIGHT keeps today's fallback. */
+    /**
+     * HIGHLIGHT gets no index key when rows have no single source index, when WITH sets the analyzer, or when an older
+     * node is in the cluster.
+     */
     public void testHighlightPerIndexAnalyzerFallsBackWithoutIndexKey() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         for (String query : List.of(
@@ -6860,7 +6863,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings();
     }
 
-    /** DEDUP would group by the key, so it keeps the fallback; INLINE STATS keeps every row, so the key goes below it. */
+    /**
+     * HIGHLIGHT after DEDUP keeps the fallback, because DEDUP would group by the key. INLINE STATS keeps every row, so the
+     * key goes below it.
+     */
     public void testHighlightPerIndexAnalyzerThroughDedupAndInlineStats() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
@@ -6880,7 +6886,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings();
     }
 
-    /** Internal analyzer-selection columns must not become DEDUP grouping keys or survive it for a later HIGHLIGHT. */
+    /** The key and the added {@code _index} must not become DEDUP grouping columns, or pass through DEDUP to a later HIGHLIGHT. */
     public void testHighlightIndexKeyDoesNotAffectFollowingDedup() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
@@ -6922,9 +6928,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * FORK outputs reference attributes, which carry no mapping, so a HIGHLIGHT after it gets the mapping the branches
-     * agree on, and the key is threaded into every branch. Inside a branch the key is threaded too, and the branch's
-     * alignment projection keeps it out of FORK's output. UNION ALL is threaded the same way.
+     * FORK outputs reference attributes, which carry no mapping, so a HIGHLIGHT after FORK gets the mapping the branches
+     * agree on, and every branch gets the key. A HIGHLIGHT inside a branch gets the key too, and the branch's alignment
+     * projection keeps it out of FORK's output. UNION ALL branches get the key the same way.
      */
     public void testHighlightPerIndexAnalyzerAndFork() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -6965,8 +6971,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * A branch that computes the column while another maps it leaves no one mapping to carry, so HIGHLIGHT falls back and
-     * says the branches disagree. A branch with STATS agrees on the mapping but has no source index per row, so the key is not threaded.
+     * When one branch computes the column and another maps it, no single mapping applies, so HIGHLIGHT falls back and warns
+     * that the branches disagree. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets
+     * no key.
      */
     public void testHighlightAfterForkFallsBack() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -7012,7 +7019,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * A column every branch computes carries no mapping, so HIGHLIGHT analyzes it like any computed column, without a
-     * warning. Branches that declare different TO_TEXT analyzers do disagree: unlike FORK, UNION ALL does not reject them.
+     * warning. Branches that declare different TO_TEXT analyzers do disagree. FORK rejects them, but UNION ALL does not, so
+     * HIGHLIGHT falls back and warns.
      */
     public void testHighlightAfterMergeOfComputedColumn() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -7037,7 +7045,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * UNION ALL branches over differently analyzed indices disagree on the column's mapping, but each row still comes from
-     * one index, so HIGHLIGHT gets the analyzer of every index and the row's index, and no warning. A nested UNION ALL whose
+     * one index, so HIGHLIGHT gets each index's analyzer and each row's index, and emits no warning. A nested UNION ALL whose
      * own branches agree, or whose other branch has no values of the column, still names the indices its rows come from.
      */
     public void testHighlightPerIndexAnalyzerAcrossUnionAllBranches() {
@@ -7072,8 +7080,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * {@code books} analyzes {@code title} with {@code whitespace}, {@code books_english} with {@code stop}. Pins
-     * {@link TextEsField#TEXT_FIELD_ANALYZER}, the oldest version that can read HIGHLIGHT's index key.
+     * {@code books} analyzes {@code title} with {@code whitespace}, and {@code books_english} with {@code stop}. The minimum
+     * transport version is {@link TextEsField#TEXT_FIELD_ANALYZER}, the oldest that can read HIGHLIGHT's index key.
      */
     private TestAnalyzer booksWithConflictingTitleAnalyzer() {
         int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
@@ -7102,7 +7110,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         return analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
     }
 
-    /** {@code name} on its own, analyzing {@code title} with {@code analyzer}. */
+    /** A single index named {@code name} that analyzes {@code title} with {@code analyzer}. */
     private static EsIndex singleBooksIndex(String name, String analyzer) {
         TextEsField title = new TextEsField(
             "title",

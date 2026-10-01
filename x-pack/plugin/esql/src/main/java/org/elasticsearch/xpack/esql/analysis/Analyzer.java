@@ -348,7 +348,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // translate metric aggregates early before they are converted to nested expressions
                 new TranslateTimeSeriesAggregate(),
                 new ApplyWindowFilter(),
-                // Before UnionTypesCleanup, which drops the synthetic key from the output.
+                // Must run before UnionTypesCleanup, which drops the synthetic key from the output.
                 new ResolveHighlightIndexKey(),
                 new UnionTypesCleanup()
             )

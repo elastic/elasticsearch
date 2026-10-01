@@ -187,7 +187,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
      * a later one shadows answer for the column.
      * <p>
-     * Walks {@code branch} once: test every column of a wide branch against the same predicate.
+     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
      */
     public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
         Map<NameId, Boolean> onlyNull = new HashMap<>();

@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRa
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
@@ -90,7 +89,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Coalesce.class, // COALESCE(NULL, 1) = 1
         IsNotNull.class, // NULL IS NOT NULL = false
         IsNull.class, // NULL IS NULL = true
-        JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
 
         // Multivalue functions that treat NULL is an empty set.
         MvContains.class, // MV_CONTAINS([1, 2], NULL) = false
@@ -105,7 +103,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         MvZip.class, // MV_ZIP(NULL, ["a"], ",") = ["a"]
 
         // Special empty/null handling functions
-        MvPSeriesWeightedSum.class, // MV_PSERIES_WEIGHTED_SUM(NULL, 2) = 0.0
+        JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
 
         // Non-evaluatable grouping functions
         Categorize.class,
@@ -468,7 +466,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 expression = surrogate;
             }
         }
-        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
+        Expression nullOptimized = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {

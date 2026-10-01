@@ -151,6 +151,7 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         }
         // Instead of the allowlist [First, Last], this could benefit from a marker
         // interface `FirstNullIsNull` or similar (comparable to `AnyNullIsNull`).
+        // See also: https://github.com/elastic/elasticsearch/issues/159848
         if (aggFunction instanceof First || aggFunction instanceof Last) {
             return DataType.isNull(aggFunction.fields().getFirst().dataType());
         }

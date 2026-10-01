@@ -468,13 +468,13 @@ public final class SchemaReconciliation {
                 contributions.computeIfAbsent(name, ColumnContributions::new).add(filePath, attr.dataType());
                 MergeEntry existing = unified.get(name);
                 if (existing == null) {
-                    boolean attrNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
+                    boolean attrNullable = attr.nullable() == Nullability.TRUE;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
                 } else {
                     if (existing.type != attr.dataType()) {
                         existing.type = widenToCommonOrKeyword(existing.type, attr.dataType());
                     }
-                    boolean fileIsNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
+                    boolean fileIsNullable = attr.nullable() == Nullability.TRUE;
                     existing.nullable = existing.nullable || fileIsNullable;
                 }
             }

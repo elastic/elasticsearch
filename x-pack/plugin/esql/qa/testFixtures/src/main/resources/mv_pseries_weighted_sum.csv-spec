@@ -88,3 +88,23 @@ ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
 score:double
 94.5
 ;
+
+withNullValues
+required_capability: mv_pseries_weighted_sum
+
+ROW x=null | EVAL score = MV_PSERIES_WEIGHTED_SUM(x,2.0)
+;
+
+x:null | score:null
+null   | null
+;
+
+withNullP
+required_capability: mv_pseries_weighted_sum
+
+ROW x=[1.0, 2.0, 3.0] | EVAL score = MV_PSERIES_WEIGHTED_SUM(x, null)
+;
+
+x:double        | score:null
+[1.0, 2.0, 3.0] | null
+;

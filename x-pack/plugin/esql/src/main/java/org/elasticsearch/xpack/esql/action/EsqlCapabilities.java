@@ -4227,6 +4227,11 @@ public class EsqlCapabilities {
          */
         FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
+        /**
+         * Simplify / fix null folding
+         */
+        FIX_FOLD_NULL,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

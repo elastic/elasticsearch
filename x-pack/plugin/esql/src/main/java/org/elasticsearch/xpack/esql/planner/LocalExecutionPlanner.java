@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -232,6 +233,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
 import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
+import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -370,6 +372,7 @@ public class LocalExecutionPlanner {
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
+            new Holder<>(),
             new Holder<>(),
             new Holder<>(),
             singleNodeOptimizations
@@ -999,6 +1002,13 @@ public class LocalExecutionPlanner {
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
         }
+        LuceneMinCompetitiveScoreTopN luceneMinCompetitiveScore = null;
+        if (luceneMinCompetitivePilot == null && context.plannerSettings().minCompetitiveScoreOptimizationEnabled()) {
+            luceneMinCompetitiveScore = tryBuildLuceneMinCompetitiveScoreTopN(topNExec, context.blockFactory, context.foldCtx());
+            if (luceneMinCompetitiveScore != null) {
+                context.luceneMinCompetitiveScore.set(luceneMinCompetitiveScore);
+            }
+        }
         try {
             PhysicalOperation source = plan(topNExec.child(), context);
             // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
@@ -1042,13 +1052,11 @@ public class LocalExecutionPlanner {
             TopNOperator.GlobalTopKMergeConfig globalTopKMerge = null;
             if (minCompetitive == null && luceneMinCompetitivePilot != null) {
                 minCompetitive = luceneMinCompetitivePilot.supplier();
-                if (luceneMinCompetitivePilot.globalTopK() != null && common.limit > 1) {
-                    globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
-                        luceneMinCompetitivePilot.globalTopK(),
-                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
-                        context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
-                    );
-                }
+                globalTopKMerge = globalTopKMergeConfig(luceneMinCompetitivePilot.globalTopK(), common.limit, context);
+            }
+            if (minCompetitive == null && luceneMinCompetitiveScore != null) {
+                minCompetitive = luceneMinCompetitiveScore.supplier();
+                globalTopKMerge = globalTopKMergeConfig(luceneMinCompetitiveScore.globalTopK(), common.limit, context);
             }
             return source.with(
                 new TopNOperatorFactory(
@@ -1069,7 +1077,31 @@ public class LocalExecutionPlanner {
             if (luceneMinCompetitivePilot != null) {
                 context.luceneMinCompetitivePilot.set(null);
             }
+            if (luceneMinCompetitiveScore != null) {
+                context.luceneMinCompetitiveScore.set(null);
+            }
         }
+    }
+
+    /**
+     * The {@link TopNOperator.GlobalTopKMergeConfig} for a Lucene min competitive TopN, or {@code null}
+     * when there is no {@link SharedGlobalTopK} to merge into or the TopN keeps a single row, where a
+     * per-driver bound is already as tight as it gets.
+     */
+    @Nullable
+    private static TopNOperator.GlobalTopKMergeConfig globalTopKMergeConfig(
+        @Nullable SharedGlobalTopK.Supplier globalTopK,
+        int limit,
+        LocalExecutionPlannerContext context
+    ) {
+        if (globalTopK == null || limit <= 1) {
+            return null;
+        }
+        return new TopNOperator.GlobalTopKMergeConfig(
+            globalTopK,
+            context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
+            context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
+        );
     }
 
     /**
@@ -1308,6 +1340,112 @@ public class LocalExecutionPlanner {
             ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
             : null;
         return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), globalTopKSupplier);
+    }
+
+    /**
+     * Wire {@link SharedMinCompetitive} between the engine {@code TopNOperator} and
+     * {@code LuceneSourceOperator} for {@code SORT _score DESC | LIMIT N} over
+     * {@code TopN → (Project|Filter|FieldExtract)* → EsQuery} so Lucene can skip documents whose score
+     * can't make the top N. This is the case where the TopN could not be pushed to Lucene, usually
+     * because a filter has to run in the compute engine.
+     * <p>
+     * Skipping documents is only sound if nothing but this TopN consumes the rows the source emits and
+     * if the published bound is computed from rows that already passed every filter. The plan shape
+     * guarantees both: the operators between the source and the TopN only drop rows or add and remove
+     * columns, and the TopN only publishes the least competitive row of its full heap. Specifically:
+     * <ul>
+     *     <li>Exactly one sort key, the {@code _score} produced by the {@link EsQueryExec} itself
+     *         (same id), so no {@code EVAL} or rename can have changed its value.</li>
+     *     <li>{@code DESC} only: Lucene can skip low scores, not high ones.</li>
+     *     <li>No {@link FilterExec} on the way adds to {@code _score}. {@link #planFilter} adds a
+     *         {@link ScoreOperator} that sums the scores of full-text functions evaluated in the compute
+     *         engine into {@code _score}. The TopN would then publish a bound on that sum and it isn't
+     *         safe to skip a document just because its Lucene score is below it.</li>
+     *     <li>The {@link EsQueryExec} has no sort (it'd be a {@code LuceneTopNSourceOperator}, not a
+     *         {@code LuceneSourceOperator}), no limit (a limit counts emitted documents, skipping would
+     *         change which ones count) and a single query. Multiple queries would be sound too, each
+     *         document is scored by the query that matched it, but we keep them out like
+     *         {@link #tryBuildLuceneMinCompetitiveTimestampTopN} does until there's a reason not to.</li>
+     * </ul>
+     */
+    @Nullable
+    static LuceneMinCompetitiveScoreTopN tryBuildLuceneMinCompetitiveScoreTopN(
+        TopNExec topNExec,
+        BlockFactory blockFactory,
+        FoldContext foldCtx
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order order = orders.get(0);
+        if (order.direction() != Order.OrderDirection.DESC) {
+            return null;
+        }
+        if (order.child() instanceof MetadataAttribute == false) {
+            return null;
+        }
+        MetadataAttribute score = (MetadataAttribute) order.child();
+        if (MetadataAttribute.SCORE.equals(score.name()) == false) {
+            return null;
+        }
+        if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
+            return null;
+        }
+        EsQueryExec esQuery = findEsQueryExecForMinCompetitivePilot(topNExec.child());
+        if (esQuery == null) {
+            return null;
+        }
+        if (esQuery.sorts() != null && esQuery.sorts().isEmpty() == false) {
+            return null;
+        }
+        if (esQuery.limit() != null) {
+            return null;
+        }
+        if (esQuery.queryBuilderAndTags().size() != 1) {
+            return null;
+        }
+        if (esQuery.indexMode().isTsdb()) {
+            // Time series indices are read by TimeSeriesSourceOperator which never scores.
+            return null;
+        }
+        // Also guarantees the source scores: it does whenever _score is in its output.
+        boolean sortIsSourceScore = esQuery.output().stream().anyMatch(attribute -> attribute.id().equals(score.id()));
+        if (sortIsSourceScore == false) {
+            return null;
+        }
+        if (filterAddsToScore(topNExec.child())) {
+            return null;
+        }
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            topNExec.minCompetitiveKeyConfig()
+        );
+        int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
+        SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
+            ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
+            : null;
+        return new LuceneMinCompetitiveScoreTopN(supplier, globalTopKSupplier);
+    }
+
+    /**
+     * Does any {@link FilterExec} on the {@link UnaryExec} spine below {@code plan} add anything to
+     * {@code _score}? Mirrors {@link ScoreMapper#toScorer}: only {@link ExpressionScoreMapper}s that
+     * {@link ExpressionScoreMapper#contributesToScore() contribute} add a non-zero score.
+     * {@link BinaryLogic} only sums its children so it's fine on its own. Anything else is treated as
+     * adding to the score even when it is nested somewhere {@link ScoreMapper} wouldn't look.
+     */
+    private static boolean filterAddsToScore(PhysicalPlan plan) {
+        PhysicalPlan current = plan;
+        while (current instanceof UnaryExec unary) {
+            if (current instanceof FilterExec filter
+                && filter.condition()
+                    .anyMatch(e -> e instanceof ExpressionScoreMapper m && e instanceof BinaryLogic == false && m.contributesToScore())) {
+                return true;
+            }
+            current = unary.child();
+        }
+        return false;
     }
 
     @Nullable
@@ -2736,6 +2874,7 @@ public class LocalExecutionPlanner {
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
+        Holder<LuceneMinCompetitiveScoreTopN> luceneMinCompetitiveScore,
         boolean singleNodeOptimizations
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -47,6 +48,7 @@ import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -72,9 +74,11 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -96,6 +100,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -120,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -145,7 +153,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -287,6 +297,194 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         var factory = (LuceneTopNSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
         assertThat(factory.maxPageSize(), maxPageSizeMatcher(estimatedRowSizeIsHuge, estimatedRowSize));
         assertThat(factory.limit(), equalTo(10));
+    }
+
+    /**
+     * {@code SORT _score DESC | LIMIT N} above a filter that couldn't be pushed to Lucene wires the
+     * TopN's bound back into the {@link LuceneSourceOperator}.
+     */
+    public void testMinCompetitiveScoreWired() throws IOException {
+        MetadataAttribute score = scoreAttribute();
+        PhysicalPlan plan = new FilterExec(Source.EMPTY, scoringEsQueryExec(score), new IsNotNull(Source.EMPTY, score));
+        TopNExec topN = scoreTopN(plan, score, Order.OrderDirection.DESC);
+        var physicalOperation = planTopN(PlannerSettings.DEFAULTS, topN);
+        var sourceFactory = (LuceneSourceOperator.Factory) physicalOperation.sourceOperatorFactory;
+        assertThat(sourceFactory.describe(), containsString("minCompetitiveScore = true"));
+        TopNOperator.TopNOperatorFactory topNFactory = topNFactory(physicalOperation);
+        assertThat(topNFactory.minCompetitive(), notNullValue());
+        assertThat(topNFactory.globalTopKMerge(), notNullValue());
+    }
+
+    public void testMinCompetitiveScoreDisabledBySetting() throws IOException {
+        MetadataAttribute score = scoreAttribute();
+        TopNExec topN = scoreTopN(scoringEsQueryExec(score), score, Order.OrderDirection.DESC);
+        var physicalOperation = planTopN(PlannerSettings.DEFAULTS.minCompetitiveScoreOptimizationEnabled(false), topN);
+        var sourceFactory = (LuceneSourceOperator.Factory) physicalOperation.sourceOperatorFactory;
+        assertThat(sourceFactory.describe(), not(containsString("minCompetitiveScore")));
+        assertThat(topNFactory(physicalOperation).minCompetitive(), nullValue());
+    }
+
+    public void testMinCompetitiveScoreNotForAscending() throws IOException {
+        MetadataAttribute score = scoreAttribute();
+        TopNExec topN = scoreTopN(scoringEsQueryExec(score), score, Order.OrderDirection.ASC);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), nullValue());
+        var physicalOperation = planTopN(PlannerSettings.DEFAULTS, topN);
+        assertThat(physicalOperation.sourceOperatorFactory.describe(), not(containsString("minCompetitiveScore")));
+    }
+
+    public void testMinCompetitiveScoreNotForMultipleKeys() {
+        MetadataAttribute score = scoreAttribute();
+        FieldAttribute field = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        EsQueryExec esQuery = scoringEsQueryExec(score);
+        List<Order> orders = randomBoolean()
+            ? List.of(
+                new Order(Source.EMPTY, score, Order.OrderDirection.DESC, Order.NullsPosition.FIRST),
+                new Order(Source.EMPTY, field, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
+            )
+            : List.of(
+                new Order(Source.EMPTY, field, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(Source.EMPTY, score, Order.OrderDirection.DESC, Order.NullsPosition.FIRST)
+            );
+        TopNExec topN = new TopNExec(Source.EMPTY, esQuery, orders, new Literal(Source.EMPTY, 10, DataType.INTEGER), 10);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), nullValue());
+    }
+
+    /**
+     * A {@code _score} attribute that isn't the one the source produces, for example one that
+     * an {@code EVAL} or a rename produced, must not be trusted.
+     */
+    public void testMinCompetitiveScoreNotForForeignScore() {
+        MetadataAttribute sourceScore = scoreAttribute();
+        MetadataAttribute otherScore = scoreAttribute();
+        TopNExec topN = scoreTopN(scoringEsQueryExec(sourceScore), otherScore, Order.OrderDirection.DESC);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), nullValue());
+    }
+
+    /**
+     * A filter that runs a full-text function in the compute engine adds that function's score to
+     * {@code _score}. The TopN's bound is then on the sum and Lucene's score alone can't be compared
+     * against it.
+     */
+    public void testMinCompetitiveScoreNotWhenFilterAddsToScore() {
+        MetadataAttribute score = scoreAttribute();
+        FieldAttribute content = new FieldAttribute(
+            Source.EMPTY,
+            "content",
+            new EsField("content", DataType.TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression match = new Match(Source.EMPTY, content, new Literal(Source.EMPTY, new BytesRef("fox"), DataType.KEYWORD), null);
+        Expression condition = randomBoolean() ? match : new Or(Source.EMPTY, new IsNotNull(Source.EMPTY, score), match);
+        PhysicalPlan plan = new FilterExec(Source.EMPTY, scoringEsQueryExec(score), condition);
+        TopNExec topN = scoreTopN(plan, score, Order.OrderDirection.DESC);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), nullValue());
+    }
+
+    /**
+     * {@link And} and {@link Or} only sum the scores of their children so a filter without any
+     * full-text function adds nothing to {@code _score}.
+     */
+    public void testMinCompetitiveScoreWithNonScoringBinaryLogicFilter() {
+        MetadataAttribute score = scoreAttribute();
+        Expression condition = randomBoolean()
+            ? new And(Source.EMPTY, new IsNotNull(Source.EMPTY, score), new IsNotNull(Source.EMPTY, score))
+            : new Or(Source.EMPTY, new IsNotNull(Source.EMPTY, score), new IsNotNull(Source.EMPTY, score));
+        PhysicalPlan plan = new FilterExec(Source.EMPTY, scoringEsQueryExec(score), condition);
+        TopNExec topN = scoreTopN(plan, score, Order.OrderDirection.DESC);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), notNullValue());
+    }
+
+    /**
+     * Without {@code _score} in the source's output the source doesn't score at all.
+     */
+    public void testMinCompetitiveScoreNotWithoutScoring() {
+        MetadataAttribute score = scoreAttribute();
+        EsQueryExec esQuery = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)),
+            null,
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        TopNExec topN = scoreTopN(esQuery, score, Order.OrderDirection.DESC);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), nullValue());
+    }
+
+    /**
+     * A limit on the source counts emitted documents. Skipping documents would change which ones count.
+     */
+    public void testMinCompetitiveScoreNotWithSourceLimit() {
+        MetadataAttribute score = scoreAttribute();
+        EsQueryExec esQuery = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD), score),
+            new Literal(Source.EMPTY, 100, DataType.INTEGER),
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        TopNExec topN = scoreTopN(esQuery, score, Order.OrderDirection.DESC);
+        assertThat(LocalExecutionPlanner.tryBuildLuceneMinCompetitiveScoreTopN(topN, blockFactory(), FoldContext.small()), nullValue());
+    }
+
+    private static MetadataAttribute scoreAttribute() {
+        return new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false);
+    }
+
+    private static EsQueryExec scoringEsQueryExec(MetadataAttribute score) {
+        return new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD), score),
+            null,
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+    }
+
+    private static TopNExec scoreTopN(PhysicalPlan child, MetadataAttribute score, Order.OrderDirection direction) {
+        Order.NullsPosition nulls = direction == Order.OrderDirection.DESC ? Order.NullsPosition.FIRST : Order.NullsPosition.LAST;
+        return new TopNExec(
+            Source.EMPTY,
+            child,
+            List.of(new Order(Source.EMPTY, score, direction, nulls)),
+            new Literal(Source.EMPTY, between(2, 100), DataType.INTEGER),
+            10
+        );
+    }
+
+    private LocalExecutionPlanner.PhysicalOperation planTopN(PlannerSettings settings, TopNExec topN) throws IOException {
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            settings,
+            topN,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        return plan.driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private static TopNOperator.TopNOperatorFactory topNFactory(LocalExecutionPlanner.PhysicalOperation physicalOperation) {
+        return physicalOperation.intermediateOperatorFactories.stream()
+            .filter(f -> f instanceof TopNOperator.TopNOperatorFactory)
+            .map(f -> (TopNOperator.TopNOperatorFactory) f)
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private static BlockFactory blockFactory() {
+        return TestBlockFactory.getNonBreakingInstance();
     }
 
     public void testDriverClusterAndNodeName() throws IOException {
@@ -739,6 +937,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
+            PlannerSettings.DEFAULTS.minCompetitiveScoreOptimizationEnabled(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
             PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold()

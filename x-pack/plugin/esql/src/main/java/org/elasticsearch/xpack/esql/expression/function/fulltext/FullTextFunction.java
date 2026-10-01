@@ -283,12 +283,13 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextFunctionsInFilter(Filter filter, Failures failures, boolean checkFullTextFunctionsAboveSubqueries) {
         Expression condition = filter.condition();
         checkFullTextQueryFunctionForCondition(filter, failures, condition, false, checkFullTextFunctionsAboveSubqueries);
-        checkScoreOutsideConjunctionWithRuntimeScorer(condition, failures);
     }
 
     /**
      * A {@code _score} predicate can only be evaluated after a runtime scorer in the same filter when the two are separate
      * conjuncts (see {@code PushDownAndCombineFilters}); anywhere else it would see the score from before the search ran.
+     * Only run after optimization: a search on an alias or RENAME of an indexed field looks like a runtime search when
+     * analyzed, but push-down turns it back into one that scores at the source.
      */
     private static void checkScoreOutsideConjunctionWithRuntimeScorer(Expression condition, Failures failures) {
         for (Expression conjunct : Predicates.splitAnd(condition)) {
@@ -818,6 +819,7 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
+                checkScoreOutsideConjunctionWithRuntimeScorer(f.condition(), failures);
                 // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
                 // (not just as a direct child), the push-down optimizer could not move the filter to the data
                 // nodes. An index-backed search requires a Lucene shard context that the coordinator does not have;

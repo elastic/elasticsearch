@@ -192,19 +192,6 @@ public class AnalyzerExternalTests extends ESTestCase {
         analyzeDataset(external(), S3_PATH, from + "| WHERE MATCH(first_name, \"foo\") | STATS c = MAX(_score)");
     }
 
-    public void testScoreOredWithRuntimeSearchRejected() {
-        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-
-        String from = "FROM " + DATASET_NAME + " METADATA _score ";
-        datasetError(
-            external(),
-            S3_PATH,
-            from + "| WHERE MATCH(first_name, \"foo\") OR _score > 1.5",
-            containsString("[_score] can't be used with runtime search [MATCH] inside OR or NOT")
-        );
-        analyzeDataset(external(), S3_PATH, from + "| WHERE MATCH(first_name, \"foo\") AND _score > 1.5");
-    }
-
     /**
      * KQL function requires a Lucene index; an external (federated) dataset is rejected with a message naming the
      * dataset and the limitation, and suggesting the MATCH(field, ...) alternative, rather than a generic positional

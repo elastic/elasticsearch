@@ -162,6 +162,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
     private static final int DEFAULT_ASH_IVF_QUANTIZE_BITS = 2;
 
+    // Supported values for the ASH 'projected_dims' mapping parameter (fraction of original dimensions to project to).
+    // Intentionally restricted to a small set for now to limit the test/validation surface; can be widened later.
+    private static final Set<Float> SUPPORTED_PROJECTED_DIMS = Set.of(0.25f, 0.5f, 0.75f, 1.0f);
+
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
      */
@@ -529,6 +533,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     experimentalFeaturesEnabled,
                     false,
                     BBQIVFIndexOptions.QuantizationType.OSQ,
+                    IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
                     false
                 );
             }
@@ -2236,6 +2241,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 boolean isAsh = quantizationType == BBQIVFIndexOptions.QuantizationType.ASH;
+
+                Object projectedDimsNode = indexOptionsMap.remove("projected_dims");
+                float projectedDimsFraction = IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION;
+                if (projectedDimsNode != null) {
+                    if (isAsh == false) {
+                        throw new IllegalArgumentException(
+                            "'projected_dims' is only supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
+                        );
+                    }
+                    projectedDimsFraction = (float) XContentMapValues.nodeDoubleValue(projectedDimsNode);
+                    if (SUPPORTED_PROJECTED_DIMS.contains(projectedDimsFraction) == false) {
+                        throw new IllegalArgumentException(
+                            "'projected_dims' must be one of [0.25, 0.5, 0.75, 1.0], got: "
+                                + projectedDimsFraction
+                                + " for field ["
+                                + fieldName
+                                + "]"
+                        );
+                    }
+                }
+
                 Object quantizeBitsNode = indexOptionsMap.remove("bits");
                 int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
                 int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
@@ -2283,6 +2309,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     experimentalFeaturesEnabled,
                     autoCalibrate,
                     quantizationType,
+                    projectedDimsFraction,
                     onDiskMerge
                 );
             }
@@ -3007,6 +3034,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean experimentalFeaturesEnabled;
         final boolean autoCalibrate;
         final QuantizationType quantizationType;
+        final float projectedDimsFraction;
 
         public enum QuantizationType {
             OSQ("osq"),
@@ -3047,6 +3075,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean experimentalFeaturesEnabled,
             boolean autoCalibrate,
             QuantizationType quantizationType,
+            float projectedDimsFraction,
             boolean onDiskMerge
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector, onDiskMerge);
@@ -3060,6 +3089,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.autoCalibrate = autoCalibrate;
             this.quantizationType = quantizationType;
+            this.projectedDimsFraction = projectedDimsFraction;
         }
 
         @Override
@@ -3088,7 +3118,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     var ashConfig = IvfSegmentConfig.AshConfig.of(
                         bits,
                         IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
-                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                        projectedDimsFraction
                     );
                     return new ES960DiskASHVectorsFormat(
                         ashConfig,
@@ -3170,7 +3200,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
             return this.doPrecondition == that.doPrecondition
                 && this.autoCalibrate == that.autoCalibrate
-                && Objects.equals(this.quantizationType, that.quantizationType);
+                && Objects.equals(this.quantizationType, that.quantizationType)
+                && this.projectedDimsFraction == that.projectedDimsFraction;
         }
 
         @Override
@@ -3184,6 +3215,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && doPrecondition == that.doPrecondition
                 && autoCalibrate == that.autoCalibrate
                 && Objects.equals(quantizationType, that.quantizationType)
+                && projectedDimsFraction == that.projectedDimsFraction
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
@@ -3198,6 +3230,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 doPrecondition,
                 autoCalibrate,
                 quantizationType,
+                projectedDimsFraction,
                 rescoreVector
             );
         }
@@ -3228,6 +3261,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (quantizationType == QuantizationType.ASH) {
                 builder.field("quantization_type", quantizationType);
+                builder.field("projected_dims", projectedDimsFraction);
             }
         }
 
@@ -3263,6 +3297,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return quantizationType;
         }
 
+        public float getProjectedDimsFraction() {
+            return projectedDimsFraction;
+        }
+
         @Override
         public String toString() {
             return "{type="
@@ -3283,6 +3321,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + bits
                 + ", auto_calibrate="
                 + autoCalibrate
+                + ", quantization_type="
+                + quantizationType
+                + ", projected_dims="
+                + projectedDimsFraction
                 + ", on_disk_merge="
                 + onDiskMerge
                 + "}";

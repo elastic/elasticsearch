@@ -218,3 +218,99 @@ setup:
         index: osq_default
   # osq is the default and should NOT appear in the serialized mapping
   - is_false: osq_default.mappings.properties.vector.index_options.quantization_type
+
+---
+"ASH projected_dims defaults to 0.5 and is serialized":
+  - do:
+      indices.create:
+        index: ash_projected_default
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: ash_projected_default
+  - match: { ash_projected_default.mappings.properties.vector.index_options.projected_dims: 0.5 }
+
+---
+"ASH projected_dims accepts supported values":
+  - do:
+      indices.create:
+        index: ash_projected_025
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+                  projected_dims: 0.25
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: ash_projected_025
+  - match: { ash_projected_025.mappings.properties.vector.index_options.projected_dims: 0.25 }
+
+---
+"ASH projected_dims rejects unsupported value":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: ash_projected_bad
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+                  projected_dims: 0.3
+  - match: { error.type: "mapper_parsing_exception" }
+
+---
+"projected_dims rejected without ash quantization_type":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: osq_projected
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  projected_dims: 0.5
+  - match: { error.type: "mapper_parsing_exception" }

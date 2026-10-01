@@ -1109,6 +1109,116 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH, indexOptions.getQuantizationType());
     }
 
+    public void testBBQDiskAshProjectedDimsDefault() throws IOException {
+        MapperService mapperService = createMapperService(
+            IndexVersions.DISK_BBQ_ES960,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 64)
+                    .field("index", true)
+                    .field("similarity", "max_inner_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("quantization_type", "ash")
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertEquals(0.5f, indexOptions.getProjectedDimsFraction(), 0.0f);
+        // projected_dims is always serialized for ASH, even at the default
+        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"projected_dims\":0.5"));
+    }
+
+    public void testBBQDiskAshProjectedDimsValidValues() throws IOException {
+        for (float value : new float[] { 0.25f, 0.5f, 0.75f, 1.0f }) {
+            MapperService mapperService = createMapperService(
+                IndexVersions.DISK_BBQ_ES960,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 64)
+                        .field("index", true)
+                        .field("similarity", "max_inner_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("quantization_type", "ash")
+                        .field("projected_dims", value)
+                        .endObject()
+                )
+            );
+            DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+                .getIndexOptions();
+            assertEquals("projected_dims " + value, value, indexOptions.getProjectedDimsFraction(), 0.0f);
+        }
+    }
+
+    public void testBBQDiskAshProjectedDimsInvalidValueRejected() {
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                IndexVersions.DISK_BBQ_ES960,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 64)
+                        .field("index", true)
+                        .field("similarity", "max_inner_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("quantization_type", "ash")
+                        .field("projected_dims", 0.3f)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("'projected_dims' must be one of [0.25, 0.5, 0.75, 1.0]"));
+    }
+
+    public void testBBQDiskProjectedDimsRejectedForNonAsh() {
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                IndexVersions.DISK_BBQ_ES960,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 64)
+                        .field("index", true)
+                        .field("similarity", "dot_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("projected_dims", 0.5f)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("'projected_dims' is only supported with 'quantization_type' 'ash'"));
+    }
+
+    public void testBBQDiskProjectedDimsRejectedOnPre96Index() {
+        // projected_dims requires ASH, and ASH requires >= 9.6, so projected_dims is transitively gated to 9.6+.
+        // On a pre-9.6 index, quantization_type: ash is rejected first.
+        IndexVersion preVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES960);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                preVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 64)
+                        .field("index", true)
+                        .field("similarity", "max_inner_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("quantization_type", "ash")
+                        .field("projected_dims", 0.5f)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("quantization_type 'ash' is not supported on indices created before version"));
+    }
+
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(

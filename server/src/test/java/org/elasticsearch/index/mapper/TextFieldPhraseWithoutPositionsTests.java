@@ -9,16 +9,23 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.IntervalQueryBuilder;
 import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -26,12 +33,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A {@code text} field indexing no positions answers the queries that ask about them by confirming against its own
  * values. Each asks the same question of the same mapping with positions, which is the answer to match.
  */
 public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase {
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+            Map.of()
+        );
+    }
 
     private static final List<Object> DOCS = List.of(
         "the quick brown fox jumps",
@@ -85,23 +102,147 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         logger.info("{} queries agreed with and without positions", queries.size());
     }
 
-    /** Outside strict columnar a text field has no doc values, so there is nothing to confirm against and it refuses. */
-    public void testWithoutDocValuesItStillRefuses() throws IOException {
-        final SearchExecutionContext context = createSearchExecutionContext(
+    /** With no values to confirm against, outside strict columnar or with doc values off, it refuses as it always has. */
+    public void testWithoutValuesToConfirmAgainstItRefuses() throws IOException {
+        assertRefuses(
             createMapperService(mapping(b -> b.startObject("body").field("type", "text").field("index_options", "docs").endObject()))
         );
+        assertRefuses(
+            createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+                mapping(
+                    b -> b.startObject("body").field("type", "text").field("index_options", "docs").field("doc_values", false).endObject()
+                )
+            )
+        );
+    }
+
+    /** A parent with a normalizer keeps rewritten values, so a multi-field reading them would answer wrongly. */
+    public void testParentWithANormalizerIsNotRead() throws IOException {
+        assertRefuses(
+            createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+                mapping(
+                    b -> b.startObject("host")
+                        .field("type", "keyword")
+                        .field("normalizer", "lowercase")
+                        .startObject("fields")
+                        .startObject("body")
+                        .field("type", "text")
+                        .field("index_options", "docs")
+                        .field("doc_values", false)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            "host.body"
+        );
+    }
+
+    private void assertRefuses(MapperService mapperService) {
+        assertRefuses(mapperService, "body");
+    }
+
+    private void assertRefuses(MapperService mapperService, String field) {
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
         assertEquals(
-            "field:[body] was indexed without position data; cannot run PhraseQuery",
-            expectThrows(IllegalArgumentException.class, () -> new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context))
+            "field:[" + field + "] was indexed without position data; cannot run PhraseQuery",
+            expectThrows(IllegalArgumentException.class, () -> new MatchPhraseQueryBuilder(field, "quick brown").toQuery(context))
                 .getMessage()
         );
         assertEquals(
-            "Cannot create intervals over field [body] with no positions indexed",
+            "Cannot create intervals over field [" + field + "] with no positions indexed",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> intervals(new IntervalsSourceProvider.Match("quick brown", 0, true, null, null, null)).toQuery(context)
+                () -> new IntervalQueryBuilder(field, new IntervalsSourceProvider.Match("quick brown", 0, true, null, null, null)).toQuery(
+                    context
+                )
             ).getMessage()
         );
+    }
+
+    /** A text multi-field confirms against its own values, or its parent's where it was told to keep none. */
+    public void testMultiField() throws IOException {
+        for (boolean ownDocValues : List.of(true, false)) {
+            for (String options : List.of("positions", "docs")) {
+                assertMultiFieldMatches(options, ownDocValues);
+            }
+        }
+    }
+
+    private void assertMultiFieldMatches(String options, boolean ownDocValues) throws IOException {
+        final MapperService mapper = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(
+                b -> b.startObject("host")
+                    .field("type", "keyword")
+                    .startObject("fields")
+                    .startObject("text")
+                    .field("type", "text")
+                    .field("index_options", options)
+                    .field("doc_values", ownDocValues)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        final List<Integer> hits = new ArrayList<>();
+        withLuceneIndex(mapper, iw -> {
+            for (String value : List.of("quick brown fox", "brown quick")) {
+                iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("host", value))).rootDoc());
+            }
+        }, reader -> {
+            final SearchExecutionContext context = createSearchExecutionContext(mapper);
+            for (var hit : newSearcher(reader).search(
+                new MatchPhraseQueryBuilder("host.text", "quick brown").toQuery(context),
+                10
+            ).scoreDocs) {
+                hits.add(hit.doc);
+            }
+        });
+        assertEquals("index_options [" + options + "] doc_values [" + ownDocValues + "]", List.of(0), hits);
+    }
+
+    /** A text field inside a nested object is read on the nested document holding it. */
+    public void testNested() throws IOException {
+        for (String options : List.of("positions", "docs")) {
+            final MapperService mapper = createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+                mapping(
+                    b -> b.startObject("entries")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("body")
+                        .field("type", "text")
+                        .field("index_options", options)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+            final List<Integer> hits = new ArrayList<>();
+            withLuceneIndex(mapper, iw -> {
+                // One parent holding two entries, only the second of which has the phrase.
+                iw.addDocuments(mapper.documentMapper().parse(source(b -> {
+                    b.startArray("entries");
+                    b.startObject().field("body", "brown quick").endObject();
+                    b.startObject().field("body", "quick brown fox").endObject();
+                    b.endArray();
+                })).docs());
+            }, reader -> {
+                final SearchExecutionContext context = createSearchExecutionContext(mapper);
+                final QueryBuilder nested = new NestedQueryBuilder(
+                    "entries",
+                    new MatchPhraseQueryBuilder("entries.body", "quick brown"),
+                    ScoreMode.Avg
+                );
+                for (var hit : newSearcher(wrapInMockESDirectoryReader(reader)).search(nested.toQuery(context), 10).scoreDocs) {
+                    hits.add(hit.doc);
+                }
+            });
+            assertEquals("one parent matches, index_options [" + options + "]", 1, hits.size());
+        }
     }
 
     private static QueryBuilder intervals(IntervalsSourceProvider source) {

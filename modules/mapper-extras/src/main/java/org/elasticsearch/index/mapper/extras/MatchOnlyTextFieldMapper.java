@@ -72,7 +72,6 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFiel
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
@@ -136,7 +135,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -503,7 +501,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                             BinaryDocValuesFormat.SEPARATE_COUNT
                         );
                     }
-                    return storedFieldFetcher(name(), syntheticSourceFallbackFieldName());
+                    return PositionalValueFetchers.fromStoredFields(name(), syntheticSourceFallbackFieldName());
                 }
             }
 
@@ -539,38 +537,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             assert searchExecutionContext.isSourceSynthetic() : "Synthetic source should be enabled";
 
-            String parentFieldName = searchExecutionContext.parentPath(name());
-            var parent = searchExecutionContext.lookup().fieldType(parentFieldName);
-
-            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
-                && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
-
-                // bc we don't know whether the parent field will ignore a value, we must also check a potential fallback field created by
-                // the parent field
-                String fallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
-
-                // The parent fallback field might be stored in binary doc values or in a stored field, we need to check which one
-                var fallbackFetcher = keywordParent.usesBinaryDocValuesForIgnoredFields()
-                    ? PositionalValueFetchers.fromBinaryDocValues(fallbackFieldName, BinaryDocValuesFormat.SEPARATE_COUNT)
-                    : storedFieldFetcher(fallbackFieldName);
-
-                if (parent.isStored()) {
-                    return combineFieldFetchers(storedFieldFetcher(parentFieldName), fallbackFetcher);
-                } else if (parent.hasDocValues()) {
-                    var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(PositionalValueFetchers.fromFieldData(ifd), fallbackFetcher);
-                }
-            }
-
-            if (parent.isStored()) {
-                return storedFieldFetcher(parentFieldName);
-            } else if (parent.hasDocValues()) {
-                var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                return PositionalValueFetchers.fromFieldData(ifd);
-            } else {
+            var fromParent = PositionalValueFetchers.fromParent(searchExecutionContext, name());
+            if (fromParent == null) {
                 assert false : "parent field should either be stored or have doc values";
                 return sourceFieldFetcher(searchExecutionContext);
             }
+            return fromParent;
         }
 
         /**
@@ -589,18 +561,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 // The fallback field may be stored in binary doc values or stored fields depending on index version
                 var fallbackFetcher = usesBinaryDocValuesForFallbackFields
                     ? PositionalValueFetchers.fromBinaryDocValues(fallbackName, BinaryDocValuesFormat.SEPARATE_COUNT)
-                    : storedFieldFetcher(fallbackName);
+                    : PositionalValueFetchers.fromStoredFields(fallbackName);
 
                 if (keywordDelegate.isStored()) {
-                    return combineFieldFetchers(storedFieldFetcher(delegateFieldName), fallbackFetcher);
+                    return PositionalValueFetchers.concat(PositionalValueFetchers.fromStoredFields(delegateFieldName), fallbackFetcher);
                 } else if (keywordDelegate.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(PositionalValueFetchers.fromFieldData(ifd), fallbackFetcher);
+                    return PositionalValueFetchers.concat(PositionalValueFetchers.fromFieldData(ifd), fallbackFetcher);
                 }
             }
 
             if (keywordDelegate.isStored()) {
-                return storedFieldFetcher(keywordDelegate.name());
+                return PositionalValueFetchers.fromStoredFields(keywordDelegate.name());
             } else if (keywordDelegate.hasDocValues()) {
                 var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
                 return PositionalValueFetchers.fromFieldData(ifd);
@@ -608,56 +580,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 assert false : "multi field should either be stored or have doc values";
                 return sourceFieldFetcher(searchExecutionContext);
             }
-        }
-
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String... names) {
-            var loader = StoredFieldLoader.create(false, Set.of(names));
-            return context -> {
-                var leafLoader = loader.getLoader(context, null);
-                return docId -> {
-                    leafLoader.advanceTo(docId);
-                    var storedFields = leafLoader.storedFields();
-                    if (names.length == 1) {
-                        return storedFields.get(names[0]);
-                    }
-
-                    List<Object> values = new ArrayList<>();
-                    for (var name : names) {
-                        var currValues = storedFields.get(name);
-                        if (currValues != null) {
-                            values.addAll(currValues);
-                        }
-                    }
-
-                    return values;
-                };
-            };
-        }
-
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> combineFieldFetchers(
-            IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> primaryFetcher,
-            IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> secondaryFetcher
-        ) {
-            return context -> {
-                var primaryGetter = primaryFetcher.apply(context);
-                var secondaryGetter = secondaryFetcher.apply(context);
-                return docId -> {
-                    List<Object> values = new ArrayList<>();
-                    var primary = primaryGetter.apply(docId);
-                    if (primary != null) {
-                        values.addAll(primary);
-                    }
-
-                    var secondary = secondaryGetter.apply(docId);
-                    if (secondary != null) {
-                        values.addAll(secondary);
-                    }
-
-                    assert primary != null || secondary != null;
-
-                    return values;
-                };
-            };
         }
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {

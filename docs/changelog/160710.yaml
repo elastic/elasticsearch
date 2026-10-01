@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160710
+summary: Run LOAD_ALL expansion as a coordinator-driver operator
+type: enhancement

@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -74,6 +75,25 @@ public class ViewUnionAll extends UnionAll {
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
     public Map<String, LogicalPlan> namedSubqueries() {
         return namedSubqueries;
+    }
+
+    /**
+     * Returns whether {@code other} has the same keys in the same order and the same plan instances.
+     */
+    public boolean hasSameNamedSubqueries(SequencedMap<String, LogicalPlan> other) {
+        if (namedSubqueries.size() != other.size()) {
+            return false;
+        }
+        Iterator<Map.Entry<String, LogicalPlan>> currentEntries = namedSubqueries.entrySet().iterator();
+        Iterator<Map.Entry<String, LogicalPlan>> otherEntries = other.entrySet().iterator();
+        while (currentEntries.hasNext()) {
+            Map.Entry<String, LogicalPlan> currentEntry = currentEntries.next();
+            Map.Entry<String, LogicalPlan> otherEntry = otherEntries.next();
+            if (Objects.equals(currentEntry.getKey(), otherEntry.getKey()) == false || currentEntry.getValue() != otherEntry.getValue()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

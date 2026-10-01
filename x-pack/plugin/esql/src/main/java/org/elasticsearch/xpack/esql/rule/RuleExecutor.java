@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -142,7 +141,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     TreeType afterRule = transform(rule).apply(currentPlan);
                     currentPlan = afterRule;
 
-                    if (Objects.equals(beforeRule, afterRule) == false) {
+                    if (beforeRule != afterRule) {
+                        assert beforeRule.equals(afterRule) == false
+                            : "expected changes; but no change with rule [" + rule.name() + "] on plan [" + beforeRule + "]";
                         hasChanged = true;
                         if (lastAppliedRules.size() == LAST_APPLIED_RULES_TO_REPORT) {
                             lastAppliedRules.removeFirst();

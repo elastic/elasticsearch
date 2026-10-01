@@ -399,6 +399,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 return survivingPlan;
             }
         }
+        if (vua.hasSameNamedSubqueries(flat) && vua.viewBranchKeys().equals(flatViewBranchKeys)) {
+            return vua;
+        }
         return new ViewUnionAll(vua.source(), flat, flatViewBranchKeys, vua.output());
     }
 

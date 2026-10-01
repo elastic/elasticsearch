@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -94,6 +95,24 @@ public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerif
 
     public MapExpression options() {
         return options;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        Fuse fuse = (Fuse) o;
+        return Objects.equals(score, fuse.score)
+            && Objects.equals(discriminator, fuse.discriminator)
+            && Objects.equals(keys, fuse.keys)
+            && fuseType == fuse.fuseType
+            && Objects.equals(options, fuse.options);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), score, discriminator, keys, fuseType, options);
     }
 
     @Override

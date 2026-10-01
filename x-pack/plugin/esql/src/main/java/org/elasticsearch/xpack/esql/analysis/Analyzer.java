@@ -232,6 +232,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
@@ -1421,8 +1422,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             // to get resolved in the next iteration.
                             // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
                             if (allGroupingsResolved || maybeResolved.resolved()) {
-                                changed.set(true);
                                 ne = maybeResolved;
+                                if (ne != ua) {
+                                    changed.set(true);
+                                }
                             }
                             return ne;
                         });
@@ -1450,6 +1453,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
+            if (prompt == p.prompt() && targetField == p.targetField()) {
+                return p;
+            }
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
         }
 
@@ -1717,9 +1723,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         ? config.rightFields()
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
-                config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
                 var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
+                if (sameElements(leftKeys, config.leftFields())
+                    && sameElements(rightKeys, config.rightFields())
+                    && Objects.equals(joinOnConditions, config.joinOnConditions())
+                    && newLookupJoinMode == join.executesOn()) {
+                    return join;
+                }
+                config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
             } else {
                 // everything else is unsupported for now
@@ -1804,12 +1816,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 subqueryJoin.config().joinOnConditions()
             );
 
+            if (sameElements(leftKeys, subqueryJoin.config().leftFields())
+                && sameElements(rightFields, subqueryJoin.config().rightFields())
+                && right == subqueryJoin.right()) {
+                return subqueryJoin;
+            }
             if (subqueryJoin instanceof MarkJoin markJoin) {
                 return new MarkJoin(markJoin.source(), markJoin.left(), right, joinConfig, markJoin.markAttribute());
             }
             return subqueryJoin instanceof AntiJoin
                 ? new AntiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig)
                 : new SemiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig);
+        }
+
+        private static boolean sameElements(List<?> left, List<?> right) {
+            if (left.size() != right.size()) {
+                return false;
+            }
+            for (int i = 0; i < left.size(); i++) {
+                if (left.get(i) != right.get(i)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private static List<Attribute> resolveRightFields(AbstractSubqueryJoin semiJoin) {
@@ -2306,9 +2335,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 score = maybeResolveAttribute((UnresolvedAttribute) score, childrenOutput);
             }
             if (score instanceof UnresolvedAttribute ua && score.name().equals(MetadataAttribute.SCORE)) {
-                score = ua.withUnresolvedMessage(
-                    "FUSE requires a score column, default [" + MetadataAttribute.SCORE + "] column not found."
-                );
+                String message = "FUSE requires a score column, default [" + MetadataAttribute.SCORE + "] column not found.";
+                score = message.equals(ua.unresolvedMessage()) ? ua : ua.withUnresolvedMessage(message);
             }
 
             Attribute discriminator = fuse.discriminator();
@@ -2316,9 +2344,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
             }
             if (discriminator instanceof UnresolvedAttribute ua && discriminator.name().equals(Fork.FORK_FIELD)) {
-                discriminator = ua.withUnresolvedMessage(
-                    "FUSE requires a column to group by, default [" + Fork.FORK_FIELD + "] column not found."
-                );
+                String message = "FUSE requires a column to group by, default [" + Fork.FORK_FIELD + "] column not found.";
+                discriminator = message.equals(ua.unresolvedMessage()) ? ua : ua.withUnresolvedMessage(message);
             }
 
             List<NamedExpression> keys = fuse.keys().stream().map(attr -> {
@@ -2328,17 +2355,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attr = maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput);
 
                 if (attr instanceof UnresolvedAttribute ua && ua.name().equals(IdFieldMapper.NAME)) {
-                    return ua.withUnresolvedMessage("FUSE requires a key column, default [" + IdFieldMapper.NAME + "] column not found");
+                    String message = "FUSE requires a key column, default [" + IdFieldMapper.NAME + "] column not found";
+                    return message.equals(ua.unresolvedMessage()) ? ua : ua.withUnresolvedMessage(message);
                 }
 
                 if (attr instanceof UnresolvedAttribute ua && ua.name().equals(MetadataAttribute.INDEX)) {
-                    return ua.withUnresolvedMessage(
-                        "FUSE requires a key column, default [" + MetadataAttribute.INDEX + "] column not found"
-                    );
+                    String message = "FUSE requires a key column, default [" + MetadataAttribute.INDEX + "] column not found";
+                    return message.equals(ua.unresolvedMessage()) ? ua : ua.withUnresolvedMessage(message);
                 }
 
                 return attr;
             }).toList();
+            boolean keysChanged = false;
+            for (int i = 0; i < keys.size(); i++) {
+                if (keys.get(i) != fuse.keys().get(i)) {
+                    keysChanged = true;
+                    break;
+                }
+            }
 
             // some attributes were unresolved or the wrong type
             // we return Fuse here so that the Verifier can raise an error message
@@ -2347,6 +2381,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 || discriminator instanceof UnresolvedAttribute
                 || (discriminator.resolved() && DataType.isString(discriminator.dataType()) == false)
                 || keys.stream().allMatch(attr -> attr.resolved() && DataType.isString(attr.dataType())) == false) {
+                if (score == fuse.score() && discriminator == fuse.discriminator() && keysChanged == false) {
+                    return fuse;
+                }
                 return new Fuse(fuse.source(), fuse.child(), score, discriminator, keys, fuse.fuseType(), fuse.options());
             }
 
@@ -2962,7 +2999,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             var name = ua.name();
-            UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
+            String message = messageProducer.apply(StringUtils.findSimilar(name, names));
+            UnresolvedAttribute unresolved = message.equals(ua.unresolvedMessage()) ? ua : ua.withUnresolvedMessage(message);
             matches = singletonList(unresolved);
         }
         return matches;

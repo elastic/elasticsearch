@@ -223,14 +223,20 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof MergePlan merge) {
-            var newChildren = merge.children().stream().map(child -> {
+            List<LogicalPlan> newChildren = new ArrayList<>(merge.children().size());
+            boolean changed = false;
+            for (LogicalPlan child : merge.children()) {
                 LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
-                return annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated;
-            }).toList();
-            return merge.replaceChildren(newChildren);
+                LogicalPlan newChild = annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated;
+                newChildren.add(newChild);
+                changed |= newChild != child;
+            }
+            return changed ? merge.replaceChildren(newChildren) : merge;
         }
         if (plan instanceof AbstractSubqueryJoin join) {
-            return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
+            LogicalPlan left = annotate(join.left(), pattern);
+            LogicalPlan right = annotate(join.right(), UnmappedFieldsPattern.NONE);
+            return left == join.left() && right == join.right() ? join : join.replaceChildren(left, right);
         }
         if (pattern.isNone()) {
             return plan;
@@ -241,7 +247,14 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
-        return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
+        List<LogicalPlan> newChildren = new ArrayList<>(plan.children().size());
+        boolean changed = false;
+        for (LogicalPlan child : plan.children()) {
+            LogicalPlan newChild = annotate(child, pattern);
+            newChildren.add(newChild);
+            changed |= newChild != child;
+        }
+        return changed ? plan.replaceChildren(newChildren) : plan;
     }
 
     private static EsRelation stamp(EsRelation esr, UnmappedFieldsPattern pattern) {

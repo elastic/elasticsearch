@@ -1534,6 +1534,115 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(eq(1_800_000L), anyLong());
     }
 
+    public void testEsqlRestartWithCheckpointBeyondRevertedLatestRecordShouldReplayFromAlignedLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        // a model snapshot revert rewrote the data counts to hour 3 (the start of the last analysed grouping interval)
+        // while the persisted source checkpoint is still at hour 10
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 3 * hour, 10 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithUnalignedLatestRecordShouldReplayFromNextGroupingIntervalBoundary() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 3 * hour + 20 * 60_000L, 10 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithCheckpointBeforeLatestRecordShouldResumeFromCheckpoint() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 9 * hour, 4 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithoutLatestRecordShouldResumeFromCheckpoint() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        // the builder passes -1 when the data counts hold no latest_record_time (for example a snapshot without one)
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, -1L, 10 * hour, checkpoint -> {});
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(10 * hour), anyLong());
+    }
+
+    public void testEsqlRestartWithoutCheckpointShouldIgnoreLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, 3 * hour, null, checkpoint -> {});
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(0L), anyLong());
+    }
+
+    public void testEsqlCheckpointCommitAfterRestartShouldNotBeLoweredByRestartLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        List<Long> persistedSourceEnds = new ArrayList<>();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(
+            60_000L,
+            0L,
+            hour,
+            3 * hour,
+            10 * hour,
+            checkpoint -> persistedSourceEnds.add(checkpoint.getSourceEndMs())
+        );
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        assertThat(persistedSourceEnds, equalTo(List.of(12 * hour)));
+
+        // the restart-time latest record only lowers the first resume point; later cycles continue from the committed checkpoint
+        currentTime = 13 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(eq(12 * hour), eq(13 * hour));
+    }
+
+    public void testClassicRestartShouldNotUseEsqlCheckpointRules() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createDatafeedJob(60_000L, 0L, 3 * hour, 3 * hour, true);
+        assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(3 * hour + 1), anyLong());
+    }
+
     public void testEsqlLookbackShouldResumeFromPersistedCheckpointNotEmittedLatestRecord() throws Exception {
         long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
         when(dataExtractor.hasNext()).thenReturn(false);
@@ -1785,6 +1894,17 @@ public class DatafeedJobTests extends ESTestCase {
         @Nullable Long esqlSourceEndMs,
         @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister
     ) {
+        return createEsqlDatafeedJob(frequencyMs, queryDelayMs, groupingIntervalMs, 7_200_000L, esqlSourceEndMs, checkpointPersister);
+    }
+
+    private DatafeedJob createEsqlDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long groupingIntervalMs,
+        long latestRecordTimeMs,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister
+    ) {
         String fingerprint = EsqlDatafeedSourceCheckpoint.computeFingerprint(
             "FROM logs",
             "@timestamp",
@@ -1795,7 +1915,7 @@ public class DatafeedJobTests extends ESTestCase {
             frequencyMs,
             queryDelayMs,
             -1,
-            7_200_000L,
+            latestRecordTimeMs,
             false,
             DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
             new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),

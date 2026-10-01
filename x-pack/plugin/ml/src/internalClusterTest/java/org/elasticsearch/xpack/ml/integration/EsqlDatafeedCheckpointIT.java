@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
@@ -43,8 +46,11 @@ import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -70,6 +76,7 @@ public class EsqlDatafeedCheckpointIT extends MlSingleNodeTestCase {
     private JobResultsPersister resultsPersister;
     private JobResultsProvider resultsProvider;
     private ThreadPool threadPool;
+    private ResultsPersisterService resultsPersisterService;
 
     @Before
     public void setUpComponents() throws Exception {
@@ -95,12 +102,7 @@ public class EsqlDatafeedCheckpointIT extends MlSingleNodeTestCase {
             )
         );
         ClusterService clusterService = new ClusterService(settingsBuilder.build(), clusterSettings, threadPool, null);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
-            threadPool,
-            originClient,
-            clusterService,
-            settingsBuilder.build()
-        );
+        resultsPersisterService = new ResultsPersisterService(threadPool, originClient, clusterService, settingsBuilder.build());
         resultsPersister = new JobResultsPersister(originClient, resultsPersisterService);
         resultsProvider = new JobResultsProvider(client(), Settings.EMPTY, TestIndexNameExpressionResolver.newInstance());
     }
@@ -189,6 +191,69 @@ public class EsqlDatafeedCheckpointIT extends MlSingleNodeTestCase {
         EsqlDatafeedSourceCheckpoint newest = persistCheckpoint(jobId, datafeedId, 10_800_000L, WriteRequest.RefreshPolicy.NONE);
 
         assertCheckpointLoaded(jobId, newest.getSourceEndMs(), newest.getFingerprint());
+    }
+
+    /**
+     * Replays the persistence steps of {@code TransportRevertModelSnapshotAction} with {@code delete_intervening_results}
+     * (delete the results after the snapshot, rewrite the data counts to the snapshot's latest record time) and checks the
+     * state an ES|QL datafeed restart starts from: the source checkpoint survives the revert while the data counts latest
+     * record time is rewound, which is what lets {@code DatafeedJob.esqlResumePointMs} resume at the reverted range. The
+     * resume rule itself is covered by DatafeedJobTests; a full run/revert/restart needs the native autodetect process,
+     * which is not available in this single-node test.
+     */
+    public void testRevertWithInterveningResultsDeletedShouldKeepCheckpointAndRewindLatestRecordTime() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        String jobId = createJob();
+        String datafeedId = datafeedIdFor(jobId);
+        EsqlDatafeedSourceCheckpoint checkpoint = persistCheckpoint(jobId, datafeedId, 6 * hour, WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int h = 1; h <= 5; h++) {
+            indexBucket(jobId, h * hour);
+        }
+        JobDataCountsPersister dataCountsPersister = new JobDataCountsPersister(
+            client(),
+            resultsPersisterService,
+            mock(AnomalyDetectionAuditor.class)
+        );
+        DataCounts counts = new DataCounts(jobId);
+        counts.setLatestRecordTimeStamp(new Date(5 * hour));
+        assertTrue(dataCountsPersister.persistDataCounts(jobId, counts, true));
+        refreshResultsIndex(jobId);
+        assertThat(restartTimeInfo(jobId).getLatestRecordTimeMs(), equalTo(5 * hour));
+        assertThat(bucketCount(jobId), equalTo(5L));
+
+        // revert to a snapshot taken at hour 2
+        PlainActionFuture<Boolean> deleted = new PlainActionFuture<>();
+        new JobDataDeleter(originClient, jobId).deleteResultsFromTime(2 * hour + 1, deleted);
+        deleted.actionGet();
+        DataCounts revertedCounts = new DataCounts(jobId);
+        revertedCounts.setLatestRecordTimeStamp(new Date(2 * hour));
+        PlainActionFuture<Boolean> persisted = new PlainActionFuture<>();
+        dataCountsPersister.persistDataCountsAsync(jobId, revertedCounts, persisted);
+        persisted.actionGet();
+        refreshResultsIndex(jobId);
+
+        assertThat(bucketCount(jobId), equalTo(2L));
+        assertThat(restartTimeInfo(jobId).getLatestRecordTimeMs(), equalTo(2 * hour));
+        assertCheckpointLoaded(jobId, 6 * hour, checkpoint.getFingerprint());
+    }
+
+    private RestartTimeInfo restartTimeInfo(String jobId) {
+        PlainActionFuture<RestartTimeInfo> future = new PlainActionFuture<>();
+        resultsProvider.getRestartTimeInfo(jobId, future);
+        return future.actionGet();
+    }
+
+    private long bucketCount(String jobId) {
+        SearchResponse response = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setQuery(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE))
+            .setSize(0)
+            .setTrackTotalHits(true)
+            .get();
+        try {
+            return response.getHits().getTotalHits().value();
+        } finally {
+            response.decRef();
+        }
     }
 
     /**

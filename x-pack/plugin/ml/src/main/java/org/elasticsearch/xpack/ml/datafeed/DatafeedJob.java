@@ -183,9 +183,32 @@ class DatafeedJob {
         this.isEsqlDatafeed = isEsqlDatafeed;
         this.groupingIntervalMs = groupingIntervalMs;
         this.esqlCheckpointFingerprint = esqlCheckpointFingerprint;
-        this.esqlSourceEndMs = esqlSourceEndMs;
+        this.esqlSourceEndMs = isEsqlDatafeed
+            ? esqlResumePointMs(esqlSourceEndMs, latestRecordTimeMs, groupingIntervalMs)
+            : esqlSourceEndMs;
         this.esqlSourceCheckpointPersister = esqlSourceCheckpointPersister;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
+    }
+
+    /**
+     * The point an ES|QL datafeed resumes from at start: the persisted source checkpoint, lowered to the first grouping
+     * interval boundary after the job's data counts {@code latest_record_time} when that is earlier. A model snapshot
+     * revert rewrites the data counts (and deletes the results) back to the snapshot, but leaves the source checkpoint
+     * untouched, so without this the reverted range would never be re-analysed. ES|QL rows are stamped with the start of
+     * their grouping interval, so the interval holding the latest record is already analysed and the next one is the
+     * first to replay (the equivalent of the {@code latest_record_time + 1} resume of non-ES|QL datafeeds).
+     * It is applied once, at construction; later cycles resume from the checkpoint the job commits itself.
+     *
+     * @param checkpointSourceEndMs the persisted checkpoint, or {@code null} when there is none
+     * @param latestRecordTimeMs    the data counts latest record time, or a negative value when absent
+     * @return the resume point, or {@code null} when there is no checkpoint
+     */
+    @Nullable
+    static Long esqlResumePointMs(@Nullable Long checkpointSourceEndMs, long latestRecordTimeMs, long groupingIntervalMs) {
+        if (checkpointSourceEndMs == null || latestRecordTimeMs < 0 || groupingIntervalMs <= 0) {
+            return checkpointSourceEndMs;
+        }
+        return Math.min(checkpointSourceEndMs, Intervals.alignToCeil(latestRecordTimeMs + 1, groupingIntervalMs));
     }
 
     void isolate() {

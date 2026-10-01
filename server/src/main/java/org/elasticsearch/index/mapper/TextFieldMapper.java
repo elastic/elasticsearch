@@ -1244,7 +1244,8 @@ public final class TextFieldMapper extends FieldMapper {
          * none of its own, in its parent's.
          */
         private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
-            if (strictColumnar == false || getTextSearchInfo().hasPositions()) {
+            // The confirmation runs over the documents the field's own terms match, so it needs those terms.
+            if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {
                 return false;
             }
             return hasDocValues() || readsParentValues(context);

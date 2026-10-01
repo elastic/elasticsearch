@@ -174,6 +174,16 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         );
     }
 
+    /** With no terms there is nothing to confirm over, so the field refuses however many values it keeps. */
+    public void testWithoutTermsItRefuses() throws IOException {
+        assertRefuses(
+            createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+                mapping(b -> b.startObject("body").field("type", "text").field("index", false).endObject())
+            )
+        );
+    }
+
     private void assertRefuses(MapperService mapperService) {
         assertRefuses(mapperService, "body");
     }

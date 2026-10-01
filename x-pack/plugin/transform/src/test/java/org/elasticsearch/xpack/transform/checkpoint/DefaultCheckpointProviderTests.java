@@ -463,6 +463,23 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(CheckpointProvider.getIndexCheckpointsTimeout(-1).millis(), equalTo(TimeValue.timeValueSeconds(30).millis()));
     }
 
+    public void testGetIndexCheckpointsTimeoutUsesConfiguredMinimum() {
+        TimeValue fiveMinutes = TimeValue.timeValueMinutes(5);
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(fiveMinutes, 0).millis(), equalTo(fiveMinutes.millis()));
+        assertThat(
+            CheckpointProvider.getIndexCheckpointsTimeout(fiveMinutes, 1).millis(),
+            equalTo(TimeValue.timeValueMinutes(10).millis())
+        );
+        assertThat(
+            CheckpointProvider.getIndexCheckpointsTimeout(TimeValue.timeValueHours(12), 0).millis(),
+            equalTo(TimeValue.timeValueHours(12).millis())
+        );
+        assertThat(
+            CheckpointProvider.getIndexCheckpointsTimeout(TimeValue.timeValueHours(12), 3).millis(),
+            equalTo(TimeValue.timeValueHours(12).millis())
+        );
+    }
+
     public void testCreateNextCheckpointPassesTimeoutToGetCheckpointRequest() throws InterruptedException {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);

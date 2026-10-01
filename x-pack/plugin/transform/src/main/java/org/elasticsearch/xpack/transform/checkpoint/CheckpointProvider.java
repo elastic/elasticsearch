@@ -26,15 +26,24 @@ public interface CheckpointProvider {
     TimeValue MAX_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
 
     /**
-     * {@code 30s * 2^failureCount}, capped at 12h.
+     * {@code minTimeout * 2^failureCount}, capped at 12h. Null/non-positive {@code minTimeout} uses 30s.
      */
     static TimeValue getIndexCheckpointsTimeout(int failureCount) {
+        return getIndexCheckpointsTimeout(null, failureCount);
+    }
+
+    static TimeValue getIndexCheckpointsTimeout(TimeValue minTimeout, int failureCount) {
+        long maxMillis = MAX_GET_INDEX_CHECKPOINTS_TIMEOUT.millis();
+        long baseMillis = minTimeout == null || minTimeout.millis() <= 0 ? MIN_GET_INDEX_CHECKPOINTS_TIMEOUT.millis() : minTimeout.millis();
+        if (baseMillis >= maxMillis) {
+            return MAX_GET_INDEX_CHECKPOINTS_TIMEOUT;
+        }
         // Cap the shift to avoid overflow (same bound as TransformSchedulingUtils).
-        long timeoutMillis = Math.min(
-            MIN_GET_INDEX_CHECKPOINTS_TIMEOUT.millis() << Math.min(Math.max(failureCount, 0), 32),
-            MAX_GET_INDEX_CHECKPOINTS_TIMEOUT.millis()
-        );
-        return TimeValue.timeValueMillis(timeoutMillis);
+        int shift = Math.min(Math.max(failureCount, 0), 32);
+        if (shift > 0 && baseMillis > (maxMillis >> shift)) {
+            return MAX_GET_INDEX_CHECKPOINTS_TIMEOUT;
+        }
+        return TimeValue.timeValueMillis(Math.min(baseMillis << shift, maxMillis));
     }
 
     /**

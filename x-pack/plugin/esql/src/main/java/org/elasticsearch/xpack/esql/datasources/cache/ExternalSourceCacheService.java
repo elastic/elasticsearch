@@ -866,14 +866,22 @@ public class ExternalSourceCacheService implements Closeable {
      * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
      * sibling path's earlier commit weight-evicted this path's entry out of the cache before its stats
      * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
-     * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
-     * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
-     * its delta just because another twin survived. A live entry always wins over its snapshot
+     * {@code (path, mtime, fingerprint)} can live under several keys (the identity each participant
+     * reports is a key component but not a fingerprint input), and a partial sweep evicting one twin
+     * must not forfeit its delta just because another twin survived. A live entry always wins over its snapshot
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
      * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
      * revive a live match already gets. Must run holding the
      * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
      * this method returns.
+     * <p>
+     * <b>Returns nothing when the matches disagree about what they were derived from.</b> A contribution says which
+     * path, at which mtime, under which format config — never which store. Two data sources over different stores
+     * serving one bucket and key agree on all three, because object-store {@code Last-Modified} is second-granular,
+     * so both their entries match and whichever harvest arrives would be written into both: one store's row count
+     * read back as the other's. Nothing here can tell which of them the contribution came from, so it enriches
+     * neither and both reads re-scan. A safe miss, like every other gate on this path, and it costs warmth only in
+     * the case that would otherwise be wrong — a single store's twins share an identity and are unaffected.
      */
     private List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> collectMatchingEntries(
         String path,
@@ -908,6 +916,22 @@ public class ExternalSourceCacheService implements Closeable {
             }
             if (recovered > 0) {
                 logger.debug("recovering [{}] cache entries for [{}] swept by a sibling commit", recovered, path);
+            }
+        }
+        if (matches.size() > 1) {
+            Set<String> identities = new HashSet<>();
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matches) {
+                identities.add(match.getKey().identity());
+            }
+            if (identities.size() > 1) {
+                logger.debug(
+                    "refusing to enrich [{}] entries for [{}]: they were derived under [{}] different identities "
+                        + "and a contribution does not say which",
+                    matches.size(),
+                    path,
+                    identities.size()
+                );
+                return List.of();
             }
         }
         return matches;

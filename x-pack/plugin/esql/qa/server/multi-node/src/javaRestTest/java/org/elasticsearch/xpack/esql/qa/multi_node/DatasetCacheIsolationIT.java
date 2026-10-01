@@ -208,6 +208,20 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
             ROWS_B,
             countB
         );
+
+        // Reading B must not have rewritten A's record. Both datasets name one bucket and key on two stores, and
+        // both blobs are written in the same second, so the two entries agree on path, mtime and format config --
+        // everything a contribution carries. The harvest from B therefore matches A's entry as well, and before the
+        // enrichment path refused an ambiguous match it was written into both: A re-queried answered ROWS_B.
+        assertBusy(() -> assertCoordinatorWarm("FROM " + DATASET_B + " | STATS count = COUNT(*)"), 30, TimeUnit.SECONDS);
+        long countAAgain = count("FROM " + DATASET_A + " | STATS count = COUNT(*)");
+        assertEquals(
+            "Dataset A re-queried after B must still report its own row count; "
+                + ROWS_B
+                + " means B's harvest was enriched into A's cache entry",
+            ROWS_A,
+            countAAgain
+        );
     }
 
     /**

@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -218,7 +219,18 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         indexDocuments(documents);
 
-        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
+        // "method" is drawn randomly per document, so query for a value that is actually present to guarantee at least one hit.
+        final List<Object> methods = new ArrayList<>();
+        for (XContentBuilder document : documents) {
+            Object value = XContentHelper.convertToMap(BytesReference.bytes(document), true, XContentType.JSON).v2().get("method");
+            if (value != null) {
+                methods.add(value);
+            }
+        }
+        assertFalse("no generated document has a [method] field", methods.isEmpty());
+        final Object method = randomFrom(methods);
+
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", method))
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()

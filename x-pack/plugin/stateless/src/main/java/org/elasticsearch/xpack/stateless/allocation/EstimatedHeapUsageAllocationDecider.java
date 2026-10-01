@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  */
 public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAllocationDecider {
 
-    public static final String NAME = "estimated_heap";
+    private static final String NAME = "estimated_heap";
     private static final String DESCRIPTION = "estimated heap";
 
     public static final Setting<RatioValue> CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK = Setting.ratioSetting(

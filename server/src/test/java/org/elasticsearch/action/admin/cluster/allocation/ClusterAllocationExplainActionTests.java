@@ -51,8 +51,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -142,7 +140,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NO.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemain(), equalTo(false));
-        assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision(), isNoDecision());
+        assertThat(
+            allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision().type(),
+            equalTo(Decision.Type.NO)
+        );
         assertThat(
             "All other potential nodes should be not-preferred, resulting in an overall not-preferred relocation",
             allocationExplanation.getShardAllocationDecision().getMoveDecision().getAllocationDecision(),
@@ -196,7 +197,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
-        assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision(), isNotPreferredDecision());
+        assertThat(
+            allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision().type(),
+            equalTo(Decision.Type.NOT_PREFERRED)
+        );
         assertThat(
             "All other potential nodes should be not-preferred, resulting in an overall not-preferred relocation",
             allocationExplanation.getShardAllocationDecision().getMoveDecision().getAllocationDecision(),
@@ -248,7 +252,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
-        assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision(), isNotPreferredDecision());
+        assertThat(
+            allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision().type(),
+            equalTo(Decision.Type.NOT_PREFERRED)
+        );
         assertThat(
             "All other potential nodes should be YES, resulting in an overall YES move decision",
             allocationExplanation.getShardAllocationDecision().getMoveDecision().getAllocationDecision(),
@@ -298,7 +305,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
-        assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision(), isNotPreferredDecision());
+        assertThat(
+            allocationExplanation.getShardAllocationDecision().getMoveDecision().getCanRemainDecision().type(),
+            equalTo(Decision.Type.NOT_PREFERRED)
+        );
         assertThat(
             "All other potential nodes should be throttled, resulting in an overall throttled relocation",
             allocationExplanation.getShardAllocationDecision().getMoveDecision().getAllocationDecision(),

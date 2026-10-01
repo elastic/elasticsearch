@@ -63,7 +63,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
@@ -320,9 +319,11 @@ public class AllocationServiceTests extends ESTestCase {
 
         for (NodeAllocationResult nodeAllocationResult : shardAllocationDecision.getAllocateDecision().nodeDecisions) {
             assertThat(nodeAllocationResult.getNodeDecision(), equalTo(AllocationDecision.NO));
-            assertThat(nodeAllocationResult.getCanAllocateDecision(), isNoDecisionWithExplanationMatching("allocator_plugin", equalTo("""
+            assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
+            assertThat(nodeAllocationResult.getCanAllocateDecision().label(), equalTo("allocator_plugin"));
+            assertThat(nodeAllocationResult.getCanAllocateDecision().getExplanation(), equalTo("""
                 finding the previous copies of this shard requires an allocator called [unknown] but that allocator was not found; \
-                perhaps the corresponding plugin is not installed""")));
+                perhaps the corresponding plugin is not installed"""));
         }
     }
 

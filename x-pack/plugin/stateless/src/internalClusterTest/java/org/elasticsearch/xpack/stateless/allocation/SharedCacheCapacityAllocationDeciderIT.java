@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -158,7 +157,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             .getShardAllocationDecision()
             .getMoveDecision()
             .getCanRemainDecision();
-        assertThat(canRemainDecision, isNotPreferredDecision(SharedCacheCapacityAllocationDecider.NAME));
+        assertThat(canRemainDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertTrue(
             canRemainDecision.getDecisions()
                 .stream()
@@ -487,7 +486,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             .getShardAllocationDecision()
             .getMoveDecision()
             .getCanRemainDecision();
-        assertThat(canRemainDecision, isNotPreferredDecision(SharedCacheCapacityAllocationDecider.NAME));
+        assertThat(canRemainDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertTrue(
             canRemainDecision.getDecisions()
                 .stream()

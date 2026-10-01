@@ -30,4 +30,8 @@ public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterF
         return new ScandinavianNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

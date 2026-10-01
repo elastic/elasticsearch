@@ -56,8 +56,9 @@ import java.util.function.Predicate;
  * <p>
  * A runtime search that adds to {@code _score} only does so after the filter holding it has run (see
  * {@link FullTextFunction#containsRuntimeScorer}). So {@code _score} predicates are split out of such a filter into one
- * above it, where they see the search's score, and are never pushed back below it. As with a search on an indexed
- * field, which scores at the source, this holds whichever order adjacent filters were written in.
+ * above it, where they see the search's score, and are never pushed back below it. Adjacent filters keep their pipe
+ * order: a {@code _score} predicate written before a runtime search is not combined into it, so it still sees the score
+ * from before the search.
  */
 public final class PushDownAndCombineFilters extends OptimizerRules.ParameterizedOptimizerRule<Filter, LogicalOptimizerContext> {
 
@@ -80,8 +81,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
         // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
-            // A _score predicate over a runtime scorer is already where it belongs; combining would only split it back out.
-            if (isScorePredicateOverRuntimeScorer(f.condition(), condition) == false) {
+            // Combining would evaluate a _score predicate before a runtime scorer it follows, or (once split back out)
+            // after one it precedes.
+            if (scoreOrderMatters(f.condition(), condition) == false) {
                 // combine nodes into a single Filter with updated ANDed condition
                 plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
             }
@@ -163,8 +165,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         return filter.with(filter.with(filter.child(), Predicates.combineAnd(rest)), Predicates.combineAnd(scorePredicates));
     }
 
-    private static boolean isScorePredicateOverRuntimeScorer(Expression lower, Expression upper) {
-        return FullTextFunction.containsRuntimeScorer(lower) && referencesScore(upper);
+    private static boolean scoreOrderMatters(Expression lower, Expression upper) {
+        return FullTextFunction.containsRuntimeScorer(lower) && referencesScore(upper)
+            || FullTextFunction.containsRuntimeScorer(upper) && referencesScore(lower);
     }
 
     private static boolean referencesScore(Expression expression) {

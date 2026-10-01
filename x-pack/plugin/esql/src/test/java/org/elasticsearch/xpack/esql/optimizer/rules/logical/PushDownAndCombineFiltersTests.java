@@ -401,18 +401,19 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     // ... | eval content = <text> | where _score > 1.5 | where match(content, "fox")
-    // => ... | eval content = <text> | where match(content, "fox") | where _score > 1.5
-    public void testScorePredicateBeforeRuntimeScorerEndsUpAboveIt() {
+    // => ... | where _score > 1.5 | eval content = <text> | where match(content, "fox")
+    public void testScorePredicateBeforeRuntimeScorerStaysBelowIt() {
         MetadataAttribute score = scoreAttribute();
-        Eval eval = runtimeTextEval(relation(List.of(score)));
+        EsRelation relation = relation(List.of(score));
+        Eval eval = runtimeTextEval(relation);
         Match match = runtimeMatch(eval);
         GreaterThan scoreCondition = greaterThanOf(score, new Literal(EMPTY, 1.5, DataType.DOUBLE));
         Filter filter = new Filter(EMPTY, new Filter(EMPTY, eval, scoreCondition), match);
 
-        // As on an indexed field, adjacent filters mean the same in either order: the first pass combines them, the second
-        // splits the _score predicate back out above the match.
+        // In pipe order the _score predicate runs before the match, so it must not combine with it (and then be split out
+        // above it); it still pushes down past the eval.
         PushDownAndCombineFilters rule = new PushDownAndCombineFilters();
-        LogicalPlan expected = new Filter(EMPTY, new Filter(EMPTY, eval, match), scoreCondition);
+        LogicalPlan expected = new Filter(EMPTY, new Eval(EMPTY, new Filter(EMPTY, relation, scoreCondition), eval.fields()), match);
         assertEquals(expected, rule.apply(rule.apply(filter, optimizerContext), optimizerContext));
     }
 

@@ -127,7 +127,6 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
@@ -309,10 +308,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
 
-            this.ignoreAbove = Parameter.ignoreAboveParam(
-                m -> toType(m).fieldType().ignoreAbove().get(),
-                IGNORE_ABOVE_SETTING.get(indexSettings.getSettings())
-            );
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).fieldType().ignoreAbove().get(), indexSettings.getIgnoreAbove());
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.isWithinMultiField = isWithinMultiField;
             this.indexSettings = indexSettings;

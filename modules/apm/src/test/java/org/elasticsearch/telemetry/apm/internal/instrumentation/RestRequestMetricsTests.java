@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class RestRequestMetricsTests extends ESTestCase {
 
@@ -64,9 +65,13 @@ public class RestRequestMetricsTests extends ESTestCase {
         var request = request(RestRequest.Method.GET, "/_search");
 
         metrics.start(ctx, request, "/_search");
-        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+        var end = metrics.prepareEnd(ctx, request, response(RestStatus.OK));
 
         assertThat(recordings(), empty());
+
+        end.close();
+
+        assertThat(recordings(), hasSize(1));
     }
 
     public void test_nullRoute_noRecording() {

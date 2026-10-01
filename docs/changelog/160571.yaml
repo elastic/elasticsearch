@@ -1,5 +1,5 @@
 area: Inference
-issues: [153028]
+issues: []
 pr: 160571
 summary: "[Inference API] Default new `SageMaker` openai `text_embedding` to cosine\
   \ similarity"

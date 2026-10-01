@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
@@ -121,6 +122,18 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             assertThat(path.evaluate("data.result.1.metric.__name__"), equalTo("http_requests_total"));
             assertThat(path.evaluate("data.result.1.metric.job"), equalTo("prometheus"));
             assertThat(path.evaluate("data.result.1.metric.instance"), nullValue());
+        }
+    }
+
+    /** Prometheus renders a string result as {@code [<unix_time>, "<string>"]}. */
+    public void testBuildStringResult() throws IOException {
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.buildStringResult(Instant.parse("2025-01-01T00:00:00Z"), "a string")
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertThat(path.evaluate("status"), equalTo("success"));
+            assertThat(path.evaluate("data.resultType"), equalTo("string"));
+            assertThat(path.evaluate("data.result"), equalTo(List.of(1735689600.0, "a string")));
         }
     }
 

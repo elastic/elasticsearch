@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.prometheus;
 
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -85,6 +86,20 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
             path.evaluate("data.result.0.values"),
             equalTo(List.of(List.of(1767225600.0, "3.14"), List.of(1767225660.0, "3.14"), List.of(1767225720.0, "3.14")))
         );
+    }
+
+    /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
+    public void testQueryRangeStringLiteralIsRejected() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be Scalar or instant Vector"));
     }
 
     public void testQueryRangeWithIngestedData() throws Exception {

@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -103,6 +104,75 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
                 assertThat(((Number) row.get(0)).longValue(), equalTo((long) rowsPerFile));
             }
         }
+    }
+
+    /**
+     * A {@code first_file_wins} dataset's columns do not depend on the query's filter.
+     * <p>
+     * The mode answers the schema from one file, and which file is the dataset's business: the front of
+     * resolution's listing, with the query's partition-filter hints withheld from it
+     * ({@code ExternalSourceResolver#listAndRecord}). So a filter that selects a later partition does not move the
+     * schema to that partition's file. Where the files disagree about their columns that is visible — a column only
+     * the selected partition carries is absent — and it is the intended trade: the alternative is a dataset whose
+     * column set changes with the {@code WHERE} clause, so two queries differing only in their filter disagree
+     * about what the dataset is.
+     * <p>
+     * A cluster test because the unit doubles cannot reach it. Hint pruning runs in {@code GlobExpander}'s
+     * directory walk, which needs {@code listChildren}, and the stubs in {@code ExternalSourceResolverTests}
+     * return {@code null} for it — so a unit test of this passes whether the hints are withheld or not. Removing
+     * the withholding makes the second assertion below fail.
+     */
+    public void testADatasetsColumnsDoNotDependOnTheQuerysFilter() throws Exception {
+        Path dir = createTempDir();
+        Path earliest = dir.resolve("year=2019");
+        Path selected = dir.resolve("year=2024");
+        Files.createDirectories(earliest);
+        Files.createDirectories(selected);
+        // The dataset's first key carries only id. The partition the filter selects carries a column it does not.
+        writeParquet(earliest.resolve("part-000.parquet"), "message test { required int64 id; }", 5, 5, (g, i) -> g.add("id", (long) i));
+        writeParquet(
+            selected.resolve("part-000.parquet"),
+            "message test { required int64 id; required binary added_in_2023 (UTF8); }",
+            5,
+            5,
+            (g, i) -> {
+                g.add("id", (long) i);
+                g.add("added_in_2023", "v" + i);
+            }
+        );
+
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("partition_detection", "hive");
+        settings.put("partition_sample_size", 1);
+        String dataset = registerLocalFileDataset("filtered_anchor_ds", dir.toUri() + "**/*.parquet", settings);
+
+        // The dataset's own columns, with no filter to influence them.
+        List<String> unfiltered;
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 10"))) {
+            unfiltered = response.columns().stream().map(c -> c.name()).toList();
+        }
+        // The same dataset, filtered to the partition whose file carries a column the other does not.
+        List<String> filtered;
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 2024 | LIMIT 10"))) {
+            filtered = response.columns().stream().map(c -> c.name()).toList();
+        }
+        logger.info("SCHEMA unfiltered={} filtered={}", unfiltered, filtered);
+
+        // The invariant, and the only thing asserted: the filter does not change what the dataset's columns are.
+        // Which of the two files defines them is the dataset's business and is not asserted — under the default
+        // file order (FileOrderConfig.DEFAULT is SortBy.LIST, whose apply() is a no-op) it is whichever key the
+        // provider listed first, which a local filesystem does not promise to keep stable. Asserting a column list
+        // here would pin that order and make this test flaky; asserting the two agree does not.
+        assertThat(
+            "a dataset's column set must not depend on the query's filter: keeping the filter on the schema's "
+                + "listing would make these two disagree, so the same dataset would answer differently to two "
+                + "queries that differ only in their WHERE clause",
+            filtered,
+            equalTo(unfiltered)
+        );
+        assertThat("and the rows the filter selects still come back", unfiltered, hasItem("id"));
     }
 
     public void testEveryFileIsReadWhenTheSchemaListingWasAPrefixOfAPartitionedDataset() throws Exception {

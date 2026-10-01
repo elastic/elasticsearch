@@ -84,7 +84,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        return new TimeSeriesReader(breaker, metadataFields);
     }
 
     @Override
@@ -111,31 +111,33 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private final Set<String> metadataFields;
+        private final XContentParserConfiguration filter;
+
+        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields) {
             super(breaker);
+            this.metadataFields = metadataFields;
+            this.filter = XContentParserConfiguration.EMPTY.withFiltering(null, metadataFields, Set.of(), false);
         }
 
         /**
-         * Returns source bytes normalized to JSON.
+         * Returns the source restricted to this loader's fields, as JSON.
          *
          * The {@code _timeseries} keyword column is documented as a JSON-encoded object containing
          * the dimension key/value pairs that identify a time series. Synthetic source already
          * reconstructs as JSON, but stored source preserves the original content type. For example,
          * documents written through the Prometheus remote-write endpoint may be stored as CBOR.
          *
-         * If the source is already JSON, this method returns the original bytes to avoid an
-         * unnecessary parser/builder round trip.
+         * The source handed to {@link #read} is loaded once for every field read alongside, over the
+         * union of their source paths, so it may carry dimensions this loader excludes (a second
+         * {@code _timeseries} column with fewer exclusions read from the same document). The filter
+         * makes each column exactly its own view.
          */
-        private static BytesReference toJson(Source source) throws IOException {
+        private BytesReference toJson(Source source) throws IOException {
             BytesReference bytes = source.internalSourceRef();
             XContentType contentType = source.sourceContentType();
-
-            if (contentType == XContentType.JSON) {
-                return bytes;
-            }
-
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, contentType);
+                XContentParser parser = XContentHelper.createParserNotCompressed(filter, bytes, contentType);
                 XContentBuilder json = XContentFactory.jsonBuilder()
             ) {
                 parser.nextToken();

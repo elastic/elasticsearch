@@ -13,8 +13,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -22,9 +20,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
-import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
-import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
 import java.util.Collection;
 import java.util.List;
@@ -36,11 +33,10 @@ import java.util.List;
  */
 public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
-    private static final Logger logger = LogManager.getLogger(QuerySamplingPlugin.class);
-
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
     private static final int MAX_DISTINCT_QUERIES = 100_000;
+    private static final int TIER1_CAPACITY = 10_000;
     private static final double ACCEPTANCE_SCALE = 1.0;
     private static final long HEAD_THRESHOLD = 100;
 
@@ -71,14 +67,12 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES);
-        QuerySampler sampler = new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get());
-        CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), captured -> {
-            TrackedQuery tracked = tracker.record(QueryFingerprint.of(captured.query()));
-            if (tracked != null && sampler.offer(tracked)) {
-                logger.trace("sampled kNN search on field [{}], seen {} times", captured.query().field(), tracked.multiplicity());
-            }
-        });
+        SamplingPipeline pipeline = new SamplingPipeline(
+            new MultiplicityTracker(MAX_DISTINCT_QUERIES),
+            new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),
+            new Tier1Buffer(TIER1_CAPACITY)
+        );
+        CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         captureFilter.set(new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff));
         return List.of();
     }

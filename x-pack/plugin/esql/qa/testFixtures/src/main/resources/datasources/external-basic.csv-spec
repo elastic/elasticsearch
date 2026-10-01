@@ -1193,8 +1193,8 @@ FROM employees_no_mv
 | STATS avg_emp_no=AVG(emp_no)
 ;
 
-warning:line 2:1: approximation not supported: query with [FROM employees_no_mv] cannot be approximated
+approximation_applied: false
 
-avg_emp_no:double
-10050.5
+avg_emp_no:double | _approximation_confidence_interval(avg_emp_no):double | _approximation_certified(avg_emp_no):boolean
+10050.5           | [10050.5,10050.5]                                     | true
 ;

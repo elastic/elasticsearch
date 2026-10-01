@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -115,6 +116,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(Dissect.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Enrich.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(EsRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(ExternalRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Eval.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Filter.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Fork.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),

@@ -1035,7 +1035,6 @@ public class ActionModule extends AbstractModule {
         ActionPlugin.RestHandlersServices restHandlersServices = new ActionPlugin.RestHandlersServices(
             settings,
             restController,
-            clusterService,
             projectResolver,
             crossProjectModeDecider
         );

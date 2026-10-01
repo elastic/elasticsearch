@@ -21,6 +21,7 @@ apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-function'
 apply plugin: 'elasticsearch.esql-release'
+apply plugin: 'elasticsearch.benchmark'
 
 versions << [
   'hadoop': '3.4.3',

@@ -66,101 +66,79 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     }
 
     /**
-     * Check that the deprecated "nGram" filter throws exception for indices created since 7.0.0 and
-     * logs a warning for earlier indices when the filter is used as a custom filter
+     * Check that the deprecated "nGram" filter logs a warning for indices created before 8.0 and throws an
+     * exception for indices created since, even when an older index already built the same analyzer
      */
     public void testNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
-        final Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current())
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
-            .put("index.analysis.filter.my_ngram.type", "nGram")
-            .build();
-
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin)
-            );
-            assertEquals(
-                "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                    + "Please change the filter name to [ngram] instead.",
-                ex.getMessage()
-            );
-        }
-
-        final Settings settingsPre7 = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_6_0)
-            )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
-            .put("index.analysis.filter.my_ngram.type", "nGram")
-            .build();
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
-            assertWarnings(
-                "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                    + "Please change the filter name to [ngram] instead."
-            );
-        }
+        assertDeprecatedFilterName("nGram", "ngram");
     }
 
     /**
-     * Check that the deprecated "edgeNGram" filter throws exception for indices created since 7.0.0 and
-     * logs a warning for earlier indices when the filter is used as a custom filter
+     * Check that the deprecated "edgeNGram" filter logs a warning for indices created before 8.0 and throws an
+     * exception for indices created since, even when an older index already built the same analyzer
      */
     public void testEdgeNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
-        final Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current())
-            )
+        assertDeprecatedFilterName("edgeNGram", "edge_ngram");
+    }
+
+    private void assertDeprecatedFilterName(String type, String replacement) throws IOException {
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Settings analysis = Settings.builder()
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
-            .put("index.analysis.filter.my_ngram.type", "edgeNGram")
+            .put("index.analysis.filter.my_ngram.type", type)
             .build();
-
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin)
-            );
-            assertEquals(
-                "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                    + "Please change the filter name to [edge_ngram] instead.",
-                ex.getMessage()
-            );
-        }
-
-        final Settings settingsPre7 = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+        Settings settingsPre7 = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
                 IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_6_0)
             )
-            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
-            .put("index.analysis.filter.my_ngram.type", "edgeNGram")
+            .put(analysis)
+            .build();
+        Settings settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current())
+            )
+            .put(analysis)
             .build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
-            assertWarnings(
-                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                    + "Please change the filter name to [edge_ngram] instead."
-            );
+            // One registry for both indices, older one first, so a shared analyzer cache could let the newer index skip the check.
+            AnalysisRegistry registry = new AnalysisModule(
+                TestEnvironment.newEnvironment(nodeSettings),
+                List.of(commonAnalysisPlugin),
+                new StablePluginsRegistry()
+            ).getAnalysisRegistry();
+            try (
+                IndexAnalyzers ignored = registry.build(
+                    IndexCreationContext.CREATE_INDEX,
+                    IndexSettingsModule.newIndexSettings("index_pre7", settingsPre7)
+                )
+            ) {
+                assertWarnings(
+                    "The ["
+                        + type
+                        + "] token filter name is deprecated and will be removed in a future version. "
+                        + "Please change the filter name to ["
+                        + replacement
+                        + "] instead."
+                );
+                IllegalArgumentException ex = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> registry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", settings))
+                );
+                assertEquals(
+                    "The ["
+                        + type
+                        + "] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                        + "Please change the filter name to ["
+                        + replacement
+                        + "] instead.",
+                    ex.getMessage()
+                );
+            }
         }
     }
 

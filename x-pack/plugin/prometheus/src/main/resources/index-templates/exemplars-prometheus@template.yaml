@@ -1,0 +1,24 @@
+---
+version: ${xpack.prometheus.template.version}
+index_patterns: ["exemplars-*.prometheus-*"]
+priority: 140
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Default Prometheus metric exemplars template installed by x-pack
+  managed: true
+# Exemplar data streams use the same label mappings as metrics data streams so that their time series
+# dimensions match. The metric_name alias identifies the metric associated with the value field.
+composed_of:
+  - exemplars@settings
+  - metrics-prometheus@settings
+  - exemplars-prometheus@mappings
+  - exemplars@custom
+  - exemplars-prometheus@custom
+ignore_missing_component_templates:
+  - exemplars@custom
+  - exemplars-prometheus@custom
+template:
+  settings:
+    index:
+      mode: time_series

@@ -31,7 +31,7 @@ public record QueryFingerprint(long high, long low) {
 
     public static QueryFingerprint of(CapturedQuery query) {
         byte[] field = query.field().getBytes(StandardCharsets.UTF_8);
-        // filters are combined with AND, so their order is not part of the query's identity
+        // This is considering that filters are combined with AND, so their order is not part of the query's identity
         List<byte[]> filters = query.filters().stream().map(QueryFingerprint::canonical).sorted(Arrays::compareUnsigned).toList();
 
         int size = Integer.BYTES + field.length + Integer.BYTES + Float.BYTES * query.queryVector().length;

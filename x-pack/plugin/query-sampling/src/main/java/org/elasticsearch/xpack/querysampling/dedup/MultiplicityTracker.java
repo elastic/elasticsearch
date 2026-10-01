@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -22,7 +24,7 @@ import java.util.concurrent.atomic.LongAdder;
 public final class MultiplicityTracker {
 
     private final int maxDistinct;
-    private final Map<QueryFingerprint, Long> multiplicities = new ConcurrentHashMap<>();
+    private final Map<QueryFingerprint, TrackedQuery> queries = new ConcurrentHashMap<>();
     private final LongAdder untracked = new LongAdder();
 
     public MultiplicityTracker(int maxDistinct) {
@@ -30,22 +32,28 @@ public final class MultiplicityTracker {
     }
 
     /**
-     * Records one more arrival of the query.
+     * Records one more arrival of the query. Must only be called from one thread at a time.
      *
-     * @return how many times the query has been seen including this arrival, or 0 if the tracker is full
-     *         and the query was not known before
+     * @return the query with its multiplicity including this arrival, or {@code null} if the tracker is
+     *         full and the query was not known before
      */
-    public long record(QueryFingerprint fingerprint) {
-        // only the single consumer thread records, so the size check cannot race with another insert
-        if (multiplicities.size() >= maxDistinct && multiplicities.containsKey(fingerprint) == false) {
-            untracked.increment();
-            return 0;
+    @Nullable
+    public TrackedQuery record(QueryFingerprint fingerprint) {
+        TrackedQuery query = queries.get(fingerprint);
+        if (query == null) {
+            if (queries.size() >= maxDistinct) {
+                untracked.increment();
+                return null;
+            }
+            query = new TrackedQuery();
+            queries.put(fingerprint, query);
         }
-        return multiplicities.merge(fingerprint, 1L, Long::sum);
+        query.recordArrival();
+        return query;
     }
 
     public int distinct() {
-        return multiplicities.size();
+        return queries.size();
     }
 
     public long untracked() {

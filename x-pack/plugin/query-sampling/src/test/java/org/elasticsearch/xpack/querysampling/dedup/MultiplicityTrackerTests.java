@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.querysampling.dedup;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MultiplicityTrackerTests extends ESTestCase {
 
@@ -18,10 +20,12 @@ public class MultiplicityTrackerTests extends ESTestCase {
         QueryFingerprint a = new QueryFingerprint(1, 1);
         QueryFingerprint b = new QueryFingerprint(2, 2);
 
-        assertThat(tracker.record(a), equalTo(1L));
-        assertThat(tracker.record(a), equalTo(2L));
-        assertThat(tracker.record(b), equalTo(1L));
-        assertThat(tracker.record(a), equalTo(3L));
+        TrackedQuery first = tracker.record(a);
+        assertThat(first.multiplicity(), equalTo(1L));
+        assertThat(tracker.record(a), sameInstance(first));
+        assertThat(first.multiplicity(), equalTo(2L));
+        assertThat(tracker.record(b).multiplicity(), equalTo(1L));
+        assertThat(tracker.record(a).multiplicity(), equalTo(3L));
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(0L));
@@ -30,12 +34,12 @@ public class MultiplicityTrackerTests extends ESTestCase {
     public void testStopsTrackingNewQueriesWhenFull() {
         MultiplicityTracker tracker = new MultiplicityTracker(2);
         QueryFingerprint known = new QueryFingerprint(1, 1);
-        assertThat(tracker.record(known), equalTo(1L));
-        assertThat(tracker.record(new QueryFingerprint(2, 2)), equalTo(1L));
+        tracker.record(known);
+        tracker.record(new QueryFingerprint(2, 2));
 
-        assertThat(tracker.record(new QueryFingerprint(3, 3)), equalTo(0L));
-        assertThat(tracker.record(new QueryFingerprint(4, 4)), equalTo(0L));
-        assertThat("queries that are already known keep being counted", tracker.record(known), equalTo(2L));
+        assertThat(tracker.record(new QueryFingerprint(3, 3)), nullValue());
+        assertThat(tracker.record(new QueryFingerprint(4, 4)), nullValue());
+        assertThat("queries that are already known keep being counted", tracker.record(known).multiplicity(), equalTo(2L));
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(2L));

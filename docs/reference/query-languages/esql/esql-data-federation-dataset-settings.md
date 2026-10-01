@@ -277,8 +277,10 @@ $$$csv-delimiter$$$
 
     - **Default:** `,` for CSV, `\t` for TSV
     - **Valid values:**
-      - A single character, or one of `\t`, `\n`, `\r`, `\\`
+      - A single ASCII character other than a line feed or carriage return. Write a tab as `\t` and a backslash as `\\`.
       - {applies_to}`stack: experimental 9.6+` Multi-character values are rejected when you create or update the dataset.
+    - **Conflicts with:** The `quote` character when quoting is on, and the `escape` character when escaping is on
+    - **Related:** `quote`, `escape`
 
 $$$csv-mode$$$
 
@@ -359,11 +361,14 @@ $$$csv-quote$$$
 
     - **Default:** `"` for CSV. Quoting is off for TSV.
     - **Valid values:**
-      - A single character, or one of `\t`, `\n`, `\r`, `\\`
+      - A single ASCII character other than a line feed or carriage return. Write a tab as `\t` and a backslash as `\\`.
       - `none` to turn off quoting
       - {applies_to}`stack: experimental 9.6+` Multi-character values are rejected when you create or update the dataset.
-    - **Conflicts with:** {applies_to}`stack: experimental 9.6+` `mode` set to `escaped`
-    - **Related:** `mode`, `escape`
+    - **Conflicts with:**
+      - The `delimiter` character
+      - The `escape` character, when escaping is on
+      - {applies_to}`stack: experimental 9.6+` `mode` set to `escaped`
+    - **Related:** `mode`, `escape`, `delimiter`
 
     An explicit value overrides the `mode` preset.
 
@@ -374,10 +379,13 @@ $$$csv-escape$$$
 
     - **Default:** `\` for CSV. Escaping is off for TSV.
     - **Valid values:**
-      - A single character, or one of `\t`, `\n`, `\r`, `\\`
+      - A single ASCII character other than a line feed or carriage return. Write a tab as `\t` and a backslash as `\\`.
       - `none` to turn off escaping
       - {applies_to}`stack: experimental 9.6+` Multi-character values are rejected when you create or update the dataset.
-    - **Related:** `mode`, `quote`
+    - **Conflicts with:**
+      - The `delimiter` character
+      - The `quote` character, when quoting is on
+    - **Related:** `mode`, `quote`, `delimiter`
 
     An explicit value overrides the `mode` preset.
 

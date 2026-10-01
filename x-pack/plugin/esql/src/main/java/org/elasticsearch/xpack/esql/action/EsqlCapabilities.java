@@ -4235,8 +4235,8 @@ public class EsqlCapabilities {
 
         /**
          * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
-         * {@code MATCH_PHRASE} or {@code KNN} over it adds its per-row score rather than returning {@code null}. Older
-         * nodes still answer {@code null}. See elastic/esql-planning#1976.
+         * {@code MATCH_PHRASE} over it adds its per-row score rather than returning {@code null}. Older nodes still
+         * answer {@code null}.
          */
         EXTERNAL_SOURCE_SCORE_FIX,
 

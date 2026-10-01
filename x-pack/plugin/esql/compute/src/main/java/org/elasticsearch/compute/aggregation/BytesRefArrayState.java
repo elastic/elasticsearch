@@ -172,11 +172,9 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     @Override
     public void close() {
-        for (int i = 0; i < values.size(); i++) {
-            Releasables.closeWhileHandlingException(values.get(i));
-        }
-
-        Releasables.close(values);
+        // Releases every group's builder plus the values array itself, batching the breaker
+        // release into a single call rather than one per group.
+        BreakingBytesRefBuilder.closeAll(values);
     }
 
     private static long bytesUsedByPointerPage(int length) {

@@ -51,7 +51,8 @@ final class GenericFileList implements FileList {
     /**
      * @param truncated whether listing stopped at a bound before the end of the glob, so {@code files} is a
      *                  prefix of what the pattern matches. See {@link FileList#isTruncated()} for the
-     *                  invariants that keep such a list away from the listing cache and from row reads.
+     *                  invariant that keeps such a list out of the listing cache, and what a reading query
+     *                  handed one owes it.
      */
     GenericFileList(
         List<StorageEntry> files,
@@ -63,9 +64,18 @@ final class GenericFileList implements FileList {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(files.size())
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + files.size() + "]";
         this.files = files;
         this.originalPattern = originalPattern;
-        this.partitionMetadata = partitionMetadata;
+        // A truncated listing publishes its partition columns but not its per-file values, for the same reason the
+        // fingerprint below is withheld: PartitionMetadata#nullablePartitionColumns reads those values as evidence
+        // about the whole matched fileset, so over a prefix it proves a column non-null from a fraction of the data
+        // and the attribute built from it hands the optimizer a promise the data does not keep. The columns stay —
+        // which they are and what each holds is the schema's answer, and a mode that bounds its listing is a mode
+        // that answers the schema from part of the dataset by design. A scan's per-file values come from the scan's
+        // own listing; see SplitDiscoveryContext#withScanFileSet.
+        this.partitionMetadata = truncated && partitionMetadata != null ? partitionMetadata.withoutPerFileEvidence() : partitionMetadata;
         // The fingerprint only ever keys a dataset aggregate, which requires a multi-file listing
         // (see ExternalSourceResolver#datasetAggregateKey — fileCount >= 2). Skip the Murmur3 fold for
         // single-file listings so the common single-file resolve does not pay for machinery it cannot use.
@@ -122,7 +132,7 @@ final class GenericFileList implements FileList {
     @Override
     public long estimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
-        return 64 + files.size() * 700L + listingWarningBytes();
+        return 64 + files.size() * FileList.LISTING_BYTES_PER_ENTRY + listingWarningBytes();
     }
 
     @Override

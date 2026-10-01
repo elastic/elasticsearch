@@ -1523,6 +1523,15 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
 
         /**
+         * Fix for a conversion function above a {@code UnionAll} that resolves on a later analyzer pass than an equal one already
+         * pushed down into the branches, e.g. because an unmapped field under {@code unmapped_fields} delays its resolution.
+         * {@code ResolveUnionTypesInUnionAll} must reuse the existing synthetic {@code $$<field>$converted_to$<type>} union output
+         * instead of pushing another same-named alias on every pass, which made the Resolution batch loop until the rule
+         * execution limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_CONVERSION_RESOLVED_ON_LATER_PASS,
+
+        /**
          * Support nested non-correlated subqueries in the FROM command.
          */
         NESTED_SUBQUERY_IN_FROM_COMMAND,
@@ -1686,6 +1695,12 @@ public class EsqlCapabilities {
          * Makes views not visible on remote clusters / linked projects
          */
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
+
+        /**
+         * Support for the {@code wildcards_match_views} query setting, which lets wildcard
+         * patterns in {@code FROM} match registered views.
+         */
+        VIEWS_MATCH_WILDCARDS,
 
         /**
          * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
@@ -3310,6 +3325,12 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -3598,6 +3619,19 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Support for {@code FROM} subqueries under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
+         * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
+         * See https://github.com/elastic/elasticsearch/issues/158466.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3746,6 +3780,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
+         * PromQL math and arithmetic now preserve non-finite IEEE-754 results ({@code NaN}, {@code +Inf},
+         * {@code -Inf}) instead of dropping the series, matching Prometheus. Affects e.g. {@code metric * Inf},
+         * {@code metric * NaN}, {@code metric / 0}, {@code metric % 0}, {@code sqrt(-x)}, {@code ln(-x)},
+         * {@code log2(-x)}, {@code log10(-x)}, and {@code clamp(metric, max, min)} when {@code min > max}.
+         */
+        PROMQL_NON_FINITE_MATH,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
@@ -3775,6 +3817,11 @@ public class EsqlCapabilities {
          * Support for the {@code HIGHLIGHT} command.
          */
         HIGHLIGHT_V6,
+
+        /**
+         * Support for deriving the {@code HIGHLIGHT} query and target fields, including {@code ON *}.
+         */
+        HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -4120,6 +4167,16 @@ public class EsqlCapabilities {
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
         /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps declared columns absent from the inferred
+         * schema when the schema is sample-derived (NDJSON, headerless CSV/TSV), instead of rejecting them with
+         * "declared columns not found in the source". The reader then looks them up by name and null-fills records that
+         * do not carry the field. Gates tests that exercise this behaviour so they are skipped against old coordinators
+         * that still throw on sparse declared columns.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/159997">#159997</a>.
+         */
+        FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
+
+        /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
          * Older coordinators omit those columns from star expansion, so a later reference fails
          * verification with {@code Unknown column [_file.*]}. Tests that read the column after
@@ -4156,6 +4213,19 @@ public class EsqlCapabilities {
          * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
          */
         TOPN_PREFILTER_LONG,
+
+        /**
+         * A GROK typed capture (eg. {@code %{NUMBER:n:int}}) that matches a value it cannot convert
+         * (eg. "1.5" as int) now treats the row as a failed match (null values plus a warning) instead
+         * of failing the whole query.
+         */
+        GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * Full-text functions ({@code :}, {@code MATCH}, {@code MATCH_PHRASE}, {@code KNN}) can search fields of a
+         * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
+         */
+        FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

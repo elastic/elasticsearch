@@ -221,16 +221,8 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Float.BYTES * length);
     }
 
-    private static int partitionSize(int minSize) {
-        return ArrayUtil.oversize(minSize, Float.BYTES);
-    }
-
-    private static int partitionValuesLength(int partitionSize) {
-        return partitionSize;
-    }
-
-    private static int partitionCapacity(float[] values) {
-        return values.length;
+    private static long bytesUsedByPartitionPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Float.BYTES * length);
     }
 
     private static long bytesUsedBySeenPage(int length) {
@@ -247,9 +239,9 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
 
         private FloatPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
             baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
-            long pageBytes = bytesUsedByPage(partitionValuesLength(partitionSize)) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
             breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new float[NUM_PARTITIONS][partitionValuesLength(partitionSize)];
+            values = new float[NUM_PARTITIONS][partitionSize];
             seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
         }
 
@@ -262,7 +254,7 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
         public void releasePartition(CircuitBreaker breaker, int partition) {
             long usedBytes = 0;
             if (values[partition] != null) {
-                usedBytes += bytesUsedByPage(values[partition].length);
+                usedBytes += bytesUsedByPartitionPage(values[partition].length);
                 values[partition] = null;
             }
             if (seen != null && seen[partition] != null) {
@@ -277,7 +269,7 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
             long usedBytes = baseBytes;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 if (values[p] != null) {
-                    usedBytes += bytesUsedByPage(values[p].length);
+                    usedBytes += bytesUsedByPartitionPage(values[p].length);
                     values[p] = null;
                 }
                 if (seen != null && seen[p] != null) {
@@ -295,7 +287,7 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
 
         private FloatPartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = partitionSize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)));
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Float.BYTES);
             partitionedState = new FloatPartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
         }
 
@@ -317,7 +309,7 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
                     final int id = firstId + shiftedIds[base + i];
                     if (hasValue(id)) {
                         assert id < capacity : id + ">=" + capacity;
-                        setPartitionValue(partitionedState.values[p], offset + i, get(id));
+                        partitionedState.values[p][offset + i] = get(id);
                         partitionedState.seen[p][offset + i] = true;
                     }
                 }
@@ -336,25 +328,20 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
                     assert id < capacity : id + ">=" + capacity;
-                    setPartitionValue(partitionedState.values[p], offset + i, get(id));
+                    partitionedState.values[p][offset + i] = get(id);
                 }
             }
         }
 
-        private static void setPartitionValue(float[] values, int index, float value) {
-            values[index] = value;
-        }
-
         private void ensurePartitionCapacity(int partition, int minSize) {
             final float[] oldValues = partitionedState.values[partition];
-            if (partitionCapacity(oldValues) >= minSize) {
+            if (oldValues.length >= minSize) {
                 return;
             }
-            final int newSize = partitionSize(minSize);
-            final int newLength = partitionValuesLength(newSize);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPage(newLength), FloatPartitionedState.LABEL);
-            partitionedState.values[partition] = Arrays.copyOf(oldValues, newLength);
-            partitionBreaker.addWithoutBreaking(-bytesUsedByPage(oldValues.length));
+            final int newSize = ArrayUtil.oversize(minSize, Float.BYTES);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), FloatPartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
 
             if (partitionedState.seen != null) {
                 final boolean[] oldSeen = partitionedState.seen[partition];

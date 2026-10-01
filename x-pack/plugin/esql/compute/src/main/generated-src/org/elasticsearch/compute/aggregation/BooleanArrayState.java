@@ -228,20 +228,8 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * length);
     }
 
-    /**
-     * Partition buffers use the same bitset layout as the pages: one bit per group, packed into longs.
-     * Partition sizes are multiples of {@code Long.SIZE} so the values and {@code seen} buffers cover the same groups.
-     */
-    private static int partitionSize(int minSize) {
-        return (ArrayUtil.oversize(minSize, Byte.BYTES) + Long.SIZE - 1) & -Long.SIZE;
-    }
-
-    private static int partitionValuesLength(int partitionSize) {
-        return partitionSize >>> 6;
-    }
-
-    private static int partitionCapacity(long[] values) {
-        return values.length << 6;
+    private static long bytesUsedByPartitionPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Byte.BYTES * length);
     }
 
     private static long bytesUsedBySeenPage(int length) {
@@ -253,14 +241,14 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         private static final String LABEL = "BooleanArrayState#partition";
 
         private final long baseBytes;
-        private final long[][] values;
+        private final boolean[][] values;
         private final boolean[][] seen;
 
         private BooleanPartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
             baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
-            long pageBytes = bytesUsedByPage(partitionValuesLength(partitionSize)) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
             breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new long[NUM_PARTITIONS][partitionValuesLength(partitionSize)];
+            values = new boolean[NUM_PARTITIONS][partitionSize];
             seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
         }
 
@@ -273,7 +261,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         public void releasePartition(CircuitBreaker breaker, int partition) {
             long usedBytes = 0;
             if (values[partition] != null) {
-                usedBytes += bytesUsedByPage(values[partition].length);
+                usedBytes += bytesUsedByPartitionPage(values[partition].length);
                 values[partition] = null;
             }
             if (seen != null && seen[partition] != null) {
@@ -288,7 +276,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
             long usedBytes = baseBytes;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 if (values[p] != null) {
-                    usedBytes += bytesUsedByPage(values[p].length);
+                    usedBytes += bytesUsedByPartitionPage(values[p].length);
                     values[p] = null;
                 }
                 if (seen != null && seen[p] != null) {
@@ -306,7 +294,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
 
         private BooleanPartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = partitionSize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)));
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Byte.BYTES);
             partitionedState = new BooleanPartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
         }
 
@@ -328,7 +316,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
                     final int id = firstId + shiftedIds[base + i];
                     if (hasValue(id)) {
                         assert id < capacity : id + ">=" + capacity;
-                        setPartitionValue(partitionedState.values[p], offset + i, get(id));
+                        partitionedState.values[p][offset + i] = get(id);
                         partitionedState.seen[p][offset + i] = true;
                     }
                 }
@@ -347,30 +335,20 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
                     assert id < capacity : id + ">=" + capacity;
-                    setPartitionValue(partitionedState.values[p], offset + i, get(id));
+                    partitionedState.values[p][offset + i] = get(id);
                 }
             }
         }
 
-        /**
-         * Buffers are zero-initialized and each slot is written once, so only {@code true} needs to be recorded.
-         */
-        private static void setPartitionValue(long[] values, int index, boolean value) {
-            if (value) {
-                values[index >>> 6] |= 1L << index;
-            }
-        }
-
         private void ensurePartitionCapacity(int partition, int minSize) {
-            final long[] oldValues = partitionedState.values[partition];
-            if (partitionCapacity(oldValues) >= minSize) {
+            final boolean[] oldValues = partitionedState.values[partition];
+            if (oldValues.length >= minSize) {
                 return;
             }
-            final int newSize = partitionSize(minSize);
-            final int newLength = partitionValuesLength(newSize);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPage(newLength), BooleanPartitionedState.LABEL);
-            partitionedState.values[partition] = Arrays.copyOf(oldValues, newLength);
-            partitionBreaker.addWithoutBreaking(-bytesUsedByPage(oldValues.length));
+            final int newSize = ArrayUtil.oversize(minSize, Byte.BYTES);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), BooleanPartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
 
             if (partitionedState.seen != null) {
                 final boolean[] oldSeen = partitionedState.seen[partition];
@@ -400,7 +378,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         return new BooleanPartitionSplitter(breaker);
     }
 
-    long[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+    boolean[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
         return ((BooleanPartitionedState) source).values[partition];
     }
 
@@ -409,13 +387,13 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         return seen == null ? null : seen[partition];
     }
 
-    void appendPartition(long[] src, int firstId, int length) {
+    void appendPartition(boolean[] src, int firstId, int length) {
         final int end = firstId + length;
         assert end <= capacity : end + " > " + capacity;
         for (int id = firstId, i = 0; id < end; id++, i++) {
             final long[] page = pages[id >>> PAGE_SHIFT];
             final int word = (id & PAGE_MASK) >>> 6;
-            if ((src[i >>> 6] & (1L << i)) != 0) {
+            if (src[i]) {
                 page[word] |= 1L << id;
             } else {
                 page[word] &= ~(1L << id);

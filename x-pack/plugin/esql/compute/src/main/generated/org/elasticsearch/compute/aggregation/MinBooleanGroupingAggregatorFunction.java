@@ -418,21 +418,21 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
     if (length == 0) {
       return;
     }
-    long[] values = state.partitionValues(source, partition);
+    boolean[] values = state.partitionValues(source, partition);
     boolean[] seen = state.partitionSeen(source, partition);
     if (seen == null) {
       if (appendOnly) {
         state.appendPartition(values, dstIds[0], length);
       } else {
         for (int i = 0; i < length; i++) {
-          MinBooleanAggregator.combine(state, dstIds[i], (values[i >>> 6] & (1L << i)) != 0);
+          MinBooleanAggregator.combine(state, dstIds[i], values[i]);
         }
       }
       return;
     }
     for (int i = 0; i < length; i++) {
       if (seen[i]) {
-        MinBooleanAggregator.combine(state, dstIds[i], (values[i >>> 6] & (1L << i)) != 0);
+        MinBooleanAggregator.combine(state, dstIds[i], values[i]);
       }
     }
   }

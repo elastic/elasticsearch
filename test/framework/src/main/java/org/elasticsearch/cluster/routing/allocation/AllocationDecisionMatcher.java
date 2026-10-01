@@ -33,7 +33,11 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
     }
 
     public static AllocationDecisionMatcher isNoDecision() {
-        return new AllocationDecisionMatcher(Decision.Type.NO, any(String.class), anyOf(any(String.class), nullValue(String.class)));
+        return new AllocationDecisionMatcher(
+            Decision.Type.NO,
+            anyOf(any(String.class), nullValue(String.class)),
+            anyOf(any(String.class), nullValue(String.class))
+        );
     }
 
     public static AllocationDecisionMatcher isNoDecision(String expectedLabel) {
@@ -51,7 +55,7 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
     public static AllocationDecisionMatcher isNotPreferredDecision() {
         return new AllocationDecisionMatcher(
             Decision.Type.NOT_PREFERRED,
-            any(String.class),
+            anyOf(any(String.class), nullValue(String.class)),
             anyOf(any(String.class), nullValue(String.class))
         );
     }

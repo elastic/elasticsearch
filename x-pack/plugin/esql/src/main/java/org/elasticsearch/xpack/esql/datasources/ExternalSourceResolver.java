@@ -362,6 +362,14 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Listing weight plus the per-file schema-map allowance reserved before reconciliation.
+     * Visible for tests that pin the charge at the discovered-files cap.
+     */
+    public static long listingPlanningCharge(FileList listing) {
+        return listing.planningBytes() + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
+    }
+
+    /**
      * Reserves the per-file schema map this listing will carry. The listing's own entries were reserved as they
      * were listed ({@link #planningMemory()}); this is the map built over them afterwards, whose size is known
      * only once the listing is complete.

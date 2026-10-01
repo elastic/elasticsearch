@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
@@ -18,12 +19,14 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -40,11 +43,11 @@ public final class QueryCaptureFilter implements MappedActionFilter {
 
     private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
 
-    private final Consumer<CapturedQuery> consumer;
+    private final Consumer<CapturedSearch> consumer;
     private volatile boolean enabled;
     private volatile double captureRate;
 
-    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedQuery> consumer) {
+    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer) {
         this.consumer = consumer;
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, value -> this.captureRate = value);
@@ -63,18 +66,48 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
+        ActionListener<Response> searchListener = listener;
         if (enabled && request instanceof SearchRequest searchRequest && task.getParentTaskId().isSet() == false) {
             KnnSearchBuilder knn = eligibleKnn(searchRequest);
             if (knn != null && Randomness.get().nextDouble() < captureRate) {
                 try {
-                    consumer.accept(capture(task, searchRequest, knn));
+                    searchListener = withResults(listener, capture(task, searchRequest, knn));
                 } catch (Exception e) {
                     // capturing must never fail the search
                     logger.debug("failed to capture kNN search", e);
                 }
             }
         }
-        chain.proceed(task, action, request, listener);
+        chain.proceed(task, action, request, searchListener);
+    }
+
+    /**
+     * Wraps the listener so the response is copied before it goes back to the user. Failed searches have
+     * nothing to learn from and are not captured.
+     */
+    private <Response extends ActionResponse> ActionListener<Response> withResults(ActionListener<Response> listener, CapturedQuery query) {
+        return listener.delegateFailure((l, response) -> {
+            if (response instanceof SearchResponse searchResponse) {
+                try {
+                    consumer.accept(captureResults(query, searchResponse));
+                } catch (Exception e) {
+                    logger.debug("failed to capture kNN search results", e);
+                }
+            }
+            l.onResponse(response);
+        });
+    }
+
+    /**
+     * Copies what is needed out of the response: it is ref-counted, so it cannot be kept past this call.
+     */
+    private static CapturedSearch captureResults(CapturedQuery query, SearchResponse response) {
+        SearchHit[] searchHits = response.getHits().getHits();
+        List<CapturedSearch.Hit> hits = new ArrayList<>(searchHits.length);
+        for (SearchHit hit : searchHits) {
+            hits.add(new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()));
+        }
+        return new CapturedSearch(query, hits, response.getTookInMillis());
     }
 
     private static KnnSearchBuilder eligibleKnn(SearchRequest request) {

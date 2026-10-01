@@ -40,7 +40,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
         captureFilter.set(
             new QueryCaptureFilter(
                 services.clusterService().getClusterSettings(),
-                captured -> logger.trace("captured kNN search on field [{}] of {}", captured.field(), captured.indices())
+                captured -> logger.trace("captured kNN search on field [{}] with {} hits", captured.query().field(), captured.hits().size())
             )
         );
         return List.of();

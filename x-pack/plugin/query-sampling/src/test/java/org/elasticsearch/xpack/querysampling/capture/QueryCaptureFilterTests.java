@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.capture;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -15,6 +16,11 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
@@ -28,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.both;
@@ -39,7 +46,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryCaptureFilterTests extends ESTestCase {
 
-    private final List<CapturedQuery> captured = new ArrayList<>();
+    private final List<CapturedSearch> captured = new ArrayList<>();
 
     public void testCapturesKnnSearch() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
@@ -49,7 +56,7 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertTrue(apply(filter, request, TaskId.EMPTY_TASK_ID));
 
         assertThat(captured.size(), equalTo(1));
-        CapturedQuery query = captured.get(0);
+        CapturedQuery query = captured.get(0).query();
         assertArrayEquals(new String[] { "idx" }, query.indices());
         assertThat(query.field(), equalTo("vec"));
         assertArrayEquals(vector, query.queryVector(), 0f);
@@ -59,6 +66,52 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertThat(query.oversample(), equalTo(2f));
         assertThat(query.filters(), equalTo(List.of(QueryBuilders.termQuery("category", 3))));
         assertThat(query.opaqueId(), equalTo("q7"));
+    }
+
+    public void testCapturesWhatTheSearchReturned() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        SearchResponse response = response(7, hit("idx", "42", 0.9f), hit("idx", "7", 0.8f));
+
+        apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID, respondWith(response), ActionListener.noop());
+
+        assertThat(captured.size(), equalTo(1));
+        assertThat(captured.get(0).tookMillis(), equalTo(7L));
+        assertThat(
+            captured.get(0).hits(),
+            equalTo(List.of(new CapturedSearch.Hit("idx", "42", 0.9f), new CapturedSearch.Hit("idx", "7", 0.8f)))
+        );
+    }
+
+    public void testFailedSearchIsNotCaptured() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Exception expected = new IllegalStateException("search failed");
+
+        apply(
+            filter,
+            knnSearch(randomVector(8)),
+            TaskId.EMPTY_TASK_ID,
+            listener -> listener.onFailure(expected),
+            ActionListener.wrap(r -> fail("unexpected response"), failure::set)
+        );
+
+        assertThat(failure.get(), sameInstance(expected));
+        assertTrue(captured.isEmpty());
+    }
+
+    public void testFailingConsumerStillDeliversTheResponse() {
+        QueryCaptureFilter filter = filter(true, 1.0, search -> { throw new IllegalStateException("boom"); });
+        AtomicBoolean delivered = new AtomicBoolean();
+
+        apply(
+            filter,
+            knnSearch(randomVector(8)),
+            TaskId.EMPTY_TASK_ID,
+            respondWith(response(1, hit("idx", "1", 1f))),
+            ActionListener.wrap(r -> delivered.set(true), e -> fail("unexpected failure"))
+        );
+
+        assertTrue(delivered.get());
     }
 
     public void testNothingCapturedWhenDisabled() {
@@ -109,12 +162,7 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertThat(captured.size(), equalTo(1));
     }
 
-    public void testFailingConsumerDoesNotFailTheSearch() {
-        QueryCaptureFilter filter = filter(true, 1.0, query -> { throw new IllegalStateException("boom"); });
-        assertTrue(apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
-    }
-
-    private static QueryCaptureFilter filter(boolean enabled, double rate, Consumer<CapturedQuery> consumer) {
+    private static QueryCaptureFilter filter(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
         return new QueryCaptureFilter(clusterSettings(enabled, rate), consumer);
     }
 
@@ -133,14 +181,57 @@ public class QueryCaptureFilterTests extends ESTestCase {
         return new SearchRequest("idx").source(new SearchSourceBuilder().knnSearch(List.of(knn)));
     }
 
+    private static SearchHit hit(String index, String id, float score) {
+        SearchHit hit = SearchHit.unpooled(randomNonNegativeInt(), id);
+        hit.score(score);
+        hit.shard(new SearchShardTarget("node", new ShardId(index, "_na_", 0), null));
+        return hit;
+    }
+
+    private static SearchResponse response(long tookMillis, SearchHit... hits) {
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
+        try {
+            return SearchResponseUtils.response(searchHits).tookInMillis(tookMillis).build();
+        } finally {
+            searchHits.decRef(); // the response holds its own reference
+        }
+    }
+
+    /**
+     * What the rest of the chain does with the search: answers with the response, which is released once
+     * the listener has seen it.
+     */
+    private static Consumer<ActionListener<SearchResponse>> respondWith(SearchResponse response) {
+        return listener -> {
+            try {
+                listener.onResponse(response);
+            } finally {
+                response.decRef();
+            }
+        };
+    }
+
     /**
      * Runs the filter and returns whether the search was passed on down the chain.
      */
     private static boolean apply(QueryCaptureFilter filter, SearchRequest request, TaskId parent) {
+        return apply(filter, request, parent, respondWith(response(1)), ActionListener.noop());
+    }
+
+    private static boolean apply(
+        QueryCaptureFilter filter,
+        SearchRequest request,
+        TaskId parent,
+        Consumer<ActionListener<SearchResponse>> restOfChain,
+        ActionListener<SearchResponse> downstream
+    ) {
         Task task = new Task(1, "transport", TransportSearchAction.NAME, "", parent, Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, "q7"));
         AtomicBoolean proceeded = new AtomicBoolean();
-        ActionFilterChain<SearchRequest, SearchResponse> chain = (t, action, r, listener) -> proceeded.set(true);
-        filter.apply(task, TransportSearchAction.NAME, request, ActionListener.<SearchResponse>noop(), chain);
+        ActionFilterChain<SearchRequest, SearchResponse> chain = (t, action, r, listener) -> {
+            proceeded.set(true);
+            restOfChain.accept(listener);
+        };
+        filter.apply(task, TransportSearchAction.NAME, request, downstream, chain);
         return proceeded.get();
     }
 

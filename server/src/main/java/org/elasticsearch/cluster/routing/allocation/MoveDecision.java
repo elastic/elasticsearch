@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -23,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersion.fromName;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
 
 /**
@@ -32,7 +32,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
  */
 public final class MoveDecision extends AbstractAllocationDecision {
 
-    public static final org.elasticsearch.TransportVersion MOVE_DECISION_CAN_ALLOCATE_DECISION = fromName(
+    public static final org.elasticsearch.TransportVersion MOVE_DECISION_CAN_ALLOCATE_DECISION = TransportVersion.fromName(
         "move_decision_can_allocate_decision"
     );
 

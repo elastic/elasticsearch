@@ -40,6 +40,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
     // Null exactly when there is no charge outstanding.
     private CircuitBreaker searchHitsSizeBytesBreaker;
 
+    // Set when the outstanding charge was made on the coordinator instead of by the shard's own fetch.
+    private boolean chargedOnCoordinator;
+
     // client side counter
     private transient int counter;
 
@@ -148,6 +151,22 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     /**
+     * Takes over a charge already made on the coordinator for hits assembled there, so the bytes stay charged
+     * across the handoff rather than being given back and estimated again.
+     */
+    public void setCoordinatorSearchHitsSizeBytes(long bytes, CircuitBreaker circuitBreaker) {
+        setSearchHitsSizeBytes(bytes, circuitBreaker);
+        chargedOnCoordinator = bytes > 0L;
+    }
+
+    /**
+     * Whether the outstanding charge was made on the coordinator, which must then not charge for these hits again.
+     */
+    public boolean isChargedOnCoordinator() {
+        return chargedOnCoordinator;
+    }
+
+    /**
      * Callers release once the response is written. {@link #deallocate()} cannot guarantee that ordering, so it only
      * catches results dropped before the release.
      */
@@ -161,6 +180,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
             searchHitsSizeBytesBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
             searchHitsSizeBytesBreaker = null;
+            chargedOnCoordinator = false;
         }
     }
 

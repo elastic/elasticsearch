@@ -34,7 +34,8 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
         // IN: nothing - one value per step
         TranslationResult child = translation.translate(child(), TranslationConstraint.of());
         if (child.value().foldable()) {
-            return TranslationResult.scalar(child.plan(), new ToDouble(source(), child.value()), child.step(), child.pendingFilter());
+            // a constant vector's value, or nothing over no index: the same table, its value as a double
+            return child.with(child.plan(), new ToDouble(source(), child.value()));
         }
         // OUT: nothing
         return translation.aggregate(child, TranslationConstraint.of(), new Scalar(source(), child.value()));

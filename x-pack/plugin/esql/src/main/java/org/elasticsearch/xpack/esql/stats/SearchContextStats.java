@@ -26,6 +26,7 @@ import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -425,6 +426,20 @@ public class SearchContextStats implements SearchStats {
                     return false;
                 }
             } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
                 return false;
             }
         }

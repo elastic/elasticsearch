@@ -14,6 +14,8 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
 
+/// The singleton registration point for the metrics recorded by [BalancedShardsAllocator]. There are
+/// multiple instances of [BalancedShardsAllocator] so we can't register the metrics in there.
 public class BalancedShardsAllocatorMetrics {
 
     static final String CANNOT_REMAIN_MOVE_METRIC = "es.allocator.shards.cannot_remain_moves.total";

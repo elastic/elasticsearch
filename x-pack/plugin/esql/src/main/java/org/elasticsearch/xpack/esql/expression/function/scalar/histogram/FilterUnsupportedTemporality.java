@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.DeltaOnlyHistogramMergeOverTimeTDigestAggregator;
 import org.elasticsearch.compute.aggregation.InvalidTemporalityException;
 import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.compute.aggregation.TemporalityAccessor;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,7 +39,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Filters histograms by their temporality. Returns the histogram unchanged if temporality is delta or null.
- * Throws an exception if temporality is cumulative.
+ * Cumulative exponential histograms fail the query with an exception, while cumulative T-Digests are replaced with null and
+ * reported once through a warning, mirroring {@link DeltaOnlyHistogramMergeOverTimeTDigestAggregator}.
  * <p>
  * This function is injected during local planning to handle backwards compatibility in CCS scenarios
  * where the coordinating node is older and produces plans that apply {@link ExtractHistogramComponent}
@@ -129,11 +132,13 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
                 context -> new TemporalityAccessor[1]
             );
         }
+        Source source = source();
         return new FilterUnsupportedTemporalityTDigestEvaluator.Factory(
-            source(),
+            source,
             histogramEvaluator,
             temporalityEvaluator,
-            context -> new TemporalityAccessor[1]
+            context -> new TemporalityAccessor[1],
+            context -> context.createOnlyWarnings(source)
         );
     }
 
@@ -164,7 +169,8 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
         @Position int position,
         TDigestBlock histogram,
         BytesRefBlock temporality,
-        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) TemporalityAccessor[] accessor
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) TemporalityAccessor[] accessor,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) Warnings cumulativeWarnings
     ) {
         if (histogram.isNull(position)) {
             result.appendNull();
@@ -174,7 +180,9 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
             accessor[0] = TemporalityAccessor.create(temporality, Temporality.DELTA);
         }
         if (accessor[0].get(position) == Temporality.CUMULATIVE) {
-            throw new IllegalArgumentException("Cumulative temporality is not supported for the tdigest type.");
+            cumulativeWarnings.registerWarning(DeltaOnlyHistogramMergeOverTimeTDigestAggregator.CUMULATIVE_TEMPORALITY_WARNING);
+            result.appendNull();
+            return;
         }
         result.copyFrom(histogram, position, position + 1);
     }

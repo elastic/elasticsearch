@@ -9,9 +9,11 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -58,8 +60,9 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         boolean isPartial,
         List<String> warnings,
         DriverCompletionInfo completionInfo,
-        ToXContent clusters,
-        Exception error
+        @Nullable ToXContent clusters,
+        Exception error,
+        @Nullable ChunkedToXContent profile
     ) {}
 
     private record PendingDelivery(List<Page> pages, int firstOffset, int rows, int lastPageNewOffset) {
@@ -203,7 +206,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     }
 
     public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
-        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null, null));
+        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null, null, null));
     }
 
     public synchronized StreamFooter footer() {

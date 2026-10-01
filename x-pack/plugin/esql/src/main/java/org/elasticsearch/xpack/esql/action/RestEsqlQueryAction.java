@@ -105,9 +105,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         if (esqlRequest.columnar()) {
             throw incompatibleWithStreaming("columnar");
         }
-        if (esqlRequest.profile()) {
-            throw incompatibleWithStreaming("profile");
-        }
         if (request.param(URL_PARAM_DELIMITER) != null) {
             throw incompatibleWithStreaming(URL_PARAM_DELIMITER);
         }

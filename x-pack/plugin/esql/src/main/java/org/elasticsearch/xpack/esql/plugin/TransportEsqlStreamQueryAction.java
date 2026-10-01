@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -389,6 +390,16 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 assert streamStarted.get() : "the footer must not be delivered before the stream is started";
                 long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
                 List<String> warnings = footerWarnings(threadPool.getThreadContext(), result.completionInfo());
+                ChunkedToXContent profile = request.profile()
+                    ? EsqlQueryResponse.profileXContent(
+                        new EsqlQueryResponse.Profile(
+                            result.completionInfo().driverProfiles(),
+                            result.completionInfo().planProfiles(),
+                            versionedResult.minimumVersion()
+                        ),
+                        executionInfo
+                    )
+                    : null;
                 publisher.completeWithFooter(
                     new PageStreamPublisher.StreamFooter(
                         200,
@@ -397,7 +408,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         warnings,
                         result.completionInfo(),
                         footerClusters(executionInfo),
-                        null
+                        null,
+                        profile
                     )
                 );
                 planExecutor.metrics().recordTook(tookMillis);
@@ -416,7 +428,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY),
                             null,
                             footerClusters(executionInfo),
-                            ex
+                            ex,
+                            null
                         )
                     );
                 }

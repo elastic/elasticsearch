@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -28,7 +29,7 @@ import java.util.concurrent.Executor;
  * acquires a permit before executing and releases it when the operation completes.
  * For stream-returning methods, the permit is released when the stream is closed.
  */
-class ConcurrencyLimitedStorageObject implements StorageObject {
+class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final ConcurrencyLimiter limiter;
@@ -104,6 +105,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     }
 
     @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
+    }
+
+    @Override
     public void abortStream(InputStream stream) throws IOException {
         if (stream instanceof PermitReleasingInputStream wrapper) {
             // Route the abort through to the wrapped inner stream so the delegate (and
@@ -120,6 +126,16 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         // Not a stream we produced — should be unreachable since the SPI contract requires
         // the exact instance returned from newStream(). Fall back to the SPI default.
         stream.close();
+    }
+
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
     }
 
     @Override

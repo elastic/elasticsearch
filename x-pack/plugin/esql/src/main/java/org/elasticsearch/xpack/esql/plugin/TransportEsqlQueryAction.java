@@ -51,6 +51,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -341,7 +342,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (requestIsAsync(request)) {
-            asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepOnCompletion(), listener);
+            asyncTaskManagementService.asyncExecute(
+                request,
+                request.waitForCompletionTimeout(),
+                request.keepAlive(),
+                request.keepOnCompletion(),
+                listener
+            );
         } else {
             innerExecuteWithLogging(task, request, listener);
         }
@@ -411,6 +418,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
+                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
@@ -429,11 +437,24 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
+                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
             })
         );
 
+    }
+
+    /**
+     * Closes the query's external-planning reservation. Both the success and failure listeners of
+     * {@link #innerExecute} call this; {@link org.elasticsearch.xpack.esql.action.ExternalPlanningReservation#close()}
+     * is idempotent. Timeout callbacks must not call it — the query is still running.
+     */
+    static void releaseExternalPlanningBytes(EsqlExecutionInfo executionInfo) {
+        if (executionInfo == null || executionInfo.externalPlanning() == null) {
+            return;
+        }
+        executionInfo.externalPlanning().close();
     }
 
     private boolean hasExternalSources(Result result) {
@@ -642,7 +663,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.async(),
             QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
             task.getStartTime(),
-            threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
+            task instanceof StoredAsyncTask<?> sat
+                ? sat.getExpirationTimeMillis()
+                : threadPool.absoluteTimeInMillis() + EsqlQueryRequest.DEFAULT_KEEP_ALIVE.millis(),
             result.executionInfo(),
             result.approximationApplied()
         );
@@ -681,7 +704,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new EsqlQueryTask(
             newSessionID(),
@@ -693,7 +717,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive()
+            keepAlive
         ) {
             @Override
             public Status getStatus() {

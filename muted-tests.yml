@@ -197,6 +197,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testClusterDetailsAfterCCSWithFailuresOnOneShardOnly
   issue: https://github.com/elastic/elasticsearch/issues/160702
+- class: org.elasticsearch.client.RestClientMultipleHostsIntegTests
+  method: testNodeSelector
+  issue: https://github.com/elastic/elasticsearch/issues/160703
 
 # Examples:
 #

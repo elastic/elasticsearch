@@ -575,7 +575,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("sum_over_time(req_total[5m])", 100, 100);
     }
 
-
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantCountOverNothingIsNoElement}. */
     public void testRangeCountOverNothingIsNoElement() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);

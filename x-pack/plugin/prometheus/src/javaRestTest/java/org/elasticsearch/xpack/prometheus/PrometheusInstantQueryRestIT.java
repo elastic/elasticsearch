@@ -711,7 +711,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
             .build();
     }
 
-
     /**
      * A count over no element is no element, not 0: {@code count by (cluster) (rx{host="a"})} has no {@code qa} group, so the
      * operator has no {@code qa} pair; two counts over nothing pair nothing.

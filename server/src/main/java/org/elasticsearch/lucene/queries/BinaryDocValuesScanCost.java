@@ -23,9 +23,9 @@ import java.io.IOException;
  * blocks into heap arrays — the {@code Scanning*} queries in this package, {@link BinaryDocValuesLengthQuery}, and
  * the wildcard module's {@code BinaryDvConfirmedQuery}.
  * <p>
- * {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this interface to charge that real cost
- * per clause instead of the generic per-leaf floor, so a query with thousands of these clauses is rejected up front
- * instead of OOMing.
+ * {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this to charge the real per-clause
+ * decode cost instead of the generic per-leaf floor, so a query with thousands of these clauses is rejected up
+ * front instead of OOMing.
  */
 public interface BinaryDocValuesScanCost {
 
@@ -39,14 +39,12 @@ public interface BinaryDocValuesScanCost {
     String field();
 
     /**
-     * @param segmentCount unused by the default estimate; kept so a future concurrency-scaled estimate doesn't need
-     *                      to change every caller.
      * @param reader reader to probe for the field's real decode-block size via {@link BlockLoader.OptionalDecodeSizeHint},
      *               or {@code null} when unavailable.
      * @return the real per-field bound when every leaf holding the field supports it, otherwise the fixed estimate.
      */
-    default long estimateDecodeBytes(int segmentCount, @Nullable IndexReader reader) {
-        return reader == null ? PER_CLAUSE_DECODE_BYTES_ESTIMATE : realDecodeBytes(field(), reader);
+    static long estimateDecodeBytes(String field, @Nullable IndexReader reader) {
+        return reader == null ? PER_CLAUSE_DECODE_BYTES_ESTIMATE : realDecodeBytes(field, reader);
     }
 
     /**

@@ -36,14 +36,12 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
     public void testIsChargedAsABinaryDocValuesScanCost() {
         Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
 
-        assertThat(query, instanceOf(BinaryDocValuesScanCost.class));
-        BinaryDocValuesScanCost scanCost = (BinaryDocValuesScanCost) query;
-        assertEquals("field", scanCost.field());
-        assertEquals(
+        assertThat(
             "every matches() call opens a decoder over the field's full binary doc values, same as the Scanning* queries",
-            BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE,
-            scanCost.estimateDecodeBytes(1, null)
+            query,
+            instanceOf(BinaryDocValuesScanCost.class)
         );
+        assertEquals("field", ((BinaryDocValuesScanCost) query).field());
     }
 
     public void testNoBinaryDocValuesOpenedDuringPlanning() throws IOException {

@@ -178,7 +178,10 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         } else if (query instanceof PointRangeQuery prq) {
             bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
         } else if (query instanceof BinaryDocValuesScanCost s) {
-            long decodeBytes = binaryDvDecodeBytesCache.computeIfAbsent(s.field(), f -> s.estimateDecodeBytes(segmentCount, reader));
+            long decodeBytes = binaryDvDecodeBytesCache.computeIfAbsent(
+                s.field(),
+                f -> BinaryDocValuesScanCost.estimateDecodeBytes(f, reader)
+            );
             bytes = RamUsageEstimator.shallowSizeOf(query) + decodeBytes;
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();

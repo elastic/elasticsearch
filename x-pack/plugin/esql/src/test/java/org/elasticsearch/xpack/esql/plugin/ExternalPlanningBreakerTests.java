@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.PartitionValueLayout;
+import org.elasticsearch.xpack.esql.datasources.Phase2Reservation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -88,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -122,9 +124,33 @@ import static org.mockito.Mockito.when;
  * Phase-2 planning reservations. Local queries enter through {@link ComputeService#startPhase2OrSkip}, the
  * same call {@code execute} makes, which charges resolved {@link ExternalSourceExec} file lists before
  * discovery. Fragment discovery charges the relation file count. A warm skip charges nothing. Phase-2 bytes
- * belong to one {@link ExternalPlanningReservation.Run}; listing bytes stay until the reservation closes.
+ * belong to one {@link ExternalPlanningReservation.Run}, and so does the listing split discovery performs for
+ * itself; resolution's own listing stays until the reservation closes.
  */
 public class ExternalPlanningBreakerTests extends ESTestCase {
+
+    /**
+     * The pre-charge counts the files the plan carries, which is only the dataset when the schema's listing was
+     * complete. Over a prefix it stands down: discovery replaces that list with the set it discovers for itself
+     * before anything is built over it, so the prefix's survivor maps and split shells are never allocated and the
+     * provider charges the discovered count instead. Charging here as well would reserve for structures that do
+     * not exist, and a run that trips on them would refuse a query the node could have served.
+     */
+    public void testLocalPhase2PreChargeStandsDownForAPrefix() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        long baseline = breaker.getUsed();
+        ComputeService service = service(breaker, new AtomicInteger());
+        EsqlExecutionInfo info = executionInfo();
+        ExternalSourceExec exec = relation(truncatedFiles(2), Map.of()).toPhysicalExec();
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
+        PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
+
+        service.startPhase2OrSkip(exec, configuration(), info, () -> false, run, done);
+
+        done.actionGet(30, TimeUnit.SECONDS);
+        assertEquals("a prefix's phase-2 structures are never built, so nothing is reserved for them", 0L, run.held());
+        assertEquals(baseline, breaker.getUsed());
+    }
 
     public void testLocalPhase2ChargesResolvedFilesBeforeDiscovery() throws Exception {
         AtomicInteger discoveries = new AtomicInteger();
@@ -140,8 +166,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         service.startPhase2OrSkip(exec, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
-        long phase2 = ComputeService.phase2Bytes(exec.output(), exec.fileList());
-        assertEquals(2 * ComputeService.SHELL_BYTES, phase2);
+        long phase2 = Phase2Reservation.bytesFor(exec.output(), exec.fileList());
+        assertEquals(2 * Phase2Reservation.SHELL_BYTES, phase2);
         assertEquals(1, discoveries.get());
         assertEquals(baseline + phase2, breaker.getUsed());
         assertEquals(phase2, run.held());
@@ -166,6 +192,40 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         assertEquals(baseline, breaker.getUsed());
     }
 
+    /**
+     * A fragment's relation carries what discovery settled on, not the listing it was handed. Handed a one-file prefix
+     * of the schema's, discovery here lists two files for itself and plans none of them, and does not certify that as
+     * a prune - so the fall-through reads the relation's listing whole. Which listing that is decides what gets read:
+     * the prefix would read one file where discovery found two, and a matching row in the other would be missing from
+     * the answer with nothing to say so. The top-level path already reads the discovered set; this pins the fragment
+     * path to the same.
+     */
+    public void testAFragmentFallThroughReadsWhatDiscoveryFoundNotThePrefix() throws Exception {
+        FileList prefix = truncatedFiles(1);
+        FileList discovered = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("file:///f0.parquet"), 1000L, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("file:///f1.parquet"), 1000L, Instant.EPOCH)
+            ),
+            "file:///*.parquet"
+        );
+        ComputeService service = service(
+            requestBreaker("1gb"),
+            ctx -> new SplitDiscoveryResult(List.of(), 0, false, 0L, discovered, Map.of(), List.of())
+        );
+        EsqlExecutionInfo info = executionInfo();
+        FragmentExec fragment = new FragmentExec(relation(prefix, Map.of()));
+        PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
+
+        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, bind(info, requestBreaker("1gb")).openRun(), done);
+
+        PhysicalPlan settled = done.actionGet(30, TimeUnit.SECONDS).plan();
+        List<FileList> carried = new ArrayList<>();
+        settled.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(ExternalRelation.class, r -> carried.add(r.fileList())));
+        assertEquals(1, carried.size());
+        assertSame("the fall-through reads the set discovery found, not the schema's prefix", discovered, carried.get(0));
+    }
+
     public void testFragmentWorkChargesRelationFileCount() throws Exception {
         AtomicInteger discoveries = new AtomicInteger();
         CircuitBreaker breaker = requestBreaker("1gb");
@@ -181,8 +241,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         service.startPhase2OrSkip(fragment, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
-        long phase2 = ComputeService.phase2Bytes(external.output(), external.fileList());
-        assertEquals(3 * ComputeService.SHELL_BYTES, phase2);
+        long phase2 = Phase2Reservation.bytesFor(external.output(), external.fileList());
+        assertEquals(3 * Phase2Reservation.SHELL_BYTES, phase2);
         assertEquals(1, discoveries.get());
         assertEquals(baseline + phase2, breaker.getUsed());
         assertEquals(phase2, run.held());
@@ -271,8 +331,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         service.startPhase2OrSkip(exec, configuration(), info, () -> false, first, phase2);
         phase2.actionGet(30, TimeUnit.SECONDS);
 
-        long seam2 = ComputeService.phase2Bytes(exec.output(), listing);
-        assertEquals(listing.fileCount() * ComputeService.SHELL_BYTES, seam2);
+        long seam2 = Phase2Reservation.bytesFor(exec.output(), listing);
+        assertEquals(listing.fileCount() * Phase2Reservation.SHELL_BYTES, seam2);
         assertEquals(1, discoveries.get());
         assertEquals(seam2, first.held());
         assertEquals(seam1, reservation.queryHeld());
@@ -300,8 +360,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     public void testNoRetainedKeysBillsShellsOnly() {
         FileList files = resolvedFiles(4);
         ExternalRelation external = relation(files, Map.of());
-        long charge = ComputeService.phase2Bytes(external.output(), files);
-        assertEquals(4 * ComputeService.SHELL_BYTES, charge);
+        long charge = Phase2Reservation.bytesFor(external.output(), files);
+        assertEquals(4 * Phase2Reservation.SHELL_BYTES, charge);
         assertNotEquals(4 * 1160L, charge);
     }
 
@@ -310,21 +370,21 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         PartitionMetadata shared = hiveColumns(1, 2, true);
         FileList files = resolvedFiles(2, shared);
         List<Attribute> output = List.of(referenceAttribute("k0", DataType.INTEGER));
-        assertEquals(ComputeService.SHELL_BYTES * 2 + ComputeService.perMap(1), ComputeService.phase2Bytes(output, files));
+        assertEquals(Phase2Reservation.SHELL_BYTES * 2 + Phase2Reservation.perMap(1), Phase2Reservation.bytesFor(output, files));
     }
 
     /** Twenty unshared hive columns exceed the old flat 1160 bytes per file. */
     public void testDeepUnsharedLayoutExceedsFlatAllowance() {
         int files = 4;
-        long charge = ComputeService.phase2Bytes(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, false)));
+        long charge = Phase2Reservation.bytesFor(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, false)));
         assertThat(charge, greaterThan(1160L * files));
     }
 
     /** Twenty hive columns shared as one row bill that one map plus shells, under the old per-file allowance. */
     public void testDeepSharedLayoutBillsOneMapPlusShells() {
         int files = 30;
-        long charge = ComputeService.phase2Bytes(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, true)));
-        assertEquals(ComputeService.perMap(20) + ComputeService.SHELL_BYTES * files, charge);
+        long charge = Phase2Reservation.bytesFor(hiveOutput(20), resolvedFiles(files, hiveColumns(20, files, true)));
+        assertEquals(Phase2Reservation.perMap(20) + Phase2Reservation.SHELL_BYTES * files, charge);
         assertTrue(charge < 1160L * files);
     }
 
@@ -376,13 +436,13 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         int files = compact.fileCount();
         int directories = metadata.rowCount() < files ? metadata.rowCount() : files;
         PartitionValueLayout layout = PartitionValueLayout.of(retained, metadata);
-        long expected = ComputeService.perMap(layout.directoryKeys().size()) * directories + ComputeService.perMap(
+        long expected = Phase2Reservation.perMap(layout.directoryKeys().size()) * directories + Phase2Reservation.perMap(
             layout.perFileKeys().size()
-        ) * files + ComputeService.SHELL_BYTES * files;
+        ) * files + Phase2Reservation.SHELL_BYTES * files;
         if (layout.directoryKeys().isEmpty() == false && layout.perFileKeys().isEmpty() == false) {
-            expected += ComputeService.VIEW_BYTES * files;
+            expected += Phase2Reservation.VIEW_BYTES * files;
         }
-        assertEquals(expected, ComputeService.phase2Bytes(output, compact));
+        assertEquals(expected, Phase2Reservation.bytesFor(output, compact));
     }
 
     /** Many files in a few hive directories. Compaction keeps the directory-grouped encoding. */
@@ -446,6 +506,13 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     private static ComputeService service(CircuitBreaker breaker, AtomicInteger discoveries) {
+        return service(breaker, ctx -> {
+            discoveries.incrementAndGet();
+            return SplitDiscoveryResult.EMPTY;
+        });
+    }
+
+    private static ComputeService service(CircuitBreaker breaker, SplitProvider splitter) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -467,10 +534,6 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
         FormatReaderRegistry readers = parquetRegistry();
-        SplitProvider splitter = ctx -> {
-            discoveries.incrementAndGet();
-            return SplitDiscoveryResult.EMPTY;
-        };
         ExternalSourceFactory files = new ExternalSourceFactory() {
             @Override
             public String type() {
@@ -559,6 +622,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             }
         };
         return new ExternalRelation(Source.EMPTY, "file:///data/*.parquet", metadata, attrs, files, Map.of());
+    }
+
+    /** A listing that reports itself a prefix of its dataset, which is what stands the pre-charge down. */
+    private static FileList truncatedFiles(int count) {
+        List<StorageEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            entries.add(new StorageEntry(StoragePath.of("file:///f" + i + ".parquet"), 1000L, Instant.EPOCH));
+        }
+        return GlobExpander.truncatedFileListOf(entries, "file:///*.parquet");
     }
 
     private static FileList resolvedFiles(int count) {

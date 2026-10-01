@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -70,20 +71,20 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
-import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.PartitionValueLayout;
+import org.elasticsearch.xpack.esql.datasources.Phase2Reservation;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
@@ -190,21 +191,6 @@ public class ComputeService {
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
-    /**
-     * Phase-2 survivor maps. Not a measured deep size. {@link #SHELL_BYTES} is one split shell per file.
-     * A map of {@code k} keys is {@link #MAP_OVERHEAD_BYTES} {@code +} {@link #ENTRY_BYTES} {@code * k}
-     * ({@code 552 + 64 * k}). An empty map is free: the real hold is
-     * {@link java.util.Map#of()}. {@link #VIEW_BYTES} is the overlay wrapper, billed only when both layers are
-     * non-empty. The wrapper walks the shared tuple instead of copying its entries, so 64 bytes bounds it.
-     * Counted per file, not per split — a text or compressed file can become many splits, and that
-     * count is only known after the discovery this reservation precedes, so those files are under-charged.
-     * Directory-constant keys are billed once per shared partition row, or once per file when the listing has
-     * no metadata or one row per file.
-     */
-    static final long SHELL_BYTES = 160L;
-    static final long ENTRY_BYTES = 64L;
-    static final long MAP_OVERHEAD_BYTES = 552L;
-    static final long VIEW_BYTES = 64L;
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -315,78 +301,33 @@ public class ComputeService {
         if (run == null) {
             return;
         }
-        long bytes = phase2Bytes(output, list);
+        long bytes = Phase2Reservation.bytesFor(output, list);
         if (bytes > 0L) {
             run.charge(bytes);
         }
     }
 
     /**
-     * Survivor-map bytes plus one shell per file. Directory-constant keys are billed once per shared partition
-     * row. No metadata, or one row per file, bills those keys per file (an upper bound: filters may drop files
-     * after this charge). A source that retains nothing bills shells only.
+     * The reserver split discovery draws on for the heap it holds while planning. A relation whose schema listing
+     * was a prefix lists the dataset again during discovery and then builds per-file structures over what it
+     * found, and neither was charged before: {@code GlobExpander} reserves the entries in batches as the walk
+     * grows, so a dataset larger than the node can hold trips partway through its own listing rather than after
+     * the list exists, and the provider reserves what {@link Phase2Reservation} says those structures cost,
+     * for the file set it discovered, before the first of them is built.
+     * <p>
+     * The run rather than the query is the right budget, and the listing's lifetime is why: a discovered listing
+     * does not outlive the execution that listed it, because the plan carrying it does not - the run closes when
+     * that execution's result completes. Charging query scope instead would hold those bytes to query close and
+     * charge again on a second execution, an INLINE STATS run re-listing, with nothing releasing the first.
+     * <p>
+     * Not because the listing is always dropped once the splits exist. Most of the time it is, but a relation
+     * whose discovery produced no splits and was not an exhaustive prune keeps one - the discovered set, which
+     * {@code dropCopiedListingState} leaves on such an exec and {@code settledListing} copies back to a fragment's
+     * relation - and that relation reads its whole listing. The run still covers it; being dropped is not what makes
+     * the budget right.
      */
-    static long phase2Bytes(List<Attribute> output, @Nullable FileList list) {
-        if (list == null || list.isResolved() == false) {
-            return 0L;
-        }
-        int files = list.fileCount();
-        if (files <= 0) {
-            return 0L;
-        }
-        PartitionMetadata metadata = list.partitionMetadata();
-        Set<String> retained = PartitionValueLayout.retainedKeys(
-            ExternalSchema.dataAttributesOf(output),
-            metadata,
-            ExternalMetadataColumns.metadataNames(output)
-        );
-        PartitionValueLayout layout = PartitionValueLayout.of(retained, metadata);
-        int directories = files;
-        if (metadata != null
-            && metadata.isEmpty() == false
-            && metadata.fileCount() == files
-            && metadata.rowCount() > 0
-            && metadata.rowCount() < files) {
-            directories = metadata.rowCount();
-        }
-        return phase2MapAndShell(files, directories, layout.directoryKeys().size(), layout.perFileKeys().size());
-    }
-
-    /** {@code 0} keys is an empty map. Otherwise {@code 552 + 64 * keys}. */
-    static long perMap(int keys) {
-        if (keys <= 0) {
-            return 0L;
-        }
-        return MAP_OVERHEAD_BYTES + ENTRY_BYTES * (long) keys;
-    }
-
-    private static long phase2MapAndShell(int files, int directories, int directoryKeys, int perFileKeys) {
-        long mapBytes = perMap(directoryKeys) * directories + perMap(perFileKeys) * files;
-        if (directoryKeys > 0 && perFileKeys > 0) {
-            mapBytes += VIEW_BYTES * files;
-        }
-        return mapBytes + SHELL_BYTES * files;
-    }
-
-    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
-        if (operatorFactoryRegistry == null) {
-            return plan;
-        }
-        try {
-            SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                plan,
-                operatorFactoryRegistry.sourceFactories(),
-                maxRecordBytes(configuration),
-                isCancelled
-            );
-            recordExternalScanStats(execInfo, result);
-            return coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration));
-        } catch (TaskCancelledException e) {
-            throw e;
-        } catch (Exception e) {
-            LOGGER.warn("split discovery failed for external source", e);
-            throw e;
-        }
+    private static PlanningMemory discoveryMemory(ExternalPlanningReservation.Run run) {
+        return run == null ? PlanningMemory.NONE : run::charge;
     }
 
     /**
@@ -414,6 +355,8 @@ public class ComputeService {
                 maxRecordBytes(configuration),
                 isCancelled,
                 List.of(),
+                FormatReader.NO_LIMIT,
+                discoveryMemory(run),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -442,7 +385,22 @@ public class ComputeService {
      * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
      * count rather than the smaller post-coalesce count.
      */
+    /**
+     * Raises what split discovery found onto the response.
+     * <p>
+     * A partition value the dataset's own type cannot hold reads null in the rows a query gets back, and the node
+     * log cannot serve that: it is the answer that changed, so its author is the one who has to hear about it.
+     * Safe to raise here because this runs under the request's restored thread context - the completion listener
+     * wraps it - which is the thing a header warning needs to reach the response at all.
+     */
+    private static void raiseDiscoveryWarnings(SplitDiscoveryPhase.Result result) {
+        for (String warning : result.warnings()) {
+            HeaderWarning.addWarning(warning);
+        }
+    }
+
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
+        raiseDiscoveryWarnings(result);
         if (execInfo != null && result.splitsScanned() > 0) {
             execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
         }
@@ -645,48 +603,8 @@ public class ComputeService {
         }
     }
 
-    private CollectedSplits collectExternalSplits(
-        PhysicalPlan plan,
-        Configuration configuration,
-        EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
-    ) {
-        List<ExternalSplit> splits = new ArrayList<>();
-        // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
-        // fragment-wrapped ExternalRelation nodes never coexist: the distributed Mapper wraps every
-        // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
-        // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
-        // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
-        // needs to record scan stats here. On that top-level path the phase already swapped any
-        // exhaustively-pruned ExternalSourceExec to FileList.EMPTY. A non-empty split list is the read
-        // path, so the resolved fileList and schemaMap are dropped after the splits have been copied.
-        plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
-        if (splits.isEmpty()) {
-            if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
-                // Warm short-circuit: every external aggregate is answered from stripe / whole-file stats and
-                // the scan is skipped. Record the affirmative "served from stripes" signal on the profile
-                // here, the one place it is observable — no scan operator runs for a warm relation.
-                recordExternalWarmAggregates(execInfo, plan);
-            } else {
-                PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
-                if (SplitCoalescer.shouldCoalesce(splits.size())) {
-                    // coalesce always returns a list of its own, so replacing the contents of `splits` in place
-                    // cannot clear the list being copied from.
-                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
-                    splits.clear();
-                    splits.addAll(coalesced);
-                }
-                return new CollectedSplits(rewritten, splits);
-            }
-            // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
-        } else {
-            plan = dropCopiedListingState(plan);
-        }
-        return new CollectedSplits(plan, splits);
-    }
-
     /**
-     * Async counterpart of {@link #collectExternalSplits}. Fragment-path footer/probe IO must not run on
+     * Fragment-path footer/probe IO must not run on
      * {@code SEARCH}; this returns immediately and completes {@code listener} when collection is done.
      */
     private void collectExternalSplitsAsync(
@@ -844,18 +762,15 @@ public class ComputeService {
         );
     }
 
-    private PhysicalPlan discoverSplitsFromFragments(
-        PhysicalPlan plan,
-        List<ExternalSplit> splits,
-        int maxRecordBytes,
-        EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
-    ) {
-        return discoverSplitsFromFragments(plan, splits, maxRecordBytes, execInfo, isCancelled, operatorFactoryRegistry);
-    }
-
     /**
-     * Fragment-path discovery. Package-visible so tests can run it without a full {@link ComputeService}.
+     * Fragment-path discovery, synchronously. Not a production path: every query reaches the fragments through
+     * {@link #discoverSplitsFromFragmentsAsync}, and this exists so tests can exercise what the two share -
+     * {@code guardedRelations}, {@link #settledListing}, {@link #rewriteFragmentListing} - without standing up a
+     * whole {@link ComputeService}.
+     * <p>
+     * Behaviour therefore does not belong here. A rule added to this and not to the async twin is a rule no query
+     * runs, which has already happened once on this path: the bounded first attempt was written here first and had
+     * to be threaded through the async entry before any query got faster.
      */
     static PhysicalPlan discoverSplitsFromFragments(
         PhysicalPlan plan,
@@ -869,11 +784,10 @@ public class ComputeService {
             return plan;
         }
         return plan.transformDown(FragmentExec.class, fragment -> {
-            // Relations whose listing the coordinator must drop before execution. An exhaustive prune (fileList
-            // swapped to FileList.EMPTY, no splits) scans nothing. A non-empty split list was copied above and stays
-            // the read path. Both drop fileList and schemaMap. Identity is stable because guardedRelations returns
-            // the relation instances living in the fragment tree, so the transformDown below can swap them by reference.
-            List<ExternalRelation> dropListing = new ArrayList<>();
+            // What each relation carries once discovery has run - see settledListing. Identity is stable because
+            // guardedRelations returns the relation instances living in the fragment tree, so the transformDown below
+            // can swap them by reference.
+            List<SettledListing> settled = new ArrayList<>();
             // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
             // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
             // recovered before the lowering or partition pruning never sees the predicate at all.
@@ -883,20 +797,18 @@ public class ComputeService {
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
                     isCancelled,
-                    guarded.filters()
+                    guarded.filters(),
+                    guarded.rowLimit(),
+                    // No reservation reaches the synchronous path, which only tests take.
+                    PlanningMemory.NONE
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
-                    // FileList.EMPTY is the phase's exhaustive-prune verdict: no splits, scan nothing. A non-empty
-                    // split list is the other verdict: splits were copied above. Neither leaves the listing map
-                    // on the coordinator. A no-split result that is not a prune keeps the original list.
-                    if (withSplits.fileList() == FileList.EMPTY || withSplits.splits().isEmpty() == false) {
-                        dropListing.add(guarded.relation());
-                    }
+                    settled.add(settledListing(guarded.relation(), withSplits));
                 }
                 recordExternalScanStats(execInfo, result);
             }
-            LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), dropListing);
+            LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), settled);
             if (rewrittenFragment == fragment.fragment()) {
                 return fragment;
             }
@@ -932,19 +844,19 @@ public class ComputeService {
             listener.onResponse(plan);
             return;
         }
-        Map<FragmentExec, List<ExternalRelation>> dropListing = new IdentityHashMap<>();
+        Map<FragmentExec, List<SettledListing>> settled = new IdentityHashMap<>();
         Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
         discoverFragmentWork(
             workItems,
             0,
             splits,
-            dropListing,
+            settled,
             maxRecordBytes,
             execInfo,
             isCancelled,
             run,
             ioExecutor,
-            ActionListener.wrap(ignored -> listener.onResponse(rewritePrunedFragments(plan, dropListing)), listener::onFailure)
+            ActionListener.wrap(ignored -> listener.onResponse(rewriteSettledFragments(plan, settled)), listener::onFailure)
         );
     }
 
@@ -952,7 +864,7 @@ public class ComputeService {
         List<FragmentWork> workItems,
         int index,
         List<ExternalSplit> splits,
-        Map<FragmentExec, List<ExternalRelation>> dropListing,
+        Map<FragmentExec, List<SettledListing>> settled,
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
@@ -977,14 +889,15 @@ public class ComputeService {
             maxRecordBytes,
             isCancelled,
             work.guarded().filters(),
+            work.guarded().rowLimit(),
+            discoveryMemory(run),
             ioExecutor,
             ActionListener.wrap(result -> {
                 try {
                     if (result.plan() instanceof ExternalSourceExec withSplits) {
                         splits.addAll(withSplits.splits());
-                        if (withSplits.fileList() == FileList.EMPTY || withSplits.splits().isEmpty() == false) {
-                            dropListing.computeIfAbsent(work.fragment(), k -> new ArrayList<>()).add(work.guarded().relation());
-                        }
+                        settled.computeIfAbsent(work.fragment(), k -> new ArrayList<>())
+                            .add(settledListing(work.guarded().relation(), withSplits));
                     }
                     recordExternalScanStats(execInfo, result);
                 } catch (Exception e) {
@@ -995,7 +908,7 @@ public class ComputeService {
                     workItems,
                     index + 1,
                     splits,
-                    dropListing,
+                    settled,
                     maxRecordBytes,
                     execInfo,
                     isCancelled,
@@ -1012,12 +925,12 @@ public class ComputeService {
         );
     }
 
-    private static PhysicalPlan rewritePrunedFragments(PhysicalPlan plan, Map<FragmentExec, List<ExternalRelation>> dropListing) {
-        if (dropListing.isEmpty()) {
+    private static PhysicalPlan rewriteSettledFragments(PhysicalPlan plan, Map<FragmentExec, List<SettledListing>> settled) {
+        if (settled.isEmpty()) {
             return plan;
         }
         return plan.transformDown(FragmentExec.class, fragment -> {
-            List<ExternalRelation> relations = dropListing.getOrDefault(fragment, List.of());
+            List<SettledListing> relations = settled.getOrDefault(fragment, List.of());
             LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), relations);
             if (rewrittenFragment == fragment.fragment()) {
                 return fragment;
@@ -1040,30 +953,51 @@ public class ComputeService {
     }
 
     /**
-     * Drops {@code fileList} and {@code schemaMap} on relations whose listing is no longer the read path.
-     * An exhaustive prune has no splits, so the operator scans nothing. A relation whose splits were copied
-     * onto the slice queue keeps those splits. No-split results that were not pruned are absent from
-     * {@code dropListing} and keep the original list.
+     * The listing a fragment relation carries once discovery has run. The top-level path gets this from
+     * {@code SplitDiscoveryPhase.applyDiscoveryResult}, which sets it on the lowered exec; the fragment path lowers a
+     * copy of the relation, so it has to carry the answer back to the relation itself.
      */
-    private static LogicalPlan rewriteFragmentListing(LogicalPlan fragment, List<ExternalRelation> dropListing) {
-        if (dropListing.isEmpty()) {
+    private record SettledListing(
+        ExternalRelation relation,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+    ) {}
+
+    /**
+     * What {@code relation} carries after discovery produced {@code discovered}.
+     * <p>
+     * Splits, when there are any, are the read path, so the listing and schema map go. Otherwise the relation carries
+     * what discovery settled on, which {@code applyDiscoveryResult} already put on the exec: {@link FileList#EMPTY} for
+     * an exhaustive prune, and for a fall-through the file set discovery listed for itself.
+     * <p>
+     * That last case is the one keeping the relation's own listing got wrong. When the schema's listing was a prefix,
+     * the relation was handed that prefix, and discovery re-listed the dataset. Keeping the original then left the
+     * fall-through reading the prefix - files the query's own listing may not contain, and fewer than it did - where
+     * the top-level path read what discovery found.
+     */
+    private static SettledListing settledListing(ExternalRelation relation, ExternalSourceExec discovered) {
+        if (discovered.splits().isEmpty() == false) {
+            return new SettledListing(relation, FileList.EMPTY, Map.of());
+        }
+        return new SettledListing(relation, discovered.fileList(), discovered.schemaMap());
+    }
+
+    private static LogicalPlan rewriteFragmentListing(LogicalPlan fragment, List<SettledListing> settled) {
+        if (settled.isEmpty()) {
             return fragment;
         }
         return fragment.transformDown(ExternalRelation.class, relation -> {
-            if (sameRelation(dropListing, relation)) {
-                return relation.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
+            for (SettledListing candidate : settled) {
+                if (candidate.relation() != relation) {
+                    continue;
+                }
+                if (candidate.fileList() == relation.fileList() && candidate.schemaMap() == relation.schemaMap()) {
+                    return relation;
+                }
+                return relation.withFileList(candidate.fileList()).withSchemaMap(candidate.schemaMap());
             }
             return relation;
         });
-    }
-
-    private static boolean sameRelation(List<ExternalRelation> relations, ExternalRelation relation) {
-        for (ExternalRelation candidate : relations) {
-            if (candidate == relation) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static int maxRecordBytes(Configuration configuration) {

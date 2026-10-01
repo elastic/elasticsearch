@@ -1044,6 +1044,14 @@ public class ComputeService {
     private static final String EXPAND_DESCRIPTION = "expand_unmapped_fields";
 
     /**
+     * Iteration budget for the expansion driver. {@link ExpandUnmappedFieldsOperator} does one page's worth of work per driver loop
+     * iteration, so a budget of one makes the driver re-dispatch onto the worker pool between pages: a long {@code LOAD_ALL} expansion
+     * hands its worker thread back repeatedly so other queued work interleaves, rather than running to completion in a single task
+     * (see <a href="https://github.com/elastic/elasticsearch/issues/160286">#160286</a>).
+     */
+    private static final int EXPAND_DRIVER_MAX_ITERATIONS = 1;
+
+    /**
      * Expands the synthetic {@code _unmapped_fields} column produced by {@code SET unmapped_fields="LOAD_ALL"} into per-field columns,
      * running the CPU-heavy per-row {@code _source} scan inside a dedicated coordinator {@link Driver} on the {@code esql_worker} pool.
      * Modelling the expansion as a driver operator (rather than an inline post-processing step) hands the compute framework ownership of
@@ -1108,6 +1116,7 @@ public class ComputeService {
                 task,
                 List.of(driver),
                 transportService.getThreadPool().executor(EsqlPlugin.computePool()),
+                EXPAND_DRIVER_MAX_ITERATIONS,
                 ActionListener.releaseAfter(doneListener, () -> Releasables.close(expandDriver))
             );
             driverStarted = true;

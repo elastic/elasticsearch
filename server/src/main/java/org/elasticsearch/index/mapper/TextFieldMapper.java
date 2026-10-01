@@ -1024,6 +1024,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termQuery(value, context);
             }
+            final Query fromValues = termQueryFromValues(value, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
 
             failIfNotIndexedNorDocValuesFallback(context);
 
@@ -1038,6 +1042,10 @@ public final class TextFieldMapper extends FieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
+            }
+            final Query fromValues = termsQueryFromValues(values, context);
+            if (fromValues != null) {
+                return fromValues;
             }
 
             failIfNotIndexedNorDocValuesFallback(context);
@@ -1070,6 +1078,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             }
+            final Query fromValues = prefixQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
                 return binaryQueries().prefix(name(), value, caseInsensitive);
@@ -1095,6 +1107,10 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             if (indexType().hasTerms()) {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
+            }
+            final Query fromValues = wildcardQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
@@ -1127,6 +1143,10 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             if (indexType().hasTerms()) {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+            }
+            final Query fromValues = regexpQueryFromValues(value, syntaxFlags, matchFlags, maxDeterminizedStates, context);
+            if (fromValues != null) {
+                return fromValues;
             }
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);

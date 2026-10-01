@@ -123,7 +123,41 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         }
     }
 
+    /** The term family looks for tokens, as it does where the terms are indexed. */
+    public void testTermFamilyAnswersAsIndexed() throws IOException {
+        final List<QueryBuilder> queries = List.of(
+            new TermQueryBuilder("body", "quick"),
+            new TermQueryBuilder("body", "the quick brown fox jumps"),
+            new TermsQueryBuilder("body", "quick", "nothing"),
+            new PrefixQueryBuilder("body", "qui"),
+            new WildcardQueryBuilder("body", "qu*ck"),
+            new RegexpQueryBuilder("body", "qu.*k")
+        );
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertEquals("a term of the values, not the whole value", 1, confirmedClauses(new TermQueryBuilder("body", "quick")));
+        assertEquals("one clause for every term", 1, confirmedClauses(new TermsQueryBuilder("body", "quick", "nothing")));
+    }
+
     /** Every parser that builds a match query answers from the values, reading them once for all of its terms. */
+    /** A wildcard inside query_string is normalized by the search analyzer, as it is on an indexed field. */
+    public void testNormalizedWildcardFromQueryString() throws IOException {
+        final List<QueryBuilder> queries = List.of(
+            new QueryStringQueryBuilder("body:qu*ck"),
+            new QueryStringQueryBuilder("body:QU*CK"),
+            new SimpleQueryStringBuilder("qu*ck").field("body"),
+            new WildcardQueryBuilder("body", "QU*CK")
+        );
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+    }
+
     public void testQueryStringAndMultiMatch() throws IOException {
         final List<QueryBuilder> queries = List.of(
             new QueryStringQueryBuilder("body:quick"),

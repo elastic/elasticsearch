@@ -74,6 +74,20 @@ Functions that convert between scalars and instant vectors.
 :::
 ::::
 
+### Metadata functions
+```{applies_to}
+stack: ga 9.6
+serverless: ga
+```
+
+Functions that derive new labels from existing label values.
+
+::::{dropdown} Metadata function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/metadata-overview.md
+:::
+::::
+
 ## Not yet supported [promql-not-supported]
 
 The following PromQL functions are recognized but not yet supported in {{es}}. Using them returns a client error (4xx):

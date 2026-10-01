@@ -1205,9 +1205,9 @@ public final class IndicesPermission {
             }
             final boolean allowAllDocuments = a.allowAllDocuments || b.allowAllDocuments;
             return new IndexAccess(
-                union(a.fieldPermissions, b.fieldPermissions),
+                Sets.union(a.fieldPermissions, b.fieldPermissions),
                 allowAllDocuments,
-                allowAllDocuments ? null : union(a.queries, b.queries),
+                allowAllDocuments ? null : Sets.union(a.queries, b.queries),
                 a.hasExplicitDlsFls || b.hasExplicitDlsFls
             );
         }
@@ -1239,12 +1239,6 @@ public final class IndicesPermission {
             final boolean dlsFlsImplicit = hasExplicitDlsFls == false
                 && (documentPermissions.hasDocumentLevelPermissions() || resolvedFieldPermissions.hasFieldLevelSecurity());
             return new IndicesAccessControl.IndexAccessControl(resolvedFieldPermissions, documentPermissions, dlsFlsImplicit);
-        }
-
-        private static <T> Set<T> union(Set<T> a, Set<T> b) {
-            final Set<T> merged = new HashSet<>(a);
-            merged.addAll(b);
-            return merged;
         }
     }
 }

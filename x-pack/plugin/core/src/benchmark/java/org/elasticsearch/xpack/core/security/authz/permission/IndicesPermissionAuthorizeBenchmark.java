@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -42,10 +42,15 @@ import java.util.concurrent.TimeUnit;
 /**
  * Benchmarks {@link IndicesPermission#authorize} for a bulk write into a data stream, the shape behind the
  * production OOM this code path was optimised for: a role carrying FLS and/or DLS, and a data stream with
- * many backing indices, each of which gets an entry in the resulting {@link IndicesAccessControl}.
+ * many backing indices, each of which gets an entry in the resulting {@link IndicesAccessControl}. The
+ * authorization service authorizes every bulk item against the item's resolved index, which for a data stream
+ * target is the data stream name, under the item's implied action. {@link #ITEM_ACTION} mirrors that.
  *
  * <p>{@code IndicesAccessControl} builds its per-index map lazily, so each benchmark method reads one entry
  * back. Without that read the expensive part never runs and the benchmark measures only resource resolution.
+ *
+ * <p>The {@link FieldPermissionsCache} lives for the whole trial, as it does on a node, so in steady state the
+ * FLS union of several groups is a cache hit. The numbers measure building the access control, not the union.
  *
  * <p>Run with {@code -prof gc} to see allocation per call ({@code gc.alloc.rate.norm}), which is the number
  * that tracks the memory side of this change.
@@ -59,7 +64,7 @@ import java.util.concurrent.TimeUnit;
 public class IndicesPermissionAuthorizeBenchmark {
 
     static {
-        // IndicesPermission acquires an ES Logger; the forked JMH VM has no logging provider installed.
+        // IndicesPermission acquires an ES Logger, and the forked JMH VM has no logging provider installed.
         BenchmarkLogging.configure();
     }
 
@@ -70,14 +75,21 @@ public class IndicesPermissionAuthorizeBenchmark {
         BOTH
     }
 
-    private static final String DATA_STREAM = "logs-app";
+    static final String DATA_STREAM = "logs-app";
+
+    /**
+     * The action a bulk item that creates a document in a data stream is authorized under, see
+     * {@code AuthorizationService#getAction(BulkItemRequest)}. Any action covered by the groups' privilege costs the
+     * same here. This one names the modelled path.
+     */
+    private static final String ITEM_ACTION = TransportIndexAction.NAME + ":op_type/create";
 
     /** Backing indices in the data stream; 1500 is the size seen in the incident. */
     @Param({ "1", "100", "1500" })
     int backingIndices;
 
     /** Which document- and field-level restrictions the matching groups carry. */
-    @Param({ "NONE", "FLS", "BOTH" })
+    @Param({ "NONE", "FLS", "DLS", "BOTH" })
     DlsFls dlsFls;
 
     /** Groups in the role that match the data stream, each with a distinct FLS grant and DLS query. */
@@ -131,12 +143,11 @@ public class IndicesPermissionAuthorizeBenchmark {
      */
     @Benchmark
     public IndicesAccessControl.IndexAccessControl authorizeBackingIndexDirectly() {
-        return permission.authorize(TransportShardBulkAction.ACTION_NAME, backingIndexRequest, metadata, fieldPermissionsCache)
-            .getIndexPermissions(probeIndex);
+        return permission.authorize(ITEM_ACTION, backingIndexRequest, metadata, fieldPermissionsCache).getIndexPermissions(probeIndex);
     }
 
     IndicesAccessControl authorizeDataStreamAccessControl() {
-        return permission.authorize(TransportShardBulkAction.ACTION_NAME, dataStreamRequest, metadata, fieldPermissionsCache);
+        return permission.authorize(ITEM_ACTION, dataStreamRequest, metadata, fieldPermissionsCache);
     }
 
     List<String> backingIndexNames() {

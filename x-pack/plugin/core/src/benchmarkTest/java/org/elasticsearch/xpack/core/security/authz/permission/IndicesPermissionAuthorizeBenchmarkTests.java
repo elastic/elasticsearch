@@ -33,7 +33,7 @@ public class IndicesPermissionAuthorizeBenchmarkTests extends ESTestCase {
         final IndicesAccessControl iac = bench.authorizeDataStreamAccessControl();
         assertThat(iac.isGranted(), is(true));
         final List<String> backingIndexNames = bench.backingIndexNames();
-        final IndicesAccessControl.IndexAccessControl shared = iac.getIndexPermissions(backingIndexNames.get(0));
+        final IndicesAccessControl.IndexAccessControl shared = iac.getIndexPermissions(IndicesPermissionAuthorizeBenchmark.DATA_STREAM);
         assertThat(shared, is(notNullValue()));
         for (String backingIndex : backingIndexNames) {
             assertSame(

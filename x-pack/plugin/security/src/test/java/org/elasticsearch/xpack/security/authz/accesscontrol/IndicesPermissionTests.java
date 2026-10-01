@@ -887,13 +887,13 @@ public class IndicesPermissionTests extends ESTestCase {
      *
      * <p>The data stream entry assertion is the regression test for the pre-refactoring behaviour, where that entry
      * was written by reference from the last backing index and could become allow-all depending on the iteration
-     * order of the requested names; the scenario therefore runs with names covering both orders.
+     * order of the requested names. The scenario therefore runs with names covering both orders.
      */
     public void testDirectlyRequestedBackingIndexWithUnrestrictedGrantIsRelaxedWithoutAffectingDataStreamEntry() {
         final Set<BytesReference> query = Collections.singleton(new BytesArray("{\"term\":{\"tenant\":\"a\"}}"));
         final int numBackingIndices = randomIntBetween(3, 6);
         for (String dataStreamName : dataStreamNamesCoveringBothIterationOrders(numBackingIndices)) {
-            final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, numBackingIndices, 0);
+            final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, numBackingIndices, false);
             final List<String> backingIndices = backingIndexNames(metadata, dataStreamName);
             final String writeIndex = backingIndices.get(backingIndices.size() - 1);
             final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
@@ -952,7 +952,7 @@ public class IndicesPermissionTests extends ESTestCase {
      */
     public void testDirectGrantCoveredByDataStreamGrantKeepsSharedInstance() {
         final String dataStreamName = randomAlphaOfLength(6);
-        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(2, 5), 0);
+        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(2, 5), false);
         final List<String> backingIndices = backingIndexNames(metadata, dataStreamName);
         final String requestedBackingIndex = randomFrom(backingIndices);
         final BytesReference query = new BytesArray("{\"term\":{\"tenant\":\"a\"}}");
@@ -1055,7 +1055,7 @@ public class IndicesPermissionTests extends ESTestCase {
      */
     public void testImplicitDataStreamGrantMergedWithExplicitBackingIndexGrantIsExplicitOnlyForThatIndex() {
         final String dataStreamName = randomAlphaOfLength(6);
-        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(3, 6), 0);
+        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(3, 6), false);
         final List<String> backingIndices = backingIndexNames(metadata, dataStreamName);
         final String requestedBackingIndex = randomFrom(backingIndices);
         final Set<BytesReference> implicitQuery = Collections.singleton(new BytesArray("{\"term\":{\"clearance\":\"public\"}}"));
@@ -1092,12 +1092,12 @@ public class IndicesPermissionTests extends ESTestCase {
     /**
      * The {@code ::failures} counterpart of the backing index scenario: a failure store grant with DLS on the data
      * stream and an unrestricted direct grant on one failure index. The {@code <data stream>::failures} entry and the
-     * other failure indices keep the DLS and share one instance; the requested failure index is relaxed only when it
+     * other failure indices keep the DLS and share one instance. The requested failure index is relaxed only when it
      * is itself requested.
      */
     public void testDirectlyRequestedFailureIndexWithUnrestrictedGrantIsRelaxedWithoutAffectingFailuresEntry() {
         final String dataStreamName = randomAlphaOfLength(6);
-        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(1, 3), randomIntBetween(2, 4));
+        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(2, 4), true);
         final List<String> failureIndices = metadata.dataStreams()
             .get(dataStreamName)
             .getFailureIndices()
@@ -1141,30 +1141,17 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
-    private static ProjectMetadata dataStreamProjectMetadata(String dataStreamName, int numBackingIndices, int numFailureIndices) {
-        final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        final List<IndexMetadata> backingIndices = new ArrayList<>();
-        for (int i = 1; i <= numBackingIndices; i++) {
-            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, i)));
-        }
-        final List<IndexMetadata> failureIndices = new ArrayList<>();
-        for (int i = 1; i <= numFailureIndices; i++) {
-            failureIndices.add(createBackingIndexMetadata(DataStream.getDefaultFailureStoreName(dataStreamName, i, 1L)));
-        }
-        builder.put(
-            DataStreamTestHelper.newInstance(
-                dataStreamName,
-                backingIndices.stream().map(IndexMetadata::getIndex).toList(),
-                failureIndices.stream().map(IndexMetadata::getIndex).toList()
-            )
+    /** A project with one data stream of {@code numBackingIndices} backing indices and, if requested, as many failure indices. */
+    private static ProjectMetadata dataStreamProjectMetadata(String dataStreamName, int numBackingIndices, boolean withFailureStore) {
+        return DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            1,
+            false,
+            withFailureStore
         );
-        for (IndexMetadata index : backingIndices) {
-            builder.put(index, false);
-        }
-        for (IndexMetadata index : failureIndices) {
-            builder.put(index, false);
-        }
-        return builder.build();
     }
 
     private static List<String> backingIndexNames(ProjectMetadata metadata, String dataStreamName) {
@@ -1175,7 +1162,7 @@ public class IndicesPermissionTests extends ESTestCase {
      * Data stream names for which a {@code HashMap} of the requested names (the data stream and its write index, i.e.
      * backing index number {@code writeIndexNumber}) iterates the backing index first, and names for which it
      * iterates the data stream first. Mirrors the map construction in {@code IndicesPermission#authorize} so the
-     * caller exercises both orders; the authorization result must not depend on either.
+     * caller exercises both orders. The authorization result must not depend on either.
      */
     private static List<String> dataStreamNamesCoveringBothIterationOrders(int writeIndexNumber) {
         String dataStreamFirst = null;
@@ -1444,7 +1431,7 @@ public class IndicesPermissionTests extends ESTestCase {
         final ProjectMetadata pmd = singleIndexProjectMetadata("_index");
         final FieldPermissionsCache fpc = new FieldPermissionsCache(Settings.EMPTY);
 
-        // No DLS, no FLS — flag should be false regardless of how the group was contributed.
+        // No DLS, no FLS: the flag should be false regardless of how the group was contributed.
         final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
             FieldPermissions.DEFAULT,

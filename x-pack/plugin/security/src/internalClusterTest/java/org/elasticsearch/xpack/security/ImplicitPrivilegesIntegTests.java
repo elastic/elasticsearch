@@ -95,7 +95,7 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
     private static final String AGENT_PRIV = "agent";
     private static final String HELICARRIER_INDEX_PATTERN = "helicarrier-*";
     private static final String HELICARRIER_DLS_QUERY = "{\"term\":{\"clearance\":\"public\"}}";
-    // Mirrors the private constant in WorkflowService; setting it on the request thread context
+    // Mirrors the private constant in WorkflowService. Setting it on the request thread context
     // emulates a request originating from a workflow-allowed REST handler.
     private static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
@@ -201,10 +201,10 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
 
     /**
      * Implicit DLS/FLS granted on a pattern that covers a data stream applies to every backing index when the data
-     * stream is searched, across all of its backing indices, and stays exempt from license enforcement and feature tracking. An
-     * explicit, unrestricted {@code read} grant on one backing index (the only explicit shape possible here: the basic
-     * license rejects explicit DLS/FLS roles) is unioned into that index when it is itself requested; the merged entry
-     * then carries no DLS/FLS at all, so nothing becomes trackable and the other backing indices keep the implicit grant.
+     * stream is searched, and stays exempt from license enforcement and feature tracking. An explicit, unrestricted
+     * {@code read} grant on one backing index (the only explicit shape possible here, since the basic license rejects
+     * explicit DLS/FLS roles) is unioned into that index when it is itself requested. The merged entry then carries no
+     * DLS/FLS at all, so nothing becomes trackable, and the other backing indices keep the implicit grant.
      */
     public void testImplicitDlsFlsOnDataStreamAppliesToEveryBackingIndex() throws Exception {
         final String dataStream = "helicarrier-stream";
@@ -258,7 +258,7 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
             .roles("asgardian", "write_index_reader")
             .get();
         final Client odin = clientFor("odin");
-        // naming the write index unions both grants for it: all of its documents, with all fields; the first
+        // naming the write index unions both grants for it: all of its documents, with all fields. The first
         // backing index keeps the implicit DLS/FLS
         assertResponse(odin.prepareSearch(dataStream, writeIndex).setSize(10), response -> {
             assertHitCount(response, 3);
@@ -332,7 +332,7 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
         );
         final Client apiKeyClient = clientForApiKey(createApiKey("romanoff", List.of(apiKeyRole)));
 
-        // DLS hides the "classified" doc and FLS strips "codename" — same observable behavior as
+        // DLS hides the "classified" doc and FLS strips "codename", the same observable behavior as
         // the owner would see directly, demonstrating the implicit flag survived composition.
         assertResponse(apiKeyClient.prepareSearch("helicarrier-bridge"), response -> {
             assertHitCount(response, 1);
@@ -350,7 +350,7 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
      * qualifying application privilege, so the provider attaches implicit DLS/FLS on the key side.
      * At auth time the two IACs compose: owner contributes no DLS/FLS (neutral), key contributes
      * implicit DLS/FLS. Under the current composition rule the flag is dropped, license enforcement
-     * kicks in, and the basic-license bypass is lost — which this test is written to catch.
+     * kicks in, and the basic-license bypass is lost. This test is written to catch that.
      */
     public void testApiKeyWithImplicitGrantAndOwnerWithRawAccessPreservesImplicitGrant() throws Exception {
         createUserWithRole("banner", createRoleWithRawReadOnHelicarrier("raw_reader"));
@@ -397,8 +397,8 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
      * Mirror of {@link #testApiKeyWithImplicitGrantAndOwnerWithRawAccessPreservesImplicitGrant} with
      * the sides swapped: the owner holds the application privilege (implicit DLS/FLS from the
      * provider), while the API key declares raw {@code read} on the same index pattern. The composed
-     * IAC has implicit DLS/FLS from the owner side and nothing from the key side — same "asymmetric"
-     * shape, opposite direction.
+     * IAC has implicit DLS/FLS from the owner side and nothing from the key side, the same "asymmetric"
+     * shape in the opposite direction.
      */
     public void testApiKeyWithRawAccessAndOwnerWithImplicitGrantPreservesImplicitGrant() throws Exception {
         createUserWithRole("rogers", createRoleWithApplicationPrivilege("captain"));

@@ -93,7 +93,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
               ]
             }""", DATA_STREAM));
 
-        // documents from the first and the last backing index match; the field "secret" is stripped from all of them
+        // documents from the first and the last backing index match, and the field "secret" is stripped from all of them
         for (String target : List.of(DATA_STREAM, ".ds-" + DATA_STREAM + "-*", String.join(",", backingIndices))) {
             final Map<String, Map<String, Object>> hits = hitsById(search(user, target, MATCH_ALL));
             assertThat("searching [" + target + "]", hits.keySet(), containsInAnyOrder("a1", "a3"));

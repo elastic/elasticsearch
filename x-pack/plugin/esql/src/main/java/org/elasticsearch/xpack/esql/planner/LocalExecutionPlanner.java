@@ -100,6 +100,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
@@ -159,6 +160,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -169,6 +171,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -227,9 +230,9 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchService;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -638,8 +641,12 @@ public class LocalExecutionPlanner {
         // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
         // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
         // per-row inference failure.
-        // A single batch size applies to every per-field operator this command builds.
-        int batchSize = inferenceService.inferenceSettings().denseVectorBatchSize();
+        // A single batch size applies to every per-field operator this command builds. A configured setting is used as given; an
+        // unconfigured one resolves per endpoint, since the accepted size varies by endpoint.
+        InferenceSettings inferenceSettings = inferenceService.inferenceSettings();
+        int batchSize = inferenceSettings.denseVectorBatchSizeExplicit()
+            ? inferenceSettings.denseVectorBatchSize()
+            : DenseVector.defaultBatchSizeFor(inferenceId);
         PhysicalOperation operation = source;
         for (int i = 0; i < fields.size(); i++) {
             ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
@@ -657,6 +664,7 @@ public class LocalExecutionPlanner {
                     inferenceId,
                     inputEvaluatorFactory,
                     inputType,
+                    InputType.INTERNAL_INGEST,
                     batchSize,
                     denseVector.timeout(),
                     denseVector.source(),
@@ -666,6 +674,7 @@ public class LocalExecutionPlanner {
                     inferenceService,
                     inferenceId,
                     inputEvaluatorFactory,
+                    InputType.INTERNAL_INGEST,
                     batchSize,
                     denseVector.timeout(),
                     denseVector.source(),
@@ -1556,7 +1565,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
-                new GrokEvaluatorExtracter.Factory(watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
+                new GrokEvaluatorExtracter.Factory(grok.source(), watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
         );

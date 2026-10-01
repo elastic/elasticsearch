@@ -28,6 +28,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -624,7 +625,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
         if (field.dataType() == TEXT && options() == null) {
-            return runtimeTextEvaluator(toEvaluator, terms -> new RuntimeSearch.AnyTermMatcher(Set.copyOf(terms)));
+            return runtimeTextEvaluator(toEvaluator, terms -> new TokenStreamMatching.AnyTerm(Set.copyOf(terms)));
         }
         // When options are used, we build a Lucene query
         if (field.dataType() == TEXT && options() != null) {
@@ -704,7 +705,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Analyzer analyzer = resolveValuesAnalyzer(toScorer.toEvaluator());
         Map<BytesRef, Integer> queryTerms;
         try {
-            queryTerms = RuntimeSearch.analyzeTermsWithCounts(analyzer, queryAsObject().toString());
+            queryTerms = TokenStreamMatching.analyzeTermsWithCounts(analyzer, RuntimeSearch.CONTENT_FIELD, queryAsObject().toString());
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
         }

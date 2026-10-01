@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -433,7 +434,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         }
 
         if (field.dataType() == TEXT && options() == null && hasNonStandardValuesAnalyzer() == false) {
-            return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+            return runtimeTextEvaluator(toEvaluator, TokenStreamMatching.Phrase::new);
         }
         // When options or a values analyzer are used, we build a Lucene query
         if (field.dataType() == TEXT) {

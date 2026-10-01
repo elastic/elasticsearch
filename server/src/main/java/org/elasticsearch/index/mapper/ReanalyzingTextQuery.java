@@ -11,8 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -52,7 +50,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -166,14 +163,12 @@ public final class ReanalyzingTextQuery extends Query {
      * starting on one of them must not be offered to the others.
      */
     static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
-        final int[] endedBefore = new int[terms.length];
-        final int[] endedHere = new int[terms.length];
-        Arrays.fill(endedBefore, Integer.MIN_VALUE);
-        Arrays.fill(endedHere, Integer.MIN_VALUE);
+        final BytesRef[] bytes = new BytesRef[terms.length];
+        for (int i = 0; i < terms.length; i++) {
+            bytes[i] = terms[i].bytes();
+        }
+        final TokenStreamMatching.PhraseWalker walker = new TokenStreamMatching.PhraseWalker(bytes);
         final int gap = analyzer.getPositionIncrementGap(field);
-        int freq = 0;
-        int position = -1;
-        int positionInHand = -1;
         boolean firstValue = true;
         for (Object value : values) {
             if (value == null) {
@@ -183,46 +178,16 @@ public final class ReanalyzingTextQuery extends Query {
                 firstValue = false;
             } else {
                 // The analyzer's gap sits between two values, as it does when the same values are indexed.
-                position += gap;
+                walker.skip(gap);
             }
-            final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+            final String text = value instanceof BytesRef valueBytes ? valueBytes.utf8ToString() : value.toString();
             try (TokenStream stream = analyzer.tokenStream(field, text)) {
-                final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-                final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
                 stream.reset();
-                while (stream.incrementToken()) {
-                    position += increment.getPositionIncrement();
-                    if (position != positionInHand) {
-                        for (int length = 0; length < terms.length; length++) {
-                            if (endedHere[length] != Integer.MIN_VALUE) {
-                                endedBefore[length] = endedHere[length];
-                                endedHere[length] = Integer.MIN_VALUE;
-                            }
-                        }
-                        positionInHand = position;
-                    }
-                    final BytesRef token = term.getBytesRef();
-                    if (terms[0].bytes().equals(token)) {
-                        if (terms.length == 1) {
-                            freq++;
-                        } else {
-                            endedHere[0] = position;
-                        }
-                    }
-                    for (int length = 1; length < terms.length; length++) {
-                        if (endedBefore[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
-                            if (length == terms.length - 1) {
-                                freq++;
-                            } else {
-                                endedHere[length] = position;
-                            }
-                        }
-                    }
-                }
+                walker.accept(stream);
                 stream.end();
             }
         }
-        return freq;
+        return walker.freq();
     }
 
     private static final Similarity FREQ_SIMILARITY = new Similarity() {

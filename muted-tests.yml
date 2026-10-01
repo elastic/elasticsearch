@@ -203,6 +203,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: bwc expanded distribution folder can be resolved as bwc project artifact
   issue: https://github.com/elastic/elasticsearch/issues/160706
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/130_spatial/geo_point unsortable with limit status}
+  issue: https://github.com/elastic/elasticsearch/issues/160707
 
 # Examples:
 #

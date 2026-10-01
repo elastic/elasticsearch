@@ -415,6 +415,12 @@ class DatafeedJob {
         long start = sourceWindowStart(lookbackStartTimeMs);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
+        if (isEsqlDatafeed && groupingIntervalMs > 0 && realtimeAdvanceTime(end) <= start) {
+            // The extractor only ever queries complete grouping intervals, so while the one containing `end` is still
+            // open there is nothing to extract, flush or checkpoint. This is not an empty search: it must not be
+            // counted as one (a frequency shorter than the grouping interval would otherwise report "no data").
+            throw new NoCompleteBucketException(nextRealtimeTimestamp());
+        }
         if (completedContinuousLookback && isRunning() && isIsolated == false) {
             // A completed lookback has extracted and posted this range, so skip_time avoids materialising empty bucket results.
             if (shouldSkipEmptyBucketsAfterCompletedLookback(start)) {
@@ -1079,6 +1085,22 @@ class DatafeedJob {
         EmptyDataCountException(long nextDelayInMsSinceEpoch, boolean haveEverSeenData) {
             this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
             this.haveEverSeenData = haveEverSeenData;
+        }
+    }
+
+    /**
+     * Thrown by {@link #runRealtime()} when an ES|QL datafeed's window does not yet contain a complete grouping interval, so
+     * there is nothing to extract, flush or checkpoint. Unlike {@link EmptyDataCountException} this is not an empty search:
+     * no search ran, so it must neither count towards the consecutive-empty-search warning and
+     * {@code max_empty_searches} nor reset them.
+     */
+    static class NoCompleteBucketException extends RuntimeException {
+
+        final long nextDelayInMsSinceEpoch;
+
+        NoCompleteBucketException(long nextDelayInMsSinceEpoch) {
+            super(null, null, false, false);
+            this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
         }
     }
 }

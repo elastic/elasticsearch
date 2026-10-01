@@ -267,6 +267,32 @@ public class DatafeedRunnerTests extends ESTestCase {
         verify(auditor, times(1)).warning(eq(JOB_ID), anyString());
     }
 
+    public void testStart_noCompleteBucketExceptionShouldNeitherCountAsEmptyDataNorStopDatafeed() throws Exception {
+        currentTime = 6000000;
+        int[] counter = new int[] { 0 };
+        doAnswer(invocationOnMock -> {
+            if (counter[0]++ < 20) {
+                Runnable r = (Runnable) invocationOnMock.getArguments()[0];
+                currentTime += 600000;
+                r.run();
+            }
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(threadPool).schedule(any(), any(), any(Executor.class));
+
+        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenReturn(1L);
+        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.NoCompleteBucketException(0L));
+        when(datafeedJob.getMaxEmptySearches()).thenReturn(1);
+
+        Consumer<Exception> handler = mockConsumer();
+        DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, null);
+        datafeedRunner.run(task, false, handler);
+
+        verify(threadPool, times(21)).schedule(any(), any(), any(Executor.class));
+        verify(auditor, never()).warning(eq(JOB_ID), anyString());
+        verify(auditor, never()).info(eq(JOB_ID), anyString());
+        assertThat(datafeedRunner.isRunning(task), is(true));
+    }
+
     public void testRealTime_GivenStoppingAnalysisProblem() throws Exception {
         Exception cause = new RuntimeException("stopping");
         when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenThrow(new DatafeedJob.AnalysisProblemException(0L, true, cause));

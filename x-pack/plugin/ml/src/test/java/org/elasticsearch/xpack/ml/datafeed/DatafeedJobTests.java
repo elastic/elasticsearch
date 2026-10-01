@@ -74,6 +74,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -88,6 +89,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -1691,6 +1693,89 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(persistedSourceEnd.get(), nullValue());
         assertThat(datafeedJob.esqlSourceEndMs(), nullValue());
         assertThat(datafeedJob.lastEndTimeMs(), equalTo(3_599_999L));
+    }
+
+    public void testEsqlRealtimeWithFrequencyShorterThanGroupingIntervalShouldNotReportNoData() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        List<Long> persistedSourceEnds = new ArrayList<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnds.add(checkpoint.getSourceEndMs());
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenAnswer(invocation -> Intervals.alignToFloor(currentTime, groupingIntervalMs));
+
+        // the datafeed has fully processed the first bucket, so only the second one is still open
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, 0L, groupingIntervalMs, groupingIntervalMs, persister);
+        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
+
+        int skippedCycles = 0;
+        int emptyCycles = 0;
+        for (int cycle = 1; cycle <= 12; cycle++) {
+            currentTime = groupingIntervalMs + cycle * frequencyMs;
+            try {
+                datafeedJob.runRealtime();
+                problemTracker.reportNonEmptyDataCount();
+            } catch (DatafeedJob.EmptyDataCountException e) {
+                emptyCycles++;
+                problemTracker.reportEmptyDataCount();
+            } catch (DatafeedJob.NoCompleteBucketException e) {
+                skippedCycles++;
+            }
+        }
+
+        verify(auditor, never()).warning(eq(jobId), any());
+        // 11 cycles fall inside the open bucket; the 12th is the first one with a complete bucket and finds it empty
+        assertThat(skippedCycles, equalTo(11));
+        assertThat(emptyCycles, equalTo(1));
+        verify(dataExtractorFactory, times(1)).newExtractor(anyLong(), anyLong());
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
+        assertThat(persistedSourceEnds, equalTo(List.of(2 * groupingIntervalMs)));
+    }
+
+    public void testEsqlRealtimeShouldExtractOnFirstCycleAfterGroupingIntervalCompletes() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        List<Long> persistedSourceEnds = new ArrayList<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnds.add(checkpoint.getSourceEndMs());
+        when(dataExtractor.getEndTime()).thenReturn(2 * groupingIntervalMs);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, 0L, groupingIntervalMs, groupingIntervalMs, persister);
+
+        currentTime = 2 * groupingIntervalMs - frequencyMs;
+        expectThrows(DatafeedJob.NoCompleteBucketException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertThat(persistedSourceEnds, empty());
+
+        currentTime = 2 * groupingIntervalMs;
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(groupingIntervalMs, 2 * groupingIntervalMs);
+        assertThat(flushJobRequests.getValue().getAdvanceTime(), equalTo(String.valueOf(2 * groupingIntervalMs)));
+        assertThat(persistedSourceEnds, equalTo(List.of(2 * groupingIntervalMs)));
+        assertThat(datafeedJob.esqlSourceEndMs(), equalTo(2 * groupingIntervalMs));
+    }
+
+    public void testEsqlLookbackWithoutCompleteGroupingIntervalShouldStillReportEmptyData() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
+        List<Long> persistedSourceEnds = new ArrayList<>();
+        Consumer<EsqlDatafeedSourceCheckpoint> persister = checkpoint -> persistedSourceEnds.add(checkpoint.getSourceEndMs());
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(groupingIntervalMs);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob lookbackOnlyJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(
+            DatafeedJob.EmptyDataCountException.class,
+            () -> lookbackOnlyJob.runLookBack(groupingIntervalMs, groupingIntervalMs + 3_600_000L)
+        );
+
+        currentTime = groupingIntervalMs + 3_600_000L;
+        DatafeedJob continuousLookbackJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, null, persister);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> continuousLookbackJob.runLookBack(groupingIntervalMs, null));
+
+        // the lookback path is unchanged: it still flushes and checkpoints the (empty) window
+        verify(client, times(2)).execute(same(FlushJobAction.INSTANCE), any());
+        assertThat(persistedSourceEnds, equalTo(List.of(groupingIntervalMs, groupingIntervalMs)));
     }
 
     private DatafeedJob createEsqlDatafeedJob(

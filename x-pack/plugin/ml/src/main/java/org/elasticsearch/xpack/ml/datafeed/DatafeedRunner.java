@@ -500,6 +500,10 @@ public class DatafeedRunner {
                             holder.stop("realtime_analysis_error", TimeValue.timeValueSeconds(20), e);
                             return;
                         }
+                    } catch (DatafeedJob.NoCompleteBucketException e) {
+                        // No search ran, so this is neither an empty nor a non-empty search and the problem tracker is left untouched.
+                        doDatafeedRealtime(e.nextDelayInMsSinceEpoch, jobId, holder);
+                        return;
                     } catch (DatafeedJob.EmptyDataCountException e) {
                         int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
                         if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {

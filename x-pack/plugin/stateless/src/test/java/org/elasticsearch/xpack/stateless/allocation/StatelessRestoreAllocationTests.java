@@ -120,9 +120,13 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         );
     }
 
-    private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
+    private AllocationService service(
+        SnapshotRestoreAllocationDecider restoreDecider,
+        AtomicReference<ClusterInfo> info,
+        AtomicReference<SnapshotShardSizeInfo> sizes
+    ) {
         var service = new AllocationService(
-            new AllocationDeciders(List.of(new SnapshotRestoreAllocationDecider(Settings.EMPTY), new StatelessAllocationDecider())),
+            new AllocationDeciders(List.of(restoreDecider, new StatelessAllocationDecider())),
             createShardsAllocator(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build()),
             info::get,
             sizes::get,
@@ -131,6 +135,10 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         );
         service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator()));
         return service;
+    }
+
+    private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
+        return service(new SnapshotRestoreAllocationDecider(Settings.EMPTY), info, sizes);
     }
 
     private static ShardRouting primary(ClusterState state, String index) {
@@ -168,45 +176,73 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
     public void testWaitsWhenDiskTooSmallThenAllocatesWhenCapacityAppears() {
         var state = restoreState(1);
+        var restoreDecider = new SnapshotRestoreAllocationDecider(Settings.EMPTY);
         // free 70 - 1: shard 50 leaves less than 20 GiB indexing reserve
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(info, sizes);
+        var service = service(restoreDecider, info, sizes);
 
         state = service.reroute(state, "disk tight", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
+        assertEquals(1, restoreDecider.unmetDiskShortfalls().size());
+        assertEquals(1L, restoreDecider.unmetDiskShortfallBytes());
 
         info.set(info(70 * GB));
         state = service.reroute(state, "exact fit", ActionListener.noop());
         assertTrue(primary(state, "index-0").initializing());
+        assertEquals(0, restoreDecider.unmetDiskShortfallBytes());
+        assertTrue(restoreDecider.unmetDiskShortfalls().isEmpty());
     }
 
     public void testWaitsWhenDiskStatsMissing() {
         var state = restoreState(1);
+        var restoreDecider = new SnapshotRestoreAllocationDecider(Settings.EMPTY);
         var info = new AtomicReference<>(ClusterInfo.EMPTY);
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(info, sizes);
+        var service = service(restoreDecider, info, sizes);
 
         state = service.reroute(state, "no disk stats", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
+        // Missing disk stats throttle without a known shortfall magnitude.
+        assertEquals(0, restoreDecider.unmetDiskShortfallBytes());
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {
         // free 70 holds one 50 GiB restore; a second must wait until capacity increases.
         var state = restoreState(2);
+        var restoreDecider = new SnapshotRestoreAllocationDecider(Settings.EMPTY);
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
         var info = new AtomicReference<>(info(70 * GB));
-        var service = service(info, sizes);
+        var service = service(restoreDecider, info, sizes);
 
         state = service.reroute(state, "initial", ActionListener.noop());
         assertEquals(1, state.routingTable().allShards().filter(ShardRouting::initializing).toList().size());
         assertEquals(1, state.getRoutingNodes().unassigned().size());
+        assertEquals(1, restoreDecider.unmetDiskShortfalls().size());
+        assertTrue(restoreDecider.unmetDiskShortfallBytes() > 0);
 
         info.set(info(120 * GB));
         state = service.reroute(state, "more capacity", ActionListener.noop());
         assertEquals(0, state.getRoutingNodes().unassigned().size());
+        assertEquals(0, restoreDecider.unmetDiskShortfallBytes());
+    }
+
+    public void testUnmetShortfallNotRecordedWhileFetchingShardSize() {
+        var state = restoreState(1);
+        var restoreDecider = new SnapshotRestoreAllocationDecider(Settings.EMPTY);
+        var sizeInfo = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
+        var info = new AtomicReference<>(info(70 * GB - 1));
+        var service = service(restoreDecider, info, sizeInfo);
+
+        state = service.reroute(state, "size unknown", ActionListener.noop());
+        assertTrue(primary(state, "index-0").unassigned());
+        assertEquals(
+            UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
+            primary(state, "index-0").unassignedInfo().lastAllocationStatus()
+        );
+        assertEquals(0, restoreDecider.unmetDiskShortfallBytes());
     }
 
     public void testMonitorReroutesWhenStorageChangesWhileRestorePending() {

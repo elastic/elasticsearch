@@ -566,6 +566,7 @@ public class StatelessPlugin extends Plugin
     private final boolean hasMasterRole;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
+    private final SnapshotRestoreAllocationDecider snapshotRestoreAllocationDecider;
 
     private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
@@ -639,6 +640,15 @@ public class StatelessPlugin extends Plugin
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
         statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
+        snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings);
+    }
+
+    /**
+     * Single restore-disk allocation decider instance for this node. Retained so autoscaling can read
+     * unmet restore disk shortfalls recorded during live allocation.
+     */
+    public SnapshotRestoreAllocationDecider getSnapshotRestoreAllocationDecider() {
+        return snapshotRestoreAllocationDecider;
     }
 
     @Override
@@ -1960,7 +1970,7 @@ public class StatelessPlugin extends Plugin
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
-            new SnapshotRestoreAllocationDecider(settings),
+            snapshotRestoreAllocationDecider,
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)

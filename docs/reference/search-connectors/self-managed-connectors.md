@@ -31,7 +31,7 @@ Your Elastic deployment must include the following Elastic services:
 
 A new {{ech}} deployment or {{es-serverless}} project includes these services by default.
 
-To run self-managed connectors, your self-deployed connector service version must match your Elasticsearch version. For example, if you’re running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x. Elastic does not support deployments running mismatched versions (except during upgrades).
+To run self-managed connectors, your self-deployed connector service version must match your Elasticsearch version. For example, if you’re running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x. Elastic does not support deployments running mismatched versions (except during upgrades). This version-matching requirement does not apply to {{es-serverless}} projects.
 
 ::::{note}
 As of 8.10.0 *new* self-managed connectors no longer require the Enterprise Search service. However, if you are upgrading connectors from versions earlier than 8.9, you’ll need to run Enterprise Search once to migrate your connectors to the new format. In future releases, you may still need to run Enterprise Search for the purpose of migrations or upgrades.

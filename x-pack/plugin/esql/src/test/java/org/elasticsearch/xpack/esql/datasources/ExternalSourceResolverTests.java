@@ -8011,24 +8011,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     public void testFileMetadataCacheKeyDifferentiatesByDatasetEndpoint() {
-        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
-        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
-        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
-        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
-
-        // The endpoint reaches this key two ways now, and neither is the key reading the config for it. The
-        // provider reports what identifies the objects it reads, and the definition version covers every stored
-        // setting including the endpoint — so two datasets differing in it address different entries even when the
-        // provider reports nothing.
-        FileMetadataCacheKey rawA = FileMetadataCacheKey.build(
+        // The endpoint reaches this key one way, and it is not the key reading the config for it: the provider
+        // reports what identifies the objects it reads, and an endpoint is one of the settings it names.
+        FileMetadataCacheKey rawA = new FileMetadataCacheKey(
             "s3://bucket/file.csv",
-            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
-            configA
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint"))
         );
-        FileMetadataCacheKey rawB = FileMetadataCacheKey.build(
+        FileMetadataCacheKey rawB = new FileMetadataCacheKey(
             "s3://bucket/file.csv",
-            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
-            configB
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint"))
         );
         assertNotEquals("distinct storage identities must address distinct file-metadata entries", rawA, rawB);
     }

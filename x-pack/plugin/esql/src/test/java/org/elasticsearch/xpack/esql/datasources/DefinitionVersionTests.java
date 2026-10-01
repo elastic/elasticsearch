@@ -118,21 +118,26 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The case this mechanism exists for, on the carrier production actually stores. An
-     * {@link EncryptedData}'s {@code toString} redacts its ciphertext, so a version that let the carrier
-     * render itself would be identical across a rotation and every entry harvested under the old
-     * credential would stay addressable.
+     * Two stored secrets that differ only as ciphertext address one version, on the carrier production
+     * actually stores. Encryption gives a fresh IV per write, so ciphertext is not a function of the secret:
+     * re-encrypting an unchanged one changes it, and nothing here can tell that apart from a rotation. A
+     * version that folded it in therefore versioned definitions that had not changed — two data sources
+     * registered with the same settings shared no cache entry, and each probed every file for itself.
+     * <p>
+     * Credential isolation is not lost by this, it is placed where the plaintext is: {@code
+     * Configured.secretIdentity}, which the provider digests after decryption and which is therefore equal
+     * exactly when the secrets are, and the {@code StorageIdentity} stamped on the objects a provider reads.
      */
-    public void testRotatingAnEncryptedCredentialChangesTheVersion() {
-        String before = DefinitionVersion.of(
+    public void testSecretsThatDifferOnlyAsCiphertextShareOneVersion() {
+        String one = DefinitionVersion.of(
             dataset("s3://b/*.csv", Map.of("format", "csv")),
             encryptedSource("https://s3.example", "project-key-1", "ciphertext-of-AAA")
         );
-        String after = DefinitionVersion.of(
+        String other = DefinitionVersion.of(
             dataset("s3://b/*.csv", Map.of("format", "csv")),
             encryptedSource("https://s3.example", "project-key-1", "ciphertext-of-BBB")
         );
-        assertNotEquals("a rotation under one encryption key must still change the version", before, after);
+        assertEquals("a ciphertext must not version a definition that has not changed", one, other);
     }
 
     /** Re-keying without changing the secret is also a change to what is stored, and also invalidates. */

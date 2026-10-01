@@ -45,8 +45,13 @@ import java.util.TreeMap;
  * decides nothing about what is read, so two definitions that are equal in content address one set of
  * entries and share the work of filling them. Renaming a dataset keeps its cache warm.
  * <p>
- * Credential values are folded in, never carried: they reach only {@link MurmurHash3}, and what comes
- * out is a digest. A rotation changes the version without a secret entering a cache key.
+ * <b>A secret's value is not folded in.</b> A secret is stored encrypted, and the only rendering available
+ * here is its ciphertext, which carries a fresh random IV per encryption — so folding it would version a
+ * definition that has not changed, and two data sources registered with the same settings would address
+ * nothing in common. Credential isolation is carried by the party that holds the decrypted value instead:
+ * {@code Configured.secretIdentity}, digested from plaintext and therefore equal whenever the secrets are,
+ * and the {@code StorageIdentity} a provider stamps on the objects it reads. What remains here is the key id
+ * the secret was encrypted under, which changes when the project's encryption key does.
  */
 public final class DefinitionVersion {
 
@@ -86,18 +91,8 @@ public final class DefinitionVersion {
     }
 
     /**
-     * A data source's settings, secrets included — folded in as the value that actually distinguishes
-     * one credential from another.
-     * <p>
-     * A secret is stored as an {@link EncryptedData} carrier, and its {@code toString} redacts the
-     * ciphertext, so letting the carrier render itself would fold in only the setting's name and the
-     * project-wide key id: every rotation would produce the same version and entries harvested under
-     * the old credential would stay addressable. The key id and the ciphertext are therefore read off
-     * the carrier explicitly.
-     * <p>
-     * The ciphertext carries a fresh random IV per encryption ({@code AesGcm}), so re-encrypting an
-     * unchanged secret also changes the version. That direction is safe — it costs a cold read, where
-     * the direction this method exists to close costs a stale answer.
+     * A data source's settings. A secret contributes its name and the key id it is encrypted under; its value
+     * does not reach the version, for the reason given in the class javadoc.
      */
     private static void encodeDataSourceSettings(StringBuilder encoded, DataSource parent) {
         Map<String, String> sorted = new TreeMap<>();
@@ -115,7 +110,7 @@ public final class DefinitionVersion {
             return null;
         }
         if (rawValue instanceof EncryptedData encrypted) {
-            return encrypted.keyId() + ':' + Base64.getEncoder().encodeToString(encrypted.payload());
+            return encrypted.keyId();
         }
         // A value can arrive as a byte[] — generic serialization round-trips one, which is why
         // DataSourceSetting.equals compares them by content. Object.toString would render an identity hash

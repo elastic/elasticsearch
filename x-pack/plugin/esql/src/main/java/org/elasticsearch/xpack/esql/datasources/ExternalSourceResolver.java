@@ -1053,7 +1053,7 @@ public class ExternalSourceResolver {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
-                FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity, fileConfig);
+                FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
                 String formatType = detectFormatType(storagePath, fileConfig);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
@@ -1766,14 +1766,9 @@ public class ExternalSourceResolver {
      * mtime is the version token that rebuilds the {@link SchemaCacheKey}; length + mtime rebuild the singleton
      * {@code StorageEntry}.
      */
-    private FileMetadata fileMetadataOf(
-        StoragePath storagePath,
-        StorageProvider provider,
-        String storageIdentity,
-        Map<String, Object> config
-    ) throws Exception {
+    private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, String storageIdentity) throws Exception {
         if (isCacheable(provider)) {
-            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), storageIdentity, storageConfig(config));
+            FileMetadataCacheKey metaKey = new FileMetadataCacheKey(storagePath.toString(), storageIdentity);
             return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
         }
         return probeFileMetadata(storagePath, provider);
@@ -3974,7 +3969,7 @@ public class ExternalSourceResolver {
         // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
         // resolve never probes the live object; a miss (or a non-cacheable provider) probes exactly once. Strict
         // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
-        FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity, config);
+        FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);

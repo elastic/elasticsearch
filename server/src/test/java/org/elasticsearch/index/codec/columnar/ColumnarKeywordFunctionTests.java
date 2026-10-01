@@ -34,6 +34,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -155,6 +156,43 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 expected
             );
         }
+    }
+
+    /**
+     * Every function over a {@code multi_value: false} column, whose documents hold their value's own bytes rather than a
+     * payload. A document without the field reads as null; every other holds exactly one value, so each function answers.
+     */
+    public void testFunctionsOverSingleValuedColumn() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 5) {
+                case 0 -> null;
+                case 1 -> new String[] { "éè" };
+                case 2 -> new String[] { "" };
+                default -> new String[] { "term-" + (d % 7) };
+            };
+        }
+        final List<Object> bytes = new ArrayList<>();
+        final List<Object> codePoints = new ArrayList<>();
+        final List<Object> values = new ArrayList<>();
+        for (String[] slots : docs) {
+            bytes.add(slots == null ? null : new BytesRef(slots[0]).length);
+            codePoints.add(slots == null ? null : slots[0].codePointCount(0, slots[0].length()));
+            values.add(slots == null ? null : new BytesRef(slots[0]));
+        }
+        final BinaryDocValuesFormat plain = BinaryDocValuesFormat.PLAIN;
+        assertSingleValuedLoaderMatches(
+            docs,
+            fieldName -> new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), fieldName, plain),
+            bytes
+        );
+        assertSingleValuedLoaderMatches(
+            docs,
+            fieldName -> new Utf8CodePointsFromOrdsBlockLoader(new MockWarnings(), fieldName, ByteSizeValue.ofKb(1), plain),
+            codePoints
+        );
+        assertSingleValuedLoaderMatches(docs, fieldName -> new MvMaxBytesRefsFromBinaryBlockLoader(fieldName, plain), values);
+        assertSingleValuedLoaderMatches(docs, fieldName -> new MvMinBytesRefsFromBinaryBlockLoader(fieldName, plain), values);
     }
 
     /** BYTE_LENGTH over documents without the field among every other shape, which read as null. */
@@ -340,6 +378,39 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 assertEquals("positions", docs.length, block.size());
                 for (int d = 0; d < docs.length; d++) {
                     assertEquals("document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
+                }
+            }
+        }
+    }
+
+    /**
+     * As {@link #assertLoaderMatches}, but each document holds its one value's own bytes, written as the mapper writes a
+     * {@code multi_value: false} field so the codec knows the column is single-valued.
+     */
+    private void assertSingleValuedLoaderMatches(
+        String[][] docs,
+        Function<String, BlockDocValuesReader.DocValuesBlockLoader> loaders,
+        List<Object> expected
+    ) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (String[] slots : docs) {
+                    final Document doc = new Document();
+                    if (slots != null) {
+                        doc.add(new SingleValuedColumnarBinaryDocValuesField(FIELD, new BytesRef(slots[0])));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
+                final var loader = loaders.apply(FIELD);
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, docs.length), 0, false);
+                assertEquals("positions", docs.length, block.size());
+                for (int d = 0; d < docs.length; d++) {
+                    assertEquals(loader + " document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
                 }
             }
         }

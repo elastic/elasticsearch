@@ -11,16 +11,23 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for subquery batch execution in ComputeService.
@@ -424,6 +431,269 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             );
             assertValues(resp.values(), expectedValues);
         }
+    }
+
+    public void testThreeLevelNestedSubqueriesAtDifferentParallelDegrees() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    )
+               ),
+               ( FROM test | WHERE id == 5 )
+            | KEEP id
+            | SORT id
+            """;
+        for (int degree : List.of(1, 2, 8)) {
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(degree)))) {
+                assertColumnNames(resp.columns(), List.of("id"));
+                assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5)));
+            }
+        }
+    }
+
+    public void testNestedSubqueryProfileUsesHierarchicalNames() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    )
+               )
+            | SORT id
+            | KEEP id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)).profile(true))) {
+            assertNotNull(resp.profile());
+            Set<String> descriptions = resp.profile().drivers().stream().map(DriverProfile::description).collect(Collectors.toSet());
+            assertTrue(descriptions.contains("main.final"));
+            assertTrue(descriptions.contains("subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-1.final"));
+        }
+    }
+
+    public void testNestedSubqueryOuterLimitWithQueuedLeaves() {
+        var query = """
+            FROM
+               ( FROM test ),
+               ( FROM
+                    ( FROM test ),
+                    ( FROM
+                         ( FROM test ),
+                         ( FROM test )
+                    )
+               )
+            | LIMIT 1
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)))) {
+            var values = resp.values();
+            assertTrue(values.hasNext());
+            values.next();
+            assertFalse(values.hasNext());
+        }
+    }
+
+    // subquery and fork
+
+    public void testForkInsideSubquery() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | FORK (WHERE id > 2) (WHERE id <= 2))
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(12));
+            // fork1: id 3, 4, 5, 5, 6, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(4));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(5));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(3).get(1), equalTo(5));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(4).get(1), equalTo(6));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(5).get(1), equalTo(6));
+
+            // fork2: id 1, 1, 2, 2, 3, 4
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(1));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(1));
+            assertThat(rows.get(8).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(8).get(1), equalTo(2));
+            assertThat(rows.get(9).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(9).get(1), equalTo(2));
+            assertThat(rows.get(10).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(10).get(1), equalTo(3));
+            assertThat(rows.get(11).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(11).get(1), equalTo(4));
+        }
+    }
+
+    public void testForkAfterSubquery() {
+        var query = """
+            FROM (FROM test | WHERE id > 4),
+                 (FROM test | WHERE id <= 2)
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(4));
+            // fork1: id 5, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(5));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(6));
+
+            // fork2: id 1, 2
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(2).get(1), equalTo(1));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(2));
+        }
+    }
+
+    public void testForkInsideAndAfterSubquery() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | WHERE id <= 2 | EVAL _fork = "fork1")
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(8));
+
+            // fork1: id 4, 5, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(4));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(5));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(6));
+
+            // fork2: id 1, 1, 2, 2, 3
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(1));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(4).get(1), equalTo(1));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(5).get(1), equalTo(2));
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(2));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(3));
+        }
+    }
+
+    public void testNestedSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | WHERE id <= 4),
+                 (FROM (FROM test | WHERE id >= 3), (FROM test | WHERE id == 6))
+            | KEEP id
+            | SORT id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(3), List.of(4), List.of(4), List.of(5), List.of(6), List.of(6)))
+            );
+        }
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(4)))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(4), List.of(4), List.of(5), List.of(6), List.of(6))));
+        }
+    }
+
+    public void testForkInsideSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | FORK (WHERE id > 2) (WHERE id <= 2))
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(3)))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(8));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(4));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(5));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(3).get(1), equalTo(5));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(4).get(1), equalTo(6));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(5).get(1), equalTo(6));
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(3));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(4));
+        }
+    }
+
+    public void testForkAfterSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | WHERE id > 4),
+                 (FROM test | WHERE id <= 2)
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(3)))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(5));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(6));
+        }
+    }
+
+    public void testForkInsideAndAfterSubqueryWithRequestFilter() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | WHERE id <= 2 | EVAL _fork = "fork1")
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).filter(new RangeQueryBuilder("id").gte(3)))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(4));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(4));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(5));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(6));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(3));
+        }
+    }
+
+    private static QueryPragmas branchPragmas(int degree) {
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), degree).build());
     }
 
     private void createAndPopulateIndex() {

@@ -21,8 +21,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -294,7 +294,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 map.put("elasticsearch.slowlog.routing", doc.routing());
             }
 
-            SourceToParse.Source sourceObject = doc.source();
+            DocumentSource sourceObject = doc.source();
             // TODO: Will materialize to original x-content if rows. Consider if we eventually want to optimize this.
             if (maxSourceCharsToLog == 0 || sourceObject == null || sourceObject.originalBytes().length() == 0) {
                 return map;

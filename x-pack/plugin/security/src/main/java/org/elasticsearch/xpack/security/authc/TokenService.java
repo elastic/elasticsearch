@@ -73,8 +73,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -91,7 +89,6 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecureBytesRefRecycler;
@@ -230,7 +227,6 @@ public class TokenService {
     private final SecurityIndexManager securityTokensIndex;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
-    private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final Recycler<BytesRef> bytesRefRecycler;
     private volatile TokenKeys keyCache;
@@ -245,7 +241,6 @@ public class TokenService {
         Settings settings,
         Clock clock,
         Client client,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
         SecurityIndexManager securityMainIndex,
         SecurityIndexManager securityTokensIndex,
@@ -259,7 +254,6 @@ public class TokenService {
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
-        this.licenseState = licenseState;
         this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
@@ -1991,15 +1985,10 @@ public class TokenService {
     }
 
     private boolean shouldTryRealm() {
-        // Check license without tracking because this is just checking if we should *try* the realm - if this realm doesn't match,
-        // the next realm in the list will be checked, and that's not "using the feature"
-        return enabled && Security.TOKEN_SERVICE_FEATURE.checkWithoutTracking(licenseState);
+        return enabled;
     }
 
     private void ensureEnabled() {
-        if (Security.TOKEN_SERVICE_FEATURE.check(licenseState) == false) {
-            throw LicenseUtils.newComplianceException("security tokens");
-        }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.TOKEN_SERVICE, "security tokens are not enabled");
         }

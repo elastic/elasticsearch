@@ -314,25 +314,38 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testNodeWriteLoadsArePresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-        // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
-        ClusterInfoServiceUtils.refresh(clusterInfoService);
-        Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
-            .getNodeUsageStatsForThreadPools();
-        assertNotNull(nodeThreadPoolStats);
+        try {
+            // The decider's default is derived from the write_load_decider feature flag, which is off in release builds. Enable it
+            // explicitly so the test does not depend on the build being a snapshot build.
+            setWriteLoadDeciderEnablement(
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            );
 
-        /** Verify that each node has usage stats reported. */
-        ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
-        for (DiscoveryNode node : state.nodes()) {
-            assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
-            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
-            assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE);
-            assertNotNull(writeThreadPoolStats);
-            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
-            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
+                .getNodeUsageStatsForThreadPools();
+            assertNotNull(nodeThreadPoolStats);
+
+            /** Verify that each node has usage stats reported. */
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+                NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
+                assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
+                NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
+                    .threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE);
+                assertNotNull(writeThreadPoolStats);
+                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            clearWriteLoadDeciderEnablementSetting();
         }
     }
 
@@ -987,32 +1000,22 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .stream()
                     .map(node -> node.started())
                     .flatMap(nodeIt -> StreamSupport.stream(nodeIt.spliterator(), false))
-                    .collect(
-                        Collectors.toUnmodifiableMap(
-                            ShardRouting::shardId,
-                            shardRouting -> new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage())
-                        )
-                    );
+                    .collect(Collectors.toUnmodifiableMap(ShardRouting::shardId, shardRouting -> randomShardAndIndexHeapUsage()));
                 return new EstimatedHeapUsageStats(
                     nodeHeapEstimates,
-                    new ShardHeapUsageEstimates(perShard, new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage()))
+                    new ShardHeapUsageEstimates(perShard, randomShardAndIndexHeapUsage())
                 );
             });
         }
     }
 
     /**
-     * Reasonable shard heap usage estimate (to prevent overflow)
+     * Reasonable shard and index heap usage estimate (to prevent overflow)
      */
-    private static long randomShardHeapUsage() {
-        return randomLong(1_000_000);
-    }
-
-    /**
-     * Reasonable index heap usage estimate (to prevent overflow)
-     */
-    private static long randomIndexHeapUsage() {
-        return randomLong(400_000);
+    private static ShardAndIndexHeapUsage randomShardAndIndexHeapUsage() {
+        final long shardHeapUsageBytes = randomLong(1_000_000);
+        final long postingsHeapUsageBytes = randomLongBetween(0, shardHeapUsageBytes);
+        return new ShardAndIndexHeapUsage(shardHeapUsageBytes, randomLong(400_000), postingsHeapUsageBytes);
     }
 
     public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {

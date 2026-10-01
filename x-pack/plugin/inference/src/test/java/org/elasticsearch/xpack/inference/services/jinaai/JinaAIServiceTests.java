@@ -24,7 +24,7 @@ import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -1714,6 +1714,18 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testRequiresSingleInputEmbeddingRequestForPdf() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            Model model = mock(Model.class);
+            var pdfInput = createRandomUsingDataTypes(EnumSet.of(PDF));
+            var nonPdfInput = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(PDF)));
+
+            assertTrue(service.requiresSingleInputEmbeddingRequest(model, pdfInput));
+            assertFalse(service.requiresSingleInputEmbeddingRequest(model, nonPdfInput));
+        }
+    }
+
     public void testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf_SingleInputPerGroup() throws IOException {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
             List.of(
@@ -1958,7 +1970,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                         }
                     """
             );
-            var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+            var configuration = InferenceServiceConfigurationTests.fromXContentBytes(new BytesArray(content), XContentType.JSON);
             var humanReadable = true;
             var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
             var serviceConfiguration = service.getConfiguration();

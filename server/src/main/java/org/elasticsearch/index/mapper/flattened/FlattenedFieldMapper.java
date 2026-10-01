@@ -69,7 +69,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -135,7 +135,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -331,7 +330,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private Builder(String name, MappingParserContext mappingParserContext) {
             this(
                 name,
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIgnoreAbove(),
                 mappingParserContext.getIndexSettings(),
                 usesBinaryDocValues(mappingParserContext.getIndexSettings()),
                 mappingParserContext.indexVersionCreated().before(IndexVersions.FLATTENED_FIELD_NO_ROOT_DOC_VALUES),
@@ -1202,13 +1201,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
         private final String key;
         private final BytesBinaryIndexFieldData delegate;
-        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
         private final boolean usesArrayOrderBinaryDocValues;
 
         private BinaryKeyedFlattenedFieldData(
             String key,
             BytesBinaryIndexFieldData delegate,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             boolean usesArrayOrderBinaryDocValues
         ) {
             this.delegate = delegate;
@@ -1287,7 +1286,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
 
                     @Override
-                    public SortedBinaryDocValues getBytesValues() {
+                    public SortableBinaryDocValues getBytesValues() {
                         return dv;
                     }
                 };
@@ -1299,14 +1298,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+            private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
             private final IndexVersion indexVersion;
             private final boolean usesArrayOrderBinaryDocValues;
 
             Builder(
                 String fieldName,
                 String key,
-                ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+                ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
                 IndexVersion indexVersion,
                 boolean usesArrayOrderBinaryDocValues
             ) {
@@ -1707,7 +1706,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            builder.ignoreAbove.get(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1952,6 +1951,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             // ~1.25x headroom for documents a little wider than the first.
             docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
+            final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
+
             for (int doc = 0; doc < docCount; doc++) {
                 int slotCount = 0;
                 int pos = 0;
@@ -1966,7 +1967,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                             value = nullValueBytes;
                         }
                         if (value != null) {
-                            if (fieldType().ignoreAbove().isIgnored(value)) {
+                            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(value)) {
                                 throw new UnsupportedOperationException(
                                     "mapColumnGroupBatch: value for key ["
                                         + relativeKeys[k]

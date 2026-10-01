@@ -10,14 +10,14 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.ValueDeduplicator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -68,28 +68,27 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
+        final SortableBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(SortableBinaryDocValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
-            final BytesRefBuilder previous = new BytesRefBuilder();
+            final ValueDeduplicator duplicates = new ValueDeduplicator(values);
 
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(docId)) {
-                    previous.clear();
-                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    duplicates.reset(values.docValueCount());
+                    // SortableBinaryDocValues don't guarantee uniqueness so we
                     // need to take care of dups
                     for (int i = 0; i < values.docValueCount(); ++i) {
                         BytesRef bytes = values.nextValue();
-                        if (i > 0 && previous.get().equals(bytes)) {
+                        if (duplicates.seen(bytes)) {
                             continue;
                         }
                         collectValue(bytes, docId, owningBucketOrd, sub);
-                        previous.copyBytes(bytes);
                     }
                 }
 

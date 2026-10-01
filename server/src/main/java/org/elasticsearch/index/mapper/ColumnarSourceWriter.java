@@ -534,11 +534,11 @@ final class ColumnarSourceWriter {
 
         /**
          * A companion numeric slot for {@code "field.counts"} fields used by
-         * {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues}.
+         * {@link org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues}.
          *
          * <p>When the counts field is absent from the document but the binary payload is present,
          * {@link #advanceExact} returns {@code true} and {@link #longValue} returns {@code 1},
-         * causing {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues.SeparateCounts}
+         * causing {@link org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues.SeparateCounts}
          * to behave identically to {@code PlainBinary} for single-valued fields.
          */
         private static final class CountsCompanionSlot extends NumericDocValues {

@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
@@ -215,6 +217,7 @@ public class ServiceAccountService {
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
+        @Nullable String description,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<UserManagedServiceAccountStore.PutResult> listener
     ) {
@@ -224,7 +227,7 @@ public class ServiceAccountService {
         }
         userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
             if (account != null) {
-                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, delegate);
+                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, refreshPolicy, delegate);
                 return;
             }
             indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
@@ -237,7 +240,7 @@ public class ServiceAccountService {
                         )
                     );
                 } else {
-                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, inner);
+                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, refreshPolicy, inner);
                 }
             }));
         }));
@@ -264,8 +267,32 @@ public class ServiceAccountService {
         );
     }
 
+    /**
+     * Searches the stored accounts with a query the caller has already shaped for the security index. As with
+     * {@link #getUserManagedAccountInfos}, a node that cannot hold user-managed accounts has none to report and
+     * answers with an empty page rather than failing.
+     */
+    public void queryUserManagedAccounts(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryServiceAccountResponse> listener) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onResponse(QueryServiceAccountResponse.EMPTY);
+            return;
+        }
+        userManagedServiceAccountStore.queryAccounts(
+            searchSourceBuilder,
+            listener.map(
+                result -> new QueryServiceAccountResponse(
+                    result.total(),
+                    result.items()
+                        .stream()
+                        .map(item -> new QueryServiceAccountResponse.Item(toServiceAccountInfo(item.account()), item.sortValues()))
+                        .toList()
+                )
+            )
+        );
+    }
+
     private static ServiceAccountInfo toServiceAccountInfo(UserManagedServiceAccount account) {
-        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled());
+        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled(), account.description());
     }
 
     /**

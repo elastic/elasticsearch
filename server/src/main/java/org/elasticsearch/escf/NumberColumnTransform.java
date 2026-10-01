@@ -57,28 +57,6 @@ public final class NumberColumnTransform {
         }
     }
 
-    /**
-     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
-     * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a LONG
-     * {@link EscfColumnData} containing {@link NumericUtils#floatToSortableInt} encoded sortable ints
-     * (widened to long). Use the result with a {@link org.elasticsearch.escf.LuceneLongColumn} and
-     * {@link org.apache.lucene.document.column.LongColumn.NumericKind#FLOAT} to emit the stored-fields
-     * column for a {@code half_float} field. An ARRAY source yields an ARRAY of LONG, one element per
-     * source element.
-     */
-    public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
-            : "expected LONG or ARRAY, got " + EscfColumnKind.name(source.kind());
-        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
-            LongTupleCursor cursor = source.longCursor();
-            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                float f = HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue());
-                builder.setLong(doc, NumericUtils.floatToSortableInt(f));
-            }
-            return builder.finish(source.docCount());
-        }
-    }
-
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
         NumberFieldMapper.NumberType type,

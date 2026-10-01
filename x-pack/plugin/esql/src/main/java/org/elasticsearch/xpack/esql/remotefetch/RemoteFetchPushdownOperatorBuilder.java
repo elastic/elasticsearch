@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plugin;
+package org.elasticsearch.xpack.esql.remotefetch;
 
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.lucene.IndexedByShardId;

@@ -14,18 +14,24 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,6 +58,7 @@ import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.B
 import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.STATE_CHANGED_POST_RECOVERY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
@@ -83,7 +91,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             createIndex(indexName, indexSettings(1, 0).build());
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -110,7 +118,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             assertAcked(indicesAdmin().prepareOpen(indexName).execute());
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -141,7 +149,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             ensureGreen(sourceIndexName);
             ensureGreen(targetIndexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(targetIndexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -177,7 +185,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -354,7 +362,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             createIndex(indexName, indexSettings(1, 0).build());
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -385,7 +393,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             ensureGreen(sourceIndexName);
             ensureGreen(targetIndexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(targetIndexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -425,7 +433,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
 
             ensureGreen(indexName);
-            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+            assertLocalRetries(indexName, 1);
         } finally {
             transportService.clearAllRules();
         }
@@ -750,6 +758,104 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    public void testClusterStateCreateWhileHandoffAppliesLocalRetries() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String indexName = randomIndexName();
+
+        MockTransportService masterTransport = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(masterTransport);
+
+            RetryRecoveryTestPlugin.failureTarget.set(BEFORE_INDEX_SHARD_RECOVERY);
+            Gate recoveryGate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            recoveryGate.block();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            recoveryGate.await();
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+            // Hold the applier so RETRY schedules behind this IMMEDIATE blocker, then a HIGH CS apply
+            // can recreate from the handoff before the NORMAL retry runs.
+            var applier = internalCluster().getInstance(ClusterService.class, dataNode).getClusterApplierService();
+            Gate applierGate = new Gate("ApplierGate");
+            applierGate.block();
+            applier.runOnApplierThread("block-applier", Priority.IMMEDIATE, clusterState -> {
+                applierGate.enter();
+                applierGate.exit();
+            }, ActionListener.noop());
+            applierGate.await();
+
+            recoveryGate.release();
+            assertBusy(
+                () -> assertTrue(
+                    "expected NORMAL retry-recovery task on data-node applier",
+                    hasPending(applier, Priority.NORMAL, "retry recovery")
+                )
+            );
+
+            client().execute(
+                TransportClusterRerouteAction.TYPE,
+                new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT),
+                ActionListener.noop()
+            );
+            assertBusy(
+                () -> assertTrue(
+                    "expected HIGH ApplyCommitRequest on data-node applier",
+                    hasPending(applier, Priority.HIGH, "ApplyCommitRequest")
+                )
+            );
+
+            CountDownLatch afterCs = new CountDownLatch(1);
+            AtomicReference<AssertionError> afterCsFailure = new AtomicReference<>();
+            applier.runOnApplierThread("assert-cs-applied-local-retries", Priority.HIGH, clusterState -> {
+                try {
+                    assertThat(
+                        "cluster-state apply should have recreated the shard from the handoff",
+                        RetryRecoveryTestPlugin.recoveryCounter.get(),
+                        equalTo(2)
+                    );
+                    IndexShard shard = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(shardId);
+                    assertNotNull("cluster-state apply must create the shard while handoff carries localRetries", shard);
+                    assertThat(shard.recoveryState().getLocalRetries(), equalTo(1));
+                } catch (AssertionError e) {
+                    afterCsFailure.set(e);
+                } finally {
+                    afterCs.countDown();
+                }
+            }, ActionListener.noop());
+
+            // 1. HIGH CS apply (creates with localRetries=1)
+            // 2. HIGH assert
+            // 3. NORMAL retry (handoff already cleared / shard exists)
+            applierGate.release();
+            safeAwait(afterCs);
+            if (afterCsFailure.get() != null) {
+                throw afterCsFailure.get();
+            }
+
+            ensureGreen(indexName);
+            assertLocalRetries(indexName, 1);
+        } finally {
+            masterTransport.clearAllRules();
+        }
+    }
+
+    private static boolean hasPending(ClusterApplierService applier, Priority priority, String sourceSubstring) {
+        for (var pending : applier.pendingTasks()) {
+            if (pending.priority == priority && pending.executing == false && pending.task.toString().contains(sourceSubstring)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void assertLocalRetries(String indexName, int expected) {
+        final var recoveryInfos = indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName);
+        assertThat(recoveryInfos, hasSize(1));
+        assertThat(recoveryInfos.get(0).recoveryState().getLocalRetries(), equalTo(expected));
+    }
+
     /// Local recovery retries is about preventing the round trip to master on a failed recovery
     /// (we retry directly on the data node instead).
     /// Since master would also retry, that could mask potential bugs in the local retry functionality.
@@ -880,7 +986,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public Settings additionalSettings() {
             return Settings.builder()
                 .put(super.additionalSettings())
-                .put(IndicesClusterStateService.LOCAL_RECOVERY_RETRY.getKey(), true)
+                .put(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
                 .build();
         }
 

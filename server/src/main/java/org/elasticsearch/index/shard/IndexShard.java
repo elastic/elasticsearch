@@ -347,6 +347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
+        final int localRetries,
         final IndexSettings indexSettings,
         final ShardPath path,
         final Store store,
@@ -381,7 +382,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assert localNode.getId().equals(shardRouting.currentNodeId())
             : "localNode [" + localNode.getId() + "] must match shardRouting currentNodeId [" + shardRouting.currentNodeId() + "]";
-        this.recoveryState = Objects.requireNonNull(recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode, 0));
+        this.recoveryState = Objects.requireNonNull(
+            recoveryStateFactory.newRecoveryState(shardRouting, localNode, sourceNode, localRetries)
+        );
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(
             mapperService,

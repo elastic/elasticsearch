@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -195,6 +196,12 @@ public class ExternalSourceResolver {
      */
     @Nullable
     Consumer<ExternalPlanningReservation.Run> schemaGatherRunProbe;
+    /**
+     * Test hook. Invoked once per resolved file within a {@link #gatherPerFile} call after the results-array run is
+     * charged, while the run is still open. Production leaves this null.
+     */
+    @Nullable
+    Consumer<ExternalPlanningReservation.Run> gatherResultsRunProbe;
     private final Settings settings;
     /**
      * The listing this resolution does, with the kept-files / brace-expansion / LIST-walk caps and the shared listing
@@ -1877,7 +1884,12 @@ public class ExternalSourceResolver {
         // Strip it here so the plan carries only what the optimizer actually reads.
         final Map<String, Object> finalMetadata = stripStripeBookkeeping(entry.safeMetadata());
 
-        return new ExternalSourceMetadata() {
+        return new CacheBackedMetadata() {
+            @Override
+            public boolean sharesCachedSourceMetadata() {
+                return finalMetadata == entry.safeMetadata();
+            }
+
             @Override
             public String location() {
                 return entry.location();
@@ -2250,6 +2262,47 @@ public class ExternalSourceResolver {
         });
     }
 
+    /**
+     * Estimated heap one file's metadata keeps reachable in {@link #gatherPerFile}'s results array until the gather
+     * completes. Not a measured deep size. Counts the shell and location, the private schema list when
+     * {@code chargeSchema} (the reconcile path charges it on its own run), the config map's entries, harvested
+     * {@link SourceStatistics} (never shared from the schema cache), and the source-metadata map unless it is the
+     * schema cache entry's own map.
+     *
+     * <p>A multi-file gather stores {@link RunningFileStatsFold#slim} records: they carry no statistics, and their
+     * source-metadata and config maps are per-file copies, so both maps are always charged (the config map by shape
+     * only, see below). The statistics term and the cache-entry map skip only apply to a single-file gather, which
+     * stores the resolved metadata as is.
+     */
+    static long gatheredFileBytes(SourceMetadata meta, boolean chargeSchema) {
+        // object header + field references
+        long bytes = 64L + HeapEstimates.stringBytes(meta.location());
+        if (chargeSchema && meta.schema() != null) {
+            bytes += SchemaInterner.privateListBytes(meta.schema().size());
+        }
+        Optional<SourceStatistics> statistics = meta.statistics();
+        if (statistics != null && statistics.isPresent()) {
+            bytes += HeapEstimates.statisticsBytes(statistics.get());
+        }
+        if ((meta instanceof CacheBackedMetadata cached && cached.sharesCachedSourceMetadata()) == false) {
+            bytes += HeapEstimates.mapBytes(meta.sourceMetadata());
+        }
+        // Slim records Map.copyOf the config, and cache-backed metadata may merge connector config into a fresh map,
+        // so each file owns its entries. Both copies are shallow: the setting strings (endpoint, region, ...) are the
+        // query's own, shared by every file, so only the entries are charged. A config shared across files is
+        // over-counted by its shape, which errs on the safe side.
+        bytes += HeapEstimates.mapShapeBytes(meta.config());
+        return bytes;
+    }
+
+    /**
+     * Metadata built from a {@link SchemaCacheEntry}. Its source-metadata map is the cache entry's own map unless
+     * {@link #stripStripeBookkeeping} had to copy it, so {@link #gatheredFileBytes} does not charge it again.
+     */
+    private interface CacheBackedMetadata extends ExternalSourceMetadata {
+        boolean sharesCachedSourceMetadata();
+    }
+
     private static void closePrivateSchemaLists(@Nullable ExternalPlanningReservation.Run privateLists) {
         if (privateLists != null) {
             privateLists.close();
@@ -2342,6 +2395,12 @@ public class ExternalSourceResolver {
      * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
      * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
      * and short-circuits the remaining files.
+     * <p>
+     * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
+     * {@link #gatheredFileBytes} per resolved file to the circuit breaker, so concurrent gather fan-outs from different
+     * queries are visible to the shared breaker. On the stats path that includes each file's private schema list, which
+     * the reconcile path charges on {@code privateLists} instead. The run is released in {@code onCompletion} after the
+     * results array is nulled out.
      */
     private void gatherPerFile(
         FileList fileList,
@@ -2363,6 +2422,8 @@ public class ExternalSourceResolver {
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
+        ExternalPlanningReservation localReservation = planningReservation;
+        final ExternalPlanningReservation.Run resultsRun = localReservation != null ? localReservation.openRun() : null;
         AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
         AtomicReference<Exception> failure = new AtomicReference<>();
         Iterator<Integer> indices = indexIterator(fileCount);
@@ -2377,10 +2438,10 @@ public class ExternalSourceResolver {
                 return;
             }
             ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
-                // Reconcile path only. Stats gathers pass a null interner and a null run: those lists are
-                // transient and must not be charged. Charge the raw list before wrapping. Canonicalize so
-                // schema() is the shared list; the wrapper still references the original metadata until the
-                // gather completion drops the file list.
+                // Reconcile path only. Stats gathers pass a null interner and a null run; their lists are charged
+                // on resultsRun below. Charge the raw list before wrapping. Canonicalize so schema() is the shared
+                // list; the wrapper still references the original metadata until the gather completion drops the
+                // file list.
                 if (privateLists != null) {
                     List<Attribute> rawSchema = meta.schema();
                     privateLists.charge(SchemaInterner.privateListBytes(rawSchema.size()));
@@ -2397,6 +2458,14 @@ public class ExternalSourceResolver {
                 // original metadata so its private schema list stays reachable for the planning
                 // charge. The canonical wrapper is applied after and forwards the rest.
                 SourceMetadata stored = fold != null && fileCount > 1 ? RunningFileStatsFold.slim(meta) : meta;
+                if (resultsRun != null) {
+                    // Charge what the results array retains: the slimmed record when folding, before the
+                    // canonical wrapper hides the private schema list.
+                    resultsRun.charge(gatheredFileBytes(stored, privateLists == null));
+                    if (gatherResultsRunProbe != null) {
+                        gatherResultsRunProbe.accept(resultsRun);
+                    }
+                }
                 if (schemaInterner != null) {
                     stored = withCanonicalSchema(stored, schemaInterner.canonicalize(meta.schema()));
                 }
@@ -2444,6 +2513,7 @@ public class ExternalSourceResolver {
                     results.set(i, null);
                 }
                 closePrivateSchemaLists(privateLists);
+                closePrivateSchemaLists(resultsRun);
             }
         }, executor, e -> {
             // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion surfaces the

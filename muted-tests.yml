@@ -206,6 +206,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/130_spatial/geo_point unsortable with limit status}
   issue: https://github.com/elastic/elasticsearch/issues/160707
+- class: org.elasticsearch.system_indices.action.FeatureMigrationIT
+  method: testMigrateWithTemplatesV2
+  issue: https://github.com/elastic/elasticsearch/issues/160711
 
 # Examples:
 #

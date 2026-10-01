@@ -119,7 +119,10 @@ public final class ExpandUnmappedFieldsOperator implements Operator {
     private final int unmappedIdx;
     private final UnmappedFieldsPattern pattern;
 
-    /** Buffered input pages, in arrival order. A slot is nulled as {@link #getOutput} drains it so a later {@link #close} cannot re-release it. */
+    /**
+     * Buffered input pages, in arrival order. A slot is nulled as {@link #getOutput} drains it so a later {@link #close} cannot
+     * re-release it.
+     */
     private final List<Page> buffer = new ArrayList<>();
     /** Running union of the {@code _unmapped_fields} leaf names seen across the pages collected so far. */
     private final SortedSet<String> fieldNames = new TreeSet<>();

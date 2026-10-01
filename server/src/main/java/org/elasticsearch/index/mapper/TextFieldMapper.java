@@ -1239,16 +1239,33 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
-         * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
-         * none of its own, in its parent's.
+         * Whether a query reads this field's values rather than its index, which it does where the index lacks what
+         * the query asks for: the positions of a phrase, or the terms of anything. Only a strictly columnar index is
+         * taken to keep those values, in the field's own column or, for a multi-field keeping none, in its parent's.
          */
-        private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
-            // The values are read for the documents the field's own terms match, so it needs those terms.
-            if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {
+        private boolean answersFromValues(SearchExecutionContext context) {
+            if (strictColumnar == false || (indexType().hasTerms() && getTextSearchInfo().hasPositions())) {
                 return false;
             }
             return hasDocValues() || readsParentValues(context);
+        }
+
+        /** Whether the field indexes no terms, so nothing narrows the documents a query reads. */
+        private boolean scansEveryDocument() {
+            return indexType().hasTerms() == false;
+        }
+
+        @Override
+        public boolean answersTextQueryFromValues(SearchExecutionContext context) {
+            return scansEveryDocument() && answersFromValues(context);
+        }
+
+        @Override
+        public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+            if (isReanalyzing(analyzed)) {
+                return analyzed; // a phrase wraps itself, knowing the positions it asks about
+            }
+            return new ReanalyzingTextQuery(analyzed, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
@@ -1262,7 +1279,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.hasNormalizer()) {
                 return false;
             }
-            return parent.hasDocValues() || parent.isStored();
+            // A column is the only place this reads: no stored field, no _source.
+            return parent.hasDocValues();
         }
 
         /** Reads this field's values back, for the queries that analyze them again. */
@@ -1276,12 +1294,17 @@ public final class TextFieldMapper extends FieldMapper {
             return FieldValueFetchers.fromParent(context, name());
         }
 
-        /** {@code query} as it stands where the field indexed positions, over its values again where it did not. */
+        /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
         private Query reanalyzePositions(Query query, SearchExecutionContext context) {
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 return query;
             }
-            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+            return new ReanalyzingTextQuery(
+                query,
+                valueFetcherProvider(context),
+                context.getIndexAnalyzer(f -> null),
+                scansEveryDocument()
+            );
         }
 
         /** The same for an interval, which also needs the query that finds the documents worth reading. */
@@ -1289,12 +1312,12 @@ public final class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions()) {
                 return source;
             }
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
             return new ReanalyzingIntervalsSource(
                 source,
-                approximation,
+                scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,
                 valueFetcherProvider(context),
                 context.getIndexAnalyzer(f -> null)
             );
@@ -1304,7 +1327,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 checkForPositions(false);
             }
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
@@ -1342,7 +1365,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 checkForPositions(true);
             }
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
@@ -1366,7 +1389,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            final boolean reanalyzes = verifiesPositionsFromDocValues(context);
+            final boolean reanalyzes = answersFromValues(context);
             if (countTokens(stream) > 1 && reanalyzes == false) {
                 checkForPositions(false);
             }

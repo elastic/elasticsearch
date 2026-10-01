@@ -14,6 +14,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -56,6 +57,31 @@ public abstract class TextFamilyFieldType extends StringFieldType {
             return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
         }
         return super.existsQuery(context);
+    }
+
+    /**
+     * Whether a text query over this field is answered by reading its values, which a field indexing no terms needs.
+     * Only the analyzed field types of the family answer this.
+     */
+    public boolean answersTextQueryFromValues(SearchExecutionContext context) {
+        return false;
+    }
+
+    /**
+     * {@code analyzed} answered by reading this field's values: one query holding every term and condition it asks
+     * about, so the values are read and analyzed once however many terms that is.
+     */
+    public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+        throw new UnsupportedOperationException("[" + name() + "] does not answer a text query from its values");
+    }
+
+    /**
+     * Whether {@code query} already reads values. A field that answers every positional query that way wraps its
+     * own, and wrapping it again would read the values of a document that holds none.
+     */
+    protected static boolean isReanalyzing(Query query) {
+        final Query inner = query instanceof ConstantScoreQuery constantScore ? constantScore.getQuery() : query;
+        return inner instanceof ReanalyzingTextQuery;
     }
 
     public TextFamilyFieldType(

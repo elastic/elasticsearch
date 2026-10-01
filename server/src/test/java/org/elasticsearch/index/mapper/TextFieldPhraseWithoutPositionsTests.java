@@ -11,7 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -43,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * A {@code text} field indexing no positions answers the queries that ask about them by confirming against its own
@@ -174,14 +182,43 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         );
     }
 
-    /** With no terms there is nothing to confirm over, so the field refuses however many values it keeps. */
-    public void testWithoutTermsItRefuses() throws IOException {
-        assertRefuses(
+    /** A field that indexes no terms answers from its values too, which {@link TextNoTermsSearchTests} covers. */
+    public void testWithoutTermsItAnswersFromValues() throws IOException {
+        final SearchExecutionContext context = createSearchExecutionContext(
             createMapperService(
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(b -> b.startObject("body").field("type", "text").field("index", false).endObject())
             )
         );
+        assertThat(new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context), instanceOf(ReanalyzingTextQuery.class));
+    }
+
+    /**
+     * With terms indexed the score stays what an indexed phrase would give, over the frequency the document really
+     * holds, so the bound a collector reads has to leave room for that frequency.
+     */
+    public void testTheScoreBoundLeavesRoomForTheFrequency() throws IOException {
+        final MapperService mapperService = mapper("docs");
+        withLuceneIndex(mapperService, iw -> {
+            for (String doc : List.of("quick brown quick brown", "quick brown")) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+            }
+        }, reader -> {
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            final IndexSearcher searcher = newSearcher(reader);
+            final Query query = searcher.rewrite(new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context));
+            final float best = searcher.search(query, 1).scoreDocs[0].score;
+            // ScoreMode in this file is the join one, so the search one is named in full.
+            final Weight weight = searcher.createWeight(query, org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
+            for (LeafReaderContext leaf : reader.leaves()) {
+                final ScorerSupplier supplier = weight.scorerSupplier(leaf);
+                if (supplier != null) {
+                    final Scorer scorer = supplier.get(Long.MAX_VALUE);
+                    scorer.advanceShallow(0);
+                    assertThat(scorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), greaterThanOrEqualTo(best));
+                }
+            }
+        });
     }
 
     private void assertRefuses(MapperService mapperService) {

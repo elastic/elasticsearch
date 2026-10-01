@@ -258,7 +258,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 arrayOrderBinaryDocValues,
                 // Gated as a keyword field is: the codec stores the column, so the column is written in the
                 // payload it reads.
-                usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings)
+                usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings),
+                indexMode.isStrictColumnar()
             );
         }
 
@@ -311,6 +312,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // Whether the binary doc values are written as the ColumNAR codec's payload rather than either other framing.
         private final boolean useColumnarPayload;
         private final FieldMapper.DocValuesParameter.Values docValuesParams;
+        // Whether the index is strictly columnar, where every field keeps its values in a column of its own.
+        private final boolean strictColumnar;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -327,9 +330,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValues,
             FieldMapper.DocValuesParameter.Values docValuesParams,
             boolean useArrayOrderBinaryDocValues,
-            boolean useColumnarPayload
+            boolean useColumnarPayload,
+            boolean strictColumnar
         ) {
             super(name, IndexType.terms(indexed, docValuesParams.enabled()), false, tsi, meta, isSyntheticSource, withinMultiField);
+            this.strictColumnar = strictColumnar;
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
@@ -372,6 +377,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 usesBinaryDocValues,
                 docValuesParams,
                 false,
+                false,
                 false
             );
         }
@@ -397,6 +403,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     true,
                     FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
                 ),
+                false,
                 false,
                 false
             );
@@ -583,7 +590,26 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
-            return new ConstantScoreQuery(new ReanalyzingTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
+            return new ConstantScoreQuery(
+                new ReanalyzingTextQuery(
+                    query,
+                    getValueFetcherProvider(searchExecutionContext),
+                    indexAnalyzer,
+                    indexType().hasTerms() == false
+                )
+            );
+        }
+
+        @Override
+        public boolean answersTextQueryFromValues(SearchExecutionContext context) {
+            // Only a strictly columnar index keeps every field's values in a column to read instead of an index.
+            return strictColumnar && indexType().hasTerms() == false && hasDocValues();
+        }
+
+        @Override
+        public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+            // Every positional query this field answers wraps itself, so only the others arrive here unwrapped.
+            return isReanalyzing(analyzed) ? analyzed : toQuery(analyzed, context);
         }
 
         private IntervalsSource toIntervalsSource(

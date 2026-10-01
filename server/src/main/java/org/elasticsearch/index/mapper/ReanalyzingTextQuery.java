@@ -43,6 +43,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * A variant of {@link TermQuery}, {@link PhraseQuery}, {@link MultiPhraseQuery}
@@ -130,10 +132,7 @@ public final class ReanalyzingTextQuery extends Query {
     }
 
     /**
-     * Similarity that produces the frequency as a score.
-     */
-    /**
-     * The terms of a phrase that can be counted by walking a document's values rather than reading positions, or null
+     * The terms of a phrase that can be confirmed by walking a document's values rather than indexing them, or null
      * where it cannot: anything but an exact phrase, whose terms sit at consecutive positions, on one field.
      */
     static Term[] walkablePhrase(Query query) {
@@ -155,7 +154,8 @@ public final class ReanalyzingTextQuery extends Query {
 
     /**
      * How often {@code terms} occur in order and adjacent across {@code values}, which is the frequency an index of
-     * them reports. Positions run on from one value to the next, as that index joins them.
+     * them reports. Positions run on from one value to the next, as that index joins them. {@code countEvery} is
+     * false where only the presence of the phrase is asked, and the walk then stops at the first one.
      *
      * <p>A prefix of the phrase can only be continued by the token at the position after the one it ended at, and
      * positions only advance, so one end position per prefix length is all there is to carry. What ends at the
@@ -163,11 +163,15 @@ public final class ReanalyzingTextQuery extends Query {
      * starting on one of them must not be offered to the others.
      */
     static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
+        return walkPhraseFreq(terms, field, analyzer, values, true);
+    }
+
+    static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values, boolean countEvery) throws IOException {
         final BytesRef[] bytes = new BytesRef[terms.length];
         for (int i = 0; i < terms.length; i++) {
             bytes[i] = terms[i].bytes();
         }
-        final TokenStreamMatching.PhraseWalker walker = new TokenStreamMatching.PhraseWalker(bytes);
+        final TokenStreamMatching.PhraseWalker walker = new TokenStreamMatching.PhraseWalker(bytes, countEvery);
         final int gap = analyzer.getPositionIncrementGap(field);
         boolean firstValue = true;
         for (Object value : values) {
@@ -184,10 +188,46 @@ public final class ReanalyzingTextQuery extends Query {
             try (TokenStream stream = analyzer.tokenStream(field, text)) {
                 stream.reset();
                 walker.accept(stream);
+                if (countEvery == false && walker.freq() > 0) {
+                    return walker.freq();
+                }
                 stream.end();
             }
         }
         return walker.freq();
+    }
+
+    /**
+     * How a frequency is counted where nothing is indexed: a clause the document answers counts once, whatever its
+     * frequency, so the clauses a query names bound what it can report. {@link #scanMaxFreq} is that bound and has
+     * to change with this rule.
+     */
+    private static final Similarity MATCHED_CLAUSES_SIMILARITY = new Similarity() {
+
+        @Override
+        public long computeNorm(FieldInvertState state) {
+            return 1L;
+        }
+
+        @Override
+        public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+            return new SimScorer() {
+                @Override
+                public float score(float freq, long norm) {
+                    return freq > 0 ? 1f : 0f;
+                }
+            };
+        }
+    };
+
+    /** Scores the clauses a document answered, which {@link #MATCHED_CLAUSES_SIMILARITY} counts one each. */
+    private static SimScorer matchedClausesScorer(float boost) {
+        return new SimScorer() {
+            @Override
+            public float score(float freq, long norm) {
+                return freq * boost;
+            }
+        };
     }
 
     private static final Similarity FREQ_SIMILARITY = new Similarity() {
@@ -210,15 +250,30 @@ public final class ReanalyzingTextQuery extends Query {
     private final Query in;
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
+    private final boolean scansEveryDocument;
 
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
+        this(in, valueFetcherProvider, indexAnalyzer, false);
+    }
+
+    /**
+     * @param scansEveryDocument whether the field indexes no terms, leaving no postings to narrow the documents read
+     *                           or to weigh a term
+     */
+    public ReanalyzingTextQuery(
+        Query in,
+        IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        Analyzer indexAnalyzer,
+        boolean scansEveryDocument
+    ) {
         this.in = in;
         this.valueFetcherProvider = valueFetcherProvider;
         this.indexAnalyzer = indexAnalyzer;
+        this.scansEveryDocument = scansEveryDocument;
     }
 
     public Query getQuery() {
@@ -239,7 +294,7 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not compare the value fetcher or analyzer, as they
         // do not typically implement equals() themselves, and the inner
         // Query is sufficient to establish identity.
-        return Objects.equals(in, that.in);
+        return Objects.equals(in, that.in) && scansEveryDocument == that.scansEveryDocument;
     }
 
     @Override
@@ -247,7 +302,7 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not hash the value fetcher or analyzer, as they
         // do not typically implement hashCode() themselves, and the inner
         // Query is sufficient to establish identity.
-        return 31 * Objects.hash(in) + classHash();
+        return 31 * Objects.hash(in, scansEveryDocument) + classHash();
     }
 
     @Override
@@ -257,16 +312,17 @@ public final class ReanalyzingTextQuery extends Query {
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        Query inRewritten = in.rewrite(searcher);
+        // A term the index does not hold rewrites away, so where it holds none the query is left as it is.
+        Query inRewritten = scansEveryDocument ? in : in.rewrite(searcher);
         if (inRewritten != in) {
-            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
+            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument);
         } else if (in instanceof ConstantScoreQuery) {
             Query sub = ((ConstantScoreQuery) in).getQuery();
-            return new ConstantScoreQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer));
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument));
         } else if (in instanceof BoostQuery) {
             Query sub = ((BoostQuery) in).getQuery();
             float boost = ((BoostQuery) in).getBoost();
-            return new BoostQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer), boost);
+            return new BoostQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument), boost);
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
@@ -275,7 +331,7 @@ public final class ReanalyzingTextQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        if (scoreMode.needsScores() == false && in instanceof TermQuery) {
+        if (scoreMode.needsScores() == false && in instanceof TermQuery && scansEveryDocument == false) {
             // No need to ever look at the _source for non-scoring term queries
             return in.createWeight(searcher, scoreMode, boost);
         }
@@ -283,14 +339,24 @@ public final class ReanalyzingTextQuery extends Query {
         // later summing of float scores per term is consistent
         final Set<Term> terms = new LinkedHashSet<>();
         in.visit(QueryVisitor.termCollector(terms));
+        final String field;
         if (terms.isEmpty()) {
-            throw new IllegalStateException("Query " + in + " doesn't have any term");
+            // A query over a range of terms - a fuzziness, a prefix - names none of them, only the field it reads.
+            field = scansEveryDocument ? fieldOf(in) : null;
+            if (field == null) {
+                throw new IllegalStateException("Query " + in + " doesn't have any term");
+            }
+        } else {
+            field = terms.iterator().next().field();
         }
-        final String field = terms.iterator().next().field();
         final CollectionStatistics collectionStatistics = searcher.collectionStatistics(field);
         final SimScorer simScorer;
         final Weight approximationWeight;
-        if (collectionStatistics == null) {
+        if (scansEveryDocument) {
+            // Every document is read and nothing weighs a term, so the clauses answered are the whole score.
+            simScorer = matchedClausesScorer(boost);
+            approximationWeight = searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        } else if (collectionStatistics == null) {
             // field does not exist in the index
             simScorer = null;
             approximationWeight = null;
@@ -321,6 +387,7 @@ public final class ReanalyzingTextQuery extends Query {
                 approximationWeight = null;
             }
         }
+        final float maxFreq = scansEveryDocument ? scanMaxFreq(in, terms) : Float.MAX_VALUE;
         return new Weight(this) {
 
             @Override
@@ -368,7 +435,7 @@ public final class ReanalyzingTextQuery extends Query {
                         final DocIdSetIterator approximation = approximationScorer.iterator();
                         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
                         NumericDocValues norms = context.reader().getNormValues(field);
-                        return new ReanalyzingScorer(approximation, simScorer, norms, valueFetcher, field, in);
+                        return new ReanalyzingScorer(approximation, simScorer, norms, valueFetcher, field, in, maxFreq);
                     }
 
                     @Override
@@ -381,13 +448,13 @@ public final class ReanalyzingTextQuery extends Query {
             @Override
             public Matches matches(LeafReaderContext context, int doc) throws IOException {
                 var terms = context.reader().terms(field);
-                if (terms == null) {
+                if (terms == null && scansEveryDocument == false) {
                     return null;
                 }
                 // Some highlighters will already have re-indexed the source with positions and offsets,
                 // so rather than doing it again we check to see if this data is available on the
                 // current context and if so delegate directly to the inner query
-                if (terms.hasOffsets()) {
+                if (terms != null && terms.hasOffsets()) {
                     Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
                     return innerWeight.matches(context, doc);
                 }
@@ -408,6 +475,40 @@ public final class ReanalyzingTextQuery extends Query {
         };
     }
 
+    /** The field {@code query} reads, whether it names its terms or a range of them. */
+    private static String fieldOf(Query query) {
+        final String[] found = new String[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                if (found[0] == null && terms.length > 0) {
+                    found[0] = terms[0].field();
+                }
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                if (found[0] == null) {
+                    found[0] = field;
+                }
+            }
+        });
+        return found[0];
+    }
+
+    /**
+     * The highest frequency a document can report where nothing is indexed: {@link #MATCHED_CLAUSES_SIMILARITY} holds
+     * a clause the document answers to one point, and a phrase is one clause however often the document holds it. The
+     * scorer turns the bound into a score through the similarity in hand, so a collector can stop once no document
+     * left can beat what it holds. Unbounded where the query names no terms to count, a fuzziness or a prefix.
+     */
+    private static float scanMaxFreq(Query in, Set<Term> terms) {
+        if (walkablePhrase(in) != null) {
+            return 1f;
+        }
+        return terms.isEmpty() ? Float.MAX_VALUE : terms.size();
+    }
+
     private static long getNormValue(NumericDocValues norms, int doc) throws IOException {
         if (norms != null) {
             boolean found = norms.advanceExact(doc);
@@ -426,6 +527,7 @@ public final class ReanalyzingTextQuery extends Query {
         private final TwoPhaseIterator twoPhase;
         private final NumericDocValues norms;
 
+        private final float maxFreq;
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
         private final Term[] walkablePhrase;
         private int valuesDocID = -1;
@@ -440,13 +542,15 @@ public final class ReanalyzingTextQuery extends Query {
             NumericDocValues norms,
             CheckedIntFunction<List<Object>, IOException> valueFetcher,
             String field,
-            Query query
+            Query query,
+            float maxFreq
         ) {
             this.scorer = scorer;
             this.norms = norms;
             this.valueFetcher = valueFetcher;
             this.field = field;
             this.query = query;
+            this.maxFreq = maxFreq;
             this.walkablePhrase = walkablePhrase(query);
             twoPhase = new TwoPhaseIterator(approximation) {
 
@@ -476,7 +580,7 @@ public final class ReanalyzingTextQuery extends Query {
 
         @Override
         public float getMaxScore(int upTo) throws IOException {
-            return scorer.score(Float.MAX_VALUE, 1L);
+            return scorer.score(maxFreq, 1L);
         }
 
         @Override
@@ -506,7 +610,8 @@ public final class ReanalyzingTextQuery extends Query {
                 } else {
                     cacheEntry.memoryIndex.reset();
                 }
-                cacheEntry.memoryIndex.setSimilarity(FREQ_SIMILARITY);
+                // Each clause the document answers counts once; elsewhere the frequency is what the similarity asks for.
+                cacheEntry.memoryIndex.setSimilarity(scansEveryDocument ? MATCHED_CLAUSES_SIMILARITY : FREQ_SIMILARITY);
                 for (Object value : values()) {
                     if (value == null) {
                         continue;
@@ -533,6 +638,11 @@ public final class ReanalyzingTextQuery extends Query {
         }
 
         private float computeFreq() throws IOException {
+            if (scansEveryDocument && walkablePhrase != null) {
+                // One clause, so holding the phrase counts once however often the document holds it, and the walk
+                // stops at the first one.
+                return walkPhraseFreq(walkablePhrase, field, indexAnalyzer, values(), false) > 0 ? 1 : 0;
+            }
             if (walkablePhrase != null) {
                 return walkPhraseFreq(walkablePhrase, field, indexAnalyzer, values());
             }

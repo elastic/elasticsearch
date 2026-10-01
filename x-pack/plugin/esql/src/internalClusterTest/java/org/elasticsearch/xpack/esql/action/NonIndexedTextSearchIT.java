@@ -138,6 +138,9 @@ public class NonIndexedTextSearchIT extends AbstractEsqlIntegTestCase {
         assertSameAsIndexed("WHERE match_phrase(body, \"quick brown\") | STATS c = COUNT(*)");
         assertSameAsIndexed("WHERE match_phrase(body, \"brown quick\") | STATS c = COUNT(*)");
         assertSameAsIndexed("WHERE match(body, \"quick\") | SORT body | KEEP body | LIMIT 3");
+        // LIKE and RLIKE reach the field as a wildcard and a regexp, which read the same tokens a match does
+        assertSameAsIndexed("WHERE body LIKE \"qu*ck\" | STATS c = COUNT(*)");
+        assertSameAsIndexed("WHERE body RLIKE \"qu.*k\" | STATS c = COUNT(*)");
     }
 
     /** The whole condition is a query, so the search is answered without loading the documents it reads. */
@@ -275,6 +278,8 @@ public class NonIndexedTextSearchIT extends AbstractEsqlIntegTestCase {
     public void testMatchOnlyText() {
         fieldType = "match_only_text";
         createIndices(null);
+        assertSameAsIndexed("WHERE body LIKE \"qu*ck\" | STATS c = COUNT(*)");
+        assertSameAsIndexed("WHERE body RLIKE \"qu.*k\" | STATS c = COUNT(*)");
         assertSameAsIndexed("WHERE match(body, \"quick\") | STATS c = COUNT(*)");
         assertSameAsIndexed("WHERE match(body, \"quick nothing\") | STATS c = COUNT(*)");
         assertSameAsIndexed("WHERE match_phrase(body, \"quick brown\") | STATS c = COUNT(*)");

@@ -66,6 +66,26 @@ setup:
   - match: { hits.hits.0._id: "2" }
 
 ---
+"the term family looks for tokens":
+  - do:
+      search:
+        index: no_terms
+        body: { query: { term: { body: "quick" } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { prefix: { body: "qui" } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { wildcard: { body: "qu*ck" } } }
+  - match: { hits.total.value: 2 }
+
+---
 "a document scores one point for every query term it holds":
   - do:
       search:

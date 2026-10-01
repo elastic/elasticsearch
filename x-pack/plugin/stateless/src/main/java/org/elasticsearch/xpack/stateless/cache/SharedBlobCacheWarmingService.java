@@ -1310,19 +1310,19 @@ public class SharedBlobCacheWarmingService {
                     final String context = latestTimeoutContext.get().isEmpty() ? "default" : latestTimeoutContext.get();
                     // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that
                     // are not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
-                    final long totalMs = totalOfflineWarmingTime.get().millis();
+                    final TimeValue totalMs = totalOfflineWarmingTime.get();
                     logger.warn(
                         new ESLogMessage(
                             "Search shard recovery cache warming timed out after [{}] ({}) for {}, "
                                 + "shard data set size [{}], bytes to warm [{}], bytes warmed [{}]",
-                            TimeValue.timeValueMillis(totalMs),
+                            totalMs,
                             context,
                             indexShard.shardId(),
                             ByteSizeValue.ofBytes(dataSetSizeInBytes),
                             ByteSizeValue.ofBytes(bytesToWarm),
                             ByteSizeValue.ofBytes(bytesWarmed)
                         ).field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "shard", indexShard.shardId().toString())
-                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", totalMs)
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", totalMs.millis())
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_context", context)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "data_set_size_bytes", dataSetSizeInBytes)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_to_warm", bytesToWarm)

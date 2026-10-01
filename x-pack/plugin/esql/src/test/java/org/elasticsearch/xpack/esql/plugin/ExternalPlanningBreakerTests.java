@@ -157,8 +157,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
     /**
      * Charge for one listing at the default discovered-files cap, on the compacted form planning keeps.
-     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge}; phase 2 is one shell per file.
-     * A 1 GB node's request breaker is 60% of heap.
+     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes of schema-map
+     * slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
+     * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
      */
     public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
         int files = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(Settings.EMPTY);
@@ -352,7 +353,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
         FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob).fileList();
-        long seam1 = listing.planningBytes() + listing.fileCount() * 760L;
+        long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));
         assertEquals(seam1, reservation.queryHeld());
         assertEquals(baseline + seam1, breaker.getUsed());

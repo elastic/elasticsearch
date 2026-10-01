@@ -42,6 +42,12 @@ public class LabelledDecisionCacheTests extends ESTestCase {
         assertThat(cache.get(Decision.THROTTLE, randomAlphaOfLength(8)), sameInstance(Decision.THROTTLE));
     }
 
+    public void testNullLabelReturnsDecisionUnchanged() {
+        for (Decision decision : new Decision[] { Decision.NO, Decision.NOT_PREFERRED, Decision.YES, Decision.THROTTLE }) {
+            assertThat(cache.get(decision, null), sameInstance(decision));
+        }
+    }
+
     public void testAssertionTripsWhenCacheGrowsUnreasonably() {
         for (int i = 0; i <= 500; i++) {
             cache.get(Decision.NO, "label-" + i);

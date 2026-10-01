@@ -706,10 +706,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 
-        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
-            .size(20)
-            .fetchSource(false)
-            .storedField("tag");
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery()).size(20).fetchSource(false).storedField("tag");
         Exception exception = expectThrows(
             Exception.class,
             () -> client(coordinatorNode).prepareSearch(storedIndex).setSource(source).get()
@@ -756,14 +753,8 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 
-        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
-            .size(20)
-            .fetchSource(false)
-            .docValueField("tag");
-        Exception exception = expectThrows(
-            Exception.class,
-            () -> client(coordinatorNode).prepareSearch(dvIndex).setSource(source).get()
-        );
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery()).size(20).fetchSource(false).docValueField("tag");
+        Exception exception = expectThrows(Exception.class, () -> client(coordinatorNode).prepareSearch(dvIndex).setSource(source).get());
 
         assertThat(
             "Should contain CircuitBreakingException",

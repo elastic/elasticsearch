@@ -1354,11 +1354,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }));
             fetchPhase.execute(searchContext, new int[] { 0 }, null, memoryChecker);
 
-            assertThat(
-                "document-field bytes must be forwarded to the memoryChecker when non-null",
-                checkerTotal.get(),
-                greaterThan(0L)
-            );
+            assertThat("document-field bytes must be forwarded to the memoryChecker when non-null", checkerTotal.get(), greaterThan(0L));
         } finally {
             r.close();
             dir.close();

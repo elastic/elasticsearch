@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.document;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lucene.RamUsageEstimates;
 
@@ -65,7 +64,6 @@ public final class DocumentFieldRamUsageEstimator {
     }
 
     private DocumentFieldRamUsageEstimator() {}
-
 
     /**
      * Returns a conservative upper bound on the retained heap of {@code field}.

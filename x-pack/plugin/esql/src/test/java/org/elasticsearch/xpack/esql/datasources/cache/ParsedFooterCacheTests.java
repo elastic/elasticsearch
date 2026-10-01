@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -613,15 +615,135 @@ public class ParsedFooterCacheTests extends ESTestCase {
         FooterByteCache.Key k = key("oom.parquet", 1000);
         OutOfMemoryError boom = new OutOfMemoryError("simulated");
         PlainActionFuture<String> leader = new PlainActionFuture<>();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
         OutOfMemoryError thrown = expectThrows(
             OutOfMemoryError.class,
             () -> cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+                cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, ignored -> fail("waiter must not load"), waiter);
                 throw boom;
             }, leader)
         );
         assertSame(boom, thrown);
         assertEquals(0, cache.asyncInFlightCount());
         assertNull(cache.get(k));
+        Exception waiterFailure = expectThrows(Exception.class, () -> waiter.actionGet(0, TimeUnit.SECONDS));
+        assertThat(waiterFailure.getMessage(), org.hamcrest.Matchers.containsString("parsed footer load failed"));
+    }
+
+    /** A weigher/{@code put} throw after a successful load must drain the flight and fail waiters. */
+    public void testAsyncPutThrowDrainsFlightAndFailsWaiters() {
+        ParsedFooterCache<String> throwing = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TTL, v -> {
+            if ("boom".equals(v)) {
+                throw new IllegalStateException("weigher");
+            }
+            return ENTRY_WEIGHT;
+        });
+        FooterByteCache.Key k = key("weigher.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        throwing.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), leader);
+
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        throwing.getOrLoadAsync(k, queue::scheduleNow, l -> l.onResponse("boom"), waiter);
+
+        held.get().onResponse("boom");
+        assertThat(
+            expectThrows(RuntimeException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)).getMessage(),
+            org.hamcrest.Matchers.containsString("weigher")
+        );
+        queue.runAllRunnableTasks();
+        assertThat(
+            expectThrows(RuntimeException.class, () -> waiter.actionGet(0, TimeUnit.SECONDS)).getMessage(),
+            org.hamcrest.Matchers.containsString("weigher")
+        );
+        assertNull(throwing.get(k));
+        assertEquals(0, throwing.asyncInFlightCount());
+    }
+
+    /** A tripped request breaker is classified: waiters must not retry and issue another GET. */
+    public void testAsyncCircuitBreakingExceptionDoesNotRetry() {
+        FooterByteCache.Key k = key("cbe.parquet", 1000);
+        CircuitBreakingException cbe = new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
+        AtomicInteger loads = new AtomicInteger();
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            held.set(l);
+        }, leader);
+
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, queue::scheduleNow, l -> {
+            loads.incrementAndGet();
+            l.onResponse("retry-should-not-run");
+        }, waiter);
+
+        held.get().onFailure(cbe);
+        queue.runAllRunnableTasks();
+        assertEquals("CBE waiters must not retry", 1, loads.get());
+        assertSame(cbe, expectThrows(CircuitBreakingException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)));
+        assertSame(cbe, expectThrows(CircuitBreakingException.class, () -> waiter.actionGet(0, TimeUnit.SECONDS)));
+        assertEquals(0, cache.asyncInFlightCount());
+        assertNull(cache.get(k));
+    }
+
+    /**
+     * Waiters are notified before the leader convert, so they do not sit idle while the leader
+     * runs {@code buildFooterMetadata}.
+     */
+    public void testAsyncWaitersNotifiedBeforeLeaderConvert() {
+        FooterByteCache.Key k = key("order.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        AtomicBoolean waiterDone = new AtomicBoolean();
+        AtomicBoolean leaderSawWaiterDone = new AtomicBoolean();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), ActionListener.wrap(v -> {
+            leaderSawWaiterDone.set(waiterDone.get());
+            leader.onResponse(v);
+        }, leader::onFailure));
+
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> fail("waiter must not load"), ActionListener.wrap(v -> {
+            waiterDone.set(true);
+            waiter.onResponse(v);
+        }, waiter::onFailure));
+
+        held.get().onResponse("footer");
+        assertTrue("DIRECT waiter must finish before the leader listener runs", leaderSawWaiterDone.get());
+        assertEquals("footer", leader.actionGet(0, TimeUnit.SECONDS));
+        assertEquals("footer", waiter.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    /**
+     * Waiters fan out even if the leader convert throws. {@link ActionListener#assertOnce} forbids
+     * a throwing {@code onResponse}, so the leader instead parks until the waiter has finished.
+     */
+    public void testAsyncLeaderConvertThrowStillFansOutWaiters() throws Exception {
+        FooterByteCache.Key k = key("leader-throw.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        CountDownLatch waiterDone = new CountDownLatch(1);
+        CountDownLatch leaderMayFinish = new CountDownLatch(1);
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), ActionListener.wrap(v -> {
+            assertTrue(waiterDone.await(10, TimeUnit.SECONDS));
+            leaderMayFinish.countDown();
+            leader.onResponse(v);
+        }, leader::onFailure));
+
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> fail("waiter must not load"), ActionListener.wrap(v -> {
+            waiterDone.countDown();
+            waiter.onResponse(v);
+        }, waiter::onFailure));
+
+        held.get().onResponse("footer");
+        assertTrue(leaderMayFinish.await(10, TimeUnit.SECONDS));
+        assertEquals("footer", waiter.actionGet(0, TimeUnit.SECONDS));
+        assertEquals("footer", leader.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
     }
 
     public void testAsyncRejectingWaiterExecutorFailsOnlyThatWaiter() {

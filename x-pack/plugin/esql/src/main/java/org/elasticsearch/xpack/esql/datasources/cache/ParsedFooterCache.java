@@ -85,12 +85,14 @@ import java.util.function.ToLongFunction;
  * derivative.</p>
  *
  * <h2>Async single-flight</h2>
- * Concurrent ES|QL queries over the same file each used to issue their own footer GET.
- * {@link #getOrLoadAsync} coalesces those loads: one in-flight {@link SubscribableListener} per
- * {@link FooterByteCache.Key} lives in {@code asyncInFlight} only while the load is pending,
- * is published into the LRU, then removed before anyone is notified. The map is not charged to
- * the request breaker. Its footprint is bounded by concurrent unique keys — on the order of
- * 75 KiB for a 14-panel dashboard over 36 files (one listener per file while those GETs run).
+     * Concurrent ES|QL queries over the same file each used to issue their own footer GET.
+     * {@link #getOrLoadAsync} coalesces those loads: one in-flight {@link SubscribableListener} per
+     * {@link FooterByteCache.Key} lives in {@code asyncInFlight} only while the load is pending,
+     * is published into the LRU, then removed before anyone is notified. A loader that has
+     * completed (success, failure, or {@link Error}) always removes that entry so a later caller
+     * cannot attach to a dead flight. The map is not charged to the request breaker. Its footprint
+     * is bounded by concurrent unique keys — on the order of 75 KiB for a 14-panel dashboard over
+     * 36 files (one listener per file while those GETs run).
  *
  * @param <T> the parsed metadata type held by this cache (e.g. {@code ParquetMetadata}).
  */
@@ -238,11 +240,15 @@ public final class ParsedFooterCache<T> {
      * refusal as the sync path), then the entry is removed, then listeners are notified — a late
      * arrival therefore finds either the still-pending flight or the LRU. Errors are never cached.
      *
-     * <p>The caller that becomes leader is not a {@link SubscribableListener} subscriber. Its
-     * {@code listener} is completed inline on the completing thread. Waiters are completed via
+     * <p>The caller that becomes leader is not a {@link SubscribableListener} subscriber. After
+     * put-and-remove, waiters are notified first ({@code flight.onResponse}) so they do not wait
+     * for the leader's convert/extract. The leader {@code listener} is then completed inline on
+     * the completing thread. A re-peek cache hit (TOCTOU: this caller became leader after another
+     * thread published) hops only that convert onto {@code waiterExecutor}; the flight is still
+     * removed on the leader thread before anyone is notified. Waiters use
      * {@code flight.addListener(l, waiterExecutor, null)}; the {@code ThreadContext} argument is
      * deliberately null so a completing I/O thread cannot overwrite the context
-     * {@code waiterExecutor} restores per task. Do not wrap the leader in
+     * {@code waiterExecutor} restores per task. Do not wrap the GET/parse leader in
      * {@code ThreadedActionListener}.
      *
      * <p>{@code waiterExecutor} must restore the caller's {@link org.elasticsearch.common.util.concurrent.ThreadContext}
@@ -253,8 +259,10 @@ public final class ParsedFooterCache<T> {
      *
      * <p>Retry is per subscriber, not per flight. A waiter that observes leader failure re-enters
      * this method once, unless {@link StorageRetryCancellation#isCancelled()} is true on the waiter
-     * thread. A fresh caller whose first attach is a retry flight still gets one retry. A cancelled
-     * waiter stays attached until the GET finishes and then fails without retrying.
+     * thread or the failure is classified ({@link EsRejectedExecutionException},
+     * {@link CircuitBreakingException}, {@link Error}). A fresh caller whose first attach is a
+     * retry flight still gets one retry. A cancelled waiter stays attached until the GET finishes
+     * and then fails without retrying.
      *
      * <p>The loader is invoked on the leader thread and must complete the supplied listener exactly
      * once ({@link ActionListener#assertOnce}). A synchronous throw is a failure. A loader
@@ -303,9 +311,11 @@ public final class ParsedFooterCache<T> {
         if (cached != null) {
             asyncInFlight.remove(key, flight);
             try {
-                listener.onResponse(cached.value());
-            } finally {
                 flight.onResponse(cached.value());
+            } finally {
+                // Convert only: the GET/parse already finished on another thread. Hop off a
+                // foreign caller so buildFooterMetadata does not occupy the IO pool.
+                completeLeaderOnWaiterExecutor(waiterExecutor, listener, cached.value());
             }
             return;
         }
@@ -317,12 +327,17 @@ public final class ParsedFooterCache<T> {
                     failFlight(key, flight, listener, new NullPointerException("loader returned a null value"));
                     return;
                 }
-                put(key, value);
+                try {
+                    put(key, value);
+                } catch (Exception e) {
+                    failFlight(key, flight, listener, e);
+                    return;
+                }
                 asyncInFlight.remove(key, flight);
                 try {
-                    listener.onResponse(value);
-                } finally {
                     flight.onResponse(value);
+                } finally {
+                    listener.onResponse(value);
                 }
             }
 
@@ -343,10 +358,27 @@ public final class ParsedFooterCache<T> {
                     listener.onFailure(failure);
                 } catch (Exception ignored) {
                     // leader listener must not swallow the Error
+                } finally {
+                    flight.onFailure(failure);
                 }
-                flight.onFailure(failure);
             }
             throw e;
+        }
+    }
+
+    /**
+     * Completes the leader after a re-peek hit. The GET/parse already ran; only the caller's
+     * convert hops to {@code waiterExecutor}. A throwing {@code execute} fails just this leader.
+     */
+    private void completeLeaderOnWaiterExecutor(Executor waiterExecutor, ActionListener<T> listener, T value) {
+        if (waiterExecutor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            listener.onResponse(value);
+            return;
+        }
+        try {
+            waiterExecutor.execute(() -> listener.onResponse(value));
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -450,7 +482,9 @@ public final class ParsedFooterCache<T> {
     }
 
     private static boolean shouldNotRetry(Exception e) {
-        return e instanceof EsRejectedExecutionException || ExceptionsHelper.maybeError(e).isPresent();
+        return e instanceof EsRejectedExecutionException
+            || e instanceof CircuitBreakingException
+            || ExceptionsHelper.maybeError(e).isPresent();
     }
 
     private static Exception asFailure(Throwable t) {

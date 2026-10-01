@@ -437,7 +437,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             ManagedBy managedBy = ManagedBy.fromLifecycleManagedBy(
                 DataStream.lifecycleManagedBy(
                     indexMetadata.getLifecyclePolicyName(),
-                    dataStream.getDataLifecycle(),
+                    dataStream.getDataLifecycleForIndex(index),
                     indexMetadata.getSettings(),
                     indexMode
                 )

@@ -91,6 +91,16 @@ public class SplitSourceService {
         Setting.Property.NodeScope
     );
 
+    /// The maximum percentage of a split's target shards that may be in HANDOFF at the same time (always at least one shard)
+    public static final Setting<Double> RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE = Setting.doubleSetting(
+        "reshard.split.max_concurrent_handoff_percentage",
+        12.5,
+        0.0,
+        100.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /// We want to prevent the state machine from spinning in a hot loop.
     /// This setting defines how long to wait between the retries.
     /// This is not an actual registered setting and is only used in tests.
@@ -109,6 +119,7 @@ public class SplitSourceService {
     private final TaskManager taskManager;
 
     private final TimeValue deleteUnownedDelay;
+    private volatile double maxConcurrentHandoffPercentage;
 
     // Tracks active START_SPLIT requests received from target shards per source shard.
     // Target shard primary term is used to reject requests from stale shard instances or cancel ongoing request task.
@@ -149,6 +160,8 @@ public class SplitSourceService {
         this.taskManager = taskManager;
 
         this.deleteUnownedDelay = RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.get(settings);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE, value -> this.maxConcurrentHandoffPercentage = value);
     }
 
     /**
@@ -390,7 +403,7 @@ public class SplitSourceService {
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
-            afterSlot -> awaitHandoffSlot(afterSlot, targetShardId)
+            beginHandoff -> awaitHandoffSlot(currentSplit.task, beginHandoff, targetShardId)
         )
             .<Void>andThen(afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)).<
                 Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
@@ -442,45 +455,55 @@ public class SplitSourceService {
         withPermits.addListener(handoffListener);
     }
 
-    // Throttle handoff for offline warming of the search shard, allow only 1/8 shards to transition
-    void awaitHandoffSlot(ActionListener<Void> listener, ShardId targetShardId) {
-        ClusterStateObserver.waitForState(
-            clusterService,
-            clusterService.threadPool().getThreadContext(),
-            new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    clusterService.threadPool().generic().execute(() -> listener.onResponse(null));
-                }
+    /**
+     * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE}
+     * of the split's target shards to be in state HANDOFF.
+     * This is best-effort, since if multiple shards are waiting a single cluster state could allow all of them to proceed.
+     * Timeout of 10 minutes and fails if the task is cancelled.
+     */
+    void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId targetShardId) {
+        final var threadPool = clusterService.threadPool();
+        final var waitDurationHistogram = reshardIndexService.getReshardMetrics().targetHandoffThrottleWaitDurationHistogram();
+        final long startMillis = threadPool.relativeTimeInMillis();
+        // Task cancellation, the cluster state observer and its timeout can each complete this
+        final var beginHandoff = ActionListener.notifyOnce(ActionListener.<Void>wrap(ignored -> {
+            waitDurationHistogram.record((threadPool.relativeTimeInMillis() - startMillis) / 1000.0);
+            listener.onResponse(null);
+        }, listener::onFailure));
 
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
-                    clusterService.threadPool().generic().execute(() -> listener.onResponse(null));
-                }
+        task.addListener(() -> threadPool.generic().execute(() -> beginHandoff.onFailure(task.getTaskCancelledException())));
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-            },
-            state -> {
-                var indexMetadataOpt = state.metadata().findIndex(targetShardId.getIndex());
-                if (indexMetadataOpt.isEmpty()) {
-                    return true;
-                }
-                var reshardingMetadata = indexMetadataOpt.get().getReshardingMetadata();
-                if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
-                    return true;
-                }
-                var split = reshardingMetadata.getSplit();
-                long totalTargetShards = split.targetStates().count();
-                long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
-                return handoffCount < Math.max(1, totalTargetShards / 8);
-            },
-            TimeValue.timeValueMinutes(10),
-            logger
-        );
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                threadPool.generic().execute(() -> beginHandoff.onResponse(null));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
+                threadPool.generic().execute(() -> beginHandoff.onResponse(null));
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                beginHandoff.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+        }, state -> {
+            var indexMetadataOpt = state.metadata().findIndex(targetShardId.getIndex());
+            if (indexMetadataOpt.isEmpty()) {
+                return true;
+            }
+            var reshardingMetadata = indexMetadataOpt.get().getReshardingMetadata();
+            if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+                return true;
+            }
+            var split = reshardingMetadata.getSplit();
+            long totalTargetShards = split.targetStates().count();
+            long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
+            long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
+            return handoffCount < maxConcurrentHandoffs;
+        }, TimeValue.timeValueMinutes(10), logger);
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {
@@ -508,9 +531,9 @@ public class SplitSourceService {
             if (stateMachine == null) {
                 /// `stateMachine` is `null` in two cases:
                 /// 1. Source shard is STARTED and hasn't recovered since the beginning of the split.
-                ///    This is the first time a target shard contacts the source shard.
+                /// This is the first time a target shard contacts the source shard.
                 /// 2. Source shard did some work previously but now is closed and [#cancelSplits(IndexShard)] removed
-                ///    the entry already.
+                /// the entry already.
                 /// We should specifically handle the latter case to not create a state machine for an already closed shard.
                 /// To do that we perform the state check below.
                 /// If this function runs first and observes `CLOSED`, `cancelSplits` may or may not have been called.

@@ -23,7 +23,24 @@ public final class HeapEstimates {
     /** Flat per-entry charge shared by the map and statistics estimates. Not a measured size. */
     private static final long MAP_ENTRY_BYTES = 100L;
 
+    /**
+     * Allowance for a {@code ReferenceAttribute} plus its {@code NameId}, excluding the column name. Not a measured
+     * deep size.
+     */
+    private static final long COLUMN_SHELL_BYTES = 128L;
+
     private HeapEstimates() {}
+
+    /**
+     * Heap one schema column keeps reachable: the attribute shell plus its name. The name is charged because a
+     * flattened nested field is named by its whole dotted path, so a column's name can dwarf the rest of it and a
+     * schema's size is then the sum of its names, not its column count.
+     *
+     * @param nameLength {@code String#length()} of the column name
+     */
+    public static long columnBytes(int nameLength) {
+        return COLUMN_SHELL_BYTES + 40 + nameLength * (long) Character.BYTES;
+    }
 
     /**
      * About 40 bytes for the {@code String} object and its backing array headers on a 64-bit JVM with compressed

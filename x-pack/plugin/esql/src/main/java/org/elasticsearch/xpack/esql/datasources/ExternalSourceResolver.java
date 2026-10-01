@@ -2290,7 +2290,7 @@ public class ExternalSourceResolver {
         // object header + field references
         long bytes = 64L + HeapEstimates.stringBytes(meta.location());
         if (chargeSchema && meta.schema() != null) {
-            bytes += SchemaInterner.privateListBytes(meta.schema().size());
+            bytes += SchemaInterner.privateListBytes(meta.schema());
         }
         Optional<SourceStatistics> statistics = meta.statistics();
         if (statistics != null && statistics.isPresent()) {
@@ -2456,7 +2456,7 @@ public class ExternalSourceResolver {
                 // file list.
                 if (privateLists != null) {
                     List<Attribute> rawSchema = meta.schema();
-                    privateLists.charge(SchemaInterner.privateListBytes(rawSchema.size()));
+                    privateLists.charge(SchemaInterner.privateListBytes(rawSchema));
                     if (schemaGatherRunProbe != null) {
                         schemaGatherRunProbe.accept(privateLists);
                     }

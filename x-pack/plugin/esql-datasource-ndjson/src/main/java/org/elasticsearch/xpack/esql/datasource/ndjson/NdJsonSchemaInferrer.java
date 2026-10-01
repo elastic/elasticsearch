@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
@@ -69,18 +71,51 @@ public class NdJsonSchemaInferrer {
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private final DateFormatter dateFormatter;
+    /**
+     * Allowance for one {@link FieldInfo}: the object, its {@link EnumSet}, and its slot in {@link #fields} and in the
+     * parent's children map. The field name is charged on top. Not a measured deep size.
+     */
+    private static final long FIELD_INFO_BYTES = 256L;
 
-    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+    /** Label the inference charges are made under, so a trip names the work that was refused. */
+    static final String BREAKER_LABEL = "ndjson_schema_inference";
+
+    private final DateFormatter dateFormatter;
+    private final CircuitBreaker breaker;
+    private long reservedBytes = 0;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter, CircuitBreaker breaker) {
         this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+        this.breaker = breaker;
     }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
+     * <p>
+     * The field tree and the column list built from it are charged to {@code breaker} while they exist, and released
+     * before returning: the caller owns the returned attributes and accounts for them itself. A flattened nested field
+     * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
+     * produced it. A {@link org.elasticsearch.common.breaker.CircuitBreakingException} leaves this method unchanged and
+     * stops inference. It is not a malformed line, so it must never be caught as one.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
-        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(
+        InputStream inputStream,
+        int maxLines,
+        DateFormatter datetimeFormatter,
+        CircuitBreaker breaker
+    ) throws IOException {
+        NdJsonSchemaInferrer inferrer = new NdJsonSchemaInferrer(datetimeFormatter, breaker);
+        try {
+            return inferrer.doInferSchema(inputStream, maxLines);
+        } finally {
+            inferrer.breaker.addWithoutBreaking(-inferrer.reservedBytes);
+        }
+    }
+
+    private void charge(long bytes) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        reservedBytes += bytes;
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -212,8 +247,11 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    /** Build the list of Attribute by recursively traversing the FieldInfo tree */
-    private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+    /**
+     * Build the list of Attribute by recursively traversing the FieldInfo tree. Each column is charged before its
+     * dotted name is built, from the lengths alone, so a refusal never follows the allocation it was meant to prevent.
+     */
+    private void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
         if (field.children == null) {
             // No children were ever observed. Happens for the root when every sampled line was
             // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
@@ -223,11 +261,15 @@ public class NdJsonSchemaInferrer {
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
             var name = entry.getKey();
             var info = entry.getValue();
+            int nameLength = parentName == null ? name.length() : parentName.length() + 1 + name.length();
+            DataType dataType = info.resolveType();
+            if (dataType != DataType.UNSUPPORTED) {
+                charge(HeapEstimates.columnBytes(nameLength));
+            }
             if (parentName != null) {
                 name = parentName + "." + name;
             }
 
-            DataType dataType = info.resolveType();
             if (dataType != DataType.UNSUPPORTED) {
                 // Unsupported is used for nested object properties
                 attributes.add(attribute(name, dataType, info.nullable));
@@ -255,6 +297,7 @@ public class NdJsonSchemaInferrer {
         final String name;
 
         FieldInfo(String name) {
+            charge(FIELD_INFO_BYTES + HeapEstimates.stringBytes(name));
             this.name = name;
             this.idx = fields.size();
             fields.add(this);

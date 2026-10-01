@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -20,6 +24,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
@@ -334,7 +342,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             {"ts": "2023-10-23 12:15:03.360103847"}
             """;
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, custom);
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, custom, new NoopCircuitBreaker("test"));
             assertEquals(1, result.size());
             assertEquals(DataType.DATETIME, result.get(0).dataType());
         }
@@ -516,9 +524,129 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check("{\"a\":1}\nnot_json\n{\"b\":2}\n", field("a", DataType.INTEGER, true), field("b", DataType.INTEGER, true));
     }
 
+    /**
+     * A record {@code depth} levels deep whose innermost object holds {@code leaves} keys. Inference flattens it into
+     * {@code leaves} columns each named by the whole dotted path, so the schema is roughly {@code leaves * depth * 2}
+     * characters from an input of only {@code depth * 5 + leaves * 10} bytes.
+     */
+    private static String deeplyNestedRecord(int depth, int leaves) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"a\":".repeat(depth));
+        sb.append('{');
+        for (int i = 0; i < leaves; i++) {
+            sb.append(i == 0 ? "" : ",").append("\"k").append(i).append("\":1");
+        }
+        sb.append('}');
+        sb.append("}".repeat(depth));
+        return sb.append('\n').toString();
+    }
+
+    private static String wideFlatRecord(int columns) {
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < columns; i++) {
+            sb.append(i == 0 ? "" : ",").append("\"column_").append(i).append("\":1");
+        }
+        return sb.append("}\n").toString();
+    }
+
+    private static List<Attribute> infer(String ndjson, LimitedBreaker breaker) throws IOException {
+        try (ByteArrayInputStream in = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
+            return NdJsonSchemaInferrer.inferSchema(in, 100, null, breaker);
+        }
+    }
+
+    /** Counts refusals so a test can tell one charge-and-refuse from a retry per record. */
+    private static class CountingLimitedBreaker extends LimitedBreaker {
+        final AtomicInteger trips = new AtomicInteger();
+
+        CountingLimitedBreaker(long maxBytes) {
+            super("test", ByteSizeValue.ofBytes(maxBytes));
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            try {
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            } catch (CircuitBreakingException e) {
+                trips.incrementAndGet();
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Esql-planning#2143: a flat record with many distinct keys is refused rather than inferred without a charge.
+     */
+    public void testWideFlatRecordTripsBreaker() {
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(100));
+        expectThrows(CircuitBreakingException.class, () -> infer(wideFlatRecord(5_000), breaker));
+        assertThat("a refused inference releases everything it reserved", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Esql-planning#2143: the repro shape. Only a few hundred nodes are alive, so the field tree is cheap and this
+     * trips on the dotted names built from it. 900 levels and 100 leaves is ~380 KB of names against a tree of ~310 KB:
+     * a limit between the two admits the tree and refuses the columns, so the column charge alone is what trips.
+     */
+    public void testDeeplyNestedRecordTripsOnColumnNamesNotOnTheFieldTree() throws IOException {
+        String record = deeplyNestedRecord(900, 100);
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(500));
+        expectThrows(CircuitBreakingException.class, () -> infer(record, breaker));
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        // The same record fits when the breaker has headroom for the names, so the refusal above was theirs.
+        LimitedBreaker roomy = new LimitedBreaker("test", ByteSizeValue.ofMb(4));
+        assertThat(infer(record, roomy).size(), equalTo(100));
+    }
+
+    public void testNothingIsLeftReservedAfterSuccess() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        assertThat(infer(wideFlatRecord(1_000), breaker).size(), equalTo(1_000));
+        assertThat("the returned schema belongs to the caller, not to inference", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A refusal is not a malformed line. It must stop inference at once instead of being skipped like a bad record
+     * and retried on the next one, which would charge and refuse once per remaining record.
+     */
+    public void testRefusalStopsInferenceWithoutRetryingTheNextRecord() {
+        String malformed = "not_json\n";
+        String ndjson = malformed + wideFlatRecord(5_000) + wideFlatRecord(5_000) + wideFlatRecord(5_000);
+        CountingLimitedBreaker breaker = new CountingLimitedBreaker(ByteSizeValue.ofKb(100).getBytes());
+        expectThrows(CircuitBreakingException.class, () -> infer(ndjson, breaker));
+        assertThat(breaker.trips.get(), equalTo(1));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargesGrowWithColumnNameLength() throws IOException {
+        // Same column count and same input shape; only the names differ. The longer names must cost more.
+        long[] peak = new long[2];
+        String[] prefixes = { "c", "c".repeat(500) };
+        for (int i = 0; i < prefixes.length; i++) {
+            String prefix = prefixes[i];
+            StringBuilder sb = new StringBuilder("{");
+            for (int c = 0; c < 200; c++) {
+                sb.append(c == 0 ? "" : ",").append('"').append(prefix).append(c).append("\":1");
+            }
+            String record = sb.append("}\n").toString();
+            // Smallest limit that admits the record, found by doubling; names longer than the limit's slack must not fit.
+            long limit = 1_024;
+            while (true) {
+                try {
+                    infer(record, new LimitedBreaker("test", ByteSizeValue.ofBytes(limit)));
+                    break;
+                } catch (CircuitBreakingException e) {
+                    limit *= 2;
+                }
+            }
+            peak[i] = limit;
+        }
+        assertThat(peak[1], greaterThan(peak[0]));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null);
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null, new NoopCircuitBreaker("test"));
 
             assertEquals(expected.length, result.size());
             for (int i = 0; i < expected.length; i++) {

@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -44,6 +47,34 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     @Before
     public void setUpBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    /**
+     * esql-planning#2143: planning-time inference charges the reader's breaker, and a refusal leaves
+     * {@code metadata()} as a {@link CircuitBreakingException} (HTTP 429), not as an {@code ExternalClientException}
+     * about the user's data, and without having been retried on later records.
+     */
+    public void testMetadataSurfacesBreakerTripAndReleasesReservation() {
+        StringBuilder record = new StringBuilder("{");
+        for (int i = 0; i < 5_000; i++) {
+            record.append(i == 0 ? "" : ",").append("\"column_").append(i).append("\":1");
+        }
+        byte[] bytes = (record + "}\n").repeat(3).getBytes(StandardCharsets.UTF_8);
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(100));
+        BlockFactory limited = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        expectThrows(CircuitBreakingException.class, () -> new NdJsonFormatReader(null, limited).metadata(new BytesObject(bytes)));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /** A schema that fits is returned and leaves nothing reserved, since the caller accounts for what it keeps. */
+    public void testMetadataReleasesReservationOnSuccess() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        BlockFactory limited = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        byte[] bytes = "{\"a\":1,\"b\":{\"c\":\"x\"}}\n".getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(2, new NdJsonFormatReader(null, limited).metadata(new BytesObject(bytes)).schema().size());
+        assertEquals(0L, breaker.getUsed());
     }
 
     public void testSkipFirstLineFalseReturnsStreamUnchanged() throws IOException {

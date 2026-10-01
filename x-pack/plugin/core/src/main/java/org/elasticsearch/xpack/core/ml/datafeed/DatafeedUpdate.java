@@ -371,11 +371,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     }
 
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
-        if (esqlQuery != null) {
+        if (esqlQuery != null || sourceTimeField != null || groupingInterval != null) {
             return Optional.of(
                 new Tuple<>(
                     DatafeedConfig.ML_DATAFEED_ESQL_QUERY,
-                    "datafeed update uses an ES|QL query, which requires support for ES|QL datafeed updates"
+                    "datafeed update uses ES|QL datafeed fields, which requires support for ES|QL datafeed updates"
                 )
             );
         }
@@ -440,6 +440,24 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED, datafeedConfig.getId())
             );
+        }
+        if (datafeedConfig.getEsqlQuery() == null) {
+            if (sourceTimeField != null) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY,
+                        DatafeedConfig.SOURCE_TIME_FIELD.getPreferredName()
+                    )
+                );
+            }
+            if (groupingInterval != null) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY,
+                        DatafeedConfig.GROUPING_INTERVAL.getPreferredName()
+                    )
+                );
+            }
         }
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);

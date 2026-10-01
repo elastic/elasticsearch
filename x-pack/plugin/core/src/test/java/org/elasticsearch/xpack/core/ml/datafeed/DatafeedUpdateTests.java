@@ -364,6 +364,45 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(exception.getMessage(), containsString("cannot add [esql_query] to non-ES|QL datafeed [classic-datafeed]"));
     }
 
+    public void testApplyEsqlSourceTimeFieldUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("t").build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("source_time_field can only be set when esql_query is configured"));
+    }
+
+    public void testApplyEsqlGroupingIntervalUpdateToClassicDatafeedShouldReject() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueHours(1)).build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("grouping_interval can only be set when esql_query is configured"));
+    }
+
+    public void testMinRequiredTransportVersionShouldCoverAllEsqlFields() {
+        List<DatafeedUpdate> esqlUpdates = List.of(
+            new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build(),
+            new DatafeedUpdate.Builder("test-datafeed").setSourceTimeField("t").build(),
+            new DatafeedUpdate.Builder("test-datafeed").setGroupingInterval(TimeValue.timeValueHours(1)).build()
+        );
+        for (DatafeedUpdate update : esqlUpdates) {
+            assertThat(update.minRequiredTransportVersion().orElseThrow().v1(), equalTo(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
+        }
+        DatafeedUpdate classicUpdate = new DatafeedUpdate.Builder("test-datafeed").setQueryDelay(TimeValue.timeValueMinutes(5)).build();
+        assertThat(classicUpdate.minRequiredTransportVersion().isPresent(), is(false));
+    }
+
     public void testApplyEsqlDatafeedQueryShapeUpdatesShouldReject() throws IOException {
         DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
         List<DatafeedUpdate> queryShapeUpdates = List.of(

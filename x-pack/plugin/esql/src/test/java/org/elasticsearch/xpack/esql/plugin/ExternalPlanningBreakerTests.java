@@ -515,9 +515,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
      */
     public void testPhase2ChargeFollowsRetainedKeysNotPathLength() {
         List<Attribute> dataOnly = List.of(referenceAttribute("x", DataType.INTEGER));
-        assertEquals(2 * ComputeService.SHELL_BYTES, ComputeService.phase2Bytes(dataOnly, resolvedFiles(2)));
-        assertEquals(0L, ComputeService.phase2Bytes(dataOnly, FileList.UNRESOLVED));
-        assertEquals(0L, ComputeService.phase2Bytes(dataOnly, FileList.EMPTY));
+        assertEquals(2 * Phase2Reservation.SHELL_BYTES, Phase2Reservation.bytesFor(dataOnly, resolvedFiles(2)));
+        assertEquals(0L, Phase2Reservation.bytesFor(dataOnly, FileList.UNRESOLVED));
+        assertEquals(0L, Phase2Reservation.bytesFor(dataOnly, FileList.EMPTY));
 
         StoragePath shortPath = StoragePath.of("s3://b/a.parquet");
         StoragePath longPath = StoragePath.of("s3://b/" + "p".repeat(4000) + "/a.parquet");
@@ -527,21 +527,21 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.NAME, DataType.KEYWORD),
             new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.DIRECTORY, DataType.KEYWORD)
         );
-        assertEquals(ComputeService.SHELL_BYTES, ComputeService.phase2Bytes(locationBound, oneFile(shortPath, null)));
-        assertEquals(ComputeService.SHELL_BYTES, ComputeService.phase2Bytes(locationBound, oneFile(longPath, null)));
+        assertEquals(Phase2Reservation.SHELL_BYTES, Phase2Reservation.bytesFor(locationBound, oneFile(shortPath, null)));
+        assertEquals(Phase2Reservation.SHELL_BYTES, Phase2Reservation.bytesFor(locationBound, oneFile(longPath, null)));
 
         List<Attribute> sizeBound = List.of(new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG));
         assertEquals(
-            ComputeService.SHELL_BYTES + ComputeService.perMap(1),
-            ComputeService.phase2Bytes(sizeBound, oneFile(shortPath, null))
+            Phase2Reservation.SHELL_BYTES + Phase2Reservation.perMap(1),
+            Phase2Reservation.bytesFor(sizeBound, oneFile(shortPath, null))
         );
 
         StoragePath hivePath = StoragePath.of("s3://b/year=2024/a.parquet");
         PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(hivePath, Map.of("year", 2024)));
         List<Attribute> hiveBound = List.of(referenceAttribute("year", DataType.INTEGER));
         assertEquals(
-            ComputeService.SHELL_BYTES + ComputeService.perMap(1),
-            ComputeService.phase2Bytes(hiveBound, oneFile(hivePath, partitions))
+            Phase2Reservation.SHELL_BYTES + Phase2Reservation.perMap(1),
+            Phase2Reservation.bytesFor(hiveBound, oneFile(hivePath, partitions))
         );
 
         List<Attribute> hiveAndSize = List.of(
@@ -549,8 +549,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG),
             new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.MODIFIED, DataType.DATETIME)
         );
-        long bothLayers = ComputeService.SHELL_BYTES + ComputeService.perMap(1) + ComputeService.perMap(2) + ComputeService.VIEW_BYTES;
-        assertEquals(bothLayers, ComputeService.phase2Bytes(hiveAndSize, oneFile(hivePath, partitions)));
+        long bothLayers = Phase2Reservation.SHELL_BYTES + Phase2Reservation.perMap(1) + Phase2Reservation.perMap(2)
+            + Phase2Reservation.VIEW_BYTES;
+        assertEquals(bothLayers, Phase2Reservation.bytesFor(hiveAndSize, oneFile(hivePath, partitions)));
     }
 
     public void testReleaseReturnsSuccessAndFailureToBaseline() {

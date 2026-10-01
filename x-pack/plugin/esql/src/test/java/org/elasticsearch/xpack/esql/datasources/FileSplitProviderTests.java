@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -1994,10 +1996,131 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(3000000000L, left.get("id"));
         assertSame(left.get(FileMetadataColumns.DIRECTORY), right.get(FileMetadataColumns.DIRECTORY));
         assertNotSame(left.get(FileMetadataColumns.PATH), right.get(FileMetadataColumns.PATH));
-        Map<String, Object> listed = meta.filePartitionValues().get(first.path());
-        assertSame(listed.get("year"), left.get("year"));
-        assertFalse(listed.containsKey(FileMetadataColumns.PATH));
+        assertSame(meta.getValue(0, "year"), left.get("year"));
         assertNull(left.get(FileMetadataColumns.MODIFIED));
+    }
+
+    /** A hive-only retain set has an empty overlay, so siblings in one directory are the same map. */
+    public void testHiveOnlyRetainSetSharesDirectoryTuple() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/b.parquet"), 20, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/month=01/*.parquet");
+        List<ExternalSplit> splits = provider.discoverSplits(retainedContext(fileList, meta, Set.of("year", "month"), List.of())).splits();
+
+        assertEquals(2, splits.size());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertSame(left, right);
+        assertEquals(Map.of("year", 2024, "month", 1), left);
+        expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
+    }
+
+    /** Each parent directory publishes one tuple. Files in that directory share it; the other directory does not. */
+    public void testTwoDirectoriesPublishTwoSharedTuples() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=01/b.parquet"), 20, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=02/c.parquet"), 30, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/month=02/d.parquet"), 40, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/month=*/*.parquet");
+        List<ExternalSplit> splits = provider.discoverSplits(retainedContext(fileList, meta, Set.of("year", "month"), List.of())).splits();
+
+        assertEquals(4, splits.size());
+        Map<String, Object> january = ((FileSplit) splits.get(0)).partitionValues();
+        assertSame(january, ((FileSplit) splits.get(1)).partitionValues());
+        Map<String, Object> february = ((FileSplit) splits.get(2)).partitionValues();
+        assertSame(february, ((FileSplit) splits.get(3)).partitionValues());
+        assertNotSame(january, february);
+        assertEquals(1, january.get("month"));
+        assertEquals(2, february.get("month"));
+    }
+
+    /** Hive values stay on the shared tuple. {@code _file.name} is an overlay, so the maps differ but compare equal to one flat map. */
+    public void testHivePlusFileNameUsesOverlay() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/year=2024/b.parquet"), 20, Instant.EPOCH)
+        );
+        PartitionMetadata meta = HivePartitionDetector.INSTANCE.detect(entries, warning -> {});
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/*.parquet");
+        long copiesBefore = FileSplit.defensivePartitionMapCopies();
+        List<ExternalSplit> splits = provider.discoverSplits(
+            retainedContext(fileList, meta, Set.of("year", FileMetadataColumns.NAME), List.of())
+        ).splits();
+
+        assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
+        Map<String, Object> left = ((FileSplit) splits.get(0)).partitionValues();
+        Map<String, Object> right = ((FileSplit) splits.get(1)).partitionValues();
+        assertNotSame(left, right);
+        assertSame(left.get("year"), right.get("year"));
+        assertEquals(2024, left.get("year"));
+        assertEquals(new BytesRef("a.parquet"), left.get(FileMetadataColumns.NAME));
+        assertEquals(new BytesRef("b.parquet"), right.get(FileMetadataColumns.NAME));
+        assertEquals(Map.of("year", 2024, FileMetadataColumns.NAME, new BytesRef("a.parquet")), left);
+        assertEquals(List.of("year", FileMetadataColumns.NAME), new ArrayList<>(left.keySet()));
+        expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
+    }
+
+    /**
+     * A directory-grouped listing stores one partition row per directory and maps files to it by position.
+     * Every split must still carry its own directory's values on the filter path, the unfiltered path and
+     * the known-projection path, which each read the shared rows differently.
+     * <p>
+     * The shared rows are built directly so the check does not depend on which encoding the compactor picks
+     * by size; the compacted listing is then checked the same way, whichever encoding it ended up with.
+     */
+    public void testSharedRowsResolvePerFileValues() {
+        String base = "s3://bucket/data/";
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of(base + "year=2024/month=1/a.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=1/b.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=1/c.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=2/d.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of(base + "year=2024/month=2/e.parquet"), 100, Instant.EPOCH)
+        );
+        PartitionMetadata detected = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+        FileList raw = GlobExpander.fileListOf(entries, base + "**/*.parquet", detected);
+
+        PartitionMetadata shared = detected.shareByGroups(new short[] { 0, 0, 0, 1, 1 }, 2);
+        assertEquals(5, shared.fileCount());
+        assertEquals("one row per directory", 2, shared.rowCount());
+        assertPerFileMonthValues(raw, shared, base);
+
+        FileList compacted = GlobExpander.compact(raw, base);
+        assertEquals(5, compacted.partitionMetadata().fileCount());
+        assertPerFileMonthValues(compacted, compacted.partitionMetadata(), base);
+    }
+
+    private void assertPerFileMonthValues(FileList listing, PartitionMetadata metadata, String base) {
+        List<ExternalSplit> all = provider.discoverSplits(new SplitDiscoveryContext(null, listing, Map.of(), metadata, List.of())).splits();
+        assertEquals(5, all.size());
+        for (ExternalSplit s : all) {
+            FileSplit split = (FileSplit) s;
+            int expectedMonth = split.path().toString().contains("/month=1/") ? 1 : 2;
+            assertEquals(split.path().toString(), expectedMonth, split.partitionValues().get("month"));
+            assertEquals(2024, split.partitionValues().get("year"));
+        }
+
+        List<Expression> filters = List.of(new Equals(SRC, fieldAttr("month"), intLiteral(2)));
+        List<ExternalSplit> filtered = provider.discoverSplits(new SplitDiscoveryContext(null, listing, Map.of(), metadata, filters))
+            .splits();
+        assertEquals(
+            List.of(StoragePath.of(base + "year=2024/month=2/d.parquet"), StoragePath.of(base + "year=2024/month=2/e.parquet")),
+            filtered.stream().map(s -> ((FileSplit) s).path()).toList()
+        );
+
+        List<ExternalSplit> projected = provider.discoverSplits(retainedContext(listing, metadata, Set.of("month"), List.of())).splits();
+        assertEquals(5, projected.size());
+        for (ExternalSplit s : projected) {
+            FileSplit split = (FileSplit) s;
+            int expectedMonth = split.path().toString().contains("/month=1/") ? 1 : 2;
+            assertEquals(split.path().toString(), Map.of("month", expectedMonth), split.partitionValues());
+        }
     }
 
     private static int probeConcurrencyFor(Settings settings) {
@@ -3468,6 +3591,11 @@ public class FileSplitProviderTests extends ESTestCase {
                 }
                 return new StorageObject() {
                     @Override
+                    public StorageIdentity storageIdentity() {
+                        return AbstractTestStorageObject.NOOP;
+                    }
+
+                    @Override
                     public InputStream newStream() {
                         return trackedStream(new ByteArrayInputStream(payload));
                     }
@@ -4007,6 +4135,11 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger abortCalls = new AtomicInteger();
         StorageObject failing = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return newStream(0, 1);
             }
@@ -4160,6 +4293,11 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger streamsOpened = new AtomicInteger();
         byte[] payload = "aaaa\nbbbb\ncccc\n".getBytes(StandardCharsets.UTF_8);
         StorageObject counting = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 streamsOpened.incrementAndGet();
@@ -4344,6 +4482,11 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static StorageObject createInMemoryStorageObject(byte[] data, StoragePath path) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -4714,7 +4857,11 @@ public class FileSplitProviderTests extends ESTestCase {
         FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
             entry.path(),
-            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, statsWithUnits(1234L, 1))
+            new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(List.of(refAttr("id"))),
+                null,
+                statsWithColumns(1234L, 1, Map.of("id", columnStats(1L, 9L, 1234L)))
+            )
         );
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
@@ -4754,6 +4901,7 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<String, Object> cached = new HashMap<>();
         cached.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1234L);
         cached.put(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT, 1L);
+        cached.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
         SourceStatistics reconstructed = SourceStatisticsSerializer.extractStatistics(cached).orElseThrow();
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
             entry.path(),
@@ -4778,6 +4926,36 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(1234L, fs.statistics().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertNull(fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
         assertEquals(0, discoverCalls.get());
+    }
+
+    public void testRangeAwareSingleUnitWithoutColumnStatsDoesNotSkipDiscovery() {
+        AtomicInteger discoverCalls = new AtomicInteger();
+        RangeAwareFormatReader mockReader = createMockRangeReader(
+            List.of(new SplitRange(100, 400, Map.of("_stats.row_count", 999L))),
+            discoverCalls
+        );
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/wide.parquet"), 80L * 1024 * 1024, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, statsWithUnits(1234L, 1))
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            new ExternalSchema(List.of(refAttr("id")))
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+
+        assertEquals("a slim readableUnitCount of 1 must still open the footer", 1, discoverCalls.get());
+        assertEquals(1, splits.size());
+        assertEquals("true", ((FileSplit) splits.get(0)).config().get(FileSplitProvider.RANGE_SPLIT_KEY));
     }
 
     public void testRangeAwareTwoUnitHarvestUsesRangeDiscovery() {
@@ -5828,6 +6006,11 @@ public class FileSplitProviderTests extends ESTestCase {
             public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
                 return new StorageObject() {
                     @Override
+                    public StorageIdentity storageIdentity() {
+                        return AbstractTestStorageObject.NOOP;
+                    }
+
+                    @Override
                     public InputStream newStream() {
                         return new ByteArrayInputStream(new byte[0]);
                     }
@@ -5929,6 +6112,11 @@ public class FileSplitProviderTests extends ESTestCase {
             public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
                 assertEquals(payload.length, length);
                 return new StorageObject() {
+                    @Override
+                    public StorageIdentity storageIdentity() {
+                        return AbstractTestStorageObject.NOOP;
+                    }
+
                     @Override
                     public InputStream newStream() {
                         return new ByteArrayInputStream(payload);

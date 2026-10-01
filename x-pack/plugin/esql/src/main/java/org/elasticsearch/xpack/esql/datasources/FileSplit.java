@@ -274,15 +274,15 @@ public class FileSplit implements ExternalSplit {
     }
 
     /**
-     * Reuses a map already wrapped by {@link Collections#unmodifiableMap} (discovery freezes one
-     * {@link LinkedHashMap} per survivor, including null directory and mtime). Any other map is
+     * Reuses a map already wrapped by {@link Collections#unmodifiableMap}, and a {@link LayeredPartitionMap}
+     * whose directory tuple is shared across files. Copying either would drop that sharing. Any other map is
      * copied so a caller cannot mutate the split after construction. Empty stays {@link Map#of()}.
      */
     private static Map<String, Object> freezePartitionValues(@Nullable Map<String, Object> partitionValues) {
         if (partitionValues == null || partitionValues.isEmpty()) {
             return Map.of();
         }
-        if (partitionValues.getClass() == UNMODIFIABLE_MAP_CLASS) {
+        if (partitionValues.getClass() == UNMODIFIABLE_MAP_CLASS || partitionValues instanceof LayeredPartitionMap) {
             return partitionValues;
         }
         DEFENSIVE_PARTITION_MAP_COPIES.incrementAndGet();
@@ -430,6 +430,17 @@ public class FileSplit implements ExternalSplit {
     }
 
     public Map<String, Object> partitionValues() {
+        return partitionValues;
+    }
+
+    /**
+     * Interned directory-constant keys, or {@link #partitionValues()} when per-file keys are not layered over a
+     * shared tuple. Siblings in one directory return the same instance.
+     */
+    public Map<String, Object> directoryTuple() {
+        if (partitionValues instanceof LayeredPartitionMap layered) {
+            return layered.sharedTuple();
+        }
         return partitionValues;
     }
 

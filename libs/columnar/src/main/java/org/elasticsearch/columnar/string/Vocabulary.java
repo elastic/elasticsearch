@@ -315,84 +315,137 @@ public final class Vocabulary {
     }
 
     /**
+     * A push-style Misra-Gries accumulator: the caller feeds values one at a time and calls
+     * {@link #finish()} when done. Equivalent to the pull-loop in {@link #survey}, but decoupled from
+     * the cursor so the same walk can serve two purposes at once (e.g. writing a presence structure while
+     * accumulating the vocabulary).
+     */
+    static final class Surveyor {
+
+        private final DictionaryPolicy dictionaryPolicy;
+        private final SummaryPolicy summaryPolicy;
+        private final long tableBound;
+        private final BytesRefHash terms;
+        private long[] counts;
+        private long tableBytes;
+        private long numValues;
+        private long columnBytes;
+        // A column that arrives in term order repeats each value in a run, so the term a value takes is
+        // almost always the one before it. Comparing against that costs a length check and settles it
+        // without a hash probe; only a run boundary pays for one.
+        private final BytesRefBuilder previous;
+        private int previousId;
+        private boolean hasPrevious;
+
+        private Surveyor(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
+            this.dictionaryPolicy = dictionaryPolicy;
+            this.summaryPolicy = summaryPolicy;
+            this.tableBound = summaryPolicy.surveyBudgetBytes(dictionaryPolicy);
+            this.terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
+            this.counts = new long[64];
+            this.tableBytes = 0;
+            this.numValues = 0;
+            this.columnBytes = 0;
+            this.previous = new BytesRefBuilder();
+            this.previousId = ABSENT;
+            this.hasPrevious = false;
+        }
+
+        /**
+         * Offers one slot's value. A null slot is ignored — it is named by an ordinal of its own and its
+         * bytes are not bytes the column would otherwise store.
+         */
+        void accept(BytesRef value) {
+            if (value == null) {
+                // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
+                // and its bytes are not bytes the column would otherwise store. Counting it would credit
+                // the empty term with occurrences it does not have, and could win it an entry — or
+                // displace a real term — on the strength of values that are not empty strings.
+                return;
+            }
+            // NOTE: a null gets an ordinal of its own in every layout, so it is not a value a dictionary names.
+            numValues++;
+            // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
+            // as one virtual byte to keep the denominator positive and the metric meaningful.
+            columnBytes += TermQuota.cost(value);
+            if (hasPrevious && previous.get().bytesEquals(value)) {
+                if (previousId != ABSENT) {
+                    counts[previousId]++;
+                }
+                return;
+            }
+            int id = terms.find(value);
+            if (id < 0) {
+                if (tableBytes + value.length > tableBound) {
+                    if (terms.size() > 0) {
+                        final long[] freed = { 0 };
+                        counts = evictLeastFrequent(terms, counts, freed);
+                        tableBytes -= freed[0];
+                    }
+                    if (tableBytes + value.length > tableBound) {
+                        // Nothing could be displaced: either every term held occurs at least as often as
+                        // this one, or the table is empty and the value alone is larger than the bound.
+                        // Remembered as absent, so the rest of its run is turned away as cheaply.
+                        previous.copyBytes(value);
+                        previousId = ABSENT;
+                        hasPrevious = true;
+                        return;
+                    }
+                }
+                id = terms.add(value);
+                if (id < 0) {
+                    id = -1 - id;
+                }
+                counts = ArrayUtil.grow(counts, id + 1);
+                tableBytes += value.length;
+            }
+            counts[id]++;
+            // Copied only here, so a run costs one copy rather than one per value.
+            previous.copyBytes(value);
+            previousId = id;
+            hasPrevious = true;
+        }
+
+        /**
+         * Returns the terms worth a dictionary entry or a summary entry, or null when the column holds
+         * nothing worth naming. Must be called exactly once, after all values have been {@link #accept accepted}.
+         */
+        Terms finish() {
+            if (terms.size() == 0) {
+                return null;
+            }
+            final TermSelection selection = new TermSelection(terms, counts);
+            final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
+            final int[] summaryIds = selection.thatFit(TermQuota.forSummary(summaryPolicy));
+            // NOTE: a column where nothing repeats earns no dictionary entry but still has terms worth leaving
+            // for a merge, which may hold them often enough across segments. Returning null here would put the
+            // merge back to reading values, which is what the summary exists to avoid.
+            if (dictionaryIds.length == 0 && summaryIds.length == 0) {
+                return null;
+            }
+            return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
+        }
+    }
+
+    /** Returns a fresh {@link Surveyor} governed by {@code dictionaryPolicy} and {@code summaryPolicy}. */
+    static Surveyor surveyor(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
+        return new Surveyor(dictionaryPolicy, summaryPolicy);
+    }
+
+    /**
      * Surveys {@code values}, returning the terms worth a dictionary entry, or null when the column holds
      * nothing worth naming.
      */
     public static Terms survey(StringColumnValues values, DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy)
         throws IOException {
-        final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
-        long[] counts = new long[64];
-        final long tableBound = summaryPolicy.surveyBudgetBytes(dictionaryPolicy);
-        long tableBytes = 0;
-        long numValues = 0;
-        long columnBytes = 0;
-        // A column that arrives in term order repeats each value in a run, so the term a value takes is
-        // almost always the one before it. Comparing against that costs a length check and settles it
-        // without a hash probe; only a run boundary pays for one.
-        final BytesRefBuilder previous = new BytesRefBuilder();
-        int previousId = ABSENT;
-        boolean hasPrevious = false;
+        final Surveyor surveyor = new Surveyor(dictionaryPolicy, summaryPolicy);
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
-                final BytesRef value = values.value();
-                if (value == null) {
-                    // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
-                    // and its bytes are not bytes the column would otherwise store. Counting it would credit
-                    // the empty term with occurrences it does not have, and could win it an entry — or
-                    // displace a real term — on the strength of values that are not empty strings.
-                    continue;
-                }
-                // NOTE: a null gets an ordinal of its own in every layout, so it is not a value a dictionary names.
-                numValues++;
-                // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
-                // as one virtual byte to keep the denominator positive and the metric meaningful.
-                columnBytes += TermQuota.cost(value);
-                if (hasPrevious && previous.get().bytesEquals(value)) {
-                    if (previousId != ABSENT) {
-                        counts[previousId]++;
-                    }
-                    continue;
-                }
-                int id = terms.find(value);
-                if (id < 0) {
-                    if (tableBytes + value.length > tableBound) {
-                        if (terms.size() > 0) {
-                            final long[] freed = { 0 };
-                            counts = evictLeastFrequent(terms, counts, freed);
-                            tableBytes -= freed[0];
-                        }
-                        if (tableBytes + value.length > tableBound) {
-                            // Nothing could be displaced: either every term held occurs at least as often as
-                            // this one, or the table is empty and the value alone is larger than the bound.
-                            // Remembered as absent, so the rest of its run is turned away as cheaply.
-                            previous.copyBytes(value);
-                            previousId = ABSENT;
-                            hasPrevious = true;
-                            continue;
-                        }
-                    }
-                    id = terms.add(value);
-                    if (id < 0) {
-                        id = -1 - id;
-                    }
-                    counts = ArrayUtil.grow(counts, id + 1);
-                    tableBytes += value.length;
-                }
-                counts[id]++;
-                // Copied only here, so a run costs one copy rather than one per value.
-                previous.copyBytes(value);
-                previousId = id;
-                hasPrevious = true;
+                surveyor.accept(values.value());
             }
         }
-        if (terms.size() == 0) {
-            return null;
-        }
-        final TermSelection selection = new TermSelection(terms, counts);
-        final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
-        final int[] summaryIds = selection.thatFit(TermQuota.forSummary(summaryPolicy));
-        return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
+        return surveyor.finish();
     }
 
     /**

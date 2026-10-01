@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -93,14 +94,21 @@ public class ToBase64 extends UnaryScalarFunction implements AnyNullIsNull {
     }
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
-    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch) {
+    static BytesRef process(
+        BytesRef field,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) CircuitBreaker breaker
+    ) {
         int outLength = Math.multiplyExact(4, (Math.addExact(field.length, 2) / 3));
         oScratch.grow(outLength);
         oScratch.clear();
-        byte[] bytes = new byte[field.length];
-        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
-        int encodedSize = Base64.getEncoder().encode(bytes, oScratch.bytes());
-        return new BytesRef(oScratch.bytes(), 0, encodedSize);
+        // A right-sized, breaker-tracked copy of the input: the array encoder reads all of its source, so it
+        // needs an exact-length array, and routing it through the breaker trips cleanly instead of running out of memory.
+        try (BreakingBytesRefBuilder inScratch = new BreakingBytesRefBuilder(breaker, "to_base64", field.length)) {
+            System.arraycopy(field.bytes, field.offset, inScratch.bytes(), 0, field.length);
+            int encodedSize = Base64.getEncoder().encode(inScratch.bytes(), oScratch.bytes());
+            return new BytesRef(oScratch.bytes(), 0, encodedSize);
+        }
     }
 
     @Override
@@ -109,7 +117,8 @@ public class ToBase64 extends UnaryScalarFunction implements AnyNullIsNull {
             case BYTES_REF -> new ToBase64Evaluator.Factory(
                 source(),
                 toEvaluator.apply(field),
-                context -> new BreakingBytesRefBuilder(context.breaker(), "to_base64")
+                context -> new BreakingBytesRefBuilder(context.breaker(), "to_base64"),
+                context -> context.breaker()
             );
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

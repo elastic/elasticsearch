@@ -29,6 +29,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +38,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * This is a quality of life class that adds synthetic source context for text fields that need it.
@@ -86,6 +89,22 @@ public abstract class TextFamilyFieldType extends StringFieldType {
      */
     public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
         throw new UnsupportedOperationException("[" + name() + "] does not answer a text query from its values");
+    }
+
+    /**
+     * Reading a field's values rather than an index reads every document, which is what
+     * {@code search.allow_expensive_queries} governs: the same answer a query over nothing but doc values gets.
+     */
+    protected final void failIfExpensiveQueriesDisallowed(SearchExecutionContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException(
+                "Cannot search on field ["
+                    + name()
+                    + "] since it is not indexed and '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false."
+            );
+        }
     }
 
     /**

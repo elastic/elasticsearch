@@ -35,6 +35,14 @@ setup:
           - { "body": "nothing here at all" }
 
 ---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: null
+
+---
 "match reads the values":
   - do:
       search:
@@ -99,3 +107,24 @@ setup:
         index: no_terms
         body: { query: { match: { body: "quick nothing" } } }
   - match: { hits.hits.0._score: 1.0 }
+
+---
+"reading the values is an expensive query":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: "false"
+
+  # Nothing narrows the documents a query reads here, which is what the setting is about.
+  - do:
+      catch: /Cannot search on field \[body\] since it is not indexed and \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: no_terms
+        body: { query: { match: { body: "quick" } } }
+
+  - do:
+      catch: /Cannot search on field \[body\] since it is not indexed and \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: no_terms
+        body: { query: { prefix: { body: "qui" } } }

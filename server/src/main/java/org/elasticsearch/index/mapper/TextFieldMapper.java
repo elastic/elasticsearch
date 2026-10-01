@@ -1282,6 +1282,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+            failIfExpensiveQueriesDisallowed(context);
             if (isReanalyzing(analyzed)) {
                 return analyzed; // a phrase wraps itself, knowing the positions it asks about
             }

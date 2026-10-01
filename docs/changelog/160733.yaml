@@ -1,4 +1,4 @@
-area: "ILM, Data streams"
+area: "TSDB"
 issues: []
 pr: 160733
 summary: Fix the lifecycle feature resolution when determining the eligible write

@@ -10,9 +10,14 @@ Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time ser
 Current limitations include:
 
 - Group modifiers such as `on(chip) group_left(chip_name)` are not supported.
-- Set operators such as `or`, `and`, and `unless` are not supported.
-- Some functions including `predict_linear` and `label_join` are not supported.
-- Time buckets align to fixed calendar boundaries rather than the query start time. This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
+- Set operators `and` and `unless` are not supported.
+- {applies_to}`stack: preview =9.4` The `or` set operator is not supported.
+- {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` The `or` set operator is supported only at the top level of an expression, without `on(...)` or `ignoring(...)`, and with at most 8 operands.
+- Some functions, including `predict_linear`, `changes`, `resets`, `absent`, `sort`, and `count_values`, are not supported. Refer to [Not yet supported](/reference/query-languages/promql/functions.md#promql-not-supported) for the full list.
+- {applies_to}`stack: preview =9.4, ga =9.5` The `label_replace` and `label_join` functions are not supported.
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The `label_replace` and `label_join` functions are supported only when the destination label is consumed by an enclosing `by(...)` aggregation, for example `sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))`.
+- {applies_to}`stack: preview =9.4` Time buckets align to fixed calendar boundaries rather than the query start time. This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
+- {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` When `step` is set without `start`, time buckets align to fixed boundaries relative to the Unix epoch rather than to the query start time. This can cause slight differences from Prometheus. To align buckets to the query start time, set `start` explicitly or omit `step` so that it's derived from the time range.
 ::::
 
 

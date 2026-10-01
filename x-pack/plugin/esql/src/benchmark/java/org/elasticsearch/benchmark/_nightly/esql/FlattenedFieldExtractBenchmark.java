@@ -106,7 +106,7 @@ import java.util.stream.IntStream;
  *
  * <h2>Nightly scheduling</h2>
  * This class lives in the {@code org.elasticsearch.benchmark._nightly} package, which is the selector the
- * {@code periodic-micro-benchmarks} Buildkite pipeline runs ({@code :benchmarks:run --args
+ * {@code periodic-esql-micro-benchmarks} Buildkite pipeline runs ({@code :x-pack:plugin:esql:benchmark --args
  * 'org.elasticsearch.benchmark._nightly ...'}); on {@code main} that job indexes the JSON results for the
  * performance dashboards. This benchmark is therefore picked up automatically, with no pipeline change,
  * once merged.

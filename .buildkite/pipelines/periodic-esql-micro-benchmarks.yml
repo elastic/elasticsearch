@@ -1,9 +1,9 @@
 steps:
-  - label: periodic-micro-benchmarks
+  - label: periodic-esql-micro-benchmarks
     command: |
-      .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
+      .ci/scripts/run-gradle.sh :x-pack:plugin:esql:benchmark --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
       if [[ "$BUILDKITE_BRANCH" == "main" ]]; then
-        .buildkite/scripts/index-micro-benchmark-results.sh
+        .buildkite/scripts/index-esql-micro-benchmark-results.sh
       else
         echo "Skipping result indexing on branch $BUILDKITE_BRANCH"
       fi

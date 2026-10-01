@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 
 import java.io.IOException;
 import java.util.List;
@@ -128,11 +126,6 @@ public class Median extends UnaryAggregateFunction implements SurrogateExpressio
 
     @Override
     public Expression surrogate() {
-        var s = source();
-        var field = field();
-
-        return field.foldable() && field.dataType() != DataType.EXPONENTIAL_HISTOGRAM && field.dataType() != DataType.TDIGEST
-            ? new MvMedian(s, new ToDouble(s, field))
-            : new Percentile(source(), field(), filter(), window(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
+        return new Percentile(source(), field(), filter(), window(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
     }
 }

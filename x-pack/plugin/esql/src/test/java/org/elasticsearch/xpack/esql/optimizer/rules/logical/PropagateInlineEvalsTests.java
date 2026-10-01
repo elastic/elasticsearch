@@ -141,7 +141,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         assertThat(leftEval2.fields().get(0).name(), is("first_name_l"));
     }
 
-    public void testInlineStatsAggOnConstantDoesNotRequireStubReplacement() {
+    public void testInlineStatsAggOnConstantKeepsStubRelation() {
         assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
@@ -149,13 +149,10 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             | keep x
             """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
-        InlineJoin inlineJoin = inlineJoin(plan);
-        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(false));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(true));
+        assertConstantAggregationOverStub(inlineJoin(plan));
     }
 
-    public void testInlineStatsExpressionOfConstantAggsDoesNotRequireStubReplacement() {
+    public void testInlineStatsExpressionOfConstantAggsKeepsStubRelation() {
         assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
@@ -163,10 +160,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             | keep x
             """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
-        InlineJoin inlineJoin = inlineJoin(plan);
-        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(false));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(true));
+        assertConstantAggregationOverStub(inlineJoin(plan));
     }
 
     public void testGroupingByConstantMoved_To_LeftSideOfJoin() {
@@ -219,8 +213,9 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         assertThat(leftEval.fields().stream().map(a -> a.name()).toList(), contains("y"));
 
         Aggregate rightAgg = rightAggregate(inline);
-        var stubRelation = as(rightAgg.child(), StubRelation.class);
-        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "languages", "gender", "y"));
+        var constants = as(rightAgg.child(), Eval.class);
+        var stubRelation = as(constants.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()).subList(0, 4), contains("emp_no", "languages", "gender", "y"));
     }
 
     public void testGroupingOnEvalDefinedFieldDoesNotRequirePropagation() {
@@ -307,11 +302,12 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         assertThat(leftEval.fields().stream().map(a -> a.name()).toList(), contains("y"));
 
         Aggregate rightAgg = rightAggregate(inline);
-        var stubRelation = as(rightAgg.child(), StubRelation.class);
-        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "gender", "y"));
+        var constants = as(rightAgg.child(), Eval.class);
+        var stubRelation = as(constants.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()).subList(0, 3), contains("emp_no", "gender", "y"));
     }
 
-    public void testInlineStatsAvgOnConstantDoesNotRequireStubReplacement() {
+    public void testInlineStatsAvgOnConstantKeepsStubRelation() {
         assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
@@ -319,13 +315,10 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             | keep a
             """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
-        InlineJoin inlineJoin = inlineJoin(plan);
-        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(false));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(true));
+        assertConstantAggregationOverStub(inlineJoin(plan));
     }
 
-    public void testInlineStatsAggsOnNullDoesNotRequireStubReplacement() {
+    public void testInlineStatsAggsOnNullKeepsStubRelation() {
         assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
@@ -333,10 +326,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             | keep x
             """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
-        InlineJoin inlineJoin = inlineJoin(plan);
-        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(false));
-        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(true));
+        assertConstantAggregationOverStub(inlineJoin(plan));
     }
 
     public void testTwoInlineStatsOneConstantOneGroupedDoesNotBreak() {
@@ -354,7 +344,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         assertThat(inlineJoins.size(), is(2));
 
         boolean foundConstantInlineJoin = inlineJoins.stream()
-            .anyMatch(ij -> ij.config().leftFields().isEmpty() && ij.right().anyMatch(p -> p instanceof LocalRelation));
+            .anyMatch(ij -> ij.config().leftFields().isEmpty() && ij.right().anyMatch(p -> p instanceof StubRelation));
         assertThat(foundConstantInlineJoin, is(true));
 
         boolean foundGroupedInlineJoinWithPropagatedY = inlineJoins.stream().anyMatch(ij -> {
@@ -367,6 +357,15 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             return ij.left().output().stream().anyMatch(a -> a.name().equals("y"));
         });
         assertThat(foundGroupedInlineJoinWithPropagatedY, is(true));
+    }
+
+    /**
+     * Constant inputs are aggregated like any other, over the left-hand side's rows: the stub stays, so the rows are counted.
+     */
+    private static void assertConstantAggregationOverStub(InlineJoin inlineJoin) {
+        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(true));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(false));
     }
 
     private static InlineJoin inlineJoin(LogicalPlan plan) {

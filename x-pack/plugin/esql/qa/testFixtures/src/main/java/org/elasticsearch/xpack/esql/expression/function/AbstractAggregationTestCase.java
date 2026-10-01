@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldAggregatesOverConstants;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
@@ -628,8 +628,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         // Replace null aggs
         expression = expression.transformUp(AggregateFunction.class, agg -> {
-            if (ReplaceStatsFilteredOrNullAggWithEval.shouldReplace(agg)) {
-                return Literal.of(agg, ReplaceStatsFilteredOrNullAggWithEval.mapNullToValue(agg));
+            if (FoldAggregatesOverConstants.ignoresInput(agg)) {
+                Literal folded = FoldAggregatesOverConstants.noRowsResult(agg, FoldContext.small());
+                if (folded != null) {
+                    return folded;
+                }
             }
             return agg;
         });

@@ -1,0 +1,2 @@
+FROM employees
+| STATS m = MIN(2), v = VALUES("a"), d = COUNT_DISTINCT([1, 2, 1]) BY languages

@@ -1,0 +1,6 @@
+ProjectExec[[m{r}#0, c{r}#1]]
+\_EvalExec[[CASE(c{r}#1 > 0[LONG],1[INTEGER],null[INTEGER]) AS m#0]]
+  \_LimitExec[1000[INTEGER],null]
+    \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#1],FINAL,[$$c$count{r}#2, $$c$seen{r}#3],null]
+      \_ExchangeExec[[$$c$count{r}#2, $$c$seen{r}#3],true]
+        \_EsStatsQueryExec[employees], stats[BasicStat[name=*, type=COUNT, query=null]], query[][$$c$count{r}#4, $$c$seen{r}#5], limit[], 

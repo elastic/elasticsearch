@@ -1,0 +1,5 @@
+Project[[m{r}#0, n{r}#1, languages{f}#2]]
+\_Eval[[CASE($$COUNT$MAX$0{r$}#3 > 0[LONG],1[INTEGER],null[INTEGER]) AS m#0, 1[INTEGER] AS n#1]]
+  \_Limit[1000[INTEGER],false,false]
+    \_Aggregate[[languages{f}#2],[COUNT(*[KEYWORD],salary{f}#4 > 50000[INTEGER],PT0S[TIME_DURATION]) AS $$COUNT$MAX$0#3, languages{f}#2]]
+      \_EsRelation[employees][avg_worked_seconds{f}#5, birth_date{f}#6, emp_no{f}#7, first_name{f}#8, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#2, languages.byte{f}#17, languages.long{f}#18, languages.short{f}#19, last_name{f}#20, salary{f}#4, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]

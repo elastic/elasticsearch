@@ -731,6 +731,7 @@ median:double | p50:double | key:keyword | _approximation_confidence_interval(me
 
 Sum of nulls
 required_capability: approximation_v7
+required_capability: fold_aggregates_over_constants
 request_stored: skip
 
 SET approximation=true\;
@@ -738,7 +739,7 @@ FROM many_numbers
 | STATS s_null = sum(null)
 ;
 
-warning:line 3:3: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated
+warning:line 3:18: approximation not supported: aggregation function [sum(null)] must return a numeric value; got [NULL]
 
 documents_found: 0
 approximation_applied: false

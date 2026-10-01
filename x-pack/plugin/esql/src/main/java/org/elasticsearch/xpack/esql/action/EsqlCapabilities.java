@@ -16,7 +16,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldAggregatesOverConstants;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.HashSet;
@@ -2757,7 +2757,7 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         /**
-         * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
+         * {@link FoldAggregatesOverConstants} replaced a stats
          * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
          */
@@ -2775,7 +2775,7 @@ public class EsqlCapabilities {
         FIX_VALUES_READER_STALE_ROW_STRIDE_READER,
 
         /**
-         * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
+         * {@link FoldAggregatesOverConstants} now replaces an
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction} with null value with an
          * {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
          * https://github.com/elastic/elasticsearch/issues/137544
@@ -4219,6 +4219,13 @@ public class EsqlCapabilities {
          * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
          */
         FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
+
+        /**
+         * {@link FoldAggregatesOverConstants} folds aggregations over constants using their compute aggregators, replacing
+         * per-function shortcuts that returned wrong results with no rows, filters or multivalued constants.
+         * https://github.com/elastic/elasticsearch/issues/118292
+         */
+        FOLD_AGGREGATES_OVER_CONSTANTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

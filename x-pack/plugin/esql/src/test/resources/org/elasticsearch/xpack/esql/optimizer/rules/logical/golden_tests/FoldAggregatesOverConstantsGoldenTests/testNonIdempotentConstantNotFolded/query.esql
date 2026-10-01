@@ -1,0 +1,2 @@
+FROM employees
+| STATS s = SUM(1), a = AVG(2), m = MAX(3)

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
@@ -137,9 +136,6 @@ public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpre
         var field = field();
         var weight = weight();
 
-        if (field.foldable()) {
-            return new MvAvg(s, field);
-        }
         if (weight.foldable()) {
             return new Div(
                 s,

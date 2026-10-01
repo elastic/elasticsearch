@@ -1,0 +1,8 @@
+ProjectExec[[m{r}#0, n{r}#1, languages{f}#2]]
+\_EvalExec[[CASE($$COUNT$MAX$0{r$}#3 > 0[LONG],1[INTEGER],null[INTEGER]) AS m#0, 1[INTEGER] AS n#1]]
+  \_LimitExec[1000[INTEGER],null]
+    \_AggregateExec[[languages{f}#2],[COUNT(*[KEYWORD],salary{f}#4 > 50000[INTEGER],PT0S[TIME_DURATION]) AS $$COUNT$MAX$0#3, languages{f}#2],FINAL,[languages{f}#2, $$COUNT$MAX$1$count{r}#5, $$COUNT$MAX$2$seen{r}#6],null]
+      \_ExchangeExec[[languages{f}#2, $$COUNT$MAX$1$count{r}#5, $$COUNT$MAX$2$seen{r}#6],true]
+        \_AggregateExec[[languages{f}#2],[COUNT(*[KEYWORD],salary{f}#4 > 50000[INTEGER],PT0S[TIME_DURATION]) AS $$COUNT$MAX$0#3, languages{f}#2],INITIAL,[languages{f}#2, $$COUNT$MAX$1$count{r}#7, $$COUNT$MAX$2$seen{r}#8],12]
+          \_FieldExtractExec[[languages{f}#2, salary{f}#4]<[],[],[]>,_doc{f}#9]
+            \_EsQueryExec[employees], indexMode[standard], [_doc{f}#9], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

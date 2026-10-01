@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -159,9 +158,6 @@ public class Avg extends UnaryAggregateFunction implements SurrogateExpression, 
         }
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
             return new Div(s, new Sum(s, field, filter(), window(), summationMode).surrogate(), Count.AggregateMetricDoubleSurrogate(this));
-        }
-        if (field.foldable()) {
-            return new MvAvg(s, field);
         }
         // Cast long inputs to double up-front so the intermediate Sum cannot overflow.
         // Avg always returns double, and Sum(int) already accumulates as long (Which would require many big values to overflow),

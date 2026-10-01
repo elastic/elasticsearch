@@ -26,14 +26,23 @@ import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SpanFirstQueryBuilder;
+import org.elasticsearch.index.query.SpanMultiTermQueryBuilder;
+import org.elasticsearch.index.query.SpanNearQueryBuilder;
+import org.elasticsearch.index.query.SpanNotQueryBuilder;
+import org.elasticsearch.index.query.SpanOrQueryBuilder;
+import org.elasticsearch.index.query.SpanTermQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * A {@code text} field indexing no positions answers the queries that ask about them by confirming against its own
@@ -267,6 +276,25 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
                 }
             });
             assertEquals("one parent matches, index_options [" + options + "]", 1, hits.size());
+        }
+    }
+
+    /** A span reads positions straight from the index, so with none indexed every form of it says so. */
+    public void testSpanQueriesRefuse() throws IOException {
+        final SearchExecutionContext context = createSearchExecutionContext(mapper("docs"));
+        final SpanTermQueryBuilder term = new SpanTermQueryBuilder("body", "quick");
+        final SpanMultiTermQueryBuilder multi = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder("body", "qui"));
+        final List<QueryBuilder> spans = List.of(
+            term,
+            multi,
+            new SpanNearQueryBuilder(term, 1),
+            new SpanOrQueryBuilder(term),
+            new SpanFirstQueryBuilder(term, 3),
+            new SpanNotQueryBuilder(term, new SpanTermQueryBuilder("body", "brown"))
+        );
+        for (QueryBuilder span : spans) {
+            final String message = expectThrows(IllegalArgumentException.class, () -> span.toQuery(context)).getMessage();
+            assertThat(span.getName(), message, containsString("requires position data, but field body was indexed without position data"));
         }
     }
 

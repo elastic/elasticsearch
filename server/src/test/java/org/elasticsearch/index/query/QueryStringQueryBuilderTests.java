@@ -41,7 +41,7 @@ import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1513,7 +1513,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         List<SharedAutomatonQuery> found = new ArrayList<>();
         query.visit(new QueryVisitor() {
             @Override
-            public void consumeTermsMatching(Query leaf, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query leaf, String field, Supplier<ByteRunnable> automaton) {
                 if (leaf instanceof SharedAutomatonQuery shared) {
                     found.add(shared);
                 }

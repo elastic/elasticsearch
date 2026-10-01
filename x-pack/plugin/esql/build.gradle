@@ -965,3 +965,12 @@ tasks.named('benchmark').configure {
 ['forbiddenApisBenchmark', 'forbiddenApisBenchmarkTest'].each { name ->
   tasks.named(name).configure { enabled = false }
 }
+
+// parquet-hadoop-bundle brings hadoop-client-api/runtime, which ship the same classes as hadoop-common and trigger
+// jar hell in ESTestCase. They are still needed at compile time (InterfaceAudience), so exclude them from runtime only.
+['benchmarkRuntimeClasspath', 'benchmarkTestRuntimeClasspath'].each { name ->
+  configurations.named(name).configure {
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client-api'
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
+  }
+}

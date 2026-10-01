@@ -33,6 +33,7 @@ public class LabelledDecisionCache {
     }
 
     public Decision get(Decision decision, String label) {
+        assert label != null : "label must not be null";
         assert cacheIsNotGrowingUnreasonably() : "Decision cache is growing beyond expectations, please investigate";
         final var type = decision.type();
         if (INTERESTING_DECISION_TYPES.contains(type)) {

@@ -1649,7 +1649,7 @@ public class FileSplitProvider implements SplitProvider {
      * backoff the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
-        return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
+        return ExternalIoExecutors.restoring(executor, null, isCancelled);
     }
 
     /**
@@ -1658,7 +1658,7 @@ public class FileSplitProvider implements SplitProvider {
      * Nested executes on the same thread share one interval so {@code DIRECT} does not double-count.
      */
     private Executor recordingDiscoveryCpu(Executor inner) {
-        return command -> inner.execute(() -> runRecordingDiscoveryCpu(command));
+        return ExternalIoExecutors.preserving(inner, this::runRecordingDiscoveryCpu);
     }
 
     private void runRecordingDiscoveryCpu(Runnable work) {

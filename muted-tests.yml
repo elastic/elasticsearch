@@ -194,6 +194,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshotSlmExecutedBefore
   issue: https://github.com/elastic/elasticsearch/issues/160701
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testClusterDetailsAfterCCSWithFailuresOnOneShardOnly
+  issue: https://github.com/elastic/elasticsearch/issues/160702
 
 # Examples:
 #

@@ -47,6 +47,8 @@ import static java.util.Collections.emptySet;
  */
 public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocation, MutableRoutingAllocation {
 
+    private static final LabelledDecisionCache LABELLED_DECISION_CACHE = new LabelledDecisionCache();
+
     protected final AllocationDeciders deciders;
 
     protected final ClusterState clusterState;
@@ -354,7 +356,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         if (debugDecision()) {
             return Decision.single(decision.type(), deciderLabel, reason, params);
         } else {
-            return decision;
+            return LABELLED_DECISION_CACHE.get(decision.type(), deciderLabel);
         }
     }
 

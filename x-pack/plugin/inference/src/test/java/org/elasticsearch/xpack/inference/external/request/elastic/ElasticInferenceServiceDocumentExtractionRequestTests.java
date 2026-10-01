@@ -73,13 +73,16 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         );
     }
 
-    public void testCreatesExpectedRequestBody_WithOutputFormatFromTaskSettings() throws IOException {
+    public void testCreatesExpectedRequestBody_WithTaskSettings() throws IOException {
         var documents = List.of(randomPdfDocument());
         var modelId = "my-model-id";
         var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(
             "http://eis-gateway.com",
             modelId,
-            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
+            )
         );
 
         var request = new ElasticInferenceServiceDocumentExtractionRequest(
@@ -96,9 +99,10 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("model"), is(modelId));
         assertThat(requestMap.get("output_format"), is("markdown"));
+        assertThat(requestMap.get("css"), is(Map.of("extract_only", List.of(".main-content"))));
         assertThat(
             requestMap.get("input"),
             is(documents.stream().map(document -> Map.of("content", InferenceStringTests.inferenceStringToMap(document))).toList())

@@ -875,44 +875,54 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithoutOutputFormat() throws IOException {
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithoutTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS, Map.of(), null);
     }
 
-    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredOutputFormat() throws IOException {
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown"),
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
+            ),
             Map.of(),
-            "markdown"
+            Map.of("output_format", "markdown", "css", Map.of("extract_only", List.of(".main-content")))
         );
     }
 
-    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestOutputFormat() throws IOException {
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
             ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
-            Map.of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "text"),
-            "text"
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav"))),
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
         );
     }
 
-    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_RequestOutputFormatOverridesStoredOne() throws IOException {
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_RequestTaskSettingsOverrideStoredOnesPerField()
+        throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown"),
-            Map.of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "text"),
-            "text"
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), List.of("nav"))
+            ),
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"))),
+            // output_format and css.extract_only come from the request, css.remove is kept from the stored settings
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
         );
     }
 
     /**
      * Runs a document extraction inference against a model carrying {@code storedTaskSettings} with {@code requestTaskSettings} in the
-     * request body and asserts that the request sent to the Elastic Inference Service carries {@code expectedOutputFormat} (or no
-     * {@code output_format} field at all when null).
+     * request body and asserts that the request sent to the Elastic Inference Service carries each entry of
+     * {@code expectedTaskSettings} as a top-level field (or no such fields at all when null), as the settings are not forwarded as a
+     * nested {@code task_settings} object. The request task settings are passed as immutable maps on purpose, as that is
+     * what the service receives from the parsed request and it must cope with it when extracting the settings.
      */
     @SuppressWarnings("unchecked")
     private void assertDocumentExtractionInferSendsRequest(
         ElasticInferenceServiceDocumentExtractionTaskSettings storedTaskSettings,
         Map<String, Object> requestTaskSettings,
-        @Nullable String expectedOutputFormat
+        @Nullable Map<String, Object> expectedTaskSettings
     ) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var elasticInferenceServiceURL = getUrl(webServer);
@@ -969,8 +979,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var expectedRequestMap = new HashMap<String, Object>();
             expectedRequestMap.put("model", modelId);
             expectedRequestMap.put("input", documents.stream().map(document -> Map.of("content", inferenceStringToMap(document))).toList());
-            if (expectedOutputFormat != null) {
-                expectedRequestMap.put("output_format", expectedOutputFormat);
+            if (expectedTaskSettings != null) {
+                expectedRequestMap.putAll(expectedTaskSettings);
             }
             Map<String, Object> requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(expectedRequestMap));

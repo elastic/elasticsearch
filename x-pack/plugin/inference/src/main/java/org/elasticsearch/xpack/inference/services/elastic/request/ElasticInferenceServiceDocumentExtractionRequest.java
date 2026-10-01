@@ -60,7 +60,7 @@ public class ElasticInferenceServiceDocumentExtractionRequest extends ElasticInf
                 new ElasticInferenceServiceDocumentExtractionRequestEntity(
                     documents,
                     model.getServiceSettings().modelId(),
-                    model.getTaskSettings().outputFormat()
+                    model.getTaskSettings()
                 )
             )
         );

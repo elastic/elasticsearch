@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDocumentExtractionRequestEntity;
 import org.junit.Before;
 
@@ -42,7 +43,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
             modelId,
-            null
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -60,7 +61,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
                 new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue2)
             ),
             modelId,
-            null
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -75,18 +76,25 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
             """, modelId, pdfDocValue1, imageDocValue, pdfDocValue2)));
     }
 
-    public void testToXContent_WithOutputFormat() throws IOException {
+    public void testToXContent_WithTaskSettings() throws IOException {
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
             modelId,
-            "markdown"
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(
+                    List.of(".main-content", "#post-body"),
+                    List.of("nav")
+                )
+            )
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
                 "model": "%s",
+                "input": [{"content": {"type":"pdf","format":"base64","value":"%s"}}],
                 "output_format": "markdown",
-                "input": [{"content": {"type":"pdf","format":"base64","value":"%s"}}]
+                "css": {"extract_only": [".main-content", "#post-body"], "remove": ["nav"]}
             }""", modelId, pdfDocValue1)));
     }
 

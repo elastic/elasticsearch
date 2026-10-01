@@ -34,6 +34,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -133,9 +134,10 @@ public class IvfAutoCalibration {
      * they are evaluated during calibration.
      */
     static double[][] costOrderedSweepEntries() {
-        double[][] entries = new double[COST_ORDERED_SWEEPS.length][3];
-        for (int i = 0; i < COST_ORDERED_SWEEPS.length; i++) {
-            CalibrationSweep s = COST_ORDERED_SWEEPS[i];
+        List<CalibrationSweep> sweeps = buildCostOrderedSweeps(UNCAPPED_MAX_DOC_BITS);
+        double[][] entries = new double[sweeps.size()][3];
+        for (int i = 0; i < sweeps.size(); i++) {
+            CalibrationSweep s = sweeps.get(i);
             entries[i][0] = s.candidate().dbits();
             entries[i][1] = s.candidate().qbits();
             entries[i][2] = s.rerankDepth();
@@ -163,19 +165,19 @@ public class IvfAutoCalibration {
      */
     private static final double RERANK_COST_WEIGHT = 1.3;
 
-    /**
-     * All (encoding, rerank ratio) combinations sorted by ascending estimated cost so that the first
-     * configuration meeting target recall is always the cheapest available. {@link #DOC_BITS_WEIGHT}
-     * is large enough to guarantee that all entries at a given doc-bit level sort before any entry at
-     * a higher doc-bit level, so cheaper encodings are exhausted naturally without explicit phase logic.
-     */
-    private static final CalibrationSweep[] COST_ORDERED_SWEEPS = buildCostOrderedSweeps();
-
     private final int vectorsPerCluster;
     private final int blockDimension;
     private final double targetRecall;
     private final int k;
     private final int maxDocBits;
+
+    /**
+     * All (encoding, rerank ratio) combinations at or below {@link #maxDocBits} doc bits, sorted by ascending
+     * estimated cost so that the first configuration meeting target recall is always the cheapest available.
+     * {@link #DOC_BITS_WEIGHT} is large enough to guarantee that all entries at a given doc-bit level sort before
+     * any entry at a higher doc-bit level, so cheaper encodings are exhausted naturally without explicit phase logic.
+     */
+    private final List<CalibrationSweep> costOrderedSweeps;
 
     IvfAutoCalibration(int vectorsPerCluster) {
         this(
@@ -193,6 +195,7 @@ public class IvfAutoCalibration {
         this.targetRecall = targetRecall;
         this.k = k;
         this.maxDocBits = maxDocBits;
+        this.costOrderedSweeps = buildCostOrderedSweeps(maxDocBits);
     }
 
     public static IvfAutoCalibration fromProfile(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
@@ -602,15 +605,18 @@ public class IvfAutoCalibration {
         });
     }
 
-    private static CalibrationSweep[] buildCostOrderedSweeps() {
+    private static List<CalibrationSweep> buildCostOrderedSweeps(int maxDocBits) {
         List<CalibrationSweep> sweeps = new ArrayList<>();
         for (CandidateEncoding candidate : CANDIDATES) {
+            if (candidate.dbits() > maxDocBits) {
+                continue;
+            }
             for (double rerankDepth : RERANK_DEPTHS) {
                 sweeps.add(new CalibrationSweep(candidate, rerankDepth, calibrationCost(candidate.dbits(), rerankDepth)));
             }
         }
         sweeps.sort(Comparator.comparingDouble(CalibrationSweep::cost).thenComparingInt(s -> s.candidate().qbits()));
-        return sweeps.toArray(CalibrationSweep[]::new);
+        return Collections.unmodifiableList(sweeps);
     }
 
     private static double calibrationCost(int dbits, double rerankDepth) {
@@ -645,7 +651,7 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple at or below {@link #maxDocBits} in ascending
+     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple in {@link #costOrderedSweeps} in ascending
      * cost order and returns the first configuration whose predicted recall meets {@link #targetRecall}, or the
      * best-effort configuration if none does. The two calibration paths differ only in how the quantization error std
      * is obtained, which is supplied by {@code errorStdProvider}.
@@ -669,10 +675,7 @@ public class IvfAutoCalibration {
 
         boolean[] preconditionValues = new boolean[] { false, true };
 
-        for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
-            if (sweep.candidate().dbits() > maxDocBits) {
-                break;
-            }
+        for (CalibrationSweep sweep : costOrderedSweeps) {
             CandidateEncoding candidate = sweep.candidate();
             int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
             float oversample = (float) sweep.rerankDepth();

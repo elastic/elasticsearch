@@ -663,3 +663,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/160055
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testTrackOldSearchNodesWhenIndexingShardRelocates
+  issue: https://github.com/elastic/elasticsearch/issues/160699
+- class: org.elasticsearch.xpack.shutdown.DesiredBalanceShutdownIT
+  method: testDesiredBalanceWithShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/160708
+- class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
+  method: testRandomValueIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/160716

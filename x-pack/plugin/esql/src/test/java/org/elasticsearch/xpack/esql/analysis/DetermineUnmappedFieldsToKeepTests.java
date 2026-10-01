@@ -100,6 +100,34 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl());
     }
 
+    public void testKeepBackquotedWildcardMatchesLikeUnquoted() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP `first_name`*");
+        assertKept(pattern, "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
+        assertNotKept(pattern, excl());
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+    }
+
+    public void testKeepBackquotedDottedWildcardMatchesSubfields() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP `job`.`ti`*");
+        assertKept(pattern, "job.title", "job.title.short");
+        assertNotKept(pattern, "jobless", "job.other", "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testKeepBackquotedStarIsLiteral() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name, `first*`*");
+        assertKept(pattern, "first*", "first*_suffix");
+        assertNotKept(pattern, "first_name_suffix", "firstly", "unmapped_extra");
+        assertNotKept(pattern, excl());
+    }
+
+    public void testDropBackquotedWildcardMatchesLikeUnquoted() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | DROP `first_name`*");
+        assertKept(pattern, "unmapped_extra", "salary_bonus");
+        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
+        assertNotKept(pattern, excl());
+    }
+
     public void testKeepExactNameOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary");
     }

@@ -367,7 +367,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         }
     }
 
-    public void testFallsBackWhenFieldAbsentFromReader() throws IOException {
+    public void testChargesNothingExtraWhenFieldAbsentFromReader() throws IOException {
         try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
                 writer.addDocument(new Document());
@@ -384,7 +384,9 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
                 query.visit(visitor);
 
-                long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+                // No leaf has the field, so no decoder will ever open for it against this reader — only the
+                // query object's own shallow size is charged, not the conservative fallback.
+                long expected = RamUsageEstimator.shallowSizeOf(query);
                 assertEquals(expected, visitor.getEstimatedBytes());
             }
         }

@@ -52,6 +52,7 @@ public interface BinaryDocValuesScanCost {
     /**
      * @return the real max decode bytes for {@code field} across {@code reader}'s leaves, or the conservative
      *         fallback if any leaf holding the field can't report it — callers must not trust a partial answer.
+     *         {@code 0} if the field is absent from every leaf: no decoder will ever open for it against this reader.
      */
     private static long realDecodeBytes(String field, IndexReader reader) {
         long max = 0;
@@ -73,6 +74,6 @@ public interface BinaryDocValuesScanCost {
                 return PER_CLAUSE_DECODE_BYTES_ESTIMATE;
             }
         }
-        return sawData ? max : PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        return sawData ? max : 0;
     }
 }

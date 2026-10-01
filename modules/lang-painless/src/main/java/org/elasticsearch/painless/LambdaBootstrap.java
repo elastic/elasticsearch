@@ -239,11 +239,10 @@ public final class LambdaBootstrap {
     }
 
     /**
-     * Allocation-charging variant of {@link #lambdaBootstrap}: the leading capture is the script, which the generated
-     * interface method drops before delegating and, when an estimator is supplied (owner/name/descriptor non-null), charges
-     * against via a {@link #chargeBootstrap} call site. The typed path (compile-time indy) always supplies an estimator; the
-     * def path (runtime, {@code Def.lookupReferenceInternal}) may supply nulls when the resolved target is not annotated —
-     * then the script capture is still dropped but nothing is charged. Only charge-capable references link through here.
+     * Variant of {@link #lambdaBootstrap} for a reference that captured the script at {@code scriptCaptureIndex}. The generated
+     * interface method drops that capture before delegating and, when an estimator is supplied (owner/name/descriptor
+     * non-null), first charges through a {@link #chargeBootstrap} call site. The typed path always supplies an estimator; the
+     * def path ({@code Def.lookupReferenceInternal}) supplies nulls when the resolved target has none, and then only drops.
      */
     public static CallSite lambdaBootstrapWithAllocation(
         Lookup lookup,

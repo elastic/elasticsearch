@@ -2021,8 +2021,8 @@ public final class Def {
                     throw new IllegalArgumentException("Def.Encoding must be static if symbol is 'this', encoding [" + encoding + "]");
                 }
             }
-            // needsInstance on a non-'this' symbol is allowed: allocation tracking uses it to capture the script for an
-            // external @allocates reference (chargesAllocation says whether to charge). Tracking-off sets neither flag.
+            // needsInstance on a non-'this' symbol is allowed: it captures the script for a target that may be @script_aware,
+            // or that is charged under tracking (chargesAllocation says whether to charge).
 
             if (methodName.isEmpty()) {
                 throw new IllegalArgumentException("methodName must be non-empty, encoding [" + encoding + "]");

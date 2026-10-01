@@ -147,6 +147,10 @@ public class FunctionRefTests extends ScriptTestCase {
         // contains is @script_aware, so the reference must hand it the script even when the receiver is def
         assertEquals(true, exec("def s = 'abc'; return Optional.of('b').map(s::contains).get();"));
         assertEquals(true, exec("def s = 'abc'; def o = Optional.of('b'); return o.map(s::contains).get();"));
+        // inside a lambda too, and inside a user function
+        assertEquals(true, exec("def s = 'abc'; return Optional.empty().orElseGet(() -> Optional.of('b').map(s::contains).get());"));
+        assertEquals(true, exec("boolean f(def s) { Optional.of('b').map(s::contains).get() } return f('abc');"));
+        assertEquals(true, exec("boolean f(def s) { def o = Optional.of('b'); o.map(s::contains).get() } return f('abc');"));
     }
 
     public void testReferenceToScriptAwareMethodInDefCall() {

@@ -547,7 +547,7 @@ public final class DefBootstrap {
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
             case REFERENCE -> {
-                // args[0] is the interface class; an optional args[1] int flag marks a charging def-receiver bound reference.
+                // args[0] is the interface class; args[1], present when the script is pushed, is the int charge flag.
                 if (args.length < 1 || args.length > 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }

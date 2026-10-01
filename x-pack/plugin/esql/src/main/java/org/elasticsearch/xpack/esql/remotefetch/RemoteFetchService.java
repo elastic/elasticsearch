@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plugin;
+package org.elasticsearch.xpack.esql.remotefetch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -65,6 +65,11 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.AcquiredSearchContexts;
+import org.elasticsearch.xpack.esql.plugin.ComputeSearchContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.RetainedSearchContextsRegistry;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -89,7 +94,7 @@ public final class RemoteFetchService {
     static final String RELEASE_ACTION_NAME = ACTION_PREFIX + "/release";
     static final String EXCHANGE_SETUP_ACTION_NAME = ACTION_PREFIX + "/exchange_setup";
     private static final TimeValue RETAINED_CONTEXTS_REAPER_INTERVAL = TimeValue.timeValueMinutes(1);
-    static final Setting<Integer> MAX_WORKERS_SETTING = Setting.intSetting(
+    public static final Setting<Integer> MAX_WORKERS_SETTING = Setting.intSetting(
         "esql.query.remote_fetch_topn.max_workers",
         1,
         1,
@@ -113,7 +118,7 @@ public final class RemoteFetchService {
     private final SecurityContext securityContext;
     private final boolean securityEnabled;
 
-    RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
+    public RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
         this(
             transportActionServices,
             bigArrays,
@@ -191,7 +196,7 @@ public final class RemoteFetchService {
             );
     }
 
-    RetainedSearchContextsRegistry.Handle retainSearchContexts(String sessionId, AcquiredSearchContexts searchContexts) {
+    public RetainedSearchContextsRegistry.Handle retainSearchContexts(String sessionId, AcquiredSearchContexts searchContexts) {
         Authentication creator = securityContext.getAuthentication();
         if (creator == null && securityEnabled) {
             final String message = "cannot retain search contexts without an authentication";
@@ -207,7 +212,7 @@ public final class RemoteFetchService {
      * The initial compute holds such a lease while its drivers run so that a cancellation-time registration close
      * cannot release the search contexts out from under them.
      */
-    RetainedSearchContextsRegistry.Handle acquireRetainedContexts(String sessionId) {
+    public RetainedSearchContextsRegistry.Handle acquireRetainedContexts(String sessionId) {
         return retainedSearchContexts.acquire(sessionId, securityContext::canIAccessResourcesCreatedBy);
     }
 
@@ -253,7 +258,7 @@ public final class RemoteFetchService {
         return newBatchExchangeClient(parentTask, newRetainedSessionReleaser());
     }
 
-    RetainedSessionReleaser newRetainedSessionReleaser() {
+    public RetainedSessionReleaser newRetainedSessionReleaser() {
         return new RetainedSessionReleaser(
             (targetNode, retainedSessionId) -> releaseAsync(targetNode, retainedSessionId, ActionListener.wrap(ignored -> {}, e -> {
                 logger.debug("failed to release retained remote fetch session [{}] on node [{}]", retainedSessionId, targetNode.getId(), e);
@@ -1056,22 +1061,22 @@ public final class RemoteFetchService {
     }
 
     @FunctionalInterface
-    interface ReleaseAction {
+    public interface ReleaseAction {
         void release(DiscoveryNode targetNode, String retainedSessionId);
     }
 
-    static final class RetainedSessionReleaser implements Releasable {
+    public static final class RetainedSessionReleaser implements Releasable {
         private static final RetainedSessionReleaser NOOP = new RetainedSessionReleaser((targetNode, retainedSessionId) -> {});
 
         private final ReleaseAction releaseAction;
         private final Map<TrackedSessionKey, DiscoveryNode> sessions = new LinkedHashMap<>();
         private boolean closed;
 
-        RetainedSessionReleaser(ReleaseAction releaseAction) {
+        public RetainedSessionReleaser(ReleaseAction releaseAction) {
             this.releaseAction = releaseAction;
         }
 
-        void track(DiscoveryNode targetNode, String retainedSessionId) {
+        public void track(DiscoveryNode targetNode, String retainedSessionId) {
             boolean releaseNow = false;
             synchronized (this) {
                 if (closed) {
@@ -1085,7 +1090,7 @@ public final class RemoteFetchService {
             }
         }
 
-        void release(DiscoveryNode targetNode, String retainedSessionId) {
+        public void release(DiscoveryNode targetNode, String retainedSessionId) {
             boolean releaseNow;
             synchronized (this) {
                 if (closed) {

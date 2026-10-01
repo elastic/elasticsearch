@@ -193,6 +193,47 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A single-valued field read as an overlay, whose blobs are each document's value rather than a payload, so the
+     * automaton runs over the blob itself. Documents without the field and the empty string are among them.
+     */
+    public void testMatchesThroughAnOverlaidSingleValuedColumn() throws IOException {
+        final List<String> values = values(
+            between(400, 1200),
+            d -> d % 7 == 3 ? null : d % 11 == 0 ? "" : d % 5 == 0 ? "alpine-" + d : TERMS[d % TERMS.length]
+        );
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (String value : values) {
+                    final Document doc = new Document();
+                    if (value != null) {
+                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = new IndexSearcher(ColumnarTestUtils.hideTheColumn(reader));
+                for (String pattern : PATTERNS) {
+                    assertEquals(
+                        "pattern [" + pattern + "] through an overlay",
+                        accepted(values, pattern),
+                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
+                    );
+                    assertEquals(
+                        "pattern [" + pattern + "] as an automaton through an overlay",
+                        accepted(values, pattern),
+                        found(searcher, automatonFor(pattern))
+                    );
+                }
+            }
+        }
+    }
+
     /** Every pattern, against the documents running Lucene's automaton for it over the values would find. */
     private void assertPatterns(List<String> values) throws IOException {
         try (Directory dir = newDirectory()) {

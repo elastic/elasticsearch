@@ -3625,6 +3625,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
+         * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
+         * See https://github.com/elastic/elasticsearch/issues/158466.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -4213,6 +4220,12 @@ public class EsqlCapabilities {
          * of failing the whole query.
          */
         GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * Full-text functions ({@code :}, {@code MATCH}, {@code MATCH_PHRASE}, {@code KNN}) can search fields of a
+         * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
+         */
+        FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

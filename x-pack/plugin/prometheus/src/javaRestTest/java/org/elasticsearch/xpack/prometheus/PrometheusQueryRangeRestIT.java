@@ -494,4 +494,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("max without (host, cluster) (bottomk(2, rx))", 3.0);
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantScalarOperandBroadcasts}. */
+    public void testRangeScalarOperandBroadcasts() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("scalar(sum(tx)) * rx", 104, 156, 208);
+        assertBinopRangeValues("rx / scalar(sum(tx))", 2.0 / 52, 3.0 / 52, 4.0 / 52);
+        assertBinopRangeGroups("sum by (cluster) (tx) * scalar(max(rx))", "cluster", Map.of("prod", 160.0, "qa", 48.0));
+        assertBinopRangeValues("count(rx * scalar(sum(tx)))", 3);
+    }
 }

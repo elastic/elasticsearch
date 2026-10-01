@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -286,6 +288,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // IN: required, on both operands; a name-dropping operator: - `__name__`, two vectors pair on any + required - `__name__`
         boolean vectors = getType(left()) != SCALAR && getType(right()) != SCALAR;
         TranslationConstraint below = dropMetricName ? sub(vectors ? union(required, any()) : required, of(name)) : required;
+        boolean scalarTableAgainstVector = (isScalarTable(left()) && getType(right()) != SCALAR)
+            || (isScalarTable(right()) && getType(left()) != SCALAR);
+        if (scalarTableAgainstVector) {
+            return translateBroadcast(translation, below);
+        }
         TranslationResult left = translation.translate(left(), below);
         if (dropMetricName) {
             left = translation.bind(left, sub(left.shape(), of(name)), source());
@@ -344,6 +351,55 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /** A raw (not yet collapsed) instant-vector operand, as opposed to a scalar or an aggregated table. */
     private static boolean isVectorBeforeInitialAgg(LogicalPlan operand, TranslationResult translated) {
         return getType(operand) != SCALAR && translated.kind() == Kind.BEFORE_INITIAL_AGGREGATE;
+    }
+
+    /**
+     * A scalar operand computed from the data ({@code scalar(sum(m))}, {@code scalar(m{..}) + 1}): a table of one value per
+     * step, as opposed to a literal or {@code time()}, which are expressions over any row.
+     */
+    private static boolean isScalarTable(LogicalPlan operand) {
+        return getType(operand) == SCALAR && operand.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    /**
+     * A computed scalar applies to every element of the vector operand (Prometheus: "the operator is applied to the value
+     * of every data sample in the vector"). The scalar table has one row per step and no labels, so the two operands join
+     * on the step alone, every vector row matching the step's one scalar; the result carries the vector operand's labels
+     * without the metric name.
+     */
+    private TranslationResult translateBroadcast(TranslationContext translation, TranslationConstraint below) {
+        boolean scalarLeft = isScalarTable(left());
+        LogicalPlan vectorNode = scalarLeft ? right() : left();
+        LogicalPlan scalarNode = scalarLeft ? left() : right();
+        // IN: the vector operand under the operator's own requirement; the scalar operand exposes no labels
+        TranslationResult vector = translation.translateOperand(vectorNode, below);
+        if (dropMetricName) {
+            vector = translation.bind(vector, sub(vector.shape(), of(LabelMatcher.NAME)), source());
+        }
+        TranslationResult scalar = reidentify(translation.cmd(), translation.translateOperand(scalarNode, of()));
+
+        Source source = translation.cmd().source();
+        LogicalPlan scalarPlan = new Project(source, scalar.plan(), List.of(scalar.step(), scalar.valueColumn()));
+        LogicalPlan join = new InnerJoin(
+            source,
+            vector.plan(),
+            scalarPlan,
+            List.of(vector.step()),
+            List.of(scalar.step()),
+            List.of(scalar.valueColumn()),
+            false
+        );
+        Expression leftValue = scalarLeft ? scalar.value() : vector.value();
+        Expression rightValue = scalarLeft ? vector.value() : scalar.value();
+        // OUT: the vector operand's labels, - `__name__` for a name-dropping operator
+        return bindResult(
+            translation,
+            leftValue,
+            rightValue,
+            vector.step(),
+            join,
+            new Output(vector.labels(), vector.packedLabels(), List.of())
+        );
     }
 
     /**
@@ -539,7 +595,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     private record Input(LogicalPlan plan, List<Attribute> fields) {}
 
     /** The join result's label columns, and the ones defined as null rather than taken from an operand. */
-    private record Output(Map<String, Attribute> labels, List<Alias> nullFills) {}
+    private record Output(Map<String, Attribute> labels, Attribute packedLabels, List<Alias> nullFills) {}
 
     /**
      * The labels both sides pack into the match key, in one shared order: the on(...) labels as written, otherwise the
@@ -593,11 +649,15 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         }
         List<NamedExpression> projected = new ArrayList<>(List.of(valueAlias.toAttribute(), stepAlias.toAttribute()));
         projected.addAll(output.labels().values());
+        if (output.packedLabels() != null) {
+            projected.add(output.packedLabels());
+        }
         plan = new Project(cmd.source(), plan, projected);
 
         return new TranslationResult(
             plan,
             output.labels(),
+            output.packedLabels(),
             valueAlias.toAttribute(),
             stepAlias.toAttribute(),
             null,
@@ -714,7 +774,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             columns.put(name, attribute);
         }
         // Operands are required to have concrete label sets, so the result names every label and carries no dynamic column.
-        return new Output(columns, nullFills);
+        return new Output(columns, null, nullFills);
     }
 
     /** Renames an attribute or alias in a re-identification pass; other expressions pass through unchanged. */

@@ -494,4 +494,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFractionalKIsTruncated}. */
+    public void testRangeFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1.5, tx)", 30);
+        assertBinopRangeValues("bottomk(1.5, tx)", 10);
+        assertBinopRangeValues("topk(2.9, tx)", 30, 12);
+        assertBinopRangeValues("topk(0.5, tx)");
+    }
 }

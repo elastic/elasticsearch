@@ -1519,16 +1519,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         scriptScope.putDecoration(userLambdaNode, new IRNodeDecoration(irExpressionNode));
     }
 
-    /**
-     * The variable a reference captures the script from: {@code #scriptThis} when cancellation or tracking defined it, else
-     * {@code this}.
-     */
-    private static String scriptCaptureName(ScriptScope scriptScope) {
-        boolean scriptThisDefined = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
-            || scriptScope.getScriptClassInfo().supportsCancellation();
-        return scriptThisDefined ? "#scriptThis" : "#this";
-    }
-
     @Override
     public void visitFunctionRef(EFunctionRef userFunctionRefNode, ScriptScope scriptScope) {
         ExpressionNode irReferenceNode;
@@ -1539,6 +1529,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         // single-receiver list does not overwrite it.
         boolean typedChargeAllocation = false;
         boolean dynamicChargeAllocation = false;
+        // The variable a reference captures the script from: #scriptThis when cancellation or tracking defined it, else this.
+        boolean tracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
+        String scriptCapture = tracking || scriptScope.getScriptClassInfo().supportsCancellation() ? "#scriptThis" : "#this";
 
         if (targetType == null) {
             Def.Encoding encoding = scriptScope.getDecoration(userFunctionRefNode, EncodingDecoration.class).encoding();
@@ -1553,7 +1546,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (encoding.isStatic == false && encoding.numCaptures == 2 && capturesDecoration != null) {
                 List<String> captureNames = new ArrayList<>();
                 captureNames.add(capturesDecoration.captures().get(0).name());
-                captureNames.add(scriptCaptureName(scriptScope));
+                captureNames.add(scriptCapture);
                 defInterfaceReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
                 dynamicChargeAllocation = true;
             }
@@ -1565,13 +1558,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode(userFunctionRefNode.getLocation());
             typedCaptureReferenceNode.attachDecoration(new IRDName(userFunctionRefNode.getMethodName()));
             // Push the script when tracking is on (to charge) or the name may be @script_aware (the target takes it).
-            boolean tracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
             if (tracking
                 || scriptScope.getPainlessLookup()
                     .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, userFunctionRefNode.getMethodName())) {
                 List<String> captureNames = new ArrayList<>();
                 captureNames.add(capturesDecoration.captures().get(0).name());
-                captureNames.add(scriptCaptureName(scriptScope));
+                captureNames.add(scriptCapture);
                 typedCaptureReferenceNode.attachDecoration(new IRDCaptureNames(captureNames));
                 typedCaptureReferenceNode.attachCondition(IRCScriptAware.class);
                 if (tracking) {

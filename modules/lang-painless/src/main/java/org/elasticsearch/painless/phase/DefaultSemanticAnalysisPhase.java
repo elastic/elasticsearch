@@ -2465,166 +2465,129 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         Class<?> type = painlessLookup.canonicalTypeNameToType(symbol);
         TargetType targetType = semanticScope.getDecoration(userFunctionRefNode, TargetType.class);
-        Class<?> valueType;
+        boolean isInstanceReference = "this".equals(symbol);
+        // this::f or Type::f, as opposed to x::f on a variable, which captures x
+        boolean isTypeReference = isInstanceReference || type != null;
+        String kind = isTypeReference ? "function reference" : "capturing function reference";
+
+        if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
+            throw userFunctionRefNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + kind + " [" + symbol + ":" + methodName + "]"
+                )
+            );
+        }
+
+        if (read == false) {
+            throw userFunctionRefNode.createError(
+                new IllegalArgumentException("not a statement: " + kind + " [" + symbol + ":" + methodName + "] not used")
+            );
+        }
 
         // A reference needs the script for two separate reasons. The target may be @script_aware; until the reference resolves
-        // only the name is known, so this goes by name. And under tracking a charged target needs it for the charge.
+        // only the name is known, so this goes by name. And under tracking a charged target needs it for the charge. When a
+        // reference captures the script it comes from `this`, so a lambda around the reference must capture it as well.
         boolean tracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
         boolean scriptAwareName = painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName);
 
-        boolean isInstanceReference = "this".equals(symbol);
-        if (isInstanceReference || type != null) {
-            if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException(
-                        "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"
-                    )
-                );
-            }
-
-            if (read == false) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException("not a statement: function reference [" + symbol + ":" + methodName + "] not used")
-                );
-            }
-
-            if (targetType == null) {
-                // The interface is only known at runtime, so the reference is encoded. The script is captured ahead of the
-                // arguments when the reference needs it.
-                valueType = String.class;
-                boolean needsInstance;
-                boolean charged;
-                if (isInstanceReference) {
-                    // this::f: the script is the receiver.
-                    needsInstance = true;
-                    charged = false;
-                } else {
-                    // An external reference: capture the script when the target may be @script_aware or is charged.
-                    charged = tracking && painlessLookup.hasAllocationEstimatorMethod(type, methodName);
-                    needsInstance = scriptAwareName || charged;
-                }
-                if (needsInstance) {
-                    semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-                }
-                if (scriptAwareName) {
-                    captureScript(semanticScope);
-                }
-                semanticScope.putDecoration(
-                    userFunctionRefNode,
-                    EncodingDecoration.of(true, needsInstance, symbol, methodName, 0, charged)
-                );
-            } else {
-                FunctionRef ref = FunctionRef.create(
-                    painlessLookup,
-                    scriptScope.getFunctionTable(),
-                    location,
-                    targetType.targetType(),
-                    symbol,
-                    methodName,
-                    0,
-                    scriptScope.getCompilerSettings().asMap(),
-                    isInstanceReference
-                );
-
-                if (isInstanceReference || ref.isScriptAware) {
-                    semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-                }
-                if (ref.isScriptAware) {
-                    captureScript(semanticScope);
-                }
-
-                valueType = targetType.targetType();
-                semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
-            }
-        } else {
-            if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException(
-                        "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":" + methodName + "]"
-                    )
-                );
-            }
-
-            if (read == false) {
-                throw userFunctionRefNode.createError(
-                    new IllegalArgumentException(
-                        "not a statement: capturing function reference [" + symbol + ":" + methodName + "] not used"
-                    )
-                );
-            }
-
-            SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
+        SemanticScope.Variable captured = null;
+        if (isTypeReference == false) {
+            captured = semanticScope.getVariable(location, symbol);
             semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(List.of(captured)));
 
             if (captured.type().isPrimitive()) {
                 semanticScope.setCondition(userFunctionRefNode, CaptureBox.class);
             }
-
-            if (targetType == null) {
-                EncodingDecoration encodingDecoration;
-                if (captured.type() == def.class) {
-                    // def receiver, interface known at runtime. The receiver type is unknown too, so the script is captured after
-                    // the receiver whenever it might be needed, and the runtime decides by what the receiver resolves to.
-                    boolean takesScript = tracking || scriptAwareName;
-                    encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, takesScript ? 2 : 1, tracking);
-                } else {
-                    // typed receiver, interface known at runtime: capture the script ahead of the receiver when the target may be
-                    // @script_aware or is charged.
-                    boolean charged = tracking && painlessLookup.hasAllocationEstimatorMethod(captured.type(), methodName);
-                    boolean needsInstance = scriptAwareName || charged;
-                    if (needsInstance) {
-                        semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-                    }
-                    encodingDecoration = EncodingDecoration.of(
-                        true,
-                        needsInstance,
-                        captured.getCanonicalTypeName(),
-                        methodName,
-                        1,
-                        charged
-                    );
-                }
-                if (scriptAwareName) {
-                    captureScript(semanticScope);
-                }
-                valueType = String.class;
-                semanticScope.putDecoration(userFunctionRefNode, encodingDecoration);
-            } else {
-                valueType = targetType.targetType();
-                if (captured.type() == def.class) {
-                    // def receiver, interface known: emitted as a REFERENCE call site; the IR phase decides the script capture.
-                    if (scriptAwareName) {
-                        captureScript(semanticScope);
-                    }
-                } else {
-                    FunctionRef ref = FunctionRef.create(
-                        painlessLookup,
-                        scriptScope.getFunctionTable(),
-                        location,
-                        targetType.targetType(),
-                        captured.getCanonicalTypeName(),
-                        methodName,
-                        1,
-                        scriptScope.getCompilerSettings().asMap(),
-                        false
-                    );
-
-                    if (ref.isScriptAware) {
-                        semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
-                        captureScript(semanticScope);
-                    }
-
-                    semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
-                }
-            }
         }
 
-        semanticScope.putDecoration(userFunctionRefNode, new ValueType(valueType));
-    }
+        if (isInstanceReference && targetType == null) {
+            // this::f, interface known at runtime. The script is the receiver.
+            semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            semanticScope.putDecoration(userFunctionRefNode, EncodingDecoration.of(true, true, symbol, methodName, 0, false));
+        } else if (isTypeReference && targetType == null) {
+            // Type::f, interface known at runtime. Capture the script when the target may be @script_aware or is charged.
+            boolean charged = tracking && painlessLookup.hasAllocationEstimatorMethod(type, methodName);
+            if (scriptAwareName || charged) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            }
+            if (scriptAwareName) {
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(
+                userFunctionRefNode,
+                EncodingDecoration.of(true, scriptAwareName || charged, symbol, methodName, 0, charged)
+            );
+        } else if (isTypeReference) {
+            // this::f or Type::f with the interface known. Resolve it now.
+            FunctionRef ref = FunctionRef.create(
+                painlessLookup,
+                scriptScope.getFunctionTable(),
+                location,
+                targetType.targetType(),
+                symbol,
+                methodName,
+                0,
+                scriptScope.getCompilerSettings().asMap(),
+                isInstanceReference
+            );
+            if (isInstanceReference || ref.isScriptAware) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            }
+            if (ref.isScriptAware) {
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
+        } else if (captured.type() == def.class && targetType == null) {
+            // x::f on a def, interface known at runtime. The receiver type is unknown too, so the script is captured after the
+            // receiver whenever it might be needed, and the runtime decides by what the receiver resolves to.
+            boolean takesScript = tracking || scriptAwareName;
+            if (scriptAwareName) {
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(
+                userFunctionRefNode,
+                EncodingDecoration.of(false, false, symbol, methodName, takesScript ? 2 : 1, tracking)
+            );
+        } else if (captured.type() == def.class) {
+            // x::f on a def with the interface known. Emitted as a REFERENCE call site; the IR phase decides the script capture.
+            if (scriptAwareName) {
+                semanticScope.setUsesInstanceMethod();
+            }
+        } else if (targetType == null) {
+            // x::f on a typed variable, interface known at runtime. Capture the script ahead of the receiver when the target may
+            // be @script_aware or is charged.
+            boolean charged = tracking && painlessLookup.hasAllocationEstimatorMethod(captured.type(), methodName);
+            if (scriptAwareName || charged) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            }
+            if (scriptAwareName) {
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(
+                userFunctionRefNode,
+                EncodingDecoration.of(true, scriptAwareName || charged, captured.getCanonicalTypeName(), methodName, 1, charged)
+            );
+        } else {
+            // x::f on a typed variable with the interface known. Resolve it now.
+            FunctionRef ref = FunctionRef.create(
+                painlessLookup,
+                scriptScope.getFunctionTable(),
+                location,
+                targetType.targetType(),
+                captured.getCanonicalTypeName(),
+                methodName,
+                1,
+                scriptScope.getCompilerSettings().asMap(),
+                false
+            );
+            if (ref.isScriptAware) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                semanticScope.setUsesInstanceMethod();
+            }
+            semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
+        }
 
-    /** The script a reference captures comes from {@code this}, so a lambda around the reference must capture it too. */
-    private static void captureScript(SemanticScope semanticScope) {
-        semanticScope.setUsesInstanceMethod();
+        semanticScope.putDecoration(userFunctionRefNode, new ValueType(targetType == null ? String.class : targetType.targetType()));
     }
 
     /**

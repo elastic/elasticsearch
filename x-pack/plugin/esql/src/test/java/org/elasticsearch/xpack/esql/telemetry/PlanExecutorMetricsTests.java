@@ -227,6 +227,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     1,
                     () -> false,
+                    (result, ordering, expandListener) -> expandListener.onResponse(result),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {
@@ -268,6 +269,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     1,
                     () -> false,
+                    (result, ordering, expandListener) -> expandListener.onResponse(result),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {}
@@ -644,6 +646,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 1,
                 () -> false,
+                (result, ordering, expandListener) -> expandListener.onResponse(result),
                 listener
             );
         }

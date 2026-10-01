@@ -115,6 +115,32 @@ public class DecisionTests extends ESTestCase {
         assertEffectiveDecision(YES);
     }
 
+    public void testMultiLabelIsLabelOfMostNegativeDecision() {
+        final var multi = new Decision.Multi(
+            shuffledList(
+                List.of(
+                    new Decision.Single(YES, "yes", null),
+                    new Decision.Single(NOT_PREFERRED, "not_preferred", null),
+                    new Decision.Single(THROTTLE, "throttle", null),
+                    new Decision.Single(NO, "no", null)
+                )
+            )
+        );
+        assertThat(multi.label(), equalTo("no"));
+    }
+
+    public void testMultiLabelWhenNoLabelOrNoDecisions() {
+        assertNull(new Decision.Multi().label());
+        assertNull(new Decision.Multi().add(Decision.YES).add(Decision.NO).label());
+        // the label of a less-negative decision is not used
+        assertNull(new Decision.Multi().add(new Decision.Single(NOT_PREFERRED, "not_preferred", null)).add(Decision.NO).label());
+    }
+
+    public void testMultiLabelForTiedDecisionsIsFirstEncountered() {
+        final var multi = new Decision.Multi().add(new Decision.Single(NO, "first", null)).add(new Decision.Single(NO, "second", null));
+        assertThat(multi.label(), equalTo("first"));
+    }
+
     public void testMinimumDecisionTypeThrottleOrYes() {
         assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.THROTTLE, Decision.YES));
         assertEquals(Decision.Type.THROTTLE, Decision.minimumDecisionTypeThrottleOrYes(Decision.YES, Decision.THROTTLE));

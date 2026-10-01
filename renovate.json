@@ -51,11 +51,7 @@
       "automerge": false,
       "labels": [
         ":Delivery/Build",
-        ">non-issue",
-        "auto-backport",
-        "branch:9.5",
-        "branch:9.4",
-        "branch:8.19"
+        ">non-issue"
       ]
     },
     {

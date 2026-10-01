@@ -128,6 +128,7 @@ public class DriverTaskRunner {
             Driver.start(
                 transportService.getThreadPool().getThreadContext(),
                 request.executor,
+                transportService.getThreadPool().generic(),
                 request.driver,
                 Driver.DEFAULT_MAX_ITERATIONS,
                 listener.map(unused -> ActionResponse.Empty.INSTANCE)

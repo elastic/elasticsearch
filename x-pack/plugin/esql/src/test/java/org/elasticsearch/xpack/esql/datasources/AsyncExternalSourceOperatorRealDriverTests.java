@@ -233,6 +233,7 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
                 Driver.start(
                     driverThreadPool.getThreadContext(),
                     driverThreadPool.executor(DRIVER_POOL_NAME),
+                    driverThreadPool.generic(),
                     driver,
                     between(1, 10_000),
                     driverListener

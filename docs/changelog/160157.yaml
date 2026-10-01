@@ -1,5 +1,5 @@
 pr: 160157
-summary: Resume cancelled ES|QL drivers on their executor
+summary: Resume cancelled ES|QL drivers on the generic thread pool
 area: ES|QL
 type: bug
 issues:

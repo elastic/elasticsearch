@@ -284,7 +284,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // driverFuture was already created in startBatchProcessing(), reuse it
         // The driver completion listener will handle both success and failure cases and reply
         driverStartNanos = System.nanoTime();
-        Driver.start(threadContext, executor, batchDriver, Driver.DEFAULT_MAX_ITERATIONS, createDriverCompletionListener());
+        Driver.start(
+            threadContext,
+            executor,
+            transportService.getThreadPool().generic(),
+            batchDriver,
+            Driver.DEFAULT_MAX_ITERATIONS,
+            createDriverCompletionListener()
+        );
         logger.debug("Server driver started");
     }
 

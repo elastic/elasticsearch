@@ -53,6 +53,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -371,7 +372,14 @@ public class ExchangeServiceTests extends ESTestCase {
         new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(
+                    threadPool.getThreadContext(),
+                    threadPool.executor(ESQL_TEST_EXECUTOR),
+                    threadPool.generic(),
+                    driver,
+                    between(1, 10000),
+                    listener
+                );
             }
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
@@ -783,6 +791,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 Driver.start(
                     threadPool.getThreadContext(),
                     threadPool.executor(ESQL_TEST_EXECUTOR),
+                    threadPool.generic(),
                     driver,
                     between(1, 1000),
                     driverFuture
@@ -815,7 +824,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 driverFuture.actionGet(10, TimeUnit.SECONDS);
                 Thread thread = closeThread.get();
                 assertFalse("driver closed on transport thread " + thread.getName(), Transports.isTransportThread(thread));
-                assertThat(EsExecutors.executorName(thread), equalTo(ESQL_TEST_EXECUTOR));
+                assertThat(EsExecutors.executorName(thread), equalTo(ThreadPool.Names.GENERIC));
             } finally {
                 node0.getTaskManager().unregister(parentTask);
             }

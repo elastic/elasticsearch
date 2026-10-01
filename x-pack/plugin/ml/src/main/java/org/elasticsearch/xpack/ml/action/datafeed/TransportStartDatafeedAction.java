@@ -319,7 +319,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
             DatafeedConfig datafeedConfig = datafeedBuilder.build();
             try {
-                validateEsqlDatafeedEnabled(datafeedConfig, state, projectResolver.getProjectId());
+                validateEsqlDatafeedEnabled(datafeedConfig, state);
             } catch (ElasticsearchStatusException e) {
                 responseHeaderPreservingListener.onFailure(e);
                 return;
@@ -340,17 +340,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
-    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state, ProjectId projectId) {
-        if (datafeedConfig.minRequiredTransportVersion()
-            .map(required -> state.getMinTransportVersion().supports(required.v1()) == false)
-            .orElse(false)) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS, datafeedConfig.getId())
-            );
-        }
-        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled() == false) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_START_DISABLED, datafeedConfig.getId()));
-        }
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state) {
+        DatafeedEsqlGates.validateEsqlDatafeedEnabled(
+            datafeedConfig,
+            state,
+            Messages.DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS,
+            Messages.DATAFEED_ESQL_START_DISABLED
+        );
     }
 
     // _origin: is the CPS origin-project qualifier, resolved at search time by the CPS rewriter, not a

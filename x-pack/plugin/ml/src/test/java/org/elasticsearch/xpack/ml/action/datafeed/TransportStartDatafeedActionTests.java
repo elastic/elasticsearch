@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
@@ -66,7 +65,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         // Does not throw: the feature flag is on and the cluster is fully upgraded.
-        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState(), ProjectId.DEFAULT);
+        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
     }
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
@@ -84,7 +83,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
         ElasticsearchStatusException exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state, ProjectId.DEFAULT)
+            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state)
         );
         assertThat(exception.getMessage(), containsString("cluster upgrade is in progress"));
         assertThat(exception.getMessage(), containsString("before restoring or starting it"));
@@ -92,11 +91,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testClassicDatafeedAlwaysAllowedToStart() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
-        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(
-            datafeed,
-            ClusterState.builder(new ClusterName("test")).build(),
-            ProjectId.DEFAULT
-        );
+        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
     }
 
     private static ClusterState currentCompatibleClusterState() {

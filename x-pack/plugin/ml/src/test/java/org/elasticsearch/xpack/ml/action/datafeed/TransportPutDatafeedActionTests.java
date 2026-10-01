@@ -83,26 +83,26 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
         }
     }
 
-    public void testCheckClusterSupportsDatafeedConfig_UpgradedCluster_EsqlDatafeed() {
+    public void testCheckClusterSupportsDatafeedConfigEsqlDatafeedOnUpgradedClusterShouldBeSupported() {
         DatafeedConfig datafeed = esqlDatafeed();
         ClusterState clusterState = clusterStateWithMinTransportVersion(TransportVersion.current());
         assertTrue(TransportPutDatafeedAction.checkClusterSupportsDatafeedConfig(datafeed, clusterState).isEmpty());
     }
 
-    public void testCheckClusterSupportsDatafeedConfig_MixedVersionCluster_EsqlDatafeed() {
+    public void testCheckClusterSupportsDatafeedConfigEsqlDatafeedOnMixedVersionClusterShouldReturnReason() {
         DatafeedConfig datafeed = esqlDatafeed();
         ClusterState clusterState = clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion());
         assertTrue(TransportPutDatafeedAction.checkClusterSupportsDatafeedConfig(datafeed, clusterState).isPresent());
     }
 
-    public void testCheckClusterSupportsDatafeedConfig_MixedVersionCluster_NonEsqlDatafeed() {
+    public void testCheckClusterSupportsDatafeedConfigNonEsqlDatafeedOnMixedVersionClusterShouldBeSupported() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed-1", "job-1").setIndices(List.of("index-1")).build();
         ClusterState clusterState = clusterStateWithMinTransportVersion(preEsqlDatafeedTransportVersion());
 
         assertTrue(TransportPutDatafeedAction.checkClusterSupportsDatafeedConfig(datafeed, clusterState).isEmpty());
     }
 
-    public void testMasterOperation_MixedVersionCluster_EsqlDatafeedRejected() {
+    public void testMasterOperationEsqlDatafeedOnMixedVersionClusterShouldBeRejected() {
         DatafeedConfig datafeedConfig = esqlDatafeed();
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);

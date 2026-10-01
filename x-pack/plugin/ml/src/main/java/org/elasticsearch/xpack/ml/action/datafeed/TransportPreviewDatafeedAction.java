@@ -18,8 +18,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -44,12 +42,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -82,7 +78,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final SecurityContext securityContext;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final CloudCredentialManager cloudCredentialManager;
-    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPreviewDatafeedAction(
@@ -95,8 +90,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         NamedXContentRegistry xContentRegistry,
-        MachineLearningExtensionHolder machineLearningExtensionHolder,
-        ProjectResolver projectResolver
+        MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
         super(
             PreviewDatafeedAction.NAME,
@@ -118,7 +112,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         this.cloudCredentialManager = machineLearningExtensionHolder.isEmpty()
             ? new CloudCredentialManager.Noop()
             : machineLearningExtensionHolder.getMachineLearningExtension().getCloudCredentialManager();
-        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -126,7 +119,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<DatafeedConfig> datafeedConfigActionListener = listener.delegateFailureAndWrap((delegate, datafeedConfig) -> {
             try {
-                validateEsqlDatafeedEnabled(datafeedConfig, clusterService.state(), projectResolver.getProjectId());
+                validateEsqlDatafeedEnabled(datafeedConfig, clusterService.state());
             } catch (ElasticsearchStatusException e) {
                 delegate.onFailure(e);
                 return;
@@ -154,19 +147,13 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         }
     }
 
-    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state, ProjectId projectId) {
-        if (datafeedConfig.minRequiredTransportVersion()
-            .map(required -> state.getMinTransportVersion().supports(required.v1()) == false)
-            .orElse(false)) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS, datafeedConfig.getId())
-            );
-        }
-        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled() == false) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_PREVIEW_DISABLED, datafeedConfig.getId())
-            );
-        }
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state) {
+        DatafeedEsqlGates.validateEsqlDatafeedEnabled(
+            datafeedConfig,
+            state,
+            Messages.DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS,
+            Messages.DATAFEED_ESQL_PREVIEW_DISABLED
+        );
     }
 
     void previewDatafeed(

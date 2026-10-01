@@ -82,11 +82,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     }
 
     static Optional<String> checkClusterSupportsDatafeedUpdate(DatafeedUpdate update, ClusterState state) {
-        var minReq = update.minRequiredTransportVersion();
-        if (minReq.isPresent() && state.getMinTransportVersion().supports(minReq.get().v1()) == false) {
-            return Optional.of(minReq.get().v2());
-        }
-        return Optional.empty();
+        return DatafeedEsqlGates.unsupportedReason(update.minRequiredTransportVersion(), state);
     }
 
     private static ElasticsearchStatusException unsupportedDatafeedUpdateException(DatafeedUpdate update, String unsupportedReason) {

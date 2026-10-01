@@ -61,7 +61,7 @@ public final class Messages {
             + "project [{0}] in the final ES|QL output.";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
         "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
-            + "wait for every node to support ES|QL datafeeds before restoring or starting it.";
+            + "wait for every node to support ES|QL datafeeds before previewing it.";
     public static final String DATAFEED_ESQL_PREVIEW_DISABLED =
         "Cannot preview ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS =

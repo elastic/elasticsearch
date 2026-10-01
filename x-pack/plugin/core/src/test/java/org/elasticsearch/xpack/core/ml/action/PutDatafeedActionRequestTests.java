@@ -117,7 +117,7 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         }
     }
 
-    public void testParseRequest_GivenDslDatafeedKeepsRestDefaultIndicesOptions() throws IOException {
+    public void testParseRequestDslDatafeedShouldKeepRestDefaultIndicesOptions() throws IOException {
         String json = """
             {"job_id": "job1", "indices": ["index-1"]}
             """;
@@ -127,7 +127,7 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         }
     }
 
-    public void testParseRequest_GivenDslDatafeedWithExplicitIndicesOptionsKeepsThem() throws IOException {
+    public void testParseRequestDslDatafeedWithExplicitIndicesOptionsShouldKeepThem() throws IOException {
         String json = """
             {"job_id": "job1", "indices": ["index-1"], "indices_options": {"expand_wildcards": ["all"]}}
             """;
@@ -138,7 +138,7 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         }
     }
 
-    public void testParseRequest_GivenEsqlDatafeedHasNoIndicesOptions() throws IOException {
+    public void testParseRequestEsqlDatafeedShouldHaveNoIndicesOptions() throws IOException {
         // The REST handler always passes a non-null default; it must not be applied to ES|QL datafeeds.
         String json = """
             {"job_id": "job1", "esql_query": "FROM logs", "source_time_field": "@timestamp", "grouping_interval": "1h"}
@@ -150,7 +150,7 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         }
     }
 
-    public void testParseRequest_GivenEsqlDatafeedWithExplicitIndicesOptionsIsRejected() throws IOException {
+    public void testParseRequestEsqlDatafeedWithExplicitIndicesOptionsShouldBeRejected() throws IOException {
         String json = """
             {
               "job_id": "job1",

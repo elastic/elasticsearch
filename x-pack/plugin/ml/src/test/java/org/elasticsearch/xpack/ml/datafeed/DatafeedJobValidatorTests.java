@@ -296,7 +296,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         return builder;
     }
 
-    public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndNoSummaryCountFieldThrows() {
+    public void testVerifyEsqlQueryWithDelayedDataEnabledAndNoSummaryCountFieldShouldThrow() {
         Job.Builder jobBuilder = buildJobBuilder("esql-job");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setBucketSpan(TimeValue.timeValueSeconds(60));
@@ -313,7 +313,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
     }
 
-    public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndEmptySummaryCountFieldThrows() {
+    public void testVerifyEsqlQueryWithDelayedDataEnabledAndEmptySummaryCountFieldShouldThrow() {
         Job.Builder jobBuilder = buildJobBuilder("esql-job");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setBucketSpan(TimeValue.timeValueSeconds(60));
@@ -330,7 +330,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
     }
 
-    public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndSummaryCountFieldSetSucceeds() {
+    public void testVerifyEsqlQueryWithDelayedDataEnabledAndSummaryCountFieldSetShouldSucceed() {
         Job.Builder jobBuilder = buildJobBuilder("esql-job");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setBucketSpan(TimeValue.timeValueSeconds(60));
@@ -342,7 +342,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
     }
 
-    public void testVerify_GivenEsqlQueryAndDelayedDataDisabledNoSummaryCountFieldSucceeds() {
+    public void testVerifyEsqlQueryWithDelayedDataDisabledAndNoSummaryCountFieldShouldSucceed() {
         Job.Builder jobBuilder = buildJobBuilder("esql-job");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setBucketSpan(TimeValue.timeValueSeconds(60));

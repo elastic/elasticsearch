@@ -14,11 +14,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -94,7 +93,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         // Does not throw: the feature flag is on and the cluster is fully upgraded.
-        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState(), ProjectId.DEFAULT);
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
     }
 
     public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectPreview() {
@@ -114,20 +113,16 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         ElasticsearchStatusException exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state, ProjectId.DEFAULT)
+            () -> TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state)
         );
         assertThat(exception.getMessage(), containsString("cluster upgrade is in progress"));
-        assertThat(exception.getMessage(), containsString("before restoring or starting it"));
+        assertThat(exception.getMessage(), containsString("before previewing it"));
         assertThat(exception.getMessage(), containsString("esql-datafeed"));
     }
 
     public void testClassicDatafeedAlwaysAllowedToPreview() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
-        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(
-            datafeed,
-            ClusterState.builder(new ClusterName("test")).build(),
-            ProjectId.DEFAULT
-        );
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
     }
 
     public void testPreviewDatafeedUsesFactorySeamForEsqlDatafeed() {
@@ -137,10 +132,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         when(extensions.isEmpty()).thenReturn(true);
         RecordingPreviewAction action = new RecordingPreviewAction(clusterService, extensions);
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
-        ActionListener<PreviewDatafeedAction.Response> listener = ActionListener.wrap(
-            response -> {},
-            e -> { throw new AssertionError(e); }
-        );
+        ActionListener<PreviewDatafeedAction.Response> listener = ActionTestUtils.assertNoFailureListener(response -> {});
 
         action.previewDatafeed(new TaskId("node", 1L), datafeed, mock(Job.class), mock(PreviewDatafeedAction.Request.class), listener);
 
@@ -156,7 +148,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(7_200_000L));
     }
 
-    public void testResolvePreviewEndTime_GivenEsqlDatafeedAndUnalignedEnd_ShouldCoverBucketContainingEnd() {
+    public void testResolvePreviewEndTimeEsqlDatafeedWithUnalignedEndShouldCoverBucketContainingEnd() {
         long hour = TimeValue.timeValueHours(1).millis();
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         // 09:29:53: the bucket [09:00, 10:00) overlaps the requested range and must be part of the preview
@@ -166,7 +158,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(10 * hour));
     }
 
-    public void testResolvePreviewEndTime_GivenEsqlDatafeedAndAlignedEnd_ShouldKeepEnd() {
+    public void testResolvePreviewEndTimeEsqlDatafeedWithAlignedEndShouldKeepEnd() {
         long hour = TimeValue.timeValueHours(1).millis();
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 9 * hour, 10 * hour);
@@ -174,14 +166,14 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(10 * hour));
     }
 
-    public void testResolvePreviewEndTime_GivenEsqlDatafeedAndNoEnd_ShouldStayUnbounded() {
+    public void testResolvePreviewEndTimeEsqlDatafeedWithNoEndShouldStayUnbounded() {
         DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, null, null);
 
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
     }
 
-    public void testResolvePreviewEndTime_GivenClassicDatafeed_ShouldNotAlignEnd() {
+    public void testResolvePreviewEndTimeClassicDatafeedShouldNotAlignEnd() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);
 
@@ -209,8 +201,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
                 mock(JobConfigProvider.class),
                 mock(DatafeedConfigProvider.class),
                 NamedXContentRegistry.EMPTY,
-                extensions,
-                mock(ProjectResolver.class)
+                extensions
             );
         }
 
@@ -423,7 +414,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getChunkingConfig(), equalTo(datafeed.build().getChunkingConfig()));
     }
 
-    public void testPreviewDatafeed_GivenExtractorWithNothingToExtract() throws IOException {
+    public void testPreviewDatafeedExtractorWithNothingToExtractShouldReturnEmptyArray() throws IOException {
         when(dataExtractor.hasNext()).thenReturn(false);
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);

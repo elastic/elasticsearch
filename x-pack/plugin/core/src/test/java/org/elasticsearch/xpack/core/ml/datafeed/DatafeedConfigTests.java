@@ -1778,7 +1778,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         config.close();
     }
 
-    public void testBuild_GivenEsqlQueryWithDslQueryThrows() {
+    public void testBuildEsqlQueryWithDslQueryShouldThrow() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setParsedQuery(QueryBuilders.termQuery("field", "value"));
 
@@ -1786,7 +1786,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "query")));
     }
 
-    public void testBuild_GivenEsqlQueryWithAggregationsThrows() {
+    public void testBuildEsqlQueryWithAggregationsShouldThrow() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         builder.setParsedAggregations(
@@ -1797,7 +1797,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "aggregations")));
     }
 
-    public void testBuild_GivenEsqlQueryWithScriptFieldsThrows() {
+    public void testBuildEsqlQueryWithScriptFieldsShouldThrow() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setScriptFields(
             Collections.singletonList(new SearchSourceBuilder.ScriptField("computed", mockScript("doc['x'].value"), false))
@@ -1807,7 +1807,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "script_fields")));
     }
 
-    public void testBuild_GivenEsqlQueryWithRuntimeMappingsThrows() {
+    public void testBuildEsqlQueryWithRuntimeMappingsShouldThrow() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         Map<String, Object> settings = new HashMap<>();
         settings.put("type", "keyword");
@@ -1819,7 +1819,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "runtime_mappings")));
     }
 
-    public void testBuild_GivenEsqlQueryWithCustomScrollSizeThrows() {
+    public void testBuildEsqlQueryWithCustomScrollSizeShouldThrow() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setScrollSize(500);
 
@@ -1827,7 +1827,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "scroll_size")));
     }
 
-    public void testBuild_GivenEsqlQueryWithChunkingOffThrows() {
+    public void testBuildEsqlQueryWithChunkingOffShouldThrow() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setChunkingConfig(ChunkingConfig.newOff());
 
@@ -1835,7 +1835,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), equalTo(DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED));
     }
 
-    public void testBuild_GivenEsqlQueryAloneSucceeds() {
+    public void testBuildEsqlQueryAloneShouldSucceed() {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
         assertThat(config.getIndicesOptions(), nullValue());
         assertThat(config.getRuntimeMappings(), nullValue());
@@ -1843,12 +1843,12 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
     }
 
-    public void testDefaultChunkingConfig_GivenEsqlQuery() {
+    public void testDefaultChunkingConfigEsqlQueryShouldBeAuto() {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
         assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
     }
 
-    public void testToXContent_GivenEsqlQuery() throws IOException {
+    public void testToXContentEsqlQueryShouldIncludeEsqlQueryAndOmitDslQuery() throws IOException {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
 
         BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -1860,7 +1860,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(json, not(containsString("\"query\"")));
     }
 
-    public void testWireRoundTrip_GivenEsqlQuery() throws IOException {
+    public void testWireRoundTripEsqlQueryShouldPreserveQuery() throws IOException {
         DatafeedConfig original = createEsqlDatafeedBuilder().build();
         assertThat(original.getQuery(), nullValue());
 
@@ -1877,7 +1877,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         }
     }
 
-    public void testWireRoundTrip_GivenEsqlQueryWithSourceTimeFieldAndGroupingInterval() throws IOException {
+    public void testWireRoundTripEsqlQueryWithSourceTimeFieldAndGroupingIntervalShouldPreserveThem() throws IOException {
         DatafeedConfig original = createEsqlDatafeedBuilder().build();
         assertThat(original.getSourceTimeField(), equalTo("@timestamp"));
         assertThat(original.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));

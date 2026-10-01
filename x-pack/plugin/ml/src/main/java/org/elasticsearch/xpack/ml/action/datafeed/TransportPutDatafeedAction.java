@@ -105,11 +105,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
      * already supports it
      */
     static Optional<String> checkClusterSupportsDatafeedConfig(DatafeedConfig datafeed, ClusterState state) {
-        var minReq = datafeed.minRequiredTransportVersion();
-        if (minReq.isPresent() && state.getMinTransportVersion().supports(minReq.get().v1()) == false) {
-            return Optional.of(minReq.get().v2());
-        }
-        return Optional.empty();
+        return DatafeedEsqlGates.unsupportedReason(datafeed.minRequiredTransportVersion(), state);
     }
 
     private static Exception unsupportedDatafeedConfigException(DatafeedConfig datafeed, String unsupportedReason) {

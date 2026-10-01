@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,6 +61,11 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     private static final long BASE_TIME = 472_222 * BUCKET_SPAN.millis();
     private static final long FIRST_WINDOW_END = BASE_TIME + BUCKET_SPAN.millis();
     private static final long SECOND_WINDOW_END = FIRST_WINDOW_END + BUCKET_SPAN.millis();
+
+    @Before
+    public void assumeEsqlDatafeedsEnabled() {
+        assumeTrue("ES|QL datafeeds feature flag must be enabled", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+    }
 
     @After
     public void cleanup() {

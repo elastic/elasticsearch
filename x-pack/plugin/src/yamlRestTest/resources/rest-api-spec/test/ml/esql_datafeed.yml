@@ -1,6 +1,11 @@
 setup:
-  - skip:
-      features: headers
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_ml/datafeeds/{datafeed_id}
+          capabilities: [ ml_datafeed_esql_query ]
+      test_runner_features: [ capabilities, headers ]
+      reason: "ES|QL datafeeds are behind the esql_datafeeds feature flag, which is off in release builds"
 
   - do:
       indices.create:
@@ -194,7 +199,7 @@ setup:
             "delayed_data_check_config": {"enabled": false},
             "source_time_field": "bucket",
             "grouping_interval": "1h",
-            "esql_query": "FROM esql-datafeed-lifecycle-index | STATS value = AVG(value) BY bucket = BUCKET(time, 1 hour)"
+            "esql_query": "FROM index-esql-datafeed-lifecycle | STATS value = AVG(value) BY bucket = BUCKET(time, 1 hour)"
           }
 
 ---

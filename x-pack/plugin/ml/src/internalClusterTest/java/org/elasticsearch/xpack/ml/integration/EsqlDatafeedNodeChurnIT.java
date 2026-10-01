@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.Arrays;
@@ -257,6 +258,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
      * datafeed for the job.
      */
     private ChurnScenario setUpChurnScenario(String scenario) throws Exception {
+        assumeTrue("ES|QL datafeeds feature flag must be enabled", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         internalCluster().ensureAtMostNumDataNodes(0);
         internalCluster().startMasterOnlyNode();
         String nodeA = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));

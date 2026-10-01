@@ -9,10 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -697,6 +699,141 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             List<BytesReference> sources = List.of(new BytesArray("{\"loc\":\"51.5,-0.1\"}"));
             try (SourceBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
                 assertNull("a string-form geo_point must fall back from the columnar path", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * When a {@code nullability=false, on_failure=FAIL} field is entirely absent from the ESCF
+     * schema (the document simply omits it), the columnar path must fall back to sequential so the
+     * sequential path can reject the document with a 4xx error.
+     *
+     * <p>The bug: the field's mapper is never invoked when its column is absent from the schema, so
+     * no enforcement fires and the document is silently accepted. After the fix, the columnar path
+     * detects the missing required field, throws {@code UnsupportedOperationException}, which is
+     * caught by the fallback handler, and {@link #mapBatch} returns {@code null}.
+     */
+    public void testRequiredFieldAbsentFromSchemaCausesColumnarFallback() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "doc_values": { "nullability": false }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            // Document omits "f" entirely — no column appears in the ESCF schema.
+            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{}")), XContentType.JSON)) {
+                // After the fix: null (columnar fallback → sequential rejects with 4xx).
+                // Before the fix: non-null (silent 201, nullability constraint unenforced).
+                assertNull(
+                    "a nullability=false field absent from the ESCF schema must cause columnar fallback",
+                    mapBatch(shard, items, batch)
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * When a {@code nullability=false, on_failure=IGNORE} field is entirely absent from the ESCF
+     * schema, the columnar path must add the field to {@code _ignored} for every document in the
+     * batch rather than silently accepting the document without any indication.
+     *
+     * <p>The bug: the field's mapper is never invoked when its column is absent, so
+     * {@code addIgnoredFieldColumnar} is never called, and {@code _ignored} stays empty.
+     */
+    public void testRequiredFieldAbsentFromSchemaAppearsInIgnoredOnIgnoreFailure() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{}")), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("on_failure=IGNORE must not cause columnar fallback", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 1L);
+                mc.setVersion(0, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                final List<IndexableField> fields = cursor.fields();
+
+                // After the fix: _ignored contains an entry for field "f".
+                // Before the fix: _ignored is absent (nullability constraint silently ignored).
+                assertTrue(
+                    "_ignored must be present when nullability=false on_failure=ignore and f is absent from the schema",
+                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * A {@code multi_value: false} keyword field in strict-columnar mode uses
+     * {@code BINARY_COLUMNAR_SINGLE_VALUE}, which the ColumNAR consumer reads as raw bytes — no
+     * payload prefix. The batch path must emit the field with
+     * {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE} on its {@code FieldType} so the
+     * consumer sets {@code singleValued=true} at flush time.
+     */
+    public void testSingleValuedColumnarKeywordBatchSetsFieldTypeAttribute() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "keyword", "doc_values": { "multi_value": false } }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello")), XContentType.JSON)) {
+                final EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 1L);
+                mc.setVersion(0, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                final List<IndexableField> fields = cursor.fields();
+
+                final IndexableField kwField = fields.stream().filter(fld -> "f".equals(fld.name())).findFirst().orElse(null);
+                assertNotNull("keyword field f should be present in batch output", kwField);
+                final var attrs = ((FieldType) kwField.fieldType()).getAttributes();
+                assertEquals(
+                    "batch path must set SINGLE_VALUED_ATTRIBUTE on a multi_value=false columnar keyword field",
+                    "true",
+                    attrs == null ? null : attrs.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
+                );
             }
         } finally {
             closeShards(shard);

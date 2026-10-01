@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests.createEmbeddingModel;
@@ -161,6 +162,21 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
                 "model": "my-model-id"
             }
             """));
+    }
+
+    public void testToXContent_UrlInput_EmbeddingModel() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        var entity = new ElasticInferenceServiceDenseEmbeddingsRequestEntity(
+            List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png"))),
+            createEmbeddingModel("", "my-model-id"),
+            ElasticInferenceServiceUsageContext.UNSPECIFIED
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": [{"content":[{"type": "image", "format": "url", "value": "https://example.com/image.png"}]}],
+                "model": "my-model-id"
+            }"""));
     }
 
     private String xContentEntityToString(ElasticInferenceServiceDenseEmbeddingsRequestEntity entity) throws IOException {

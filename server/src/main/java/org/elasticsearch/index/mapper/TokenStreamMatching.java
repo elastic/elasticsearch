@@ -49,7 +49,7 @@ public final class TokenStreamMatching {
     public record Phrase(List<BytesRef> queryTerms) implements Matcher {
         @Override
         public boolean matches(TokenStream stream) throws IOException {
-            final PhraseWalker walker = new PhraseWalker(queryTerms.toArray(BytesRef[]::new));
+            final PhraseWalker walker = new PhraseWalker(queryTerms.toArray(BytesRef[]::new), false);
             walker.accept(stream);
             return walker.freq() > 0;
         }
@@ -107,6 +107,8 @@ public final class TokenStreamMatching {
     public static class PhraseWalker {
 
         private final BytesRef[] terms;
+        /** Whether every phrase is counted, or the walk stops at the first one because only its presence is asked. */
+        private final boolean countEvery;
         /** The position a run of the first n + 1 terms ended at, before the position in hand and at it. */
         private final int[] endedBefore;
         private final int[] endedHere;
@@ -116,7 +118,12 @@ public final class TokenStreamMatching {
         private int positionInHand = -1;
 
         public PhraseWalker(BytesRef[] terms) {
+            this(terms, true);
+        }
+
+        public PhraseWalker(BytesRef[] terms, boolean countEvery) {
             this.terms = terms;
+            this.countEvery = countEvery;
             this.endedBefore = new int[terms.length];
             this.endedHere = new int[terms.length];
             Arrays.fill(endedBefore, Integer.MIN_VALUE);
@@ -128,7 +135,10 @@ public final class TokenStreamMatching {
             position += gap;
         }
 
-        /** Feeds one value's tokens. The stream is consumed and left at its end; the caller resets and closes it. */
+        /**
+         * Feeds one value's tokens. The stream is consumed, to its end or to the phrase the walk stops at; the caller
+         * resets and closes it.
+         */
         public void accept(TokenStream stream) throws IOException {
             final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
             final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
@@ -149,6 +159,9 @@ public final class TokenStreamMatching {
                 if (terms[0].equals(token)) {
                     if (terms.length == 1) {
                         freq++;
+                        if (countEvery == false) {
+                            return;
+                        }
                     } else {
                         endedHere[0] = position;
                     }
@@ -157,6 +170,9 @@ public final class TokenStreamMatching {
                     if (endedBefore[length - 1] == position - 1 && terms[length].equals(token)) {
                         if (length == terms.length - 1) {
                             freq++;
+                            if (countEvery == false) {
+                                return;
+                            }
                         } else {
                             endedHere[length] = position;
                         }

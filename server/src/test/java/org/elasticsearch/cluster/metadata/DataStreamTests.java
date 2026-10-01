@@ -1754,7 +1754,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             metadata.getProject()::index,
             () -> now,
             timeValueSeconds(2500),
-            ALL
+            ALL,
+            randomBoolean()
         );
 
         // Expected: 2 old backing indices + 2 old failure indices (excluding write indices)
@@ -1769,6 +1770,122 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         assertThat(backingIndicesCount, is(2L));
         assertThat(failureIndicesCount, is(2L));
+    }
+
+    public void testGetIndicesOlderThanWithDefaultLifecycleForTimeSeries() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 2000_000, now - 1000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        // Non-TSDB data stream without lifecycle: flag has no effect, always empty
+        Metadata.Builder nonTsdbBuilder = Metadata.builder();
+        DataStream nonTsdbDs = createDataStream(
+            nonTsdbBuilder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            null
+        );
+        Metadata nonTsdbMetadata = nonTsdbBuilder.build();
+
+        assertThat(
+            nonTsdbDs.getIndicesOlderThan(nonTsdbMetadata.getProject()::index, () -> now, TimeValue.ZERO, BACKING_INDICES, false).isEmpty(),
+            is(true)
+        );
+        assertThat(
+            nonTsdbDs.getIndicesOlderThan(nonTsdbMetadata.getProject()::index, () -> now, TimeValue.ZERO, BACKING_INDICES, true).isEmpty(),
+            is(true)
+        );
+
+        // TSDB data stream without lifecycle:
+        // flag=false → indices not managed → empty; flag=true → DEFAULT_DATA_LIFECYCLE applies → aged indices returned
+        Metadata.Builder tsdbBuilder = Metadata.builder();
+        List<Index> tsdbBackingIndices = createDataStreamIndices(
+            tsdbBuilder,
+            dataStreamName + "-tsdb",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdbDs = DataStream.builder(dataStreamName + "-tsdb", tsdbBackingIndices).setIndexMode(IndexMode.TIME_SERIES).build();
+        tsdbBuilder.put(tsdbDs);
+        Metadata tsdbMetadata = tsdbBuilder.build();
+
+        assertThat(
+            tsdbDs.getIndicesOlderThan(tsdbMetadata.getProject()::index, () -> now, TimeValue.ZERO, BACKING_INDICES, false).isEmpty(),
+            is(true)
+        );
+
+        Set<Index> olderThan = tsdbDs.getIndicesOlderThan(
+            tsdbMetadata.getProject()::index,
+            () -> now,
+            TimeValue.ZERO,
+            BACKING_INDICES,
+            true
+        );
+        // All non-write indices (4 out of 5) should be returned
+        assertThat(olderThan.size(), is(4));
+        assertThat(
+            olderThan,
+            equalTo(Set.of(tsdbBackingIndices.get(0), tsdbBackingIndices.get(1), tsdbBackingIndices.get(2), tsdbBackingIndices.get(3)))
+        );
+
+        // With a longer retention only the two oldest qualify
+        Set<Index> someOlderThan = tsdbDs.getIndicesOlderThan(
+            tsdbMetadata.getProject()::index,
+            () -> now,
+            TimeValue.timeValueSeconds(2500),
+            BACKING_INDICES,
+            true
+        );
+        assertThat(someOlderThan.size(), is(2));
+        assertThat(someOlderThan, equalTo(Set.of(tsdbBackingIndices.get(0), tsdbBackingIndices.get(1))));
+
+        // TSDB data stream with an explicit lifecycle: flag is irrelevant, lifecycle always applies
+        Metadata.Builder tsdbWithLifecycleBuilder = Metadata.builder();
+        List<Index> tsdbWithLifecycleBackingIndices = createDataStreamIndices(
+            tsdbWithLifecycleBuilder,
+            dataStreamName + "-tsdb-lc",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdbDsWithLifecycle = DataStream.builder(dataStreamName + "-tsdb-lc", tsdbWithLifecycleBackingIndices)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .build();
+        tsdbWithLifecycleBuilder.put(tsdbDsWithLifecycle);
+        Metadata tsdbWithLifecycleMetadata = tsdbWithLifecycleBuilder.build();
+
+        assertThat(
+            tsdbDsWithLifecycle.getIndicesOlderThan(
+                tsdbWithLifecycleMetadata.getProject()::index,
+                () -> now,
+                TimeValue.ZERO,
+                BACKING_INDICES,
+                false
+            ).size(),
+            is(4)
+        );
+        assertThat(
+            tsdbDsWithLifecycle.getIndicesOlderThan(
+                tsdbWithLifecycleMetadata.getProject()::index,
+                () -> now,
+                TimeValue.ZERO,
+                BACKING_INDICES,
+                true
+            ).size(),
+            is(4)
+        );
     }
 
     private void testIndicesPastRetention(boolean failureStore) {
@@ -1803,7 +1920,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         metadata.getProject()::index,
                         () -> now,
                         TimeValue.ZERO,
-                        failureStore ? FAILURE_INDICES : BACKING_INDICES
+                        failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                        randomBoolean()
                     ).isEmpty(),
                     is(true)
                 );
@@ -1827,8 +1945,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(2500),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(2));
             assertThat(indicesPastRetention, equalTo(Set.of(indicesSupplier.get().get(0), indicesSupplier.get().get(1))));
@@ -1840,8 +1958,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(4));
             assertThat(
@@ -1863,8 +1981,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(6000),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }
@@ -1884,8 +2002,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 indexMetadataWithSomeLifecycleSupplier,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(1));
             assertThat(indicesPastRetention, equalTo(Set.of(indicesSupplier.get().get(2))));
@@ -1930,7 +2048,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     metadata.getProject()::index,
                     () -> now,
                     null,
-                    failureStore ? FAILURE_INDICES : BACKING_INDICES
+                    failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                    randomBoolean()
                 ).isEmpty(),
                 is(true)
             );
@@ -1942,8 +2061,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(2500),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.size(), is(3));
             assertThat(
@@ -1958,8 +2077,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(9000),
-                failureStore ? FAILURE_INDICES : BACKING_INDICES
-
+                failureStore ? FAILURE_INDICES : BACKING_INDICES,
+                randomBoolean()
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }
@@ -2140,19 +2259,29 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // false for indices not part of the data stream
             assertThat(
-                dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
+                dataStream.isIndexManagedByDataStreamLifecycle(
+                    new Index("standalone_index", "uuid"),
+                    metadata.getProject()::index,
+                    randomBoolean()
+                ),
                 is(false)
             );
         }
 
         {
             // false for lookup indices even when part of the data stream
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index), is(false));
+            assertThat(
+                dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index, randomBoolean()),
+                is(false)
+            );
         }
 
         {
             // false for indices that were deleted
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(dataStream.getIndices().get(1), (index) -> null), is(false));
+            assertThat(
+                dataStream.isIndexManagedByDataStreamLifecycle(dataStream.getIndices().get(1), (index) -> null, randomBoolean()),
+                is(false)
+            );
         }
 
         {
@@ -2169,7 +2298,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             assertThat(
                 unmanagedDataStream.isIndexManagedByDataStreamLifecycle(
                     unmanagedDataStream.getIndices().get(1),
-                    newMetadata.getProject()::index
+                    newMetadata.getProject()::index,
+                    randomBoolean()
                 ),
                 is(false)
             );
@@ -2189,7 +2319,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
-                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(false));
+                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index, randomBoolean()), is(false));
             }
         }
 
@@ -2210,7 +2340,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
-                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(true));
+                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index, randomBoolean()), is(true));
                 }
             }
         }
@@ -2218,8 +2348,91 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
-                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index), is(true));
+                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index, randomBoolean()), is(true));
             }
+        }
+    }
+
+    public void testIsIndexManagedByDataStreamLifecycleWithDefaultLifecycleForTimeSeries() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        // Non-TSDB data stream without lifecycle: false regardless of the flag
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        DataStream nonTsdbDs = createDataStream(
+            metadataBuilder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            null
+        );
+        Metadata nonTsdbMetadata = metadataBuilder.build();
+
+        for (Index index : nonTsdbDs.getIndices()) {
+            assertThat(nonTsdbDs.isIndexManagedByDataStreamLifecycle(index, nonTsdbMetadata.getProject()::index, false), is(false));
+            assertThat(nonTsdbDs.isIndexManagedByDataStreamLifecycle(index, nonTsdbMetadata.getProject()::index, true), is(false));
+        }
+
+        // TSDB data stream without lifecycle:
+        // flag=false → not managed; flag=true → managed via DEFAULT_DATA_LIFECYCLE
+        metadataBuilder = Metadata.builder();
+        List<Index> backingIndices = createDataStreamIndices(
+            metadataBuilder,
+            dataStreamName + "-tsdb",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdb = DataStream.builder(dataStreamName + "-tsdb", backingIndices).setIndexMode(IndexMode.TIME_SERIES).build();
+        metadataBuilder.put(tsdb);
+        Metadata tsdbMetadata = metadataBuilder.build();
+
+        for (Index index : tsdb.getIndices()) {
+            assertThat(tsdb.isIndexManagedByDataStreamLifecycle(index, tsdbMetadata.getProject()::index, false), is(false));
+            assertThat(tsdb.isIndexManagedByDataStreamLifecycle(index, tsdbMetadata.getProject()::index, true), is(true));
+        }
+
+        // Index not part of the data stream: always false regardless of flag
+        Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(unrelatedIndex, tsdbMetadata.getProject()::index, false), is(false));
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(unrelatedIndex, tsdbMetadata.getProject()::index, true), is(false));
+
+        // Deleted index (metadata supplier returns null): always false regardless of flag
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(tsdb.getIndices().get(0), (index) -> null, false), is(false));
+        assertThat(tsdb.isIndexManagedByDataStreamLifecycle(tsdb.getIndices().get(0), (index) -> null, true), is(false));
+
+        // TSDB data stream with explicit lifecycle: true regardless of flag
+        metadataBuilder = Metadata.builder();
+        backingIndices = createDataStreamIndices(
+            metadataBuilder,
+            dataStreamName + "-tsdb-lifecycle",
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            creationAndRolloverTimes.size(),
+            false
+        );
+        DataStream tsdbWithLifecycle = DataStream.builder(dataStreamName + "-tsdb-lifecycle", backingIndices)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+            .build();
+        metadataBuilder.put(tsdbWithLifecycle);
+        Metadata tsdbWithLifeccycleMetadata = metadataBuilder.build();
+
+        for (Index index : tsdbWithLifecycle.getIndices()) {
+            assertThat(
+                tsdbWithLifecycle.isIndexManagedByDataStreamLifecycle(index, tsdbWithLifeccycleMetadata.getProject()::index, false),
+                is(true)
+            );
+            assertThat(
+                tsdbWithLifecycle.isIndexManagedByDataStreamLifecycle(index, tsdbWithLifeccycleMetadata.getProject()::index, true),
+                is(true)
+            );
         }
     }
 
@@ -2242,6 +2455,67 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
             .build();
         assertThat(withFailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+    }
+
+    public void testGetDataLifecycleForIndex() {
+        Index backingIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        Index failureIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
+
+        // Non-TSDB data stream with no lifecycle configured
+        DataStream standardDs = DataStream.builder("standard-ds", List.of(backingIndex))
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build())
+            .build();
+
+        // Index not in the data stream returns null regardless of the flag
+        assertThat(standardDs.getDataLifecycleForIndex(unrelatedIndex, false), nullValue());
+        assertThat(standardDs.getDataLifecycleForIndex(unrelatedIndex, true), nullValue());
+
+        // Backing index with no lifecycle and non-TSDB: always null
+        assertThat(standardDs.getDataLifecycleForIndex(backingIndex, false), nullValue());
+        assertThat(standardDs.getDataLifecycleForIndex(backingIndex, true), nullValue());
+
+        // Failure index: returns default failure lifecycle (failure indices are present)
+        assertThat(standardDs.getDataLifecycleForIndex(failureIndex, false), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+        assertThat(standardDs.getDataLifecycleForIndex(failureIndex, true), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+
+        // TSDB data stream with no lifecycle configured
+        DataStream tsdbDs = DataStream.builder("tsdb-ds", List.of(backingIndex))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build())
+            .build();
+
+        // Backing index: null when flag is false, DEFAULT_DATA_LIFECYCLE when flag is true
+        assertThat(tsdbDs.getDataLifecycleForIndex(backingIndex, false), nullValue());
+        assertThat(tsdbDs.getDataLifecycleForIndex(backingIndex, true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+
+        // Failure index is unaffected by the TSDB flag
+        assertThat(tsdbDs.getDataLifecycleForIndex(failureIndex, false), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+        assertThat(tsdbDs.getDataLifecycleForIndex(failureIndex, true), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+
+        // Unrelated index still returns null
+        assertThat(tsdbDs.getDataLifecycleForIndex(unrelatedIndex, false), nullValue());
+        assertThat(tsdbDs.getDataLifecycleForIndex(unrelatedIndex, true), nullValue());
+
+        // TSDB data stream with an explicit lifecycle configured: explicit lifecycle always wins, flag is irrelevant
+        DataStreamLifecycle explicitLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(30))
+            .build();
+        DataStream tsdbDsWithLifecycle = DataStream.builder("tsdb-ds-with-lifecycle", List.of(backingIndex))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(explicitLifecycle)
+            .build();
+
+        assertThat(tsdbDsWithLifecycle.getDataLifecycleForIndex(backingIndex, false), equalTo(explicitLifecycle));
+        assertThat(tsdbDsWithLifecycle.getDataLifecycleForIndex(backingIndex, true), equalTo(explicitLifecycle));
+
+        // Non-TSDB data stream with an explicit lifecycle configured
+        DataStream standardDsWithLifecycle = DataStream.builder("standard-ds-with-lifecycle", List.of(backingIndex))
+            .setLifecycle(explicitLifecycle)
+            .build();
+
+        assertThat(standardDsWithLifecycle.getDataLifecycleForIndex(backingIndex, false), equalTo(explicitLifecycle));
+        assertThat(standardDsWithLifecycle.getDataLifecycleForIndex(backingIndex, true), equalTo(explicitLifecycle));
     }
 
     private DataStream createDataStream(
@@ -2321,6 +2595,37 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indices.add(indexMetadata.getIndex());
         }
         return indices;
+    }
+
+    public void testEffectiveLifecycle() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        long now = System.currentTimeMillis();
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 2000_000, now - 1000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+        Metadata.Builder builder = Metadata.builder();
+        DataStream nonTsdbDataStream = createDataStream(
+            builder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(IndexVersion.current()),
+            null
+        );
+
+        assertThat(nonTsdbDataStream.getDataLifecycle(), nullValue());
+        assertThat(nonTsdbDataStream.getEffectiveDataLifecycle(false), nullValue());
+        assertThat(nonTsdbDataStream.getEffectiveDataLifecycle(true), nullValue());
+
+        DataStream tsdbDataStream = DataStream.builder("tsdb-" + dataStreamName, List.of(new Index(randomIndexName(), randomUUID())))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        assertThat(tsdbDataStream.getDataLifecycle(), nullValue());
+        assertThat(tsdbDataStream.getEffectiveDataLifecycle(false), nullValue());
+        assertThat(tsdbDataStream.getEffectiveDataLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
     }
 
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
@@ -2989,7 +3294,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream dataStream = createDataStream(Settings.EMPTY, dataStreamMappings);
         Settings templateSettings = Settings.EMPTY;
         CompressedXContent templateMappings = new CompressedXContent(Map.of("_doc", Map.of()));
-        ;
+
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))

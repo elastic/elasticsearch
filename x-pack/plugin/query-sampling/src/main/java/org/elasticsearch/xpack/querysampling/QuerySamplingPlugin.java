@@ -20,6 +20,8 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
+import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,6 +37,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
+    private static final int MAX_DISTINCT_QUERIES = 100_000;
 
     private final SetOnce<QueryCaptureFilter> captureFilter = new SetOnce<>();
 
@@ -63,10 +66,11 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        CaptureHandoff handoff = new CaptureHandoff(
-            services.threadPool().executor(THREAD_POOL_NAME),
-            captured -> logger.trace("captured kNN search on field [{}] with {} hits", captured.query().field(), captured.hits().size())
-        );
+        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES);
+        CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), captured -> {
+            long multiplicity = tracker.record(QueryFingerprint.of(captured.query()));
+            logger.trace("captured kNN search on field [{}], seen {} times", captured.query().field(), multiplicity);
+        });
         captureFilter.set(new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff));
         return List.of();
     }

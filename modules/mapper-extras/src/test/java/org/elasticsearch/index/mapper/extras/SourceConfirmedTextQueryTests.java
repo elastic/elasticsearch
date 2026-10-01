@@ -51,6 +51,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.test.ESTestCase;

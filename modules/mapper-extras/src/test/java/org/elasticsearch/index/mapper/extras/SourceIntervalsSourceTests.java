@@ -32,6 +32,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.SourceIntervalsSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

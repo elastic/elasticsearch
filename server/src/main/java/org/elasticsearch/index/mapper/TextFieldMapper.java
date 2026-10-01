@@ -27,6 +27,7 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -55,6 +56,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -63,6 +65,7 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -1236,11 +1239,47 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
+        /**
+         * Whether a query over positions the field did not index can be answered by reading the field's values back and
+         * checking them, which needs those values to be somewhere other than {@code _source}: the field's own doc
+         * values. A columnar field holds them in a column, which is what makes this worth doing there.
+         */
+        private boolean verifiesPositionsFromDocValues() {
+            return getTextSearchInfo().hasPositions() == false && hasDocValues();
+        }
+
+        /**
+         * Reads this field's values back, for the queries that confirm against them what the index does not hold.
+         *
+         * @see PositionalValueFetchers
+         */
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
+            SearchExecutionContext context
+        ) {
+            if (usesBinaryDocValues()) {
+                return PositionalValueFetchers.fromBinaryDocValues(name(), binaryFormat());
+            }
+            return PositionalValueFetchers.fromFieldData(context.getForField(this, FielddataOperation.SEARCH));
+        }
+
+        /**
+         * {@code query} as it stands where the field indexed the positions it asks about, and confirmed against the
+         * field's own values where it did not.
+         */
+        private Query confirmPositions(Query query, SearchExecutionContext context) {
+            if (verifiesPositionsFromDocValues() == false) {
+                return query;
+            }
+            return new SourceConfirmedTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+        }
+
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            checkForPositions(false);
+            if (verifiesPositionsFromDocValues() == false) {
+                checkForPositions(false);
+            }
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
@@ -1268,7 +1307,8 @@ public final class TextFieldMapper extends FieldMapper {
                 builder.add(new Term(field, termAtt.getBytesRef()), position);
             }
 
-            return builder.build();
+            // The shingle subfield indexes its own positions, so a phrase answered there needs no confirming.
+            return field.equals(name()) ? confirmPositions(builder.build(), context) : builder.build();
         }
 
         @Override

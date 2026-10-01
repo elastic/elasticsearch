@@ -65,13 +65,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
-import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
@@ -99,7 +95,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.PositionalValueFetchers;
 import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.SourceConfirmedTextQuery;
+import org.elasticsearch.index.mapper.SourceIntervalsSource;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -475,10 +474,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // if doc_values are enabled, fetch directly from them
             if (hasDocValues()) {
                 if (usesBinaryDocValues) {
-                    return binaryDocValuesFieldFetcher(name(), binaryFormat());
+                    return PositionalValueFetchers.fromBinaryDocValues(name(), binaryFormat());
                 } else {
                     var ifd = searchExecutionContext.getForField(this, MappedFieldType.FielddataOperation.SEARCH);
-                    return docValuesFieldFetcher(ifd);
+                    return PositionalValueFetchers.fromFieldData(ifd);
                 }
             }
 
@@ -499,7 +498,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 } else {
                     // otherwise, fetch the value from fallback fields
                     if (usesBinaryDocValuesForFallbackFields) {
-                        return binaryDocValuesFieldFetcher(syntheticSourceFallbackFieldName(), BinaryDocValuesFormat.SEPARATE_COUNT);
+                        return PositionalValueFetchers.fromBinaryDocValues(
+                            syntheticSourceFallbackFieldName(),
+                            BinaryDocValuesFormat.SEPARATE_COUNT
+                        );
                     }
                     return storedFieldFetcher(name(), syntheticSourceFallbackFieldName());
                 }
@@ -549,14 +551,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // The parent fallback field might be stored in binary doc values or in a stored field, we need to check which one
                 var fallbackFetcher = keywordParent.usesBinaryDocValuesForIgnoredFields()
-                    ? binaryDocValuesFieldFetcher(fallbackFieldName, BinaryDocValuesFormat.SEPARATE_COUNT)
+                    ? PositionalValueFetchers.fromBinaryDocValues(fallbackFieldName, BinaryDocValuesFormat.SEPARATE_COUNT)
                     : storedFieldFetcher(fallbackFieldName);
 
                 if (parent.isStored()) {
                     return combineFieldFetchers(storedFieldFetcher(parentFieldName), fallbackFetcher);
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(docValuesFieldFetcher(ifd), fallbackFetcher);
+                    return combineFieldFetchers(PositionalValueFetchers.fromFieldData(ifd), fallbackFetcher);
                 }
             }
 
@@ -564,7 +566,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return storedFieldFetcher(parentFieldName);
             } else if (parent.hasDocValues()) {
                 var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                return docValuesFieldFetcher(ifd);
+                return PositionalValueFetchers.fromFieldData(ifd);
             } else {
                 assert false : "parent field should either be stored or have doc values";
                 return sourceFieldFetcher(searchExecutionContext);
@@ -586,14 +588,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // The fallback field may be stored in binary doc values or stored fields depending on index version
                 var fallbackFetcher = usesBinaryDocValuesForFallbackFields
-                    ? binaryDocValuesFieldFetcher(fallbackName, BinaryDocValuesFormat.SEPARATE_COUNT)
+                    ? PositionalValueFetchers.fromBinaryDocValues(fallbackName, BinaryDocValuesFormat.SEPARATE_COUNT)
                     : storedFieldFetcher(fallbackName);
 
                 if (keywordDelegate.isStored()) {
                     return combineFieldFetchers(storedFieldFetcher(delegateFieldName), fallbackFetcher);
                 } else if (keywordDelegate.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(docValuesFieldFetcher(ifd), fallbackFetcher);
+                    return combineFieldFetchers(PositionalValueFetchers.fromFieldData(ifd), fallbackFetcher);
                 }
             }
 
@@ -601,56 +603,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return storedFieldFetcher(keywordDelegate.name());
             } else if (keywordDelegate.hasDocValues()) {
                 var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                return docValuesFieldFetcher(ifd);
+                return PositionalValueFetchers.fromFieldData(ifd);
             } else {
                 assert false : "multi field should either be stored or have doc values";
                 return sourceFieldFetcher(searchExecutionContext);
-            }
-        }
-
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(IndexFieldData<?> ifd) {
-            return context -> {
-                SortableBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
-                return docId -> getValuesFromDocValues(indexedValuesDocValues, docId);
-            };
-        }
-
-        /**
-         * Reads a field's values back for the phrase verification, decoding them the way they were written. Which
-         * decoder that is has to follow the layout: they are not interchangeable, and reading one as another returns
-         * wrong values rather than failing, which a phrase query shows as a document that simply does not match.
-         */
-        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(
-            String fieldName,
-            BinaryDocValuesFormat format
-        ) {
-            return context -> new CheckedIntFunction<>() {
-                SortableBinaryDocValues binaryDocValues;
-
-                @Override
-                public List<Object> apply(int docId) throws IOException {
-                    if (binaryDocValues == null) {
-                        binaryDocValues = switch (format) {
-                            case COLUMNAR_PAYLOAD -> ColumnarPayloadSortableBinaryDocValues.from(context.reader(), fieldName);
-                            case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
-                            case SEPARATE_COUNT -> MultiValuedSortableBinaryDocValues.from(context.reader(), fieldName);
-                            case PLAIN -> throw new AssertionError("match_only_text never uses PLAIN encoding");
-                        };
-                    }
-                    return getValuesFromDocValues(binaryDocValues, docId);
-                }
-            };
-        }
-
-        private List<Object> getValuesFromDocValues(SortableBinaryDocValues docValues, int docId) throws IOException {
-            if (docValues.advanceExact(docId)) {
-                var values = new ArrayList<>(docValues.docValueCount());
-                for (int i = 0; i < docValues.docValueCount(); i++) {
-                    values.add(docValues.nextValue().utf8ToString());
-                }
-                return values;
-            } else {
-                return List.of();
             }
         }
 

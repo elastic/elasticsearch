@@ -793,6 +793,44 @@ public class EsqlDataExtractorTests extends ESTestCase {
         );
     }
 
+    public void testGetSummaryGivenLeadingCommandEndingInLineCommentShouldAppendSourceStatsOnNewLine() {
+        String commentedQuery = "FROM logs // web tier\n| STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
+        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, commentedQuery, TIME_FIELD);
+        extractor.enqueueRow(
+            List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
+            1_000_000L,
+            1_000_000L,
+            10L
+        );
+        extractor.enqueueRow(List.of(column("probe_output_rows", LONG)), 3L);
+
+        extractor.getSummary();
+
+        assertThat(
+            extractor.capturedQueries.get(0),
+            equalTo(
+                "FROM logs // web tier\n | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)"
+            )
+        );
+    }
+
+    public void testGetSummaryGivenQueryEndingInLineCommentShouldAppendProbeStatsOnNewLine() {
+        String commentedQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h) // hourly";
+        TestDataExtractor extractor = createExtractor(0L, 100_000_000L, commentedQuery, TIME_FIELD);
+        extractor.enqueueRow(
+            List.of(column("earliest_time", LONG), column("latest_time", LONG), column("total_hits", LONG)),
+            1_000_000L,
+            91_000_000L,
+            900_000L
+        );
+        extractor.enqueueRow(List.of(column("probe_output_rows", LONG)), 3L);
+
+        extractor.getSummary();
+
+        assertThat(extractor.capturedQueries.size(), equalTo(2));
+        assertThat(extractor.capturedQueries.get(1), equalTo(commentedQuery + "\n | STATS probe_output_rows = COUNT(*)"));
+    }
+
     public void testGetSummaryForAggregatingQueryWithNoDataInProbeWindowFallsBackToProbeCount() {
         String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
         TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);

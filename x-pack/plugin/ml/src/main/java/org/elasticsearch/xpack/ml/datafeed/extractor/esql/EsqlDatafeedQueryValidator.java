@@ -39,6 +39,9 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  */
 public class EsqlDatafeedQueryValidator {
 
+    private static final String LIMIT_ZERO = " | LIMIT 0";
+    private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
+
     /**
      * Returns the summary count field name that the ESQL query must output, or {@code null} if it is
      * not required. The field is only required when the job configures a {@code summary_count_field_name}
@@ -81,7 +84,7 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String datafeedId
     ) {
         warnForConflictingOuterClauses(datafeedId, esqlQuery, timeField);
-        String limitZeroQuery = esqlQuery + " | LIMIT 0";
+        String limitZeroQuery = EsqlDataExtractor.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -132,7 +135,7 @@ public class EsqlDatafeedQueryValidator {
             listener.onResponse(Boolean.TRUE);
             return;
         }
-        String probeQuery = sourceCommand + " | KEEP ??sourceTimeField | LIMIT 0";
+        String probeQuery = EsqlDataExtractor.appendGeneratedPipeline(sourceCommand, KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO);
         List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
@@ -261,7 +264,7 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String projectRouting,
         ActionListener<Void> listener
     ) {
-        String limitZeroQuery = esqlQuery + " | LIMIT 0";
+        String limitZeroQuery = EsqlDataExtractor.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);

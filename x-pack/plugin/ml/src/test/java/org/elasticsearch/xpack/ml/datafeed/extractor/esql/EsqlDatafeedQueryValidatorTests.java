@@ -211,6 +211,24 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validator.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
     }
 
+    public void testValidateQueryGivenTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
+        TestValidator validator = new TestValidator(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            "FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly",
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> {}, e -> {
+                throw new AssertionError(e);
+            })
+        );
+
+        assertThat(validator.capturedQuery, equalTo("FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly\n | LIMIT 0"));
+    }
+
     public void testValidateQueryPassesProjectRouting() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         TestValidator validator = new TestValidator(buildResponse(columns));
@@ -248,6 +266,22 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
         assertThat(validator.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
         assertThat(validator.capturedRouting, equalTo("_alias:_origin"));
+    }
+
+    public void testValidateAccessForMintGivenTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
+        TestValidator validator = new TestValidator(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            "FROM logs | WHERE a > 1 // filter",
+            null,
+            ActionListener.wrap(ignored -> {}, e -> {
+                throw new AssertionError(e);
+            })
+        );
+
+        assertThat(validator.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
     }
 
     public void testValidateAccessForMintNoMatchingProjectIsDeferred() {
@@ -451,6 +485,24 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(validator.capturedQuery, equalTo("FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+    }
+
+    public void testValidateSourceTimeFieldGivenLeadingCommandEndingInLineCommentShouldAppendKeepOnNewLine() {
+        TestValidator validator = new TestValidator(buildResponse(List.of(mockColumn("@timestamp", "date"))));
+
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            "FROM logs // web tier\n| STATS c = COUNT(*)",
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> {}, e -> {
+                throw new AssertionError(e);
+            }),
+            null
+        );
+
+        assertThat(validator.capturedQuery, equalTo("FROM logs // web tier\n | KEEP ??sourceTimeField | LIMIT 0"));
     }
 
     public void testValidateSourceTimeFieldGivenNonFromLeadingQuerySkips() {

@@ -68,6 +68,9 @@ public class EsqlDataExtractor implements DataExtractor {
     public static final long INJECTED_ROW_LIMIT = 10_000L;
     private static final String DEFAULT_LIMIT = " | LIMIT " + INJECTED_ROW_LIMIT;
     private static final String TIME_SORT = " | SORT ??timeField ASC";
+    private static final String SOURCE_RANGE_SUMMARY_STATS =
+        " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
+    private static final String PROBE_OUTPUT_ROWS_STATS = " | STATS probe_output_rows = COUNT(*)";
 
     private final Client client;
     private final EsqlDataExtractorContext context;
@@ -165,8 +168,10 @@ public class EsqlDataExtractor implements DataExtractor {
      * (Lucene point-range MIN/MAX + segment doc counts), not the user's query.
      */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = EsqlQueryClauseScanner.extractLeadingCommand(context.esqlQuery()).stripTrailing()
-            + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
+        String sourceQuery = appendGeneratedPipeline(
+            EsqlQueryClauseScanner.extractLeadingCommand(context.esqlQuery()).stripTrailing(),
+            SOURCE_RANGE_SUMMARY_STATS
+        );
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -217,7 +222,7 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
         QueryBuilder probeFilter = new RangeQueryBuilder(context.sourceTimeField()).gte(probeStart).lt(probeEnd).format(EPOCH_MILLIS);
-        String probeQuery = context.esqlQuery() + " | STATS probe_output_rows = COUNT(*)";
+        String probeQuery = appendGeneratedPipeline(context.esqlQuery(), PROBE_OUTPUT_ROWS_STATS);
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -360,7 +365,12 @@ public class EsqlDataExtractor implements DataExtractor {
         return scanForOuterLimit(query).hasOuterLimit() ? sorted : sorted + DEFAULT_LIMIT;
     }
 
-    private static String appendGeneratedPipeline(String query, String pipeline) {
+    /**
+     * Appends a generated pipeline (e.g. {@code " | LIMIT 0"}) to a user-supplied query. Every generated append
+     * must go through this helper: when the user's query ends in a {@code //} line comment, the generated text
+     * would otherwise be swallowed by that comment, so a newline (which ES|QL treats as whitespace) is inserted first.
+     */
+    static String appendGeneratedPipeline(String query, String pipeline) {
         return query + (endsInLineComment(query) ? "\n" : "") + pipeline;
     }
 

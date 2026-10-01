@@ -46,10 +46,12 @@ public class RestPutViewAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
+            var view = View.parser(request.param("name")).parse(parser, null);
+            assert view.isSystem() == false : "System view can not be created or updated via API";
             PutViewAction.Request req = new PutViewAction.Request(
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                View.parser(request.param("name")).parse(parser, null)
+                view
             );
             return channel -> client.execute(PutViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }

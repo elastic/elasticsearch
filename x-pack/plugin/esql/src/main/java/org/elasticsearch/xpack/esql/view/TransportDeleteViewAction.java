@@ -84,7 +84,14 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewNames, listener);
+        viewService.deleteViews(
+            state.projectId(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            viewNames,
+            request.canDeleteSystemViews(),
+            listener
+        );
     }
 
     @Override

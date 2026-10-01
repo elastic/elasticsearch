@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -25,8 +24,6 @@ import static org.hamcrest.Matchers.containsString;
 public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolveConcreteView() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
         indexRandom(true, false, prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")));
         try (var view = createView("test-view", "FROM view-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM test-view"))) {
@@ -37,9 +34,6 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testResolvePattern() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-        assumeTrue("Views match wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
-
         indexRandom(
             true,
             false,
@@ -63,9 +57,6 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWildcardsMatchViewsWithMixedViewIndexResolution() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-        assumeTrue("Views match wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
-
         indexRandom(
             true,
             false,
@@ -113,9 +104,6 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWildcardsMatchViewsIsAppliedToAllNestedViews() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-        assumeTrue("Views match wildcards", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
-
         try (
             var outer = createView("outer", "FROM middle");
             var middle = createView("middle", "FROM inner*");
@@ -128,6 +116,43 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM outer"))) {
                 assertOk(response);
                 assertEmpty(response);
+            }
+        }
+    }
+
+    public void testSystemViews() {
+        indexRandom(
+            true,
+            false,
+            prepareIndex("system-index").setSource(Map.of("id", randomIdentifier(), "source", "system-index")),
+            prepareIndex("regular-index").setSource(Map.of("id", randomIdentifier(), "source", "regular-index"))
+        );
+        try (
+            var regularView = createView("regular-view", "FROM regular-index");
+            var systemView = createView(".system-view", "FROM system-index", null, true)
+        ) {
+            try (var response = run(syncEsqlQueryRequest("FROM .system-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "system-index"); // concrete name resolves system view
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .system-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "system-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
+                assertOk(response);
+                // system-index & regular-index matched as indices and only regular-view matched as a view
+                assertResultConcreteIndices(response, "system-index", "regular-index", "regular-index");
+            }
+            try (var fromSystemView = createView("from-system-view", "FROM .system-view")) {
+                try (var response = run(syncEsqlQueryRequest("FROM from-system-view"))) {
+                    assertOk(response);
+                    assertResultConcreteIndices(response, "system-index"); // concrete name resolved in inner system view
+                }
             }
         }
     }
@@ -157,9 +182,6 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewWithIndexComponentSelectors() {
-        assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
         indexRandom(true, false, prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")));
         try (var view = createView("test-view", "FROM view-index")) {
             // view::data is equivalent to the plain view name
@@ -177,16 +199,20 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     private Releasable createView(String name, String query) {
+        return createView(name, query, null, false);
+    }
+
+    private Releasable createView(String name, String query, String description, boolean system) {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, system))
             )
         );
         return () -> assertAcked(
             client().execute(
                 DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, system)
             )
         );
     }

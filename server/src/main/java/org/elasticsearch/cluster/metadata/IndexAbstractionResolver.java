@@ -322,7 +322,12 @@ public class IndexAbstractionResolver {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
-            return indicesOptions.indexAbstractionOptions().resolveViews();
+            boolean visible = indicesOptions.indexAbstractionOptions().resolveViews();
+            if (isWildcardExpression && indexAbstraction.isSystem()) {
+                // system views should not be picked up by wildcard pattern expressions, unless pattern starts with a dot
+                visible &= isVisibleDueToImplicitHidden(expression, index);
+            }
+            return visible;
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATASET) {
             return indicesOptions.indexAbstractionOptions().resolveDatasets();

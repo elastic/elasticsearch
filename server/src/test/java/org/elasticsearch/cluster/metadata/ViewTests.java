@@ -10,12 +10,11 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
-import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ViewTests extends AbstractXContentSerializingTestCase<View> {
@@ -27,12 +26,31 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
 
     @Override
     protected View createTestInstance() {
-        return randomView(randomName());
+        return new View(randomIdentifier(), randomQuery(), randomDescription(), randomBoolean());
     }
 
     @Override
     protected View mutateInstance(View instance) {
-        return randomValueOtherThan(instance, () -> randomView(instance.name()));
+        var name = instance.getName();
+        var query = instance.query();
+        var description = instance.description();
+        var isSystem = instance.isSystem();
+        switch (between(0, 3)) {
+            case 0 -> name = randomValueOtherThan(name, ESTestCase::randomIdentifier);
+            case 1 -> query = randomValueOtherThan(query, ViewTests::randomQuery);
+            case 2 -> description = randomValueOtherThan(description, ViewTests::randomDescription);
+            case 3 -> isSystem = !isSystem;
+            default -> throw new AssertionError("Unexpected randomisation branch");
+        }
+        return new View(name, query, description, isSystem);
+    }
+
+    public static String randomQuery() {
+        return "FROM " + randomIdentifier();
+    }
+
+    private static String randomDescription() {
+        return randomBoolean() ? randomAlphaOfLength(10) : null;
     }
 
     @Override
@@ -43,10 +61,6 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
     @Override
     protected void assertEqualInstances(View expectedInstance, View newInstance) {
         assertNotSame(expectedInstance, newInstance);
-        assertEqualViews(expectedInstance, newInstance);
-    }
-
-    public static void assertEqualViews(View expectedInstance, View newInstance) {
-        assertThat(newInstance.query(), equalTo(expectedInstance.query()));
+        assertThat(newInstance, equalTo(expectedInstance));
     }
 }

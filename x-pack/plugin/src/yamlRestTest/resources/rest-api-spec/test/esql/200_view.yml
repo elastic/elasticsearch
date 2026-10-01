@@ -251,6 +251,16 @@ setup:
   - match: { views.0.name: "dogs" }
 
 ---
+"system-view-can-not-be-created-via-api":
+  - do:
+      catch: /\[view\] unknown field \[is_system\]/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          is_system: true
+
+---
 "invalid-views":
   - do:
       catch: /invalid view name/

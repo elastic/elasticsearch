@@ -37,7 +37,8 @@ public class RestDeleteViewAction extends BaseRestHandler {
         DeleteViewAction.Request req = new DeleteViewAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
-            Strings.splitStringByCommaToArray(request.param("name"))
+            Strings.splitStringByCommaToArray(request.param("name")),
+            false // system view can not be deleted via API
         );
         return channel -> client.execute(DeleteViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

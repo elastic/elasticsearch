@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 public class ViewService {
@@ -135,13 +134,32 @@ public class ViewService {
         Collection<String> viewNames,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        deleteViews(projectId, masterNodeTimeout, ackTimeout, viewNames, false, listener);
+    }
+
+    /**
+     * Removes views from the cluster state.
+     */
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        boolean canDeleteSystemViews,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
-        // at least one of the explicitly requested views was not found, so we can fail fast without submitting a cluster state update task
-        if (notFoundView.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", notFoundView.get()));
-            return;
+        for (String viewName : viewNames) {
+            var view = viewMetadata.getView(viewName);
+            if (view == null) {
+                listener.onFailure(new ResourceNotFoundException("view [{}] not found", viewName));
+                return;
+            }
+            if (canDeleteSystemViews == false && view.isSystem()) {
+                listener.onFailure(new IllegalArgumentException("cannot delete system view [" + viewName + "]"));
+                return;
+            }
         }
 
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
@@ -182,6 +200,12 @@ public class ViewService {
         }
         final ViewMetadata views = getMetadata(metadata);
         final View existing = views.getView(view.name());
+        if (view.isSystem() == false && existing != null && existing.isSystem()) {
+            // it is impossible to supply a system view from the rest api.
+            // this block prevents users updating definition or downgrading system views to a regular ones
+            // system views can still be updated internally
+            throw new IllegalArgumentException("cannot modify system view [" + view.name() + "]");
+        }
         if (existing == null && views.views().size() >= this.maxViewsCount) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }

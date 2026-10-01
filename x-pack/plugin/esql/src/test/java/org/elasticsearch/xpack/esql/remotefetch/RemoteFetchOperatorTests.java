@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plugin;
+package org.elasticsearch.xpack.esql.remotefetch;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.SubscribableListener;

@@ -688,7 +688,7 @@ public final class IndicesPermission {
                 propagateIndexAccess(
                     access,
                     resourceName,
-                    resource.canHaveBackingIndices(),
+                    resource,
                     resource.resolveConcreteIndicesViewsAndDatasets(failureIndicesByIndexResource.get(resourceName)),
                     requestedResources,
                     grantedResources,
@@ -701,20 +701,22 @@ public final class IndicesPermission {
     }
 
     /**
-     * Records {@code access} for every concrete index of a granted resource, and for the resource name itself when
-     * that name is not among its concrete indices. Every entry shares the same {@code IndexAccess} by reference.
+     * Records {@code access} for every concrete index of a granted resource, and under the key the resource was
+     * requested by ({@code resourceName}, i.e. {@link IndexResource#nameWithSelector()}) when that key is not itself
+     * one of those concrete indices. Every entry shares the same {@code IndexAccess} by reference.
      * Using merge (not put) preserves cross-resource accumulation semantics: if a concrete index appears in
      * multiple resources, their FLS/DLS contributions are unioned.
      */
     private static void propagateIndexAccess(
         IndexAccess access,
         String resourceName,
-        boolean canHaveBackingIndices,
+        IndexResource resource,
         Collection<String> concreteIndicesViewsAndDatasets,
         Map<String, IndexResource> requestedResources,
         Set<String> grantedResources,
         Map<String, IndexAccess> accessByIndex
     ) {
+        final boolean canHaveBackingIndices = resource.canHaveBackingIndices();
         for (String concreteIndex : concreteIndicesViewsAndDatasets) {
             accessByIndex.merge(concreteIndex, access, IndexAccess::merge);
             // If the name appears directly as part of the requested indices, it takes precedence over implicit access
@@ -723,11 +725,13 @@ public final class IndicesPermission {
             }
         }
 
-        // An alias, data stream or ::failures name is not among its own concrete indices, so record it too;
-        // canHaveBackingIndices() is exactly that distinction. For a plain index, view or dataset the loop
-        // already wrote this key. A name that resolves to nothing records neither FLS nor DLS, and its
-        // IndexAccessControl stays unrestricted.
-        if (canHaveBackingIndices && false == concreteIndicesViewsAndDatasets.isEmpty()) {
+        // The key is one of the concrete names only for a plain index, view or dataset requested without a ::failures
+        // selector: the loop above has already written it. An alias or data stream key is never a concrete index name,
+        // and neither is any key carrying a ::failures suffix (a plain index, view or dataset still resolves to its bare
+        // name). Record the key in those cases so its entry reflects the groups that granted it. A name that resolves to
+        // nothing records neither FLS nor DLS, and its IndexAccessControl stays unrestricted.
+        final boolean keyIsAConcreteName = canHaveBackingIndices == false && resourceName.equals(resource.name);
+        if (keyIsAConcreteName == false && false == concreteIndicesViewsAndDatasets.isEmpty()) {
             accessByIndex.merge(resourceName, access, IndexAccess::merge);
         }
     }

@@ -831,6 +831,50 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
+    /**
+     * A concrete index requested with a {@code ::failures} selector resolves to the index itself, so the key it is
+     * authorized under ({@code <index>::failures}) is not among its concrete names. Like an alias or data stream key,
+     * that key must carry the DLS/FLS of the group that granted it rather than fall back to an unrestricted entry.
+     * Covers both a failure index granted through its parent data stream and a plain index granted directly.
+     */
+    public void testFailuresSelectorOnConcreteIndexKeepsDlsFlsOfGrantingGroup() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        String dataStreamName = randomAlphaOfLength(6);
+        IndexMetadata backingIndex = createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, 1));
+        IndexMetadata failureIndex = createBackingIndexMetadata(DataStream.getDefaultFailureStoreName(dataStreamName, 1, 1L));
+        builder.put(DataStreamTestHelper.newInstance(dataStreamName, List.of(backingIndex.getIndex()), List.of(failureIndex.getIndex())));
+        builder.put(backingIndex, false);
+        builder.put(failureIndex, false);
+        String plainIndexName = randomAlphaOfLength(8);
+        builder.put(IndexMetadata.builder(plainIndexName).settings(indexSettings(IndexVersion.current(), 1, 1)).build(), false);
+        ProjectMetadata metadata = builder.build();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ_FAILURE_STORE,
+            new FieldPermissions(fieldPermissionDef(new String[] { "_field" }, null)),
+            Collections.singleton(new BytesArray("{}")),
+            false,
+            dataStreamName,
+            plainIndexName
+        ).build();
+
+        for (String requested : List.of(failureIndex.getIndex().getName() + "::failures", plainIndexName + "::failures")) {
+            IndicesAccessControl iac = permission.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet(requested),
+                metadata,
+                fieldPermissionsCache
+            );
+            assertThat("for [" + requested + "]", iac.isGranted(), is(true));
+            IndicesAccessControl.IndexAccessControl access = iac.getIndexPermissions(requested);
+            assertThat("for [" + requested + "]", access, is(notNullValue()));
+            assertThat("for [" + requested + "]", access.getFieldPermissions().hasFieldLevelSecurity(), is(true));
+            assertThat("for [" + requested + "]", access.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+            assertThat("for [" + requested + "]", access.isDlsFlsImplicit(), is(false));
+        }
+    }
+
     public void testAuthorizationForMappingUpdates() {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())

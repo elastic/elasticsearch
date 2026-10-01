@@ -1256,9 +1256,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         ) {
             assert remainDecision.type() == Decision.Type.NO || remainDecision.type() == Decision.Type.NOT_PREFERRED;
             final boolean explain = allocation.debugDecision();
-            Type bestDecision = Type.NO;
+            Decision bestDecision = Decision.NO;
             RoutingNode targetNode = null;
-            Decision winningAllocateDecision = null;
             final List<NodeAllocationResult> nodeResults = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
             for (ModelNode currentNode : sorter.modelNodes) {
@@ -1270,31 +1269,28 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    if (allocationDecision.type().compareToBetweenNodes(bestDecision) > 0) {
-                        bestDecision = allocationDecision.type();
-                        if (bestDecision == Type.YES) {
+                    if (allocationDecision.type().compareToBetweenNodes(bestDecision.type()) > 0) {
+                        bestDecision = allocationDecision;
+                        if (bestDecision.type() == Type.YES) {
                             targetNode = target;
-                            winningAllocateDecision = null;
                             if (explain == false) {
                                 // we are not in explain mode and already have a YES decision on the best weighted node,
                                 // no need to continue iterating
                                 break;
                             }
-                        } else if (bestDecision == Type.NOT_PREFERRED) {
+                        } else if (bestDecision.type() == Type.NOT_PREFERRED) {
                             // We will accept a NOT_PREFERRED allocation if canRemain = NO, but if canRemain = NOT_PREFERRED
                             // we will wait for a YES/THROTTLE. Either way we update bestDecision so we can distinguish betweem
                             // a NO and a NOT_PREFERRED in allocate-explain
                             if (remainDecision.type() != Type.NOT_PREFERRED) {
                                 targetNode = target;
-                                winningAllocateDecision = allocationDecision;
                             } else {
                                 assert targetNode == null : "If the best we've seen is NOT_PREFERRED, we should not have a targetNode yet";
                             }
-                        } else if (bestDecision == Type.THROTTLE) {
+                        } else if (bestDecision.type() == Type.THROTTLE) {
                             assert allocation.isSimulating() == false;
                             // THROTTLE is better than NOT_PREFERRED, we just need to wait for a YES.
                             targetNode = null;
-                            winningAllocateDecision = null;
                         }
                     }
                 }
@@ -1314,10 +1310,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             return MoveDecision.move(
                 remainDecision,
-                AllocationDecision.fromDecisionType(bestDecision),
+                AllocationDecision.fromDecisionType(bestDecision.type()),
                 targetNode != null ? targetNode.node() : null,
                 nodeResults,
-                winningAllocateDecision
+                targetNode != null ? bestDecision : null
             );
         }
 

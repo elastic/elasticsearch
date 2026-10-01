@@ -80,7 +80,7 @@ public class GraphRestoringShardIT extends AbstractSnapshotIntegTestCase {
      * parks in {@code SearchReadyGate} when the shard is INITIALIZING. The outer graph explore
      * future hangs rather than returning an error immediately.
      */
-    public void testGraphExploreWhileRestoringParksRatherThan503() throws Exception {
+    public void testGraphExploreWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         GraphExploreRequestBuilder builder = new GraphExploreRequestBuilder(client()).setIndices(INDEX);
         builder.createNextHop(null).addVertexRequest("field").minDocCount(1);

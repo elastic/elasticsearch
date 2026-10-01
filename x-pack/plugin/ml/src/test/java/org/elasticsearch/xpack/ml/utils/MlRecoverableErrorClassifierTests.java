@@ -333,5 +333,4 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
         var wrapped = new RemoteTransportException("remote", inner);
         assertFalse(MlRecoverableErrorClassifier.isRecoverable(wrapped));
     }
-
 }

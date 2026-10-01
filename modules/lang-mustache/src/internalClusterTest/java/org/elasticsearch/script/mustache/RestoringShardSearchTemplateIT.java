@@ -69,7 +69,7 @@ public class RestoringShardSearchTemplateIT extends AbstractSnapshotIntegTestCas
      * {@code SearchService.rewriteAndFetchShardRequest}, which parks in {@code SearchReadyGate}
      * when the shard is INITIALIZING. The request hangs rather than returning 503 immediately.
      */
-    public void testSearchTemplateWhileRestoringParksRatherThan503() throws Exception {
+    public void testSearchTemplateWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         SearchTemplateRequest request = new SearchTemplateRequest();
         request.setRequest(new SearchRequest(INDEX));
@@ -96,7 +96,7 @@ public class RestoringShardSearchTemplateIT extends AbstractSnapshotIntegTestCas
      * {@code TransportSearchAction}. Each sub-search parks in {@code SearchReadyGate} when the
      * target shard is INITIALIZING. The outer msearch-template future also hangs.
      */
-    public void testMsearchTemplateWhileRestoringParksRatherThan503() throws Exception {
+    public void testMsearchTemplateWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         SearchTemplateRequest templateRequest = new SearchTemplateRequest();
         templateRequest.setRequest(new SearchRequest(INDEX));

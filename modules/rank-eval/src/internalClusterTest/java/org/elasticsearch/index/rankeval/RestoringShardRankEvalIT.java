@@ -68,7 +68,7 @@ public class RestoringShardRankEvalIT extends AbstractSnapshotIntegTestCase {
      * {@code IndexShard.waitForSearchReady()} and parks the request when the shard is INITIALIZING.
      * The outer rank-eval future therefore also hangs rather than returning a 503.
      */
-    public void testRankEvalWhileRestoringParksRatherThan503() throws Exception {
+    public void testRankEvalWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         RatedRequest ratedRequest = new RatedRequest(
             "test_query",

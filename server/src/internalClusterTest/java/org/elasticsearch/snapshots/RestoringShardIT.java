@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -96,6 +97,7 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
 
         // Create a dense-vector index for the knn search test
         indicesAdmin().prepareCreate(KNN_INDEX)
+            .setSettings(SINGLE_SHARD_NO_REPLICA)
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -271,7 +273,7 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * fully-restoring index does NOT return HTTP 503 immediately. Instead the search is parked by
      * {@code SearchReadyGate} and waits for the primary shard to become search-ready.
      */
-    public void testSearchWithPartialResultsFalseAgainstRestoringShardParksRatherThan503() throws Exception {
+    public void testSearchWithPartialResultsFalseAgainstRestoringShardParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         var future = client().prepareSearch(INDEX).setAllowPartialSearchResults(false).execute();
         try {
@@ -291,7 +293,7 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * the search via {@code SearchReadyGate}. The behaviour is identical to
      * {@code allow_partial_search_results=false}: both wait rather than returning 503.
      */
-    public void testSearchWithPartialResultsTrueAgainstRestoringShardParksRatherThan503() throws Exception {
+    public void testSearchWithPartialResultsTrueAgainstRestoringShardParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         var future = client().prepareSearch(INDEX).setAllowPartialSearchResults(true).execute();
         try {
@@ -313,7 +315,7 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * restoring shard in this setup — scroll contexts are tied to open searcher copies, and none
      * exist on a shard that was deleted before being restored.
      */
-    public void testScrollSearchWhileRestoringParksRatherThan503() throws Exception {
+    public void testScrollSearchWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         var future = client().prepareSearch(INDEX).setScroll(TimeValue.timeValueMinutes(1)).execute();
         try {
@@ -331,8 +333,17 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * {@code TransportSearchAction} and parks in {@code SearchReadyGate} when the target shard is
      * INITIALIZING. The behaviour is identical to {@code _search}: the request hangs until the
      * shard becomes search-ready.
+     *
+     * <p>This only holds for a single-shard target: {@code TransportSearchAction#adjustSearchType}
+     * always forces {@code DFS_QUERY_THEN_FETCH} when a kNN clause is present, which is otherwise
+     * harmless, but if the index has more than one shard it also makes
+     * {@code TransportSearchAction#shouldPreFilterSearchShards} run a {@code canMatch} pre-filter
+     * phase. That phase fails fast on a restoring shard (rather than parking) and, since
+     * {@code allow_partial_search_results} defaults to {@code true}, the overall search then
+     * completes immediately with zero hits instead of hanging. Hence {@code KNN_INDEX} is pinned to
+     * {@link #SINGLE_SHARD_NO_REPLICA} here, matching {@code INDEX}.
      */
-    public void testKnnSearchWhileRestoringParksRatherThan503() throws Exception {
+    public void testKnnSearchWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, KNN_INDEX);
         SearchRequest knnRequest = new SearchRequest(KNN_INDEX);
         knnRequest.source(
@@ -672,7 +683,7 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * ({@code RestCountAction} builds a {@code SearchRequest} with size=0). It parks in
      * {@code SearchReadyGate} identically to {@code _search}.
      */
-    public void testCountWhileRestoringParksRatherThan503() throws Exception {
+    public void testCountWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         var future = client().prepareSearch(INDEX).setSize(0).execute();
         try {
@@ -788,17 +799,24 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
 
     /**
      * {@code GET /{index}/_mapping/field/{fields}} via {@code TransportGetFieldMappingsIndexAction}
-     * ({@code TransportSingleShardAction}) succeeds even while the primary shard is INITIALIZING.
-     * The action reads field mappings from {@code MapperService}, which is populated from cluster
-     * state and does not require the Lucene shard to be in a started state. The response is
-     * non-empty for all mapped fields.
+     * ({@code TransportSingleShardAction}) does <strong>not</strong> require the Lucene shard to be
+     * started to read field mappings — {@code MapperService} is populated from cluster state
+     * independently of shard state. However {@code TransportGetFieldMappingsIndexAction#shards}
+     * only considers {@code randomAllActiveShardsIt()}, i.e. shards in STARTED/RELOCATING. On this
+     * single-shard, no-replica index there is no active copy while the primary is INITIALIZING, so
+     * the per-index sub-action fails with {@link NoShardAvailableActionException}.
+     *
+     * <p>That failure never reaches the caller: the coordinating
+     * {@code TransportGetFieldMappingsAction#merge} only accumulates successful per-index
+     * responses and silently drops failed ones, so the top-level call still completes successfully
+     * — just with an empty mappings map — rather than surfacing the shard-unavailable error.
      */
-    public void testGetFieldMappingWhileRestoringSucceeds() throws Exception {
+    public void testGetFieldMappingWhileRestoringReturnsEmptyMappings() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
             var response = client().execute(GetFieldMappingsAction.INSTANCE, new GetFieldMappingsRequest().indices(INDEX).fields("*"))
                 .actionGet();
-            assertThat(response.mappings().isEmpty(), equalTo(false));
+            assertThat(response.mappings(), equalTo(Map.of()));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }

@@ -94,7 +94,7 @@ public class RestoringShardReindexIT extends AbstractSnapshotIntegTestCase {
      * {@code POST /{index}/_update_by_query} parks in {@code SearchReadyGate} waiting for the
      * shard to become search-ready.
      */
-    public void testUpdateByQueryWhileRestoringParksRatherThan503() throws Exception {
+    public void testUpdateByQueryWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         UpdateByQueryRequest request = new UpdateByQueryRequest(INDEX);
         var future = client().execute(UpdateByQueryAction.INSTANCE, request);
@@ -112,7 +112,7 @@ public class RestoringShardReindexIT extends AbstractSnapshotIntegTestCase {
      * {@code POST /{index}/_delete_by_query} parks in {@code SearchReadyGate} waiting for the
      * shard to become search-ready.
      */
-    public void testDeleteByQueryWhileRestoringParksRatherThan503() throws Exception {
+    public void testDeleteByQueryWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         DeleteByQueryRequest request = new DeleteByQueryRequest(INDEX).setQuery(QueryBuilders.matchAllQuery());
         var future = client().execute(DeleteByQueryAction.INSTANCE, request);

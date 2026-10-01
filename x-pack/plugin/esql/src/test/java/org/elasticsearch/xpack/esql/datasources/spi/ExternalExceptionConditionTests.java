@@ -40,6 +40,29 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         assertEquals("Failed to list external data objects. Retry.", Condition.LISTING_FAILED.render("x.csv", "", "Retry."));
     }
 
+    /**
+     * Every object condition appends its detail code and remedy, so a caller's are never silently dropped.
+     */
+    public void testDetailCodeAndRemedyAreAppendedForEveryObjectCondition() {
+        assertEquals(
+            "External data object not found: [x.csv] (HTTP 404). Check the path.",
+            Condition.OBJECT_NOT_FOUND.render("x.csv", "HTTP 404", "Check the path.")
+        );
+        assertEquals(
+            "External data object [x.csv] was modified during read (HTTP 412). Re-run the query.",
+            Condition.OBJECT_CHANGED.render("x.csv", "HTTP 412", "Re-run the query.")
+        );
+        assertEquals(
+            "Malformed data in [x.csv] (bad magic). Check the format.",
+            Condition.MALFORMED_DATA.render("x.csv", "bad magic", "Check the format.")
+        );
+        assertEquals(
+            "Failed to get metadata for [x.csv] (HTTP 500). Retry.",
+            Condition.METADATA_UNAVAILABLE.render("x.csv", "HTTP 500", "Retry.")
+        );
+        assertEquals("Failed to get external data metadata (HTTP 500)", Condition.METADATA_UNAVAILABLE.render("", "HTTP 500", ""));
+    }
+
     public void testSpecialConditions() {
         assertEquals(
             "Session credentials expired or invalid. Refresh the data source credentials and re-run the query.",

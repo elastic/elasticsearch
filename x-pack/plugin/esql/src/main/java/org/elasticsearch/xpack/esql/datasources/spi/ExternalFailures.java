@@ -111,8 +111,19 @@ public final class ExternalFailures {
         "file:/" };
 
     /**
-     * Returns {@code true} when no message in {@code e}'s full cause chain contains a known
-     * storage-URI scheme. A {@code false} result means a full object-store path leaked into a
+     * Domains of the cloud object-store endpoints. SDK and DNS failures name the endpoint host without a scheme
+     * ({@code bucket.s3.us-east-1.amazonaws.com: Name or service not known}), and the host embeds the bucket or account.
+     */
+    private static final String[] STORAGE_HOST_DOMAINS = {
+        "amazonaws.com",
+        "googleapis.com",
+        "core.windows.net",
+        "core.usgovcloudapi.net",
+        "core.chinacloudapi.cn" };
+
+    /**
+     * Returns {@code true} when no message in {@code e}'s full cause chain, or among its suppressed failures, names a
+     * location (see {@link #safeForUserMessage}). A {@code false} result means a location leaked into a
      * user-facing exception message.
      */
     static boolean noStoragePathLeaked(RuntimeException e) {
@@ -153,11 +164,17 @@ public final class ExternalFailures {
                 return true;
             }
         }
+        for (String domain : STORAGE_HOST_DOMAINS) {
+            if (msg.contains(domain)) {
+                return true;
+            }
+        }
         return ABSOLUTE_FILESYSTEM_PATH.matcher(msg).find();
     }
 
     /**
-     * Returns {@code true} when {@code message} contains no known storage-URI scheme and no absolute filesystem path. Callers
+     * Returns {@code true} when {@code message} contains no known storage-URI scheme, cloud storage host or absolute
+     * filesystem path. Hosts of custom endpoints and relative paths are not recognised. Callers
      * outside the {@code spi} package use this to decide whether a diagnostic message from a
      * third-party library is safe to forward to the user.
      */
@@ -192,8 +209,9 @@ public final class ExternalFailures {
      * embeds a full path instead of using the structured constructors on {@link ExternalException}.
      * See {@link #noStoragePathLeaked}.
      * <p>
-     * A client-caused failure is logged at WARN: its detail is not forwarded to the user, so this node's log is
-     * the only place it survives.
+     * An {@link IllegalArgumentException} or I/O failure is logged as one WARN line naming the failure: its detail is
+     * not forwarded to the user, so this node's log is the only place it survives. A typed failure's dropped cause is
+     * logged at WARN when it is server-side, else at DEBUG, since the condition already says what is wrong.
      */
     public static RuntimeException classify(Throwable t) {
         return classify(t, Level.WARN);
@@ -201,18 +219,20 @@ public final class ExternalFailures {
 
     /**
      * {@link #classify} for a failure that only gets attached as suppressed to one already classified for the
-     * same read. Logs client-caused failures at DEBUG, since the first failure was already logged at WARN.
+     * same read. Logs client failures and typed server failures at DEBUG, since the first failure was already logged at
+     * WARN and parallel readers often fail the same way (e.g. all throttled). An untyped failure is still logged at
+     * WARN: it is a bug, not a condition.
      */
     public static RuntimeException classifySuppressed(Throwable t) {
         return classify(t, Level.DEBUG);
     }
 
-    private static RuntimeException classify(Throwable t, Level clientFailureLevel) {
+    private static RuntimeException classify(Throwable t, Level failureLevel) {
         if (t instanceof Error error) {
             throw error;
         }
         if (t instanceof ExternalException ee) {
-            ExternalException detached = detach(ee);
+            ExternalException detached = detach(ee, failureLevel);
             assert noStoragePathLeaked(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
             return detached;
         }
@@ -226,9 +246,9 @@ public final class ExternalFailures {
         if (t instanceof IllegalArgumentException iae) {
             // IAE from format readers may embed storage URIs in the message. Log on this node for
             // debugging; do not chain it into the exception so its message never crosses the wire.
-            logger.log(clientFailureLevel, () -> "External read failed with IllegalArgumentException (cause logged, not forwarded)", iae);
+            logClientFailure(failureLevel, iae);
             ExternalClientException iaeResult = new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
-            // Include the IAE detail only when it is free of storage-URI schemes; a Parquet reader may surface
+            // Include the IAE detail only when it names no location; a Parquet reader may surface
             // a column name or file basename that is useful for diagnosis without leaking the full object path.
             if (iae.getMessage() != null && containsStoragePath(iae.getMessage()) == false) {
                 iaeResult.setDetail(iae.getMessage());
@@ -240,12 +260,12 @@ public final class ExternalFailures {
             // IOException messages from storage clients may embed full storage URIs. Log on this node
             // for debugging; do not chain t into the exception so its message and cause chain never
             // cross the wire.
-            logger.log(clientFailureLevel, () -> "External read failed with a client error (cause logged, not forwarded)", t);
+            logClientFailure(failureLevel, t);
             ExternalClientException ioResult = new ExternalClientException(
                 "Failed to read external source: {}",
                 t.getClass().getSimpleName()
             );
-            // Include the IO detail only when it is free of storage-URI schemes.
+            // Include the IO detail only when it names no location.
             if (t.getMessage() != null && containsStoragePath(t.getMessage()) == false) {
                 ioResult.setDetail(t.getMessage());
             }
@@ -266,13 +286,22 @@ public final class ExternalFailures {
      * external failures are detached and kept; any other suppressed failure is dropped.
      */
     public static ExternalException detach(ExternalException e) {
+        return detach(e, Level.WARN);
+    }
+
+    /**
+     * @param serverFailureLevel the level a server-side failure's cause is logged at: it is its only diagnosis. A client
+     *     failure's condition already says what is wrong, so its cause is logged at DEBUG.
+     */
+    private static ExternalException detach(ExternalException e, Level serverFailureLevel) {
         if (e.getCause() != null) {
-            logger.debug("External failure detached from its cause (cause logged, not forwarded)", e);
+            Level level = e.status().getStatus() >= 500 ? serverFailureLevel : Level.DEBUG;
+            logger.log(level, () -> "External failure detached from its cause (cause logged, not forwarded)", e);
         }
         ExternalException detached = e.withoutCause();
         for (Throwable suppressed : e.getSuppressed()) {
             if (suppressed instanceof ExternalException external) {
-                detached.addSuppressed(detach(external));
+                detached.addSuppressed(detach(external, Level.DEBUG));
             }
         }
         return detached;
@@ -331,6 +360,17 @@ public final class ExternalFailures {
         }
         assert noStoragePathLeaked(result) : "storage path leaked in surfaced exception: " + result.getMessage();
         return result;
+    }
+
+    /**
+     * A client failure's message is not forwarded, so it is logged here, location included, for the admin. At WARN it is
+     * one line: a corrupt file fails every split that reads it, and the stack trace says nothing the message does not.
+     */
+    private static void logClientFailure(Level level, Throwable t) {
+        if (level == Level.WARN) {
+            logger.warn("External read failed with a client error (not forwarded): {}", t.toString());
+        }
+        logger.debug("External read failed with a client error (cause logged, not forwarded)", t);
     }
 
     private static String safeDetail(Throwable failure) {

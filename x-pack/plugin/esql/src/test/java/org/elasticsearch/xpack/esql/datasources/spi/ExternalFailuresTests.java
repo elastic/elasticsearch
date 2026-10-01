@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -17,10 +18,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class ExternalFailuresTests extends ESTestCase {
@@ -512,6 +516,123 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testAuthorityLessFileUriIsAStorageUri() {
         assertFalse(ExternalFailures.safeForUserMessage("cannot read file:/data/private/x.csv"));
+    }
+
+    /**
+     * SDK and DNS failures name the endpoint host without a scheme, and the host embeds the bucket or storage account.
+     */
+    public void testCloudStorageHostIsNotSafe() {
+        for (String unsafe : new String[] {
+            "secret-bucket.s3.us-east-1.amazonaws.com: Name or service not known",
+            "Unable to execute HTTP request: Connect to secret-bucket.s3.amazonaws.com:443 failed",
+            "storage.googleapis.com: nodename nor servname provided",
+            "secretaccount.blob.core.windows.net: Temporary failure in name resolution",
+            "secretaccount.blob.core.usgovcloudapi.net: Temporary failure in name resolution",
+            "secretaccount.blob.core.chinacloudapi.cn: Temporary failure in name resolution" }) {
+            assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
+        }
+    }
+
+    /**
+     * A server-side failure's cause is its only diagnosis, so it is logged at WARN when detached. A client failure's
+     * condition already says what is wrong, so its cause stays at DEBUG.
+     */
+    public void testDetachLogsTheCauseOfAServerFailureAtWarn() {
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(new ExternalServerException("invariant violated", new IllegalStateException("root"))),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation("server", ExternalFailures.class.getCanonicalName(), Level.WARN, "External failure detached*")
+        );
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(new ExternalUnavailableException("store 503", new IOException("root"))),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation(
+                "unavailable",
+                ExternalFailures.class.getCanonicalName(),
+                Level.WARN,
+                "External failure detached*"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(new ExternalClientException("bad file", new IOException("root"))),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * Parallel readers of one source often fail the same way (e.g. all throttled), so only the first typed server
+     * failure's cause is logged at WARN; those suppressed under it, or attached to it as suppressed, are at DEBUG.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures:DEBUG", reason = "asserts DEBUG events")
+    public void testSuppressedTypedServerFailureIsLoggedAtDebug() {
+        String logger = ExternalFailures.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.classifySuppressed(new ExternalUnavailableException("store 503", new IOException("throttled"))),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("no warn", logger, Level.WARN, "*"),
+            new MockLog.SeenEventExpectation("debug", logger, Level.DEBUG, "External failure detached*")
+        );
+
+        var first = new ExternalUnavailableException("store 503", new IOException("throttled"));
+        first.addSuppressed(new ExternalUnavailableException("store 503", new IOException("throttled")));
+        try (MockLog mockLog = MockLog.capture(ExternalFailures.class)) {
+            List<LogEvent> warns = new ArrayList<>();
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel().equals(Level.WARN)) {
+                        warns.add(event);
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertEquals("only the first failure is logged at WARN", 1, warns.size());
+                }
+            });
+            ExternalFailures.classify(first);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A client failure's WARN is one line naming the failure; the stack trace is only at DEBUG.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures:DEBUG", reason = "asserts the DEBUG trace")
+    public void testClientFailureWarnCarriesNoStackTrace() {
+        IOException failure = new IOException("truncated reading s3://bucket/x.csv");
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.classify(failure),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation(
+                "one line",
+                ExternalFailures.class.getCanonicalName(),
+                Level.WARN,
+                "*java.io.IOException: truncated reading s3://bucket/x.csv"
+            ),
+            new MockLog.SeenEventExpectation(
+                "trace",
+                ExternalFailures.class.getCanonicalName(),
+                Level.DEBUG,
+                "External read failed with a client error (cause logged, not forwarded)"
+            ),
+            new MockLog.LoggingExpectation() {
+                private boolean traceAtWarn;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel().equals(Level.WARN) && event.getThrown() != null) {
+                        traceAtWarn = true;
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertFalse("the WARN must not carry the stack trace", traceAtWarn);
+                }
+            }
+        );
     }
 
     /**

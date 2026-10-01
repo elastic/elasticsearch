@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,6 +34,8 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
@@ -4169,6 +4173,84 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(mapped, instanceOf(IllegalArgumentException.class));
         assertEquals("Row [3] of [x.csv] has [3] columns", mapped.getMessage());
         assertNull(mapped.getCause());
+    }
+
+    /**
+     * The REST layer renders suppressed failures as well as the cause, so a safe client error carrying one is rebuilt too.
+     */
+    public void testASafeClientErrorDropsItsSuppressedFailures() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalArgumentException withSuppressed = new IllegalArgumentException("Row [3] of [x.csv] has [3] columns");
+        withSuppressed.addSuppressed(new IOException("reading s3://secret-bucket/y.csv"));
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://secret-bucket/x.csv", withSuppressed);
+
+        assertNotSame(withSuppressed, mapped);
+        assertThat(mapped, instanceOf(IllegalArgumentException.class));
+        assertEquals("Row [3] of [x.csv] has [3] columns", mapped.getMessage());
+        assertEquals(0, mapped.getSuppressed().length);
+    }
+
+    /**
+     * The user's message omits the location, so the admin's WARN names it, on one line: the stack trace is at DEBUG.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver:DEBUG", reason = "asserts the DEBUG trace")
+    public void testAClientResolveFailureIsLoggedAsOneWarnLineNamingTheLocation() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://secret-bucket/private/x.csv";
+        IOException failure = new IOException("Object not found");
+        String logger = ExternalSourceResolver.class.getCanonicalName();
+
+        MockLog.assertThatLogger(
+            () -> resolver.mapResolveFailure(path, new ExecutionException(failure)),
+            ExternalSourceResolver.class,
+            new MockLog.SeenEventExpectation(
+                "one line",
+                logger,
+                Level.WARN,
+                "Failed to resolve external source [" + path + "]: Object not found"
+            ),
+            new MockLog.SeenEventExpectation("trace", logger, Level.DEBUG, "Failed to resolve external source [" + path + "]"),
+            new MockLog.LoggingExpectation() {
+                private boolean traceAtWarn;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel().equals(Level.WARN) && event.getThrown() != null) {
+                        traceAtWarn = true;
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertFalse("the WARN must not carry the stack trace", traceAtWarn);
+                }
+            }
+        );
+    }
+
+    public void testDatasetContextIsAppendedToACopyOfAClientError() {
+        IllegalArgumentException shared = new IllegalArgumentException("Row [3] of [x.csv] has [3] columns");
+
+        RuntimeException annotated = ExternalSourceResolver.withDatasetContext(
+            shared,
+            Map.of("dataset", "tmax", "datasource", "noaa", "type", "s3")
+        );
+
+        assertNotSame(shared, annotated);
+        assertEquals("Row [3] of [x.csv] has [3] columns in dataset [tmax] from data source [noaa] (s3)", annotated.getMessage());
+        assertEquals("Row [3] of [x.csv] has [3] columns", shared.getMessage());
+    }
+
+    /**
+     * A context without names yields no label; the failure passes through rather than failing the listener.
+     */
+    public void testEmptyDatasetContextLeavesAClientErrorUnchanged() {
+        IllegalArgumentException failure = new IllegalArgumentException("Row [3] of [x.csv] has [3] columns");
+
+        assertSame(failure, ExternalSourceResolver.withDatasetContext(failure, Map.of()));
+        assertSame(failure, ExternalSourceResolver.withDatasetContext(failure, Map.of("dataset", "", "type", "s3")));
+        assertSame(failure, ExternalSourceResolver.withDatasetContext(failure, null));
     }
 
     /**

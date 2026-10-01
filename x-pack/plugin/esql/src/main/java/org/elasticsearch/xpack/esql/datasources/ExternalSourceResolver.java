@@ -781,22 +781,27 @@ public class ExternalSourceResolver {
                 listener
             );
         }, e -> {
-            RuntimeException mapped = mapResolveFailure(path, e);
             @SuppressWarnings("unchecked")
             Map<String, String> ctx = (Map<String, String>) config.get(DATASET_CONTEXT_KEY);
-            if (ctx != null) {
-                if (mapped instanceof ExternalException ee) {
-                    ee.setDatasetContext(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
-                } else if (mapped instanceof IllegalArgumentException iae) {
-                    String label = ExternalException.buildDatasetLabel(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
-                    if (label.isEmpty() == false) {
-                        // A new instance: mapResolveFailure may return one shared by concurrent cache waiters.
-                        mapped = new IllegalArgumentException(iae.getMessage() + " " + label);
-                    }
-                }
-            }
-            listener.onFailure(mapped);
+            listener.onFailure(withDatasetContext(mapResolveFailure(path, e), ctx));
         }));
+    }
+
+    // Package-private for testing.
+    static RuntimeException withDatasetContext(RuntimeException mapped, @Nullable Map<String, String> ctx) {
+        if (ctx == null) {
+            return mapped;
+        }
+        if (mapped instanceof ExternalException ee) {
+            ee.setDatasetContext(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+        } else if (mapped instanceof IllegalArgumentException iae) {
+            String label = ExternalException.buildDatasetLabel(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+            if (label != null) {
+                // A new instance: mapResolveFailure may return one shared by concurrent cache waiters.
+                return new IllegalArgumentException(iae.getMessage() + " " + label);
+            }
+        }
+        return mapped;
     }
 
     /**
@@ -880,7 +885,7 @@ public class ExternalSourceResolver {
         );
         if (expired != null) {
             recordDiscoveryFailure();
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            logClientResolveFailure(path, expired.getMessage(), e);
             return expired.withoutCause();
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -916,19 +921,19 @@ public class ExternalSourceResolver {
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
             recordDiscoveryFailure();
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientException.getMessage(), e);
+            logClientResolveFailure(path, clientException.getMessage(), e);
             return clientException.withoutCause();
         }
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
+            logClientResolveFailure(path, clientError.getMessage(), e);
             String iaeMsg = clientError.getMessage();
             boolean safe = iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg);
-            if (safe && clientError.getCause() == null) {
+            if (safe && clientError.getCause() == null && clientError.getSuppressed().length == 0) {
                 return clientError;
             }
-            // The cause chain may name the location, so it never reaches the user's caused_by.
+            // Causes and suppressed failures may name the location, and the REST layer renders both.
             if (safe) {
                 return new IllegalArgumentException(iaeMsg);
             }
@@ -952,7 +957,7 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             // rootDetail reads through the cache's ExecutionException, whose own message is the cause's toString().
             String ioDetail = ExternalFailures.rootDetail(ioError);
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, ioDetail, e);
+            logClientResolveFailure(path, ioDetail, e);
             // Use objectName(path) — the safe static that never throws and never returns the full URI —
             // as the detailCode so the filename appears in the message while the directory stays hidden.
             ExternalClientException ioEx = new ExternalClientException(
@@ -978,6 +983,15 @@ public class ExternalSourceResolver {
             ExternalFailures.safeForUserMessage(detail) ? detail : ExternalFailures.rootCause(e).getClass().getSimpleName(),
             ""
         );
+    }
+
+    /**
+     * The user's message omits the location, so the admin gets it here. One line at WARN: a client error's message is
+     * its diagnosis, and every query against a misconfigured dataset fails the same way. The stack trace is at DEBUG.
+     */
+    private static void logClientResolveFailure(String path, String detail, Exception e) {
+        LOGGER.warn("Failed to resolve external source [{}]: {}", path, detail);
+        LOGGER.debug("Failed to resolve external source [{}]", path, e);
     }
 
     private void resolveSource(

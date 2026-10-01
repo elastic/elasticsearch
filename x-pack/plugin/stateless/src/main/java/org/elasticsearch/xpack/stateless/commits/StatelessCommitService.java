@@ -2869,7 +2869,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
                 // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already
                 // been uploaded which would make the listener be triggered immediately.
-                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
+                // This includes commits in the current VBCC since search shards may already have been notified about them: the target
+                // recovers from the latest uploaded commit and would otherwise create different commits with the same generations.
+                final var currentVirtualBcc = getCurrentVirtualBcc();
+                ensureMaxGenerationToUploadForFlush(
+                    currentVirtualBcc == null
+                        ? minRelocatedGeneration
+                        : Math.max(minRelocatedGeneration, currentVirtualBcc.getMaxGeneration())
+                );
                 toWaitFor = getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration);
                 assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
                 assert assertGenerationIsUploadedOrPending(toWaitFor);

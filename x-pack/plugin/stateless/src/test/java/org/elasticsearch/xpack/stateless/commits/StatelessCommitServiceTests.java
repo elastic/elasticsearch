@@ -718,6 +718,38 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A commit can be appended to the current VBCC after the relocation source reads its last flushed generation, e.g. by a refresh or
+     * by a flush that has not frozen its VBCC yet. Search shards may already know about it, so the relocation must upload it: the target
+     * recovers from the latest uploaded commit and would otherwise create a different commit with the same term and generation.
+     */
+    public void testRelocationUploadsCommitsAppendedAfterLastFlushedGeneration() throws Exception {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 100)) {
+            final List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(between(2, 4));
+            final StatelessCommitRef lastFlushedCommit = commitRefs.getFirst();
+            testHarness.commitService.onCommitCreation(lastFlushedCommit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, lastFlushedCommit.getGeneration());
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, lastFlushedCommit.getGeneration());
+
+            for (StatelessCommitRef appendedCommit : commitRefs.subList(1, commitRefs.size())) {
+                testHarness.commitService.onCommitCreation(appendedCommit);
+            }
+
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(
+                testHarness.shardId,
+                lastFlushedCommit.getGeneration(),
+                future
+            );
+            safeGet(future);
+            assertThat(
+                testHarness.commitService.getLatestUploadedBcc(testHarness.shardId).lastCompoundCommit().generation(),
+                equalTo(commitRefs.getLast().getGeneration())
+            );
+            relocationListener.onResponse(null);
+        }
+    }
+
     public void testGetTrackedUploadedBlobFilesUpToExcludesTrackedButUnuploadedBlobs() throws Exception {
         Set<String> actuallyUploadedBccBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
 

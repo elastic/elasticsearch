@@ -47,7 +47,6 @@ public class ResizeAllocationDeciderIT extends ESIntegTestCase {
 
     private static class BlockIndexAllocationDecider extends AllocationDecider {
         private static final String NAME = "block_index";
-        private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
         private final AtomicReference<String> indexToBlock;
 
         private BlockIndexAllocationDecider(AtomicReference<String> indexToBlock) {
@@ -57,7 +56,7 @@ public class ResizeAllocationDeciderIT extends ESIntegTestCase {
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (shardRouting.getIndexName().equals(indexToBlock.get())) {
-                return allocation.decision(NO_DECISION, NAME, "blocked");
+                return allocation.decision(Decision.NO, NAME, "blocked");
             } else {
                 return Decision.YES;
             }

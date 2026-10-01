@@ -125,7 +125,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) {
-                return allocation.decision(TestDecisions.NO, DiskThresholdDecider.NAME, "test");
+                return allocation.decision(Decision.NO, DiskThresholdDecider.NAME, "test");
             }
             return super.canAllocate(shardRouting, node, allocation);
         }
@@ -135,7 +135,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) return allocation.decision(
-                TestDecisions.NO,
+                Decision.NO,
                 DiskThresholdDecider.NAME,
                 "test"
             );

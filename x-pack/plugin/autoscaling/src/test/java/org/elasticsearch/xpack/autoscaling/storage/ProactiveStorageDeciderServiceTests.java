@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.TestDecisions;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -97,7 +96,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         allocationDecidersList.add(new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return allocation.decision(TestDecisions.NO, DiskThresholdDecider.NAME, "test");
+                return allocation.decision(Decision.NO, DiskThresholdDecider.NAME, "test");
             }
         });
         AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);

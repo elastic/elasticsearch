@@ -76,7 +76,6 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
-    private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
 
     public static Decision shouldFilter(
         IndexMetadata indexMd,
@@ -98,33 +97,31 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             String tierName = tier.get();
             assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
             if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
-                return allocation.debugDecision()
-                    ? debugYesAllowed(allocation, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName())
-                    : Decision.YES;
+                return debugYesAllowed(allocation, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName());
             }
             if (node.hasRole(tierName)) {
-                return allocation.debugDecision() ? debugYesAllowed(allocation, tierPreference, tierName) : Decision.YES;
+                return debugYesAllowed(allocation, tierPreference, tierName);
             }
-            return allocation.debugDecision() ? debugNoRequirementsNotMet(allocation, tierPreference, tierName) : NO_DECISION;
+            return debugNoRequirementsNotMet(allocation, tierPreference, tierName);
         }
-        return allocation.debugDecision() ? debugNoNoNodesAvailable(allocation, tierPreference) : NO_DECISION;
+        return debugNoNoNodesAvailable(allocation, tierPreference);
     }
 
     private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {
         return allocation.decision(
-            NO_DECISION,
+            Decision.NO,
             NAME,
-            "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
-            String.join(",", tierPreference)
+            "index has a preference for tiers %s, but no nodes for any of those tiers are available in the cluster",
+            tierPreference
         );
     }
 
     private static Decision debugNoRequirementsNotMet(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
         return allocation.decision(
-            NO_DECISION,
+            Decision.NO,
             NAME,
-            "index has a preference for tiers [%s] and node does not meet the required [%s] tier",
-            String.join(",", tierPreference),
+            "index has a preference for tiers %s and node does not meet the required [%s] tier",
+            tierPreference,
             tierName
         );
     }
@@ -133,8 +130,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.YES,
             NAME,
-            "index has a preference for tiers [%s] and node has tier [%s]",
-            String.join(",", tierPreference),
+            "index has a preference for tiers %s and node has tier [%s]",
+            tierPreference,
             tierName
         );
     }

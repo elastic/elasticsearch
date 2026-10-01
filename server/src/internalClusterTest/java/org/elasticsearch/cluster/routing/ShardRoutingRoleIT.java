@@ -202,7 +202,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         if (nodesWithUnpromotableOnly.contains(node.node().getName())) {
                             if (shardRouting.isPromotableToPrimary()) {
                                 return allocation.decision(
-                                    TestDecisions.NO,
+                                    Decision.NO,
                                     "test",
                                     "shard is promotable to primary so may not be assigned to [" + node.node().getName() + "]"
                                 );
@@ -210,7 +210,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         } else {
                             if (shardRouting.isPromotableToPrimary() == false) {
                                 return allocation.decision(
-                                    TestDecisions.NO,
+                                    Decision.NO,
                                     "test",
                                     "shard is not promotable to primary so may not be assigned to [" + node.node().getName() + "]"
                                 );

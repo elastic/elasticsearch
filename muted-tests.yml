@@ -215,6 +215,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceTests
   method: testUnifiedCompletionNonStreamingNotFoundError
   issue: https://github.com/elastic/elasticsearch/issues/160618
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/160704
 
 # Examples:
 #

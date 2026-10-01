@@ -2098,7 +2098,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    /** Forces canRemain=NO (no label) and allows only NOT_PREFERRED canAllocate targets (no label; NO on the source to prevent bounce-back). */
+    /** Forces canRemain=NO (no label) and allows only NOT_PREFERRED canAllocate targets
+     * (no label; NO on the source to prevent bounce-back). */
     private static class NoLabelMustMoveToNotPreferredTargetDecider extends AllocationDecider {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

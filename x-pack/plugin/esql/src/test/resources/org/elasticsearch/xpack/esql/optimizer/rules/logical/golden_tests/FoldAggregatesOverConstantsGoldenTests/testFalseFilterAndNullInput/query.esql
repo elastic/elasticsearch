@@ -1,0 +1,2 @@
+FROM employees
+| STATS c = COUNT_DISTINCT(salary) WHERE false, p = PRESENT(null), m = MAX(salary)

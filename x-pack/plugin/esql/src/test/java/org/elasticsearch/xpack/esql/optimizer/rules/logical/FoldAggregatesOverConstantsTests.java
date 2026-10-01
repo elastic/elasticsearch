@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVectorBlock;
@@ -17,7 +18,11 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -31,6 +36,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.util.List;
+
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -42,12 +49,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalPlanOptimizerTests {
+public class FoldAggregatesOverConstantsTests extends AbstractLogicalPlanOptimizerTests {
 
-    public ReplaceStatsFilteredOrNullAggWithEvalTests(VersionMode versionMode) {
+    public FoldAggregatesOverConstantsTests(VersionMode versionMode) {
         super(versionMode);
     }
 
@@ -834,10 +842,8 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
 
     /**
      * {@snippet lang="text":
-     * Project[[y{r}#6]]
-     * \_Eval[[null[NULL] AS y#6]]
-     *   \_Limit[1000[INTEGER],false,false]
-     *     \_LocalRelation[[{e}#7],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[y{r}#493],Page{blocks=[ConstantNullBlock[positions=1]]}]
      * }
      */
     public void testReplaceStatsMaxOnNullLiteralWithEvalSingleAgg() {
@@ -846,18 +852,13 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
             | stats y = max(null)
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("y"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), nullValue());
-        assertThat(alias.child().dataType(), is(NULL));
-
-        var limit = as(eval.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("y"));
+        assertThat(source.output().getFirst().dataType(), is(NULL));
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
     }
 
     /**
@@ -894,10 +895,9 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
 
     /**
      * {@snippet lang="text":
-     * Project[[a{r}#6, b{r}#8]]
-     * \_Eval[[0[LONG] AS a#6]]
-     *   \_Limit[1000[INTEGER],false,false]
-     *     \_LocalRelation[[b{r}#8],Page{blocks=[BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#486, b{r}#488],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *     BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
      * }
      */
     public void testReplaceStatsOnNullLiteralWithEvalSpecialFunctions() {
@@ -907,26 +907,17 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
             | stats a = COUNT_DISTINCT(null), b = PRESENT(null)
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("a", "b"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("a"));
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(FoldContext.small()), is(0L));
-        assertThat(alias.child().dataType(), is(LONG));
-
-        var limit = as(eval.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
-        assertThat(Expressions.names(source.output()), contains("b"));
+        assertThat(Expressions.names(source.output()), contains("a", "b"));
 
         var page = source.supplier().get();
-        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getBlockCount(), is(2));
         assertThat(page.getPositionCount(), is(1));
-        assertThat(page.getBlock(0), instanceOf(BooleanBlock.class));
-        assertThat(((BooleanBlock) page.getBlock(0)).getBoolean(0), is(false));
+        assertThat(page.getBlock(0), instanceOf(LongBlock.class));
+        assertThat(((LongBlock) page.getBlock(0)).getLong(0), is(0L));
+        assertThat(page.getBlock(1), instanceOf(BooleanBlock.class));
+        assertThat(((BooleanBlock) page.getBlock(1)).getBoolean(0), is(false));
     }
 
     /**
@@ -1007,6 +998,218 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         Holder<Alias> vAlias = findFoldableAlias(plan, "v");
         assertNotNull("plan must contain a foldable alias for 'v'", vAlias.get());
         assertThat(vAlias.get().child().fold(FoldContext.small()), nullValue());
+    }
+
+    /**
+     * Without groupings the aggregation still sees no rows on an empty input, so the one-row result is guarded by a row count.
+     */
+    public void testIdempotentConstantWithoutGroupings() {
+        var plan = plan("""
+            from test
+            | stats m = max(1)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("m"));
+        var eval = as(project.child(), Eval.class);
+        var caseExpression = as(as(eval.fields().getFirst(), Alias.class).child(), Case.class);
+        var hasRows = as(caseExpression.children().getFirst(), GreaterThan.class);
+        assertThat(as(hasRows.right(), Literal.class).value(), is(0L));
+        assertThat(as(caseExpression.children().get(1), Literal.class).value(), is(1));
+        assertThat(as(caseExpression.children().get(2), Literal.class).value(), nullValue());
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), is(1));
+        var count = as(as(aggregate.aggregates().getFirst(), Alias.class).child(), Count.class);
+        assertThat(count.hasFilter(), is(false));
+        assertThat(Expressions.attribute(hasRows.left()).id(), is(aggregate.aggregates().getFirst().id()));
+        as(aggregate.child(), EsRelation.class);
+    }
+
+    /**
+     * Every group has at least one row, so an unfiltered idempotent aggregation over a constant is that constant.
+     */
+    public void testIdempotentConstantsWithGroupings() {
+        var plan = plan("""
+            from test
+            | stats m = max(1), v = values("a"), c = count_distinct(true) by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("m", "v", "c", "emp_no"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(3));
+        assertThat(as(eval.fields().get(0).child(), Literal.class).value(), is(1));
+        assertThat(as(eval.fields().get(1).child(), Literal.class).value(), is(new BytesRef("a")));
+        assertThat(as(eval.fields().get(2).child(), Literal.class).value(), is(1L));
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("emp_no"));
+    }
+
+    /**
+     * A filtered aggregation may see no rows in a group, so it's guarded by a count sharing its filter.
+     */
+    public void testIdempotentConstantFilteredWithGroupings() {
+        var plan = plan("""
+            from test
+            | stats m = min(2) where salary > 1000 by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var caseExpression = as(as(eval.fields().getFirst(), Alias.class).child(), Case.class);
+        var hasRows = as(caseExpression.children().getFirst(), GreaterThan.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), is(2));
+        assertThat(Expressions.names(aggregate.aggregates()).getLast(), is("emp_no"));
+        var countAlias = as(aggregate.aggregates().getFirst(), Alias.class);
+        var count = as(countAlias.child(), Count.class);
+        assertThat(count.hasFilter(), is(true));
+        assertThat(count.filter(), instanceOf(GreaterThan.class));
+        assertThat(Expressions.attribute(hasRows.left()).id(), is(countAlias.id()));
+    }
+
+    /**
+     * An existing {@code COUNT(*)} is reused, and several folded aggregations share one count.
+     */
+    public void testIdempotentConstantsReuseCount() {
+        var plan = plan("""
+            from test
+            | stats c = count(*), m = min(2), n = max(3)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "m", "n"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c"));
+        for (Alias alias : eval.fields()) {
+            var hasRows = as(as(alias.child(), Case.class).children().getFirst(), GreaterThan.class);
+            assertThat(Expressions.attribute(hasRows.left()).id(), is(aggregate.aggregates().getFirst().id()));
+        }
+    }
+
+    /**
+     * Aggregations whose state changes with each row, like {@code SUM}, are left to the aggregator.
+     */
+    public void testNonIdempotentConstantNotFolded() {
+        var plan = plan("""
+            from test
+            | stats s = sum(1), a = avg(2)
+            """);
+
+        plan.forEachDown(Eval.class, eval -> eval.fields().forEach(f -> assertThat(f.child(), not(instanceOf(Case.class)))));
+        Holder<Aggregate> aggregate = new Holder<>();
+        plan.forEachDown(Aggregate.class, aggregate::setIfAbsent);
+        assertTrue(aggregate.get().aggregates().stream().anyMatch(a -> a instanceof Alias alias && alias.child() instanceof Sum));
+    }
+
+    /**
+     * A multivalued grouping is expanded, so each group sees a single value of it, not the literal.
+     */
+    public void testMultivaluedGroupingNotFolded() {
+        var plan = plan("""
+            row x = [1, 2]
+            | stats m = max(x) by x
+            """);
+
+        Holder<Aggregate> aggregate = new Holder<>();
+        plan.forEachDown(Aggregate.class, aggregate::setIfAbsent);
+        assertNotNull(aggregate.get());
+        assertTrue(aggregate.get().aggregates().stream().anyMatch(a -> a instanceof Alias alias && alias.child() instanceof Max));
+    }
+
+    /**
+     * A multivalued constant is one row's input: {@code MAX} folds it to its max value.
+     */
+    public void testIdempotentMultivaluedConstant() {
+        var plan = plan("""
+            from test
+            | stats m = max([1, 5, 3]) by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(as(eval.fields().getFirst().child(), Literal.class).value(), is(5));
+    }
+
+    /**
+     * INLINE STATS joins its result to rows it has seen, so no row count guard is needed and the join is dropped.
+     */
+    public void testInlineStatsIdempotentConstant() {
+        var query = """
+            FROM test
+            | KEEP emp_no
+            | INLINE STATS m = max(1)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = plan(query);
+        assertFalse(plan.anyMatch(p -> p instanceof InlineJoin || p instanceof Aggregate));
+        Holder<Alias> m = findFoldableAlias(plan, "m");
+        assertThat(as(m.get().child(), Literal.class).value(), is(1));
+    }
+
+    public void testInlineStatsFilteredIdempotentConstantKeepsRowCount() {
+        var query = """
+            FROM test
+            | KEEP emp_no
+            | INLINE STATS m = max(1) WHERE emp_no > 10
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = plan(query);
+        Holder<Aggregate> aggregate = new Holder<>();
+        plan.forEachDown(Aggregate.class, aggregate::setIfAbsent);
+        as(as(aggregate.get().aggregates().getFirst(), Alias.class).child(), Count.class);
+        assertTrue(plan.anyMatch(p -> p instanceof Eval eval && eval.fields().stream().anyMatch(f -> f.child() instanceof Case)));
+    }
+
+    public void testGroupedFoldWithoutKeptKeysKeepsAggregate() {
+        var aggregate = as(as(defaultAnalyzer().query("FROM test | STATS m = max(1) BY emp_no"), Limit.class).child(), Aggregate.class);
+        var noKeys = aggregate.with(aggregate.groupings(), List.of(aggregate.aggregates().getFirst()));
+
+        var folded = new FoldAggregatesOverConstants().apply(noKeys, logicalOptimizerCtx);
+
+        var project = as(folded, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("m"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(as(eval.fields().getFirst().child(), Literal.class).value(), is(1));
+        var kept = as(eval.child(), Aggregate.class);
+        assertThat(kept.groupings(), is(aggregate.groupings()));
+        assertThat(Expressions.names(kept.aggregates()), contains("emp_no"));
+    }
+
+    public void testFilteredTopWithNonConstantLimitIsVerified() {
+        failPlan("""
+            FROM test
+            | STATS t = top(salary, emp_no, "asc") WHERE false, c = count(*)
+            """, "Limit must be a constant integer");
+    }
+
+    public void testFoldableNonLiteralFilterFoldsToNoRows() {
+        var aggregate = as(as(defaultAnalyzer().query("FROM test | STATS m = max(1) BY emp_no"), Limit.class).child(), Aggregate.class);
+        var max = as(Alias.unwrap(aggregate.aggregates().getFirst()), Max.class);
+        var source = max.source();
+        var falseFilter = new GreaterThan(source, Literal.integer(source, 1), Literal.integer(source, 2));
+        var filtered = aggregate.with(
+            aggregate.groupings(),
+            List.of(((Alias) aggregate.aggregates().getFirst()).replaceChild(max.withFilter(falseFilter)), aggregate.aggregates().getLast())
+        );
+
+        var folded = new FoldAggregatesOverConstants().apply(filtered, logicalOptimizerCtx);
+
+        var eval = as(as(folded, Project.class).child(), Eval.class);
+        assertThat(as(eval.fields().getFirst().child(), Literal.class).value(), nullValue());
     }
 
     /**

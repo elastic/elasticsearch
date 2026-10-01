@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -25,15 +24,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
+public class MedianAbsoluteDeviation extends NumericAggregate {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MedianAbsoluteDeviation",
@@ -114,17 +111,5 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
     @Override
     protected AggregatorFunctionSupplier doubleSupplier() {
         return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier();
-    }
-
-    @Override
-    public Expression surrogate() {
-        var s = source();
-        var field = field();
-
-        if (field.foldable()) {
-            return new MvMedianAbsoluteDeviation(s, new ToDouble(s, field));
-        }
-
-        return null;
     }
 }

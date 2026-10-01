@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -62,7 +63,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
-        assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    /**
+     * A percentile's state records how many rows it saw, so it doesn't fold over a constant: that is only sound for single-valued
+     * constants, which the aggregator can't tell apart.
+     */
+    public void testQuantileOfConstantNotFolded() {
+        var plan = planPromql("PROMQL index=k8s step=1m quantile(0.5, vector(1))", true);
+        Aggregate aggregate = plan.collect(Aggregate.class).getFirst();
+        Percentile percentile = as(Alias.unwrap(aggregate.aggregates().getFirst()), Percentile.class);
+        assertThat(as(percentile.percentile(), Literal.class).value(), equalTo(50.0));
     }
 
     /**

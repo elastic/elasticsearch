@@ -1,0 +1,143 @@
+// Aggregations over constants: the results must match those of running the aggregators over the matching rows.
+
+maxOfConstantFilteredNoRows
+required_capability: fold_aggregates_over_constants
+FROM employees
+| STATS m = MAX(1) WHERE emp_no < 0
+;
+
+m:integer
+null
+;
+
+maxOfConstantNoRows
+required_capability: fold_aggregates_over_constants
+FROM employees
+| WHERE emp_no < 0
+| STATS m = MAX(1)
+;
+
+m:integer
+null
+;
+
+maxOfConstantRowNoRows
+required_capability: fold_aggregates_over_constants
+ROW a = 1
+| WHERE a > 5
+| STATS m = MAX(1)
+;
+
+m:integer
+null
+;
+
+maxOfConstantAndCountNoRows
+required_capability: fold_aggregates_over_constants
+FROM employees
+| WHERE emp_no < 0
+| STATS m = MAX(1), c = COUNT(*)
+;
+
+m:integer | c:long
+null      | 0
+;
+
+nonIdempotentConstantsFilteredNoRows
+required_capability: fold_aggregates_over_constants
+FROM employees
+| STATS s = SUM(1) WHERE emp_no < 0, s0 = SUM(0) WHERE emp_no < 0, a = AVG(2) WHERE emp_no < 0
+;
+
+s:long | s0:long | a:double
+null   | null    | null
+;
+
+medianAndCountDistinctOfConstantNoRows
+required_capability: fold_aggregates_over_constants
+FROM employees
+| WHERE emp_no < 0
+| STATS m = MEDIAN(1), cd = COUNT_DISTINCT(1), v = VALUES("a")
+;
+
+m:double | cd:long | v:keyword
+null     | 0       | null
+;
+
+constantsOverRows
+required_capability: fold_aggregates_over_constants
+FROM employees
+| STATS m = MAX(1), s = SUM(1), s0 = SUM(0), a = AVG(2), med = MEDIAN(3), cd = COUNT_DISTINCT("a"), v = VALUES("a"), c = COUNT(*)
+;
+
+m:integer | s:long | s0:long | a:double | med:double | cd:long | v:keyword | c:long
+1         | 100    | 0       | 2.0      | 3.0        | 1       | a         | 100
+;
+
+constantsGroupedAndFiltered
+required_capability: fold_aggregates_over_constants
+FROM employees
+| STATS m = MAX(1) WHERE languages > 3, n = MIN(2), s = SUM(1) WHERE languages > 3, v = VALUES("a") BY languages
+| SORT languages
+;
+
+m:integer | n:integer | s:long | v:keyword | languages:integer
+null      | 2         | null   | a         | 1
+null      | 2         | null   | a         | 2
+null      | 2         | null   | a         | 3
+1         | 2         | 18     | a         | 4
+1         | 2         | 21     | a         | 5
+null      | 2         | null   | a         | null
+;
+
+multivaluedConstants
+required_capability: fold_aggregates_over_constants
+FROM employees
+| WHERE emp_no < 10003
+| STATS m = MAX([1, 5, 3]), s = SUM([1, 2]), cd = COUNT_DISTINCT([1, 2, 1]), v = MV_SORT(VALUES([3, 1]))
+;
+
+m:integer | s:long | cd:long | v:integer
+5         | 6      | 2       | [1, 3]
+;
+
+nullConstantsAndFalseFilter
+required_capability: fold_aggregates_over_constants
+FROM employees
+| STATS m = MAX(null), p = PRESENT(null), cd = COUNT_DISTINCT(salary) WHERE false, c = COUNT(*)
+;
+
+m:null | p:boolean | cd:long | c:long
+null   | false     | 0       | 100
+;
+
+inlineStatsConstants
+required_capability: fold_aggregates_over_constants
+required_capability: inline_stats
+FROM employees
+| KEEP emp_no
+| WHERE emp_no < 10003
+| INLINE STATS m = MAX(1), f = MAX(1) WHERE emp_no > 10005, s = SUM(1)
+| SORT emp_no
+;
+
+emp_no:integer | m:integer | f:integer | s:long
+10001          | 1         | null      | 2
+10002          | 1         | null      | 2
+;
+
+inlineStatsConstantsGrouped
+required_capability: fold_aggregates_over_constants
+required_capability: inline_stats
+FROM employees
+| KEEP emp_no, languages
+| WHERE emp_no < 10004
+| INLINE STATS m = MAX(1), f = MAX(1) WHERE emp_no > 10001 BY languages
+| SORT emp_no
+;
+
+emp_no:integer | m:integer | f:integer | languages:integer
+10001          | 1         | null      | 2
+10002          | 1         | 1         | 5
+10003          | 1         | 1         | 4
+;

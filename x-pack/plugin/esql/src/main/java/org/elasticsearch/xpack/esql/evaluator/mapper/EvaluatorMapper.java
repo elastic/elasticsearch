@@ -128,38 +128,8 @@ public interface EvaluatorMapper {
             }
         };
 
-        /*
-         * Step 2 is to create a DriverContext that we can pass to the above.
-         * This DriverContext is mostly about delegating to the FoldContext.
-         * That'll cause us to break if we attempt to allocate a huge amount
-         * of memory. Neat.
-         *
-         * Specifically, we make a CircuitBreaker view of the FoldContext, then
-         * we wrap it in a CircuitBreakerService so we can feed it to a BigArray
-         * so we can feed *that* into a DriverContext. It's a bit hacky, but
-         * that's what's going on here.
-         */
-        CircuitBreaker breaker = ctx.circuitBreakerView(source);
-        BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
-            @Override
-            public CircuitBreaker getBreaker(String name) {
-                if (name.equals(CircuitBreaker.REQUEST) == false) {
-                    throw new UnsupportedOperationException();
-                }
-                return breaker;
-            }
-
-            @Override
-            public AllCircuitBreakerStats stats() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public CircuitBreakerStats stats(String name) {
-                throw new UnsupportedOperationException();
-            }
-        }, CircuitBreaker.REQUEST).withCircuitBreaking();
-        DriverContext driverCtx = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).breaker(breaker).build(), null);
+        // Step 2 is to create a DriverContext that we can pass to the above.
+        DriverContext driverCtx = foldDriverContext(source, ctx);
 
         /*
          * Finally we can call toEvaluator on ourselves! It'll fold our children,
@@ -185,5 +155,39 @@ public interface EvaluatorMapper {
             HeaderWarning.addWarning(warning);
         }
         return toJavaObject(block, 0);
+    }
+
+    /**
+     * Builds a {@link DriverContext} for running compute code at plan time. It is mostly about delegating to the
+     * {@link FoldContext}, so we break if we attempt to allocate a huge amount of memory. Warnings are collected in the
+     * context: callers must {@link DriverContext#finish()} it and decide what to do with {@link DriverContext#warnings()}.
+     */
+    static DriverContext foldDriverContext(Source source, FoldContext ctx) {
+        /*
+         * We make a CircuitBreaker view of the FoldContext, then we wrap it in a
+         * CircuitBreakerService so we can feed it to a BigArray so we can feed
+         * *that* into a DriverContext. It's a bit hacky, but that's what's going on here.
+         */
+        CircuitBreaker breaker = ctx.circuitBreakerView(source);
+        BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                if (name.equals(CircuitBreaker.REQUEST) == false) {
+                    throw new UnsupportedOperationException();
+                }
+                return breaker;
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                throw new UnsupportedOperationException();
+            }
+        }, CircuitBreaker.REQUEST).withCircuitBreaking();
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).breaker(breaker).build(), null);
     }
 }

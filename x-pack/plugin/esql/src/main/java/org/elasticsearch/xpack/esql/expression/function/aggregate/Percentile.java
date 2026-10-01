@@ -29,9 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
@@ -260,10 +258,6 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         if (fieldType == DataType.EXPONENTIAL_HISTOGRAM || fieldType == DataType.TDIGEST) {
             return new HistogramPercentile(source(), new HistogramMerge(source(), field, filter(), window()), percentile());
         }
-        if (field.foldable()) {
-            return new MvPercentile(source(), new ToDouble(source(), field), percentile());
-        }
-
         return null;
     }
 }

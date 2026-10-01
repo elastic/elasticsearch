@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -208,6 +207,6 @@ public class Max extends UnaryAggregateFunction
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
             return new Max(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX), filter(), window());
         }
-        return field().foldable() ? new MvMax(source(), field()) : null;
+        return null;
     }
 }

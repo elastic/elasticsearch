@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFull
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
@@ -80,13 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -174,7 +169,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -204,7 +198,6 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FU
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -2745,9 +2738,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * Eval[[2[INTEGER] AS x]]
-     * \_Limit[1000[INTEGER],false]
-     *   \_LocalRelation[[{e}#9],[ConstantNullBlock[positions=1]]]
+     * Project[[x{r}#6]]
+     * \_Eval[[2[INTEGER] AS x#6]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[$$COUNT$MAX$0{r$}#7],Page{blocks=[ConstantNullBlock[positions=1]]}]
      * }
      */
     public void testEvalAfterStats() {
@@ -2756,10 +2750,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | STATS x = max(foo)
             | EVAL x = 2
             """);
-        var eval = as(plan, Eval.class);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.output()), contains("x"));
+        var eval = as(project.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
-        var localRelation = as(limit.child(), LocalRelation.class);
-        assertThat(Expressions.names(eval.output()), contains("x"));
+        as(limit.child(), LocalRelation.class);
     }
 
     /**
@@ -5081,18 +5076,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
-     *
-     * {@snippet lang="text":
-     * Limit[1000[INTEGER]]
-     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
-     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
-     *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
-     * _expr, null[NULL] AS s_null]]
-     *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
-     *         \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
-     *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     * }
+     * {@code SUM} of a constant grows with the rows, so it's left to the aggregator, reading the constant from a pre-agg eval.
+     * Only {@code SUM(null)} folds: the aggregator ignores null input.
      */
     public void testSumOfLiteral() {
         var plan = plan("""
@@ -5102,197 +5087,125 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     s_null = sum(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
+            """);
 
-        var limit = as(plan, Limit.class);
-        var topProject = as(limit.child(), Project.class);
-        var project = as(topProject.child(), Project.class);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "s_expr", "s_null", "w"));
         var eval = as(project.child(), Eval.class);
-        var agg = as(eval.child(), Aggregate.class);
-
-        var exprs = eval.fields();
-        // s == mv_sum([1,2]) * count(*)
-        var s = as(exprs.get(0), Alias.class);
-        assertThat(s.name(), equalTo("s"));
-        var mul = as(s.child(), Mul.class);
-        var mvSum = as(mul.left(), MvSum.class);
-        assertThat(mvSum.fold(FoldContext.small()), equalTo(3));
-        var count = as(mul.right(), ReferenceAttribute.class);
-        assertThat(count.name(), equalTo("$$COUNT$s$0"));
-
-        // s_expr == mv_sum(314.0/100) * count(*)
-        var s_expr = as(exprs.get(1), Alias.class);
-        assertThat(s_expr.name(), equalTo("s_expr"));
-        var mul_expr = as(s_expr.child(), Mul.class);
-        var mvSum_expr = as(mul_expr.left(), MvSum.class);
-        assertThat(mvSum_expr.fold(FoldContext.small()), equalTo(3.14));
-        var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
-        assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
-
-        // s_null == null (literal) — SUM(null) short-circuits to a null literal of NULL type
-        var s_null = as(exprs.get(2), Alias.class);
+        var s_null = as(eval.fields().getFirst(), Alias.class);
         assertThat(s_null.name(), equalTo("s_null"));
-        var nullLiteral = as(s_null.child(), Literal.class);
-        assertNull(nullLiteral.value());
-        assertThat(nullLiteral.dataType(), equalTo(DataType.NULL));
+        assertNull(as(s_null.child(), Literal.class).value());
 
-        var countAgg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
-        assertThat(countAgg.children().get(0), instanceOf(Literal.class));
-        var w = as(Alias.unwrap(agg.groupings().get(0)), ReferenceAttribute.class);
-        assertThat(w.name(), equalTo("w"));
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "s_expr", "w"));
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(1)), Sum.class);
+        var constants = as(agg.child(), Eval.class);
+        var summed = agg.aggregates().subList(0, 2).stream().map(a -> {
+            var field = as(as(Alias.unwrap(a), Sum.class).field(), ReferenceAttribute.class);
+            var alias = constants.fields().stream().filter(f -> f.id().equals(field.id())).findFirst().orElseThrow();
+            return as(alias.child(), Literal.class).value();
+        }).toList();
+        assertThat(summed, contains(List.of(1, 2), 3.14));
     }
 
-    private record AggOfLiteralTestCase(
-        String aggFunctionTemplate,
-        Function<Expression, Expression> replacementForConstant,
-        Function<int[], Object> aggMultiValue,
-        Function<Double, Object> aggSingleValue
-    ) {};
+    /**
+     * An aggregation over a constant whose state doesn't change with repetitions folds to its one-row result, computed by
+     * its aggregator, and to its no-rows result on a null input.
+     */
+    private record AggOfLiteralTestCase(String aggFunctionTemplate, Object multiValue, Object singleValue, Object nullValue) {}
 
-    private static List<AggOfLiteralTestCase> AGG_OF_CONST_CASES = List.of(
-        new AggOfLiteralTestCase(
-            "avg({})",
-            constant -> new MvAvg(EMPTY, constant),
-            ints -> ((double) Arrays.stream(ints).sum()) / ints.length,
-            d -> d
-        ),
-        new AggOfLiteralTestCase("min({})", c -> new MvMin(EMPTY, c), ints -> Arrays.stream(ints).min().getAsInt(), d -> d),
-        new AggOfLiteralTestCase("max({})", c -> new MvMax(EMPTY, c), ints -> Arrays.stream(ints).max().getAsInt(), d -> d),
-        new AggOfLiteralTestCase("median({})", c -> new MvMedian(EMPTY, new ToDouble(EMPTY, c)), ints -> {
-            var sortedInts = Arrays.stream(ints).sorted().toArray();
-            int middle = ints.length / 2;
-            double result = ints.length % 2 == 1 ? sortedInts[middle] : (sortedInts[middle] + sortedInts[middle - 1]) / 2.0;
-            return result;
-        }, d -> d),
-        new AggOfLiteralTestCase(
-            "count_distinct({}, 1234)",
-            c -> new ToLong(
-                EMPTY,
-                new Coalesce(EMPTY, new MvCount(EMPTY, new MvDedupe(EMPTY, c)), List.of(new Literal(EMPTY, 0, DataType.INTEGER)))
-            ),
-            ints -> Arrays.stream(ints).distinct().count(),
-            d -> 1L
-        )
+    private static final List<AggOfLiteralTestCase> AGG_OF_CONST_CASES = List.of(
+        new AggOfLiteralTestCase("min({})", 1, 3.14, null),
+        new AggOfLiteralTestCase("max({})", 2, 3.14, null),
+        new AggOfLiteralTestCase("count_distinct({}, 1234)", 2L, 1L, 0L)
     );
 
+    private static String aggOfLiteralQuery(AggOfLiteralTestCase testCase, String queryTemplate) {
+        String template = testCase.aggFunctionTemplate;
+        String queryWithoutValues = LoggerMessageFormat.format(null, queryTemplate, template, template, template);
+        return LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
+    }
+
     /**
-     * Aggs of literals in case that the agg can be simply replaced by a corresponding mv-function;
-     * e.g. avg([1,2,3]) which is equivalent to mv_avg([1,2,3]).
-     * <p>
-     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
-     *
+     * Without groupings there may be no rows, so the one-row result is guarded by a count.
      * {@snippet lang="text":
-     * Limit[1000[INTEGER]]
-     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
-     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
-     *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
-     *       \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
+     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
+     * \_Eval[[CASE($$COUNT$s$0{r$}#21 > 0[LONG],1[INTEGER],null[INTEGER]) AS s, CASE($$COUNT$s$0{r$}#21 > 0[LONG],3.14[DOUBLE],
+     *     null[DOUBLE]) AS s_expr, null[NULL] AS s_null]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$s$0]]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, ..]
      * }
      */
     public void testAggOfLiteral() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
-            String queryTemplate = """
+            var plan = plan(aggOfLiteralQuery(testCase, """
                 from test
                 | stats s = {},
                         s_expr = {},
                         s_null = {}
                 | keep s, s_expr, s_null
-                """;
-            String queryWithoutValues = LoggerMessageFormat.format(
-                null,
-                queryTemplate,
-                testCase.aggFunctionTemplate,
-                testCase.aggFunctionTemplate,
-                testCase.aggFunctionTemplate
-            );
-            String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
+                """));
 
-            var plan = plan(query, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
-
-            var limit = as(plan, Limit.class);
-            var topProject = as(limit.child(), Project.class);
-            var project = as(topProject.child(), Project.class);
+            var project = as(plan, Project.class);
+            assertThat(Expressions.names(project.projections()), contains("s", "s_expr", "s_null"));
             var eval = as(project.child(), Eval.class);
-            var singleRowRelation = as(eval.child(), LocalRelation.class);
-            var singleRow = singleRowRelation.supplier().get();
-            assertThat(singleRow.getBlockCount(), equalTo(1));
-            assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
+            var limit = as(eval.child(), Limit.class);
+            var agg = as(limit.child(), Aggregate.class);
+            assertThat(agg.aggregates().size(), equalTo(1));
+            var count = agg.aggregates().getFirst();
+            as(Alias.unwrap(count), Count.class);
 
-            assertAggOfConstExprs(testCase, eval.fields());
+            var fields = eval.fields();
+            assertThat(fields.size(), equalTo(3));
+            assertGuardedByCount(fields.get(0), count, testCase.multiValue, testCase.nullValue);
+            assertGuardedByCount(fields.get(1), count, testCase.singleValue, testCase.nullValue);
+            assertThat(as(fields.get(2).child(), Literal.class).value(), equalTo(testCase.nullValue));
         }
     }
 
+    private static void assertGuardedByCount(Alias alias, NamedExpression count, Object oneRow, Object noRows) {
+        var caseExpression = as(alias.child(), Case.class);
+        var hasRows = as(caseExpression.children().get(0), GreaterThan.class);
+        assertThat(Expressions.attribute(hasRows.left()).id(), equalTo(count.id()));
+        assertThat(as(caseExpression.children().get(1), Literal.class).value(), equalTo(oneRow));
+        assertThat(as(caseExpression.children().get(2), Literal.class).value(), equalTo(noRows));
+    }
+
     /**
-     * Like {@link LogicalPlanOptimizerTests#testAggOfLiteral()} but with a grouping key.
-     * <p>
-     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
-     *
+     * Like {@link LogicalPlanOptimizerTests#testAggOfLiteral()} but with a grouping key: every group has rows.
      * {@snippet lang="text":
-     * Limit[1000[INTEGER]]
-     * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
-     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
-     *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
-     *       \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
-     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
+     * \_Eval[[1[INTEGER] AS s, 3.14[DOUBLE] AS s_expr, null[NULL] AS s_null]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *       \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      * }
      */
     public void testAggOfLiteralGrouped() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
-            String queryTemplate = """
+            var plan = plan(aggOfLiteralQuery(testCase, """
                     from test
                     | stats s = {},
                             s_expr = {},
                             s_null = {}
                             by emp_no
                     | keep s, s_expr, s_null, emp_no
-                """;
-            String queryWithoutValues = LoggerMessageFormat.format(
-                null,
-                queryTemplate,
-                testCase.aggFunctionTemplate,
-                testCase.aggFunctionTemplate,
-                testCase.aggFunctionTemplate
-            );
-            String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
+                """));
 
-            var plan = plan(query, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
-
-            var limit = as(plan, Limit.class);
-            var topProject = as(limit.child(), Project.class);
-            var project = as(topProject.child(), Project.class);
+            var project = as(plan, Project.class);
+            assertThat(Expressions.names(project.projections()), contains("s", "s_expr", "s_null", "emp_no"));
             var eval = as(project.child(), Eval.class);
-            var agg = as(eval.child(), Aggregate.class);
+            var limit = as(eval.child(), Limit.class);
+            var agg = as(limit.child(), Aggregate.class);
             assertThat(agg.child(), instanceOf(EsRelation.class));
+            assertThat(Expressions.names(agg.aggregates()), contains("emp_no"));
 
-            // Assert that the aggregate only does the grouping by emp_no
-            assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
-            assertThat(agg.aggregates().size(), equalTo(1));
-
-            assertAggOfConstExprs(testCase, eval.fields());
+            var values = eval.fields().stream().map(f -> as(f.child(), Literal.class).value()).toList();
+            assertThat(values, equalTo(Arrays.asList(testCase.multiValue, testCase.singleValue, testCase.nullValue)));
         }
-    }
-
-    private static void assertAggOfConstExprs(AggOfLiteralTestCase testCase, List<Alias> exprs) {
-        var s = as(exprs.get(0), Alias.class);
-        assertThat(s.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "[1,2]")));
-        assertEquals(s.child(), testCase.replacementForConstant.apply(new Literal(EMPTY, List.of(1, 2), INTEGER)));
-        assertEquals(s.child().fold(FoldContext.small()), testCase.aggMultiValue.apply(new int[] { 1, 2 }));
-
-        var s_expr = as(exprs.get(1), Alias.class);
-        assertThat(s_expr.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "314.0/100")));
-        assertEquals(
-            s_expr.child(),
-            testCase.replacementForConstant.apply(new Div(EMPTY, new Literal(EMPTY, 314.0, DOUBLE), new Literal(EMPTY, 100, INTEGER)))
-        );
-        assertEquals(s_expr.child().fold(FoldContext.small()), testCase.aggSingleValue.apply(3.14));
-
-        var s_null = as(exprs.get(2), Alias.class);
-        assertThat(s_null.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "null")));
-        assertEquals(s_null.child(), testCase.replacementForConstant.apply(NULL));
-        // Cannot just fold as there may be no evaluator for the NULL datatype;
-        // instead we emulate how the optimizer would fold the null value:
-        // it transforms up from the leaves; c.f. FoldNull.
-        assertTrue(oneLeaveIsNull(s_null));
     }
 
     private static void assertSubstitutionChain(Expression e, List<Class<? extends Expression>> substitutionChain) {
@@ -5305,18 +5218,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
 
         assertThat(currentExpression, instanceOf(substitutionChain.get(substitutionChain.size() - 1)));
-    }
-
-    private static boolean oneLeaveIsNull(Expression e) {
-        Holder<Boolean> result = new Holder<>(false);
-
-        e.forEachUp(node -> {
-            if (node.children().size() == 0) {
-                result.set(result.get() || Expressions.isGuaranteedNull(node));
-            }
-        });
-
-        return result.get();
     }
 
     public void testEmptyMappingIndex() {

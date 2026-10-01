@@ -139,6 +139,32 @@ setup:
           }
 
   - do:
+      catch: bad_request
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-remote-cluster-source
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "time",
+            "grouping_interval": "1h",
+            "esql_query": "FROM index-esql-datafeed-lifecycle,remote_cluster:index-esql-datafeed-lifecycle | KEEP time, value"
+          }
+
+  - do:
+      catch: /do not support remote cluster sources in this release.*\[remote_cluster:index-esql-datafeed-lifecycle\]/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-remote-cluster-source
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "time",
+            "grouping_interval": "1h",
+            "esql_query": "FROM index-esql-datafeed-lifecycle,remote_cluster:index-esql-datafeed-lifecycle | KEEP time, value"
+          }
+
+  - do:
       ml.put_job:
         job_id: esql-datafeed-stats-bucket-job
         body: >

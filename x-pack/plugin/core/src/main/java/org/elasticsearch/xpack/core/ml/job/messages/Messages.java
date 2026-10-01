@@ -71,6 +71,9 @@ public final class Messages {
         "Cannot start ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_CREATE_DISABLED =
         "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
+        "ES|QL datafeeds do not support remote cluster sources in this release, but the index expression [{0}] in the "
+            + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate datafeed [{0}] to change its query shape. The update API only supports operational settings: "
             + "query delay, frequency, maximum empty searches, chunking, and delayed data checks.";

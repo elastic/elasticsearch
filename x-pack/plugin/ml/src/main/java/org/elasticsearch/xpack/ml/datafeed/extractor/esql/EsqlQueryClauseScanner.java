@@ -196,7 +196,7 @@ final class EsqlQueryClauseScanner {
         return Character.isWhitespace(character) || character == '/' || character == '(' || character == ')';
     }
 
-    private static int skipWhitespaceAndComments(String query, int index) {
+    static int skipWhitespaceAndComments(String query, int index) {
         while (index < query.length()) {
             if (Character.isWhitespace(query.charAt(index))) {
                 index++;
@@ -211,7 +211,7 @@ final class EsqlQueryClauseScanner {
         return index;
     }
 
-    private static int skipQuotedString(String query, int index) {
+    static int skipQuotedString(String query, int index) {
         boolean tripleQuoted = query.startsWith("\"\"\"", index);
         int closingQuoteLength = tripleQuoted ? 3 : 1;
         index += closingQuoteLength;

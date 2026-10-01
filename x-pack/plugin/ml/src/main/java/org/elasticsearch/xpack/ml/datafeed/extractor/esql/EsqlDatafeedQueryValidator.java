@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -197,10 +199,112 @@ public class EsqlDatafeedQueryValidator {
      * <p>
      * Returns {@code null} when the query does not lead with FROM or TS (not expected for datafeeds).
      */
-    private static String extractLeadingSourceCommand(String esqlQuery) {
+    static String extractLeadingSourceCommand(String esqlQuery) {
         String leading = EsqlQueryClauseScanner.extractLeadingCommand(esqlQuery).strip();
         int commandStart = EsqlQueryClauseScanner.skipLeadingWhitespaceAndComments(leading);
         return isSourceCommand(leading, commandStart) ? leading : null;
+    }
+
+    /**
+     * Rejects, with a 400, an ES|QL datafeed query whose leading FROM/TS command names a remote cluster source
+     * ({@code cluster:index}, {@code *:index}, {@code cl*:index}, or a quoted {@code "cluster:index"}).
+     * ES|QL datafeeds keep their sources inside the query text rather than in {@code indices}, so the start-time
+     * remote_cluster_client role, remote ML licence and remote version checks (and the node selector) never see
+     * them. Remote sources are rejected until those checks are supported for ES|QL datafeeds.
+     * <p>
+     * Not rejected: the selector syntax {@code index::failures} / {@code index::data}, date math, a colon in a
+     * comment or in text after the source command (for example a {@code METADATA} clause), and the CPS
+     * {@code _origin:} qualifier. When cross-project search is enabled a {@code project:index} prefix is a
+     * project-qualified expression resolved by the CPS rewriter, not a remote cluster, so nothing is rejected.
+     */
+    public static void rejectRemoteClusterSources(@Nullable String esqlQuery, boolean crossProjectEnabled) {
+        if (esqlQuery == null || crossProjectEnabled) {
+            return;
+        }
+        String sourceCommand = extractLeadingSourceCommand(esqlQuery);
+        if (sourceCommand == null) {
+            return;
+        }
+        for (String indexExpression : sourceIndexExpressions(sourceCommand)) {
+            String clusterAlias = remoteClusterAlias(indexExpression);
+            if (clusterAlias != null) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED, indexExpression, clusterAlias)
+                );
+            }
+        }
+    }
+
+    /**
+     * Returns the cluster alias of a single index expression, or {@code null} if it is a local expression.
+     * Delegates the {@code cluster:index} split to {@link RemoteClusterAware}, which already treats date math and
+     * the {@code ::} selector separator as non-remote. A leading {@code -} (exclusion) is ignored, and the CPS
+     * {@code _origin} qualifier is not a remote cluster (mirrors {@code TransportStartDatafeedAction#trueRemoteIndices}).
+     */
+    @Nullable
+    private static String remoteClusterAlias(String indexExpression) {
+        String expression = indexExpression.startsWith("-") ? indexExpression.substring(1) : indexExpression;
+        if (RemoteClusterAware.isRemoteIndexName(expression) == false) {
+            return null;
+        }
+        String clusterAlias = RemoteClusterAware.splitIndexName(expression).clusterAlias();
+        return "_origin".equals(clusterAlias) ? null : clusterAlias;
+    }
+
+    /**
+     * Index expressions of a leading {@code FROM}/{@code TS} command, in order: the comma-separated list after the
+     * keyword, up to the first token that is not followed by a comma (a {@code METADATA} clause, or the end). Quoted
+     * expressions are returned without their quotes. Comments between tokens are skipped.
+     */
+    private static List<String> sourceIndexExpressions(String sourceCommand) {
+        int index = EsqlQueryClauseScanner.skipLeadingWhitespaceAndComments(sourceCommand);
+        index += matchesCommandKeyword(sourceCommand, index, "FROM") ? "FROM".length() : "TS".length();
+        List<String> expressions = new ArrayList<>();
+        while (true) {
+            index = EsqlQueryClauseScanner.skipWhitespaceAndComments(sourceCommand, index);
+            if (index >= sourceCommand.length()) {
+                break;
+            }
+            int tokenEnd;
+            String expression;
+            if (sourceCommand.charAt(index) == '"') {
+                tokenEnd = EsqlQueryClauseScanner.skipQuotedString(sourceCommand, index);
+                int quoteLength = sourceCommand.startsWith("\"\"\"", index) ? 3 : 1;
+                int contentEnd = Math.max(index + quoteLength, tokenEnd - quoteLength);
+                expression = sourceCommand.substring(index + quoteLength, contentEnd);
+                // ES|QL rejects a quoted cluster part ("east":logs), but a cluster prefix outside the quotes is still remote.
+                if (tokenEnd < sourceCommand.length()
+                    && sourceCommand.charAt(tokenEnd) == RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR
+                    && sourceCommand.startsWith("::", tokenEnd) == false) {
+                    expression = expression + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+                }
+            } else {
+                tokenEnd = index;
+                while (tokenEnd < sourceCommand.length() && isUnquotedSourceCharacter(sourceCommand, tokenEnd)) {
+                    tokenEnd++;
+                }
+                expression = sourceCommand.substring(index, tokenEnd);
+            }
+            if (tokenEnd == index) {
+                break;
+            }
+            expressions.add(expression);
+            index = EsqlQueryClauseScanner.skipWhitespaceAndComments(sourceCommand, tokenEnd);
+            if (index < sourceCommand.length() && sourceCommand.charAt(index) == ',') {
+                index++;
+            } else {
+                break;
+            }
+        }
+        return expressions;
+    }
+
+    private static boolean isUnquotedSourceCharacter(String text, int index) {
+        char character = text.charAt(index);
+        return Character.isWhitespace(character) == false
+            && character != ','
+            && text.startsWith("//", index) == false
+            && text.startsWith("/*", index) == false;
     }
 
     /**

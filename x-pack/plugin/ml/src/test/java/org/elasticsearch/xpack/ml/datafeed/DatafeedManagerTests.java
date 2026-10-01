@@ -743,6 +743,44 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(client, never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
     }
 
+    public void testPutEsqlDatafeedWithRemoteClusterSourceShouldRejectBeforeAnyValidation() {
+        for (boolean securityEnabled : new boolean[] { false, true }) {
+            Settings settings = Settings.builder().put("xpack.security.enabled", securityEnabled).build();
+            DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+            JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+            Client client = mock(Client.class);
+            ThreadPool threadPool = mock(ThreadPool.class);
+            when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+            DatafeedManager manager = newDatafeedManager(
+                datafeedConfigProvider,
+                jobConfigProvider,
+                settings,
+                client,
+                mockMlExtension(mock(CloudCredentialManager.class), mock(InternalCloudApiKeyService.class)),
+                mockAuditor()
+            );
+            DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs-*, remote:logs-*")
+                .setSourceTimeField("@timestamp")
+                .setGroupingInterval(TimeValue.timeValueHours(1))
+                .build();
+
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            manager.putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                securityEnabled ? mockSecurityContextWithUser("df-user") : null,
+                threadPool,
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+            assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources in this release"));
+            assertThat(failure.get().getMessage(), containsString("[remote:logs-*]"));
+            verifyNoInteractions(datafeedConfigProvider, jobConfigProvider, client);
+        }
+    }
+
     /**
      * If downstream work fails after a cloud API key was granted, the minted key is revoked and the failure is propagated.
      */
@@ -2455,6 +2493,44 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
         assertThat(failure.get().getMessage(), containsString("Recreate datafeed [esql-datafeed] to change its query shape"));
+        verifyNoInteractions(jobConfigProvider, client, apiKeyService);
+    }
+
+    public void testEsqlQueryWithRemoteClusterUpdateShouldRejectBeforeValidation() {
+        Settings settings = Settings.builder().put("xpack.security.enabled", false).build();
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mockMlExtension(mock(CloudCredentialManager.class), apiKeyService),
+            mockAuditor()
+        );
+        DatafeedConfig current = new DatafeedConfig.Builder("esql-datafeed", "job-1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        stubGetDatafeedConfig(datafeedConfigProvider, current);
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder("esql-datafeed").setEsqlQuery("FROM remote:logs").build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(update),
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
         verifyNoInteractions(jobConfigProvider, client, apiKeyService);
     }
 

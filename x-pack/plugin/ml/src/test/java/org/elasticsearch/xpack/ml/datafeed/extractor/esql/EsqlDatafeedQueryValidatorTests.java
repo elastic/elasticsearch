@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -877,6 +879,91 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     private EsqlQueryResponse buildResponse(List<ColumnInfo> columns) {
         return new TestEsqlQueryResponse(mockEsqlResponse(columns));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenRemoteIndexShouldFailWithBadRequest() {
+        ElasticsearchStatusException e = expectRejected("FROM remote:logs-* | STATS c = COUNT(*) BY BUCKET(@timestamp, 1h)");
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("do not support remote cluster sources in this release"));
+        assertThat(e.getMessage(), containsString("[remote:logs-*]"));
+        assertThat(e.getMessage(), containsString("query local indices only"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenRemoteIndexInCommaListShouldFail() {
+        assertThat(expectRejected("FROM a,remote:b").getMessage(), containsString("[remote:b]"));
+        assertThat(expectRejected("FROM a , b , east:c METADATA _id").getMessage(), containsString("[east:c]"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenWildcardClusterShouldFail() {
+        assertThat(expectRejected("FROM *:logs-*").getMessage(), containsString("[*:logs-*]"));
+        assertThat(expectRejected("FROM cl*:logs-*").getMessage(), containsString("[cl*:logs-*]"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenQuotedClusterPrefixShouldFail() {
+        assertThat(expectRejected("FROM \"east:logs-*\"").getMessage(), containsString("[east:logs-*]"));
+        assertThat(expectRejected("FROM a, \"\"\"east:logs\"\"\"").getMessage(), containsString("[east:logs]"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenTimeSeriesSourceShouldFail() {
+        assertThat(expectRejected("TS remote:metrics-* | STATS AVG(cpu)").getMessage(), containsString("[remote:metrics-*]"));
+        assertThat(expectRejected("ts metrics-*,remote:metrics-*").getMessage(), containsString("[remote:metrics-*]"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenExcludedRemoteIndexShouldFail() {
+        assertThat(expectRejected("FROM logs-*,-remote:logs-old").getMessage(), containsString("[-remote:logs-old]"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenLeadingCommentShouldStillFail() {
+        assertThat(expectRejected("// source\nFROM /* inline */ remote:logs").getMessage(), containsString("[remote:logs]"));
+        assertThat(expectRejected("FROM a, // next\n remote:b").getMessage(), containsString("[remote:b]"));
+    }
+
+    public void testRejectRemoteClusterSourcesGivenLocalSourcesShouldAccept() {
+        for (String query : List.of(
+            "FROM logs-*",
+            "FROM logs-* METADATA _id",
+            "FROM a, b METADATA _id, _index",
+            "TS metrics-* | STATS AVG(cpu) BY BUCKET(@timestamp, 1h)",
+            "FROM \"logs-*\"",
+            "FROM <logs-{now/d}>",
+            "FROM \"<logs-{now{yyyy.MM.dd|+12:00}}>\"",
+            "FROM logs-*,-logs-old"
+        )) {
+            EsqlDatafeedQueryValidator.rejectRemoteClusterSources(query, false);
+        }
+    }
+
+    public void testRejectRemoteClusterSourcesGivenSelectorSyntaxShouldAccept() {
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM idx::failures", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM idx::data, other::failures METADATA _id", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM \"idx::failures\"", false);
+    }
+
+    public void testRejectRemoteClusterSourcesGivenColonOutsideSourceListShouldAccept() {
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("// remote:logs\nFROM logs-*", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM /* east:logs */ logs-*", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* // remote:logs", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* | WHERE host == \"a:b\" | EVAL x = \"remote:idx\"", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* METADATA _id | LOOKUP JOIN remote:lookup ON k", false);
+    }
+
+    public void testRejectRemoteClusterSourcesGivenOriginQualifierShouldAccept() {
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM _origin:logs-*", false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-*,-_origin:logs-old", false);
+    }
+
+    public void testRejectRemoteClusterSourcesGivenCrossProjectEnabledShouldAcceptProjectQualifiedSources() {
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM linked-project-1:logs-*", true);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM *:logs-*", true);
+    }
+
+    public void testRejectRemoteClusterSourcesGivenNoQueryOrNonSourceQueryShouldAccept() {
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources(null, false);
+        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("ROW a = \"remote:idx\"", false);
+    }
+
+    private static ElasticsearchStatusException expectRejected(String query) {
+        return expectThrows(ElasticsearchStatusException.class, () -> EsqlDatafeedQueryValidator.rejectRemoteClusterSources(query, false));
     }
 
     /**

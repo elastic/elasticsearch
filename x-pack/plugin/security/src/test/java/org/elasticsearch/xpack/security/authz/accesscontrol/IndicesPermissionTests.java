@@ -25,8 +25,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -47,6 +49,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -873,6 +876,324 @@ public class IndicesPermissionTests extends ESTestCase {
             assertThat("for [" + requested + "]", access.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
             assertThat("for [" + requested + "]", access.isDlsFlsImplicit(), is(false));
         }
+    }
+
+    /**
+     * A data stream grant with DLS and an unrestricted grant on one backing index (different name sets, so they are
+     * not merged at role-build time). The backing index is relaxed only when it is itself requested: then its entry
+     * is the union of both grants (allow-all documents) while every other backing index, and the data stream entry,
+     * keep the data stream's DLS and keep sharing one {@code IndexAccessControl}. When only the data stream is
+     * requested the direct grant does not apply and all backing indices share the restricted entry.
+     *
+     * <p>The data stream entry assertion is the regression test for the pre-refactoring behaviour, where that entry
+     * was written by reference from the last backing index and could become allow-all depending on the iteration
+     * order of the requested names; the scenario therefore runs with names covering both orders.
+     */
+    public void testDirectlyRequestedBackingIndexWithUnrestrictedGrantIsRelaxedWithoutAffectingDataStreamEntry() {
+        final Set<BytesReference> query = Collections.singleton(new BytesArray("{\"term\":{\"tenant\":\"a\"}}"));
+        final int numBackingIndices = randomIntBetween(3, 6);
+        for (String dataStreamName : dataStreamNamesCoveringBothIterationOrders(numBackingIndices)) {
+            final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, numBackingIndices, 0);
+            final List<String> backingIndices = backingIndexNames(metadata, dataStreamName);
+            final String writeIndex = backingIndices.get(backingIndices.size() - 1);
+            final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+                IndexPrivilege.READ,
+                FieldPermissions.DEFAULT,
+                query,
+                false,
+                dataStreamName
+            ).addGroup(IndexPrivilege.READ, FieldPermissions.DEFAULT, null, false, writeIndex).build();
+            final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+            // data stream and its write index requested together
+            IndicesAccessControl iac = permission.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet(dataStreamName, writeIndex),
+                metadata,
+                fieldPermissionsCache
+            );
+            assertThat(iac.isGranted(), is(true));
+            final IndicesAccessControl.IndexAccessControl dataStreamAccess = iac.getIndexPermissions(dataStreamName);
+            assertThat(dataStreamAccess, is(notNullValue()));
+            assertThat(dataStreamAccess.getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
+            assertThat(dataStreamAccess.isDlsFlsImplicit(), is(false));
+            final IndicesAccessControl.IndexAccessControl writeIndexAccess = iac.getIndexPermissions(writeIndex);
+            assertThat(writeIndexAccess, is(notNullValue()));
+            assertThat(writeIndexAccess.getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
+            assertThat(writeIndexAccess.getFieldPermissions().hasFieldLevelSecurity(), is(false));
+            assertThat(writeIndexAccess.isDlsFlsImplicit(), is(false));
+            assertNotSame(dataStreamAccess, writeIndexAccess);
+            for (String backingIndex : backingIndices.subList(0, backingIndices.size() - 1)) {
+                assertSame("[" + backingIndex + "] for [" + dataStreamName + "]", dataStreamAccess, iac.getIndexPermissions(backingIndex));
+            }
+
+            // data stream requested alone: the direct grant does not match the data stream, so nothing is relaxed
+            iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet(dataStreamName), metadata, fieldPermissionsCache);
+            assertThat(iac.isGranted(), is(true));
+            final IndicesAccessControl.IndexAccessControl shared = iac.getIndexPermissions(dataStreamName);
+            assertThat(shared.getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
+            for (String backingIndex : backingIndices) {
+                assertSame("[" + backingIndex + "] for [" + dataStreamName + "]", shared, iac.getIndexPermissions(backingIndex));
+            }
+
+            // write index requested alone: both grants match it, allow-all wins
+            iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet(writeIndex), metadata, fieldPermissionsCache);
+            assertThat(iac.isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(writeIndex).getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
+        }
+    }
+
+    /**
+     * When the direct grant on a requested backing index adds nothing to what the data stream grant already gives
+     * (same DLS query, no FLS), the merge keeps one of the two equal inputs rather than building a third. Which one
+     * survives depends on the iteration order of the requested names, so the requested backing index is only
+     * guaranteed an {@code IndexAccessControl} equal to the data stream's, while its siblings keep sharing the data
+     * stream's instance.
+     */
+    public void testDirectGrantCoveredByDataStreamGrantKeepsSharedInstance() {
+        final String dataStreamName = randomAlphaOfLength(6);
+        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(2, 5), 0);
+        final List<String> backingIndices = backingIndexNames(metadata, dataStreamName);
+        final String requestedBackingIndex = randomFrom(backingIndices);
+        final BytesReference query = new BytesArray("{\"term\":{\"tenant\":\"a\"}}");
+        // two distinct but equal query sets, as two role groups would carry
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ,
+            FieldPermissions.DEFAULT,
+            Collections.singleton(query),
+            false,
+            dataStreamName
+        )
+            .addGroup(
+                IndexPrivilege.READ,
+                FieldPermissions.DEFAULT,
+                Set.of(new BytesArray(query.utf8ToString())),
+                false,
+                requestedBackingIndex
+            )
+            .build();
+
+        final IndicesAccessControl iac = permission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(dataStreamName, requestedBackingIndex),
+            metadata,
+            new FieldPermissionsCache(Settings.EMPTY)
+        );
+        assertThat(iac.isGranted(), is(true));
+        final IndicesAccessControl.IndexAccessControl dataStreamAccess = iac.getIndexPermissions(dataStreamName);
+        assertThat(dataStreamAccess.getDocumentPermissions().getSingleSetOfQueries(), equalTo(Set.of(query)));
+        assertThat(iac.getIndexPermissions(requestedBackingIndex), equalTo(dataStreamAccess));
+        for (String backingIndex : backingIndices) {
+            if (backingIndex.equals(requestedBackingIndex) == false) {
+                assertSame("[" + backingIndex + "]", dataStreamAccess, iac.getIndexPermissions(backingIndex));
+            }
+        }
+    }
+
+    /**
+     * Two aliases over one index, each with its own DLS and FLS, both requested: the index gets the union of both
+     * grants, while each alias entry carries only the grants of the groups that matched that alias. Before the
+     * refactoring the alias entries were written by reference from the index and could pick up each other's grants.
+     */
+    public void testAliasesOverSameIndexGetOwnEntriesWhileIndexGetsUnion() {
+        final IndexMetadata.Builder indexBuilder = IndexMetadata.builder("_index")
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .putAlias(AliasMetadata.builder("_alias1"))
+            .putAlias(AliasMetadata.builder("_alias2"));
+        final ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexBuilder.build(), true).build();
+        final Set<BytesReference> query1 = Collections.singleton(new BytesArray("{\"term\":{\"tenant\":\"1\"}}"));
+        final Set<BytesReference> query2 = Collections.singleton(new BytesArray("{\"term\":{\"tenant\":\"2\"}}"));
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ,
+            new FieldPermissions(fieldPermissionDef(new String[] { "field1" }, null)),
+            query1,
+            false,
+            "_alias1"
+        )
+            .addGroup(
+                IndexPrivilege.READ,
+                new FieldPermissions(fieldPermissionDef(new String[] { "field2" }, null)),
+                query2,
+                false,
+                "_alias2"
+            )
+            .build();
+
+        IndicesAccessControl iac = permission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("_alias1", "_alias2"),
+            metadata,
+            fieldPermissionsCache
+        );
+        assertThat(iac.isGranted(), is(true));
+        final IndicesAccessControl.IndexAccessControl indexAccess = iac.getIndexPermissions("_index");
+        assertThat(indexAccess.getDocumentPermissions().getSingleSetOfQueries(), equalTo(Sets.union(query1, query2)));
+        assertThat(indexAccess.getFieldPermissions().grantsAccessTo("field1"), is(true));
+        assertThat(indexAccess.getFieldPermissions().grantsAccessTo("field2"), is(true));
+        final IndicesAccessControl.IndexAccessControl alias1Access = iac.getIndexPermissions("_alias1");
+        assertThat(alias1Access.getDocumentPermissions().getSingleSetOfQueries(), equalTo(query1));
+        assertThat(alias1Access.getFieldPermissions().grantsAccessTo("field1"), is(true));
+        assertThat(alias1Access.getFieldPermissions().grantsAccessTo("field2"), is(false));
+        final IndicesAccessControl.IndexAccessControl alias2Access = iac.getIndexPermissions("_alias2");
+        assertThat(alias2Access.getDocumentPermissions().getSingleSetOfQueries(), equalTo(query2));
+        assertThat(alias2Access.getFieldPermissions().grantsAccessTo("field1"), is(false));
+        assertThat(alias2Access.getFieldPermissions().grantsAccessTo("field2"), is(true));
+
+        // one alias requested alone: the index and the alias share the alias' grants
+        iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias1"), metadata, fieldPermissionsCache);
+        assertThat(iac.isGranted(), is(true));
+        assertSame(iac.getIndexPermissions("_alias1"), iac.getIndexPermissions("_index"));
+        assertThat(iac.getIndexPermissions("_index").getDocumentPermissions().getSingleSetOfQueries(), equalTo(query1));
+        assertThat(iac.getIndexPermissions("_alias2"), is(nullValue()));
+    }
+
+    /**
+     * An implicit DLS grant on the data stream and an explicit DLS grant on one requested backing index: only the
+     * entry where both contribute is explicit (and carries both queries); the data stream entry and the other backing
+     * indices stay implicit and keep sharing one instance.
+     */
+    public void testImplicitDataStreamGrantMergedWithExplicitBackingIndexGrantIsExplicitOnlyForThatIndex() {
+        final String dataStreamName = randomAlphaOfLength(6);
+        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(3, 6), 0);
+        final List<String> backingIndices = backingIndexNames(metadata, dataStreamName);
+        final String requestedBackingIndex = randomFrom(backingIndices);
+        final Set<BytesReference> implicitQuery = Collections.singleton(new BytesArray("{\"term\":{\"clearance\":\"public\"}}"));
+        final Set<BytesReference> explicitQuery = Collections.singleton(new BytesArray("{\"term\":{\"tenant\":\"a\"}}"));
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ,
+            FieldPermissions.DEFAULT,
+            implicitQuery,
+            false,
+            true,
+            dataStreamName
+        ).addGroup(IndexPrivilege.READ, FieldPermissions.DEFAULT, explicitQuery, false, false, requestedBackingIndex).build();
+
+        final IndicesAccessControl iac = permission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(dataStreamName, requestedBackingIndex),
+            metadata,
+            new FieldPermissionsCache(Settings.EMPTY)
+        );
+        assertThat(iac.isGranted(), is(true));
+        final IndicesAccessControl.IndexAccessControl dataStreamAccess = iac.getIndexPermissions(dataStreamName);
+        assertThat(dataStreamAccess.getDocumentPermissions().getSingleSetOfQueries(), equalTo(implicitQuery));
+        assertThat(dataStreamAccess.isDlsFlsImplicit(), is(true));
+        final IndicesAccessControl.IndexAccessControl mergedAccess = iac.getIndexPermissions(requestedBackingIndex);
+        assertThat(mergedAccess.getDocumentPermissions().getSingleSetOfQueries(), equalTo(Sets.union(implicitQuery, explicitQuery)));
+        assertThat(mergedAccess.isDlsFlsImplicit(), is(false));
+        for (String backingIndex : backingIndices) {
+            if (backingIndex.equals(requestedBackingIndex) == false) {
+                assertSame("[" + backingIndex + "]", dataStreamAccess, iac.getIndexPermissions(backingIndex));
+            }
+        }
+    }
+
+    /**
+     * The {@code ::failures} counterpart of the backing index scenario: a failure store grant with DLS on the data
+     * stream and an unrestricted direct grant on one failure index. The {@code <data stream>::failures} entry and the
+     * other failure indices keep the DLS and share one instance; the requested failure index is relaxed only when it
+     * is itself requested.
+     */
+    public void testDirectlyRequestedFailureIndexWithUnrestrictedGrantIsRelaxedWithoutAffectingFailuresEntry() {
+        final String dataStreamName = randomAlphaOfLength(6);
+        final ProjectMetadata metadata = dataStreamProjectMetadata(dataStreamName, randomIntBetween(1, 3), randomIntBetween(2, 4));
+        final List<String> failureIndices = metadata.dataStreams()
+            .get(dataStreamName)
+            .getFailureIndices()
+            .stream()
+            .map(Index::getName)
+            .toList();
+        final String requestedFailureIndex = randomFrom(failureIndices);
+        final Set<BytesReference> query = Collections.singleton(new BytesArray("{\"term\":{\"document.id\":\"1\"}}"));
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ_FAILURE_STORE,
+            FieldPermissions.DEFAULT,
+            query,
+            false,
+            dataStreamName
+        ).addGroup(IndexPrivilege.READ, FieldPermissions.DEFAULT, null, false, requestedFailureIndex).build();
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        final String failuresName = dataStreamName + "::failures";
+
+        IndicesAccessControl iac = permission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(failuresName, requestedFailureIndex),
+            metadata,
+            fieldPermissionsCache
+        );
+        assertThat(iac.isGranted(), is(true));
+        final IndicesAccessControl.IndexAccessControl failuresAccess = iac.getIndexPermissions(failuresName);
+        assertThat(failuresAccess, is(notNullValue()));
+        assertThat(failuresAccess.getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
+        assertThat(iac.getIndexPermissions(requestedFailureIndex).getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
+        for (String failureIndex : failureIndices) {
+            if (failureIndex.equals(requestedFailureIndex) == false) {
+                assertSame("[" + failureIndex + "]", failuresAccess, iac.getIndexPermissions(failureIndex));
+            }
+        }
+
+        // ::failures requested alone: every failure index keeps the DLS
+        iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet(failuresName), metadata, fieldPermissionsCache);
+        assertThat(iac.isGranted(), is(true));
+        for (String failureIndex : failureIndices) {
+            assertSame("[" + failureIndex + "]", iac.getIndexPermissions(failuresName), iac.getIndexPermissions(failureIndex));
+        }
+    }
+
+    private static ProjectMetadata dataStreamProjectMetadata(String dataStreamName, int numBackingIndices, int numFailureIndices) {
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        final List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int i = 1; i <= numBackingIndices; i++) {
+            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, i)));
+        }
+        final List<IndexMetadata> failureIndices = new ArrayList<>();
+        for (int i = 1; i <= numFailureIndices; i++) {
+            failureIndices.add(createBackingIndexMetadata(DataStream.getDefaultFailureStoreName(dataStreamName, i, 1L)));
+        }
+        builder.put(
+            DataStreamTestHelper.newInstance(
+                dataStreamName,
+                backingIndices.stream().map(IndexMetadata::getIndex).toList(),
+                failureIndices.stream().map(IndexMetadata::getIndex).toList()
+            )
+        );
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+        for (IndexMetadata index : failureIndices) {
+            builder.put(index, false);
+        }
+        return builder.build();
+    }
+
+    private static List<String> backingIndexNames(ProjectMetadata metadata, String dataStreamName) {
+        return metadata.dataStreams().get(dataStreamName).getIndices().stream().map(Index::getName).toList();
+    }
+
+    /**
+     * Data stream names for which a {@code HashMap} of the requested names (the data stream and its write index, i.e.
+     * backing index number {@code writeIndexNumber}) iterates the backing index first, and names for which it
+     * iterates the data stream first. Mirrors the map construction in {@code IndicesPermission#authorize} so the
+     * caller exercises both orders; the authorization result must not depend on either.
+     */
+    private static List<String> dataStreamNamesCoveringBothIterationOrders(int writeIndexNumber) {
+        String dataStreamFirst = null;
+        String backingIndexFirst = null;
+        for (int attempt = 0; attempt < 1000 && (dataStreamFirst == null || backingIndexFirst == null); attempt++) {
+            final String candidate = randomAlphaOfLengthBetween(3, 12);
+            final Map<String, Boolean> probe = Maps.newMapWithExpectedSize(2);
+            probe.put(candidate, true);
+            probe.put(DataStream.getDefaultBackingIndexName(candidate, writeIndexNumber), true);
+            if (probe.keySet().iterator().next().equals(candidate)) {
+                dataStreamFirst = candidate;
+            } else {
+                backingIndexFirst = candidate;
+            }
+        }
+        assertThat("could not find names covering both iteration orders", dataStreamFirst, is(notNullValue()));
+        assertThat("could not find names covering both iteration orders", backingIndexFirst, is(notNullValue()));
+        return List.of(backingIndexFirst, dataStreamFirst);
     }
 
     public void testAuthorizationForMappingUpdates() {

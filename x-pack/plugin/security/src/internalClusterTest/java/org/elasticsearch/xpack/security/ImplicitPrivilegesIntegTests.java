@@ -7,17 +7,27 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -65,6 +75,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -100,6 +112,7 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(LocalStateSecurity.class);
         plugins.add(LocalStateWithImplicitPrivileges.class);
+        plugins.add(DataStreamsPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -184,6 +197,100 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
         // Implicit grants must not contribute to DLS/FLS feature-usage tracking.
         assertThat(fetchTrackedFeatureNames(), not(hasItem(DOCUMENT_LEVEL_SECURITY_FEATURE.getName())));
         assertThat(fetchTrackedFeatureNames(), not(hasItem(FIELD_LEVEL_SECURITY_FEATURE.getName())));
+    }
+
+    /**
+     * Implicit DLS/FLS granted on a pattern that covers a data stream applies to every backing index when the data
+     * stream is searched, across all of its backing indices, and stays exempt from license enforcement and feature tracking. An
+     * explicit, unrestricted {@code read} grant on one backing index (the only explicit shape possible here: the basic
+     * license rejects explicit DLS/FLS roles) is unioned into that index when it is itself requested; the merged entry
+     * then carries no DLS/FLS at all, so nothing becomes trackable and the other backing indices keep the implicit grant.
+     */
+    public void testImplicitDlsFlsOnDataStreamAppliesToEveryBackingIndex() throws Exception {
+        final String dataStream = "helicarrier-stream";
+        final var putTemplate = new TransportPutComposableIndexTemplateAction.Request("helicarrier-stream-template");
+        putTemplate.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStream))
+                .template(new Template(indexSettings(1, 0).build(), null, null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplate).actionGet());
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
+            ).actionGet()
+        );
+        indexIntoDataStream(dataStream, "1", "public", "fury");
+        indexIntoDataStream(dataStream, "2", "classified", "loki");
+        assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream, null)).actionGet());
+        indexIntoDataStream(dataStream, "3", "public", "hill");
+        indexIntoDataStream(dataStream, "4", "classified", "thanos");
+        final List<String> backingIndices = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
+        ).actionGet().getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+        assertThat(backingIndices, hasSize(2));
+        final String writeIndex = backingIndices.get(1);
+
+        // implicit DLS hides the classified documents of both backing indices, implicit FLS leaves only "clearance"
+        createUserWithRole("thor", createRoleWithApplicationPrivilege("asgardian"));
+        final Client thor = clientFor("thor");
+        for (String[] target : List.of(new String[] { dataStream }, backingIndices.toArray(String[]::new))) {
+            assertResponse(thor.prepareSearch(target).setSize(10), response -> {
+                assertHitCount(response, 2);
+                for (SearchHit hit : response.getHits()) {
+                    assertThat(hit.getSourceAsMap(), is(Map.of("clearance", "public")));
+                }
+            });
+        }
+        assertThat(fetchTrackedFeatureNames(), not(hasItem(DOCUMENT_LEVEL_SECURITY_FEATURE.getName())));
+        assertThat(fetchTrackedFeatureNames(), not(hasItem(FIELD_LEVEL_SECURITY_FEATURE.getName())));
+
+        // the same application privilege plus an explicit unrestricted read on the write index
+        new PutRoleRequestBuilder(client()).name("write_index_reader")
+            .addIndices(new String[] { writeIndex }, new String[] { "read" }, null, null, null, false)
+            .get();
+        new PutUserRequestBuilder(client()).username("odin")
+            .password(TEST_PASSWORD_SECURE_STRING, getFastStoredHashAlgoForTests())
+            .roles("asgardian", "write_index_reader")
+            .get();
+        final Client odin = clientFor("odin");
+        // naming the write index unions both grants for it: all of its documents, with all fields; the first
+        // backing index keeps the implicit DLS/FLS
+        assertResponse(odin.prepareSearch(dataStream, writeIndex).setSize(10), response -> {
+            assertHitCount(response, 3);
+            for (SearchHit hit : response.getHits()) {
+                if (hit.getIndex().equals(writeIndex)) {
+                    assertThat(hit.getSourceAsMap().keySet(), containsInAnyOrder("@timestamp", "clearance", "codename"));
+                } else {
+                    assertThat(hit.getSourceAsMap(), is(Map.of("clearance", "public")));
+                }
+            }
+        });
+        assertHitCount(odin.prepareSearch(writeIndex).setSize(10), 2);
+        // Searching the data stream alone: the direct grant does not cover the data stream name, but shard requests
+        // carry the backing index name and, unless they are authorized on the coordinating node with the data
+        // stream's entries, union the direct grant in. Only the invariants are asserted: the classified document of
+        // the first backing index is never visible, the public documents always are.
+        assertResponse(odin.prepareSearch(dataStream).setSize(10), response -> {
+            final List<String> ids = Arrays.stream(response.getHits().getHits()).map(SearchHit::getId).toList();
+            assertThat(ids, hasItems("1", "3"));
+            assertThat(ids, not(hasItem("2")));
+        });
+        // no explicit DLS/FLS was involved anywhere, so still nothing to track
+        assertThat(fetchTrackedFeatureNames(), not(hasItem(DOCUMENT_LEVEL_SECURITY_FEATURE.getName())));
+        assertThat(fetchTrackedFeatureNames(), not(hasItem(FIELD_LEVEL_SECURITY_FEATURE.getName())));
+    }
+
+    private void indexIntoDataStream(String dataStream, String id, String clearance, String codename) {
+        prepareIndex(dataStream).setId(id)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setSource("@timestamp", "2026-01-01T00:00:00Z", "clearance", clearance, "codename", codename)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
     }
 
     /**

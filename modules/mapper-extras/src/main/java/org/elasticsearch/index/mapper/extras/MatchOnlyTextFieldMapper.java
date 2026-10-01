@@ -608,6 +608,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+            failIfExpensiveQueriesDisallowed(context);
             // Every positional query this field answers wraps itself, so only the others arrive here unwrapped.
             return isReanalyzing(analyzed) ? analyzed : toQuery(analyzed, context);
         }

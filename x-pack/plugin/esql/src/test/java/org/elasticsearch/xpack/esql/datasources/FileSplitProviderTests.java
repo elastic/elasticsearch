@@ -335,10 +335,14 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2, splits.size());
         Map<String, Object> split0Values = ((FileSplit) splits.get(0)).partitionValues();
         assertEquals(2024, split0Values.get("year"));
-        assertTrue(split0Values.containsKey("_file.path"));
+        assertFalse(split0Values.containsKey(FileMetadataColumns.PATH));
+        assertFalse(split0Values.containsKey(FileMetadataColumns.NAME));
+        assertFalse(split0Values.containsKey(FileMetadataColumns.DIRECTORY));
+        assertEquals(100L, split0Values.get(FileMetadataColumns.SIZE));
         Map<String, Object> split1Values = ((FileSplit) splits.get(1)).partitionValues();
         assertEquals(2023, split1Values.get("year"));
-        assertTrue(split1Values.containsKey("_file.path"));
+        assertFalse(split1Values.containsKey(FileMetadataColumns.PATH));
+        assertEquals(200L, split1Values.get(FileMetadataColumns.SIZE));
     }
 
     public void testNoPartitionMetadataStillHasFileMetadata() {
@@ -350,12 +354,51 @@ public class FileSplitProviderTests extends ESTestCase {
 
         assertEquals(1, splits.size());
         Map<String, Object> values = ((FileSplit) splits.get(0)).partitionValues();
-        assertTrue(values.containsKey("_file.path"));
-        assertTrue(values.containsKey("_file.name"));
-        assertTrue(values.containsKey("_file.directory"));
-        assertTrue(values.containsKey("_file.size"));
-        assertTrue(values.containsKey("_file.modified"));
-        assertEquals(100L, values.get("_file.size"));
+        assertFalse(values.containsKey(FileMetadataColumns.PATH));
+        assertFalse(values.containsKey(FileMetadataColumns.NAME));
+        assertFalse(values.containsKey(FileMetadataColumns.DIRECTORY));
+        assertTrue(values.containsKey(FileMetadataColumns.SIZE));
+        assertTrue(values.containsKey(FileMetadataColumns.MODIFIED));
+        assertEquals(100L, values.get(FileMetadataColumns.SIZE));
+    }
+
+    public void testFilePathAndNameFiltersDropFilesWithoutRetainingLocation() {
+        StoragePath keep = StoragePath.of("s3://b/keep.parquet");
+        StoragePath drop = StoragePath.of("s3://b/drop.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(keep, 10, Instant.EPOCH), new StorageEntry(drop, 20, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Expression pathFilter = new Equals(
+            SRC,
+            new ExternalMetadataAttribute(SRC, FileMetadataColumns.PATH, DataType.KEYWORD),
+            new Literal(SRC, new BytesRef(keep.toString()), DataType.KEYWORD)
+        );
+        Set<String> locationKeys = Set.of(FileMetadataColumns.PATH, FileMetadataColumns.NAME, FileMetadataColumns.DIRECTORY);
+        List<ExternalSplit> byPath = provider.discoverSplits(
+            locationFilterContext(fileList, Set.of(FileMetadataColumns.PATH), locationKeys, List.of(pathFilter))
+        ).splits();
+        assertEquals(1, byPath.size());
+        FileSplit pathSurvivor = (FileSplit) byPath.get(0);
+        assertEquals(keep, pathSurvivor.path());
+        assertFalse(pathSurvivor.partitionValues().containsKey(FileMetadataColumns.PATH));
+        assertFalse(pathSurvivor.partitionValues().containsKey(FileMetadataColumns.NAME));
+        assertFalse(pathSurvivor.partitionValues().containsKey(FileMetadataColumns.DIRECTORY));
+
+        Expression nameFilter = new Equals(
+            SRC,
+            new ExternalMetadataAttribute(SRC, FileMetadataColumns.NAME, DataType.KEYWORD),
+            new Literal(SRC, new BytesRef("drop.parquet"), DataType.KEYWORD)
+        );
+        List<ExternalSplit> byName = provider.discoverSplits(
+            locationFilterContext(fileList, Set.of(FileMetadataColumns.NAME), locationKeys, List.of(nameFilter))
+        ).splits();
+        assertEquals(1, byName.size());
+        FileSplit nameSurvivor = (FileSplit) byName.get(0);
+        assertEquals(drop, nameSurvivor.path());
+        assertFalse(nameSurvivor.partitionValues().containsKey(FileMetadataColumns.PATH));
+        assertFalse(nameSurvivor.partitionValues().containsKey(FileMetadataColumns.NAME));
+        assertFalse(nameSurvivor.partitionValues().containsKey(FileMetadataColumns.DIRECTORY));
     }
 
     public void testEmptyRetainSetFreezesNothingAndWholeFileLengthComesFromSplit() {
@@ -2086,8 +2129,10 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("east", left.get("region"));
         assertEquals(2024, left.get("year"));
         assertEquals(3000000000L, left.get("id"));
-        assertSame(left.get(FileMetadataColumns.DIRECTORY), right.get(FileMetadataColumns.DIRECTORY));
-        assertNotSame(left.get(FileMetadataColumns.PATH), right.get(FileMetadataColumns.PATH));
+        assertFalse(left.containsKey(FileMetadataColumns.PATH));
+        assertFalse(left.containsKey(FileMetadataColumns.NAME));
+        assertFalse(left.containsKey(FileMetadataColumns.DIRECTORY));
+        assertFalse(right.containsKey(FileMetadataColumns.DIRECTORY));
         assertSame(meta.getValue(0, "year"), left.get("year"));
         assertNull(left.get(FileMetadataColumns.MODIFIED));
     }
@@ -2132,8 +2177,11 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2, february.get("month"));
     }
 
-    /** Hive values stay on the shared tuple. {@code _file.name} is an overlay, so the maps differ but compare equal to one flat map. */
-    public void testHivePlusFileNameUsesOverlay() {
+    /**
+     * Hive values stay on the shared tuple. {@code _file.size} is an overlay, so the maps differ but compare
+     * equal to one flat map. Naming {@code _file.name} does not store it; that key is derived at read.
+     */
+    public void testHivePlusFileSizeUsesOverlay() {
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/year=2024/a.parquet"), 10, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/year=2024/b.parquet"), 20, Instant.EPOCH)
@@ -2142,7 +2190,7 @@ public class FileSplitProviderTests extends ESTestCase {
         FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/year=2024/*.parquet");
         long copiesBefore = FileSplit.defensivePartitionMapCopies();
         List<ExternalSplit> splits = provider.discoverSplits(
-            retainedContext(fileList, meta, Set.of("year", FileMetadataColumns.NAME), List.of())
+            retainedContext(fileList, meta, Set.of("year", FileMetadataColumns.NAME, FileMetadataColumns.SIZE), List.of())
         ).splits();
 
         assertEquals(copiesBefore, FileSplit.defensivePartitionMapCopies());
@@ -2151,10 +2199,11 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNotSame(left, right);
         assertSame(left.get("year"), right.get("year"));
         assertEquals(2024, left.get("year"));
-        assertEquals(new BytesRef("a.parquet"), left.get(FileMetadataColumns.NAME));
-        assertEquals(new BytesRef("b.parquet"), right.get(FileMetadataColumns.NAME));
-        assertEquals(Map.of("year", 2024, FileMetadataColumns.NAME, new BytesRef("a.parquet")), left);
-        assertEquals(List.of("year", FileMetadataColumns.NAME), new ArrayList<>(left.keySet()));
+        assertFalse(left.containsKey(FileMetadataColumns.NAME));
+        assertEquals(10L, left.get(FileMetadataColumns.SIZE));
+        assertEquals(20L, right.get(FileMetadataColumns.SIZE));
+        assertEquals(Map.of("year", 2024, FileMetadataColumns.SIZE, 10L), left);
+        assertEquals(List.of("year", FileMetadataColumns.SIZE), new ArrayList<>(left.keySet()));
         expectThrows(UnsupportedOperationException.class, () -> left.put("x", 1));
     }
 
@@ -3897,6 +3946,92 @@ public class FileSplitProviderTests extends ESTestCase {
             prev = start;
             assertTrue("boundary " + start + " must be a true record start", trueStarts.contains(start));
         }
+    }
+
+    /**
+     * The sibling of the quoted case above, for the file shape that cannot converge: quoting on, because that is
+     * what {@code .csv} defaults to, and not one quote character in the payload. Nothing can retire the probe's
+     * in-quote reading, so every probe returns AMBIGUOUS and every macro-split boundary comes from the exact walk
+     * instead - the path the quoted payload above barely touches.
+     *
+     * <p>It also reads the record starts back out of each span and requires their union to be exactly the
+     * whole-file set, which is the property a query over a macro-split file depends on.
+     */
+    public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+
+        StringBuilder csv = new StringBuilder("id,pickup_datetime,passengers,distance,fare\n");
+        int dataRows = 0;
+        while (csv.length() < 3 * 1024 * 1024) {
+            csv.append(dataRows).append(",2024-06-14 02:31:07,").append(dataRows % 6 + 1).append(',');
+            csv.append(dataRows % 97).append('.').append(dataRows % 100).append(',').append(dataRows % 53).append(".25");
+            // Uneven widths, and a CRLF every seventh row, so records land on every offset modulo the block the
+            // walk reads in rather than tiling it.
+            csv.append(dataRows % 7 == 0 ? "\r\n" : "\n");
+            dataRows++;
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertEquals("the payload must contain no quote character", -1, csv.indexOf("\""));
+        long fileLength = payload.length;
+
+        var csvReader = new CsvFormatReader(blockFactory);
+        int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://quote-free.csv"));
+        Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(maxRecordBytes), payload);
+
+        // Every probe must fail to converge, or the boundaries come from the probe instead of the walk.
+        long stride = fileLength / 4;
+        for (long pos = stride; pos < fileLength; pos += stride) {
+            try (InputStream probe = obj.newStream(pos, fileLength - pos)) {
+                assertEquals(
+                    "a quote-free window cannot prove a boundary, at " + pos,
+                    RecordSplitter.AMBIGUOUS,
+                    csvReader.recordSplitter(maxRecordBytes).findProvenRecordBoundary(probe)
+                );
+            }
+        }
+
+        RecordBoundaryProbe.ProvenWalk walk = RecordBoundaryProbe.provenBoundaries(
+            csvReader.recordSplitter(maxRecordBytes),
+            obj,
+            fileLength,
+            stride,
+            csvReader.minimumSegmentSize(),
+            () -> false
+        );
+
+        List<Long> starts = walk.boundaries();
+        assertFalse("every record here is one the walk can get past", walk.stoppedBeforeEndOfFile());
+        assertThat("expected multiple macro-split boundaries from the walk", starts.size(), greaterThan(1));
+        assertEquals("first boundary is always the file start", 0L, (long) starts.get(0));
+        long prev = -1;
+        for (long start : starts) {
+            assertThat("boundaries must be strictly increasing", start, greaterThan(prev));
+            prev = start;
+            assertTrue("boundary " + start + " must be a true record start", trueStarts.contains(start));
+        }
+
+        // trueRecordStarts carries the post-final-terminator offset as well; the spans never start a record there.
+        TreeSet<Long> expected = new TreeSet<>(trueStarts);
+        expected.remove(expected.last());
+        Set<Long> reconstructed = new TreeSet<>();
+        RecordSplitter splitter = csvReader.recordSplitter(maxRecordBytes);
+        for (int i = 0; i < starts.size(); i++) {
+            long from = starts.get(i);
+            long to = i + 1 < starts.size() ? starts.get(i + 1) : fileLength;
+            long cursor = from;
+            while (cursor < to) {
+                reconstructed.add(cursor);
+                long consumed = splitter.findNextRecordBoundary(
+                    new ByteArrayInputStream(payload, Math.toIntExact(cursor), Math.toIntExact(to - cursor))
+                );
+                if (consumed < 0) {
+                    break;
+                }
+                cursor += consumed;
+            }
+        }
+        assertEquals("the spans must hold every record exactly once", expected, reconstructed);
     }
 
     /**
@@ -9205,6 +9340,29 @@ public class FileSplitProviderTests extends ESTestCase {
         verify(storage).newObject(path, fileLength);
         verify(storage, never()).newObject(path);
         verify(storage, never()).newObject(eq(path), eq(first.length()));
+    }
+
+    private static SplitDiscoveryContext locationFilterContext(
+        FileList fileList,
+        Set<String> metadataNames,
+        Set<String> retained,
+        List<Expression> filters
+    ) {
+        return new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            filters,
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE,
+            metadataNames,
+            retained
+        );
     }
 
     private static SplitDiscoveryContext retainedContext(

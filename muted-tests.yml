@@ -521,9 +521,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleTranslogsGCIT
-  method: testTranslogGCDoesNotDeleteLeftNodeWhenRecovering
-  issue: https://github.com/elastic/elasticsearch/issues/159790
 - class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
   method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
   issue: https://github.com/elastic/elasticsearch/issues/159795
@@ -633,9 +630,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/160379
-- class: org.elasticsearch.columnar.substrate.ChunkedBytesTests
-  method: testWritesNothingButItsTwoFiles
-  issue: https://github.com/elastic/elasticsearch/issues/160409
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/160410

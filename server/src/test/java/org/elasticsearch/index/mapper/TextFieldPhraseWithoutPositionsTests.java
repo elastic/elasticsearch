@@ -44,7 +44,11 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return IndexAnalyzers.of(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            // The gap a text field's analyzer carries in an index, which sits between two values of one document.
+            Map.of(
+                "default",
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+            ),
             Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
             Map.of()
         );
@@ -96,9 +100,9 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         for (int q = 0; q < queries.size(); q++) {
             assertEquals(queries.get(q).toString(), withPositions.get(q), withoutPositions.get(q));
         }
-        // The fourth document holds two values and the phrase spans them, which both sides do alike: the
-        // confirmation carries positions from one value into the next, as the index it stands in for does.
-        assertEquals("a phrase spans two values", List.of(0, 2, 3), withoutPositions.get(0));
+        // The fourth document holds "quick" at the end of one value and "brown" at the start of the next, which
+        // the gap between them keeps apart on both sides.
+        assertEquals("a phrase does not span two values", List.of(0, 2), withoutPositions.get(0));
         logger.info("{} queries agreed with and without positions", queries.size());
     }
 

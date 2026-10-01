@@ -26,6 +26,8 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -131,10 +133,19 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
         check(withSynonyms(), "synonyms");
     }
 
+    /**
+     * Over both gaps an index can put between two values: none, and the default a text field's analyzer carries.
+     */
     private void check(Analyzer analyzer, String what) throws IOException {
+        for (int gap : new int[] { 0, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP }) {
+            check(new NamedAnalyzer("test", AnalyzerScope.INDEX, analyzer, gap), what + ", gap " + gap, 1000);
+        }
+    }
+
+    private void check(Analyzer analyzer, String what, int iterations) throws IOException {
         int multiValued = 0;
         int nonZero = 0;
-        for (int iter = 0; iter < 2000; iter++) {
+        for (int iter = 0; iter < iterations; iter++) {
             final int valueCount = randomIntBetween(1, 3);
             final List<Object> values = new ArrayList<>();
             for (int v = 0; v < valueCount; v++) {
@@ -165,6 +176,6 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
             }
             assertEquals("values=" + values + " phrase=" + List.of(terms), (int) expected, actual);
         }
-        logger.info("{}: {} iterations, {} multi-valued, {} with a match", what, 2000, multiValued, nonZero);
+        logger.info("{}: {} iterations, {} multi-valued, {} with a match", what, iterations, multiValued, nonZero);
     }
 }

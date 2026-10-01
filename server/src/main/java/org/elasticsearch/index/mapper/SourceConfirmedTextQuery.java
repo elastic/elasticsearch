@@ -170,12 +170,20 @@ public final class SourceConfirmedTextQuery extends Query {
         final int[] endedHere = new int[terms.length];
         Arrays.fill(endedBefore, Integer.MIN_VALUE);
         Arrays.fill(endedHere, Integer.MIN_VALUE);
+        final int gap = analyzer.getPositionIncrementGap(field);
         int freq = 0;
         int position = -1;
         int positionInHand = -1;
+        boolean firstValue = true;
         for (Object value : values) {
             if (value == null) {
                 continue;
+            }
+            if (firstValue) {
+                firstValue = false;
+            } else {
+                // The analyzer's gap sits between two values, as it does when the same values are indexed.
+                position += gap;
             }
             final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
             try (TokenStream stream = analyzer.tokenStream(field, text)) {

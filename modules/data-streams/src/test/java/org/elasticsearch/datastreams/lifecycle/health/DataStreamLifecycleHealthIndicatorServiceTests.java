@@ -85,13 +85,12 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     public void testYellowWhenStagnatingIndicesPresent() {
         String secondGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 2L);
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
-        int stagnatingCount = 2 * projectIds.size();
+        List<DslErrorInfo> errors = randomStagnatingErrors(secondGenerationIndex, firstGenerationIndex);
+        int stagnatingCount = errors.size();
         int totalBackingIndicesInError = 15 * projectIds.size();
         HealthIndicatorResult result = service.calculate(
             true,
-            constructHealthInfo(
-                new DataStreamLifecycleHealthInfo(stagnatingErrors(secondGenerationIndex, firstGenerationIndex), totalBackingIndicesInError)
-            )
+            constructHealthInfo(new DataStreamLifecycleHealthInfo(errors, totalBackingIndicesInError))
         );
         assertThat(result.status(), is(HealthStatus.YELLOW));
         assertThat(
@@ -106,27 +105,24 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         String detailsAsString = Strings.toString(result.details());
         assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":" + totalBackingIndicesInError));
         assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":" + stagnatingCount));
-        for (String displayName : stagnatingDisplayNames(secondGenerationIndex, firstGenerationIndex)) {
+        List<String> displayNames = stagnatingDisplayNames(errors);
+        for (String displayName : displayNames) {
             assertThat(detailsAsString, containsString("\"index_name\":\"" + displayName + "\""));
         }
         assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-        assertThat(
-            diagnosis.affectedResources().get(0).getValues(),
-            containsInAnyOrder(stagnatingDisplayNames(secondGenerationIndex, firstGenerationIndex).toArray())
-        );
+        assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(displayNames.toArray()));
     }
 
     public void testSkippingFieldsWhenVerboseIsFalse() {
         String secondGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 2L);
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
-        int stagnatingCount = 2 * projectIds.size();
+        List<DslErrorInfo> errors = randomStagnatingErrors(secondGenerationIndex, firstGenerationIndex);
+        int stagnatingCount = errors.size();
         HealthIndicatorResult result = service.calculate(
             false,
-            constructHealthInfo(
-                new DataStreamLifecycleHealthInfo(stagnatingErrors(secondGenerationIndex, firstGenerationIndex), 15 * projectIds.size())
-            )
+            constructHealthInfo(new DataStreamLifecycleHealthInfo(errors, 15 * projectIds.size()))
         );
         assertThat(result.status(), is(HealthStatus.YELLOW));
         assertThat(
@@ -251,7 +247,13 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
-    private List<DslErrorInfo> stagnatingErrors(String secondGenerationIndex, String firstGenerationIndex) {
+    /**
+     * Either one stagnating index, or two per project, so both symptom wordings are exercised.
+     */
+    private List<DslErrorInfo> randomStagnatingErrors(String secondGenerationIndex, String firstGenerationIndex) {
+        if (randomBoolean()) {
+            return List.of(new DslErrorInfo(firstGenerationIndex, 3L, 100, projectIds.iterator().next()));
+        }
         List<DslErrorInfo> errors = new ArrayList<>();
         for (ProjectId projectId : projectIds) {
             errors.add(new DslErrorInfo(secondGenerationIndex, 1L, 200, projectId));
@@ -260,12 +262,10 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         return errors;
     }
 
-    private List<String> stagnatingDisplayNames(String... indexNames) {
+    private List<String> stagnatingDisplayNames(List<DslErrorInfo> errors) {
         List<String> names = new ArrayList<>();
-        for (String indexName : indexNames) {
-            for (ProjectId projectId : projectIds) {
-                names.add(multiProject ? new ProjectIndexName(projectId, indexName).toString(true) : indexName);
-            }
+        for (DslErrorInfo error : errors) {
+            names.add(multiProject ? new ProjectIndexName(error.projectId(), error.indexName()).toString(true) : error.indexName());
         }
         return names;
     }

@@ -720,7 +720,10 @@ public class LocalExecutionPlanner {
                 Math.min(EsExecutors.allocatedProcessors(settings), ParallelHashAggregationOperator.MAX_WORKERS),
                 ParallelHashAggregationOperator.PAGE_PER_WORKER,
                 context.queryPragmas()
-                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold())
+                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold()),
+                context.queryPragmas()
+                    .aggregationPartitioningMemoryThreshold(context.plannerSettings().aggregationPartitioningMemoryThreshold())
+                    .getBytes()
             );
         }
         return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);

@@ -741,7 +741,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
-            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold()
+            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
+            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

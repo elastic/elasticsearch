@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -144,6 +145,94 @@ public class CsvProvenProbeTests extends ESTestCase {
         // field and leaves no record start behind it.
         assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\nsecond\r"));
         assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\n2,\"unterminated\""));
+    }
+
+    /**
+     * A blob store hands back whatever a socket read happened to deliver, so a bulk read is routinely shorter than
+     * the block asked for and the cursor's limit is wherever that landed. Every other case here reads from an
+     * array, which always fills the request, so none of them exercises a partial fill. The boundaries must not
+     * depend on how the bytes were chopped up on the way in.
+     */
+    public void testExactWalkIsUnaffectedByShortBulkReads() throws IOException {
+        for (CsvFormatOptions options : List.of(quoted(), both())) {
+            byte[] buf = bytes(randomCsv(options));
+            RecordSplitter splitter = splitter(options);
+            long step = offsetStep(buf);
+            for (int chunk : new int[] { 1, 2, 7, 13, 1024 }) {
+                for (long minSkip = 1; minSkip < buf.length; minSkip += step) {
+                    long whole = splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), minSkip, () -> false);
+                    long chopped = splitter.findRecordStartAtOrAfter(cappedReads(buf, chunk, 0), minSkip, () -> false);
+                    assertEquals("boundary moved when bulk reads were capped at " + chunk + ", minSkip=" + minSkip, whole, chopped);
+                }
+            }
+        }
+    }
+
+    /** The probe has the same exposure: its window is counted in bytes consumed, not in reads. */
+    public void testProbeIsUnaffectedByShortBulkReads() throws IOException {
+        byte[] buf = bytes(randomCsv(quoted()));
+        RecordSplitter splitter = splitter(quoted());
+        long step = offsetStep(buf);
+        for (long t = 1; t < buf.length; t += step) {
+            long whole = splitter.findProvenRecordBoundary(new ByteArrayInputStream(buf, (int) t, buf.length - (int) t));
+            long chopped = splitter.findProvenRecordBoundary(cappedReads(buf, 3, (int) t));
+            assertEquals("probe outcome moved when bulk reads were capped, t=" + t, whole, chopped);
+        }
+    }
+
+    /**
+     * A multi-byte code point whose bytes fall either side of a refill. The scanners are byte-oriented so a
+     * continuation byte is ordinary content, but a block boundary landing inside a code point is the shape a
+     * block reader can get wrong, and the existing multi-byte case is far too small to reach one.
+     */
+    public void testMultiByteCodePointStraddlesBlockBoundary() throws IOException {
+        for (int pad = CsvRecordSplitter.BLOCK_BYTES - 6; pad <= CsvRecordSplitter.BLOCK_BYTES + 2; pad++) {
+            assertExactWalkMatchesOracle(quoted(), bytes("h\n" + "x".repeat(pad) + "\u65e5\u672c,tail\nsecond\n"));
+        }
+    }
+
+    /**
+     * How far past the boundary a scan may pull. {@code RecordBoundaryProbe} decides whether to drain or abort a
+     * probe stream on the strength of a scan reading through one block, so a scan that quietly began reading
+     * further would change that arithmetic without touching its code.
+     */
+    public void testWalkPullsAtMostOneBlockPastTheBoundary() throws IOException {
+        // The payload runs to several blocks and minSkip is 1, so the boundary falls in the first few bytes and
+        // the allowance is one block and no more. Asking for a boundary halfway through instead leaves enough
+        // slack that a cursor reading two blocks still fits inside it, and the case stops discriminating.
+        StringBuilder sb = new StringBuilder("id,note\n");
+        while (sb.length() < CsvRecordSplitter.BLOCK_BYTES * 4) {
+            sb.append(sb.length()).append(",value\n");
+        }
+        byte[] buf = bytes(sb.toString());
+        long[] delivered = new long[1];
+        InputStream counted = new FilterInputStream(new ByteArrayInputStream(buf)) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                int n = super.read(b, off, len);
+                if (n > 0) {
+                    delivered[0] += n;
+                }
+                return n;
+            }
+        };
+        long boundary = splitter(quoted()).findRecordStartAtOrAfter(counted, 1L, () -> false);
+        assertTrue("the walk should find a boundary in this payload", boundary > 0);
+        assertTrue("a scan must read at least up to the boundary it returns", delivered[0] >= boundary);
+        assertTrue(
+            "a scan read " + delivered[0] + " bytes for a boundary at " + boundary + ", more than one block past it",
+            delivered[0] <= boundary + CsvRecordSplitter.BLOCK_BYTES
+        );
+    }
+
+    /** The payload from {@code from}, with every bulk read capped so the cursor sees partial fills. */
+    private static InputStream cappedReads(byte[] buf, int chunk, int from) {
+        return new FilterInputStream(new ByteArrayInputStream(buf, from, buf.length - from)) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, Math.min(len, chunk));
+            }
+        };
     }
 
     public void testExactWalkEndsOnAZeroLengthRead() throws IOException {

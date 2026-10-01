@@ -454,7 +454,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * on a node in a lower preference tier.
          */
         public boolean canRemainOnlyHighestTierPreference(ShardRouting shard, AllocationQueryContext allocation) {
-            boolean result = allocation.canRemain(shard, allocation.routingNodes().node(shard.currentNodeId())).type() != Decision.Type.NO;
+            boolean result = allocation.canRemain(shard, allocation.routingNodes().node(shard.currentNodeId())) != Decision.NO;
             if (result
                 && nodes.isEmpty()
                 && Strings.hasText(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata(shard, allocation).getSettings()))) {
@@ -526,7 +526,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private boolean canAllocate(ShardRouting shard, AllocationQueryContext allocation) {
-            return nodesInTier(allocation.routingNodes()).anyMatch(node -> allocation.canAllocate(shard, node).type() != Decision.Type.NO);
+            return nodesInTier(allocation.routingNodes()).anyMatch(node -> allocation.canAllocate(shard, node) != Decision.NO);
         }
 
         @SuppressWarnings("deprecation")

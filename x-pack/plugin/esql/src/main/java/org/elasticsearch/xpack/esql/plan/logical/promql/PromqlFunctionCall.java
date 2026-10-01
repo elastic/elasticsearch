@@ -168,7 +168,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     }
 
     /** The lookback window of a range-vector argument; none for an instant vector. */
-    private Expression window(PromqlCommand cmd) {
+    protected Expression window(PromqlCommand cmd) {
         if (child() instanceof RangeSelector rangeSelector) {
             return isImplicitRangePlaceholder(rangeSelector.range()) ? cmd.resolveImplicitRangeWindow() : rangeSelector.range();
         }

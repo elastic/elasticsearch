@@ -88,6 +88,8 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // all-null or empty array writes a count but no binary blob.
             case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, ArrayOrderInlineNull::new);
             case SEPARATE_COUNT -> withCounts(breaker, context, BytesRefsFromBinarySeparateCount::new);
+            // PLAIN is a single-valued columnar field — it should have been routed to BytesRefsFromBinaryBlockLoader.
+            case PLAIN -> throw new AssertionError("PLAIN field [" + fieldName + "] should not use the multi-valued block loader");
         };
     }
 

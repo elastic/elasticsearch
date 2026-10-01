@@ -89,7 +89,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public static final Setting<CacheAccountingMode> ACCOUNTING_MODE_SETTING = Setting.enumSetting(
         CacheAccountingMode.class,
         "cluster.routing.allocation.shared_cache_capacity.accounting_mode",
-        CacheAccountingMode.BOOSTED,
+        CacheAccountingMode.TOTAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

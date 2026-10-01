@@ -158,15 +158,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return replaced ? union.replaceSubPlansAndOutput(union.children(), newOutput) : union;
     }
 
-    /** Same keep-rule as {@code UnionTypesCleanup#planWithoutSyntheticAttributes}. */
     private static List<Attribute> dropSyntheticAttributes(List<Attribute> output) {
-        List<Attribute> kept = new ArrayList<>(output.size());
-        for (Attribute attr : output) {
-            if (attr.synthetic() == false || attr == Analyzer.NO_FIELDS.getFirst()) {
-                kept.add(attr);
-            }
-        }
-        return kept.size() == output.size() ? output : kept;
+        return output.stream().filter(attr -> attr.synthetic() == false || attr == Analyzer.NO_FIELDS.getFirst()).toList();
     }
 
     private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {

@@ -45,7 +45,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     // It might help to release cluster resources earlier if e.g.: someone
     // configures a transform that ends up checkpointing 100000
     // searchable snapshot indices that all have to be retrieved from blob storage.
-    protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
+    protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = MAX_GET_INDEX_CHECKPOINTS_TIMEOUT;
 
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
@@ -79,10 +79,19 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     @Override
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
+        createNextCheckpoint(lastCheckpoint, INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, listener);
+    }
+
+    @Override
+    public void createNextCheckpoint(
+        final TransformCheckpoint lastCheckpoint,
+        final TimeValue timeout,
+        final ActionListener<TransformCheckpoint> listener
+    ) {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, listener.delegateFailureAndWrap((l, checkpointsByIndex) -> {
+        getIndexCheckpoints(timeout, listener.delegateFailureAndWrap((l, checkpointsByIndex) -> {
             reportSourceIndexChanges(
                 TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? Set.of() : lastCheckpoint.getIndicesCheckpoints().keySet(),
                 checkpointsByIndex.keySet()

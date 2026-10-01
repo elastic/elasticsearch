@@ -439,3 +439,43 @@ setup:
   - match: { transforms.0._meta.baz.a2: 222 }
   - match: { transforms.0._meta.baz.a3: 333 }
   - is_true: transforms.0.authorization.roles
+---
+"Test update indexer_request_timeout":
+  - do:
+      transform.put_transform:
+        transform_id: "indexer-timeout-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-timeout" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "indexer_request_timeout": "5m"
+            }
+          }
+  - match: { settings.indexer_request_timeout: "5m" }
+
+  - do:
+      transform.update_transform:
+        transform_id: "indexer-timeout-transform"
+        body: >
+          {
+            "settings": {
+              "indexer_request_timeout": "12h"
+            }
+          }
+  - match: { settings.indexer_request_timeout: "12h" }
+
+  - do:
+      transform.update_transform:
+        transform_id: "indexer-timeout-transform"
+        body: >
+          {
+            "settings": {
+              "indexer_request_timeout": null
+            }
+          }
+  - is_false: settings.indexer_request_timeout

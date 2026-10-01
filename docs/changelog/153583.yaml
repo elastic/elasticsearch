@@ -1,0 +1,5 @@
+area: Infra/REST API
+issues: [136895]
+pr: 153583
+summary: Add node.role and tier columns to _cat/shards API
+type: enhancement

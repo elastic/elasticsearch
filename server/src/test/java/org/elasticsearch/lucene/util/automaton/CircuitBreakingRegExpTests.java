@@ -222,6 +222,22 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    /**
+     * A product that trims away to nothing still took the time to build, so the walk counts what was built before trimming.
+     * Each product here pairs strings of {@code x} with strings that must end in {@code y}: every pair is reachable and none
+     * accepts. Under the lowered limit one such product fits and three do not.
+     */
+    public void testProductsThatTrimAwayStillCountAsWork() {
+        String piece = "((x?){20}&(x?){20}y)";
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        new CircuitBreakingRegExp(piece, FLAGS, 0).toAutomaton(breaker, "test", 5_000_000);
+        expectThrows(
+            TooComplexToDeterminizeException.class,
+            () -> new CircuitBreakingRegExp(piece + "|" + piece + "|" + piece, FLAGS, 0).toAutomaton(breaker, "test", 5_000_000)
+        );
+        assertEquals(0L, breaker.getUsed());
+    }
+
     /** Repeating an empty language builds nothing, but Lucene still allocates per copy. */
     public void testRepeatOfEmptyLanguageIsCharged() {
         for (String pattern : List.of("#{200000000}", "#{200000000,}", "#{0,2000000000}")) {
@@ -246,8 +262,8 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
 
     /**
      * Optional copies are linked by scanning everything built so far, so their work grows with the square of the count while
-     * the output stays small. The work limit refuses them before Lucene starts. Sized just past the limit, so that without
-     * the check the build would still finish in about a second and the test would fail rather than hang.
+     * the output stays small. The work limit refuses them before Lucene starts. Sized so that without the check the build
+     * would still finish in about a second, and the test would fail rather than hang.
      */
     public void testConstructionWorkIsBounded() {
         Cost cost = CircuitBreakingRegExp.repeatCost(Shape.of(Automata.makeChar('x')), 0, 20_000);

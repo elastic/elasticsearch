@@ -312,26 +312,32 @@ public final class CircuitBreakingOperations {
         Automaton complement = complement(excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
         long held = reserve(circuitBreaker, complement.ramBytesUsed(), label);
         try {
-            return intersection(a, complement, circuitBreaker, label, DEFAULT_MAX_PRODUCT_ITEMS);
+            return intersection(a, complement, circuitBreaker, label, DEFAULT_MAX_PRODUCT_ITEMS).automaton();
         } finally {
             circuitBreaker.addWithoutBreaking(-held, label);
         }
     }
 
     /**
+     * The result of {@link #intersection}: the trimmed product, and how many states and transitions were built before
+     * trimming, which is what the build cost in time even when trimming leaves almost nothing.
+     */
+    record Product(Automaton automaton, long builtItems) {}
+
+    /**
      * {@link Operations#intersection(Automaton, Automaton)}, charging each product state and transition as it is created,
      * and refusing the product with a {@link TooComplexToDeterminizeException} once it holds more than {@code maxItems}
      * states and transitions together: the memory charge alone would let a large breaker spend seconds on it.
      */
-    static Automaton intersection(Automaton a1, Automaton a2, CircuitBreaker circuitBreaker, String label, long maxItems) {
+    static Product intersection(Automaton a1, Automaton a2, CircuitBreaker circuitBreaker, String label, long maxItems) {
         if (a1 == a2) {
-            return a1;
+            return new Product(a1, 0);
         }
         if (a1.getNumStates() == 0) {
-            return a1;
+            return new Product(a1, 0);
         }
         if (a2.getNumStates() == 0) {
-            return a2;
+            return new Product(a2, 0);
         }
         long reserved = 0;
         long pending = ((long) a1.getNumTransitions() + a2.getNumTransitions()) * PRODUCT_TRANSITION_BYTES;
@@ -387,7 +393,7 @@ public final class CircuitBreakingOperations {
             }
             c.finishState();
             reserved += reserve(circuitBreaker, buildBytes(c.getNumStates(), c.getNumTransitions()), label);
-            return Operations.removeDeadStates(c);
+            return new Product(Operations.removeDeadStates(c), (long) c.getNumStates() + c.getNumTransitions());
         } finally {
             circuitBreaker.addWithoutBreaking(-reserved, label);
         }

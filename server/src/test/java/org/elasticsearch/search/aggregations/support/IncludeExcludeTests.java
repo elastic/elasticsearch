@@ -551,8 +551,8 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     /**
-     * Optional copies whose linking work grows with the square of their count are refused before they are built. Sized just
-     * past the limit, so that without the check the build would still finish quickly and the test would fail rather than hang.
+     * Optional copies whose linking work grows with the square of their count are refused before they are built. Sized so
+     * that without the check the build would still finish quickly, and the test would fail rather than hang.
      */
     public void testTooMuchConstructionWorkIsAClientError() {
         IncludeExclude inexcl = new IncludeExclude("x{0,20000}", null, null, null);

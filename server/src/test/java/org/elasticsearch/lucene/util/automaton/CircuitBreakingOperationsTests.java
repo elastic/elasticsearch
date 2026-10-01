@@ -98,6 +98,29 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
         assertEquals("All reserved memory should be released after circuit breaker exception", 0, tripBreaker.getUsed());
     }
 
+    /**
+     * The port is Lucene's intersection with charging added, so on any pair of automata it must build the same automaton:
+     * the same states, transitions and language, with everything it charged released.
+     */
+    public void testIntersectionMatchesLuceneOnRandomAutomata() {
+        for (int i = 0; i < 50; i++) {
+            Automaton a1 = AutomatonTestUtil.randomAutomaton(random());
+            Automaton a2 = AutomatonTestUtil.randomAutomaton(random());
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+            Automaton expected = Operations.intersection(a1, a2);
+            Automaton actual = CircuitBreakingOperations.intersection(a1, a2, breaker, "test", Long.MAX_VALUE).automaton();
+            assertEquals("states", expected.getNumStates(), actual.getNumStates());
+            assertEquals("transitions", expected.getNumTransitions(), actual.getNumTransitions());
+            assertTrue(
+                AutomatonTestUtil.sameLanguage(
+                    Operations.determinize(expected, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    Operations.determinize(actual, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                )
+            );
+            assertEquals("everything reserved during the product is released", 0L, breaker.getUsed());
+        }
+    }
+
     /** The charged product must accept exactly the language Lucene's {@code minus} accepts, whatever the inputs. */
     public void testMinusMatchesLuceneOnRandomAutomata() {
         for (int i = 0; i < 20; i++) {

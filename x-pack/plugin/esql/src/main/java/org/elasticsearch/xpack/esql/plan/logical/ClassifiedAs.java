@@ -37,4 +37,12 @@ public interface ClassifiedAs {
             return RelationClass.DATASET;
         }
     }
+
+    /** An anonymous subquery. */
+    interface SubqueryRelation extends ClassifiedAs {
+        @Override
+        default RelationClass relationClass() {
+            return RelationClass.SUBQUERY;
+        }
+    }
 }

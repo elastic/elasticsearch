@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.esql.plan.logical.ClassifiedAs;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,10 +58,10 @@ import java.util.List;
  * -- so {@code STATS ... BY _class} groups on a per-branch constant. {@code RelationClassGoldenTests} pins
  * those plans.
  */
-public final class MaterializeRelationClassAndName extends OptimizerRules.OptimizerRule<LeafPlan> {
+public final class MaterializeRelationClassAndName extends OptimizerRules.OptimizerRule<LogicalPlan> {
 
     @Override
-    protected LogicalPlan rule(LeafPlan plan) {
+    protected LogicalPlan rule(LogicalPlan plan) {
         if (plan instanceof ClassifiedAs == false) {
             return plan;
         }
@@ -73,7 +73,7 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
 
         // _name on an index needs _index to point at, so add it when the query did not ask for it.
         // It is left out of the projection below, so adding it does not widen what the user sees.
-        LeafPlan relation = plan;
+        LogicalPlan relation = plan;
         Attribute indexAttribute = firstNamed(output, MetadataAttribute.INDEX);
         if (indexAttribute == null
             && firstNamed(output, MetadataAttribute.RELATION_NAME) != null
@@ -97,9 +97,10 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
         }
 
         List<Attribute> remaining = relation.output().stream().filter(a -> isRelationColumn(a) == false).toList();
-        LeafPlan stripped = switch (relation) {
+        LogicalPlan stripped = switch (relation) {
             case EsRelation esRelation -> esRelation.withAttributes(remaining);
             case ExternalRelation externalRelation -> externalRelation.withAttributes(remaining);
+            case Subquery subquery -> new Subquery(subquery.source(), subquery.child(), List.of());
             default -> throw new IllegalStateException("unhandled " + ClassifiedAs.class.getSimpleName() + ": " + relation.nodeName());
         };
 
@@ -125,6 +126,9 @@ public final class MaterializeRelationClassAndName extends OptimizerRules.Optimi
     }
 
     private static Expression relationName(Attribute attr, ClassifiedAs classified, Attribute indexAttribute) {
+        if (classified instanceof Subquery) {
+            return new Literal(attr.source(), null, DataType.KEYWORD);
+        }
         // A dataset has one name, which is unknown when a bare glob named no dataset.
         if (classified instanceof ExternalRelation externalRelation) {
             String datasetName = externalRelation.datasetName();

@@ -29,7 +29,8 @@ public enum RelationClass {
 
     INDEX("index"),
     VIEW("view"),
-    DATASET("dataset");
+    DATASET("dataset"),
+    SUBQUERY("subquery");
 
     private final String value;
 

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 
 import java.util.List;
 import java.util.Map;
@@ -171,6 +172,21 @@ public class MaterializeRelationClassAndNameTests extends AbstractLogicalPlanOpt
         Literal name = as(aliasNamed(as(rewritten.child(), Eval.class), MetadataAttribute.RELATION_NAME).child(), Literal.class);
         assertThat(name.value(), nullValue());
         assertThat(name.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testClassFoldsToLiteralOnSubquery() {
+        Eval eval = firstEval(plan("FROM (FROM test | KEEP emp_no) METADATA _class | KEEP _class"));
+        Alias relationClass = aliasNamed(eval, MetadataAttribute.RELATION_CLASS);
+        Literal value = as(relationClass.child(), Literal.class);
+        assertThat(BytesRefs.toString(value.value()), equalTo("subquery"));
+    }
+
+    public void testNameIsNullOnSubquery() {
+        Eval eval = firstEval(plan("FROM (FROM test | KEEP emp_no) METADATA _name | KEEP _name"));
+        Alias relationName = aliasNamed(eval, MetadataAttribute.RELATION_NAME);
+        Literal value = as(relationName.child(), Literal.class);
+        assertThat(value.value(), nullValue());
+        assertThat(value.dataType(), equalTo(DataType.KEYWORD));
     }
 
     private static Eval firstEval(LogicalPlan plan) {

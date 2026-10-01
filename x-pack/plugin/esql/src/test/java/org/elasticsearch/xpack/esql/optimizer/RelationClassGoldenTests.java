@@ -84,9 +84,28 @@ public class RelationClassGoldenTests extends GoldenTestCase {
         runGoldenTest("FROM class_a, class_b METADATA _class | STATS d = COUNT_DISTINCT(emp_no) BY _class");
     }
 
+    /**
+     * A single subquery in FROM answers "subquery" for _class and null for _name as literals;
+     * the Subquery boundary node carries no relation-column attrs after materialisation.
+     */
+    public void testBothColumnsOnASingleSubquery() {
+        runSubqueryGoldenTest("FROM (FROM employees | KEEP emp_no) METADATA _class, _name | KEEP emp_no, _class, _name");
+    }
+
+    /**
+     * A subquery beside an index contributes different _class literals per branch.
+     */
+    public void testBothColumnsOnSubqueryBesideIndex() {
+        runSubqueryGoldenTest("FROM employees, (FROM employees | KEEP emp_no) METADATA _class | KEEP _class");
+    }
+
     private void runGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();
+    }
+
+    private void runSubqueryGoldenTest(String query) {
+        builder(query).stages(EnumSet.of(Stage.LOGICAL_OPTIMIZATION)).run();
     }
 
     private static ProjectMetadata datasetMetadata() {

@@ -1,0 +1,1 @@
+FROM employees, (FROM employees | KEEP emp_no) METADATA _class | KEEP _class

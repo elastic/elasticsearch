@@ -131,24 +131,6 @@ public class CacheKeyDefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The file metadata entry is NOT, and deliberately so: {@code {length, mtime}} is a property of the object in
-     * a store, and nothing a definition version carries can change either. Folding it in cost the one thing the
-     * entry exists for — two data sources registered over the same object with the same settings each probed it,
-     * because a stored secret is re-encrypted under a fresh IV per write and so versions a definition that has not
-     * changed. What can change which object a path names is the storage identity, and that is in the key.
-     */
-    public void testFileMetadataKeysAreSharedAcrossDefinitionVersions() {
-        assertEquals(
-            new FileMetadataCacheKey("s3://warehouse/data/a.parquet", "endpoint=e"),
-            new FileMetadataCacheKey("s3://warehouse/data/a.parquet", "endpoint=e")
-        );
-        assertNotEquals(
-            new FileMetadataCacheKey("s3://warehouse/data/a.parquet", "endpoint=e"),
-            new FileMetadataCacheKey("s3://warehouse/data/a.parquet", "endpoint=other")
-        );
-    }
-
-    /**
      * A query that reaches a cache without a registered dataset behind it has no definition to version.
      * Those entries share one value and are addressed as they were before, rather than each becoming
      * unreachable to the next query.

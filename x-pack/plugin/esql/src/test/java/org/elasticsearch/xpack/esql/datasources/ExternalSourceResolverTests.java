@@ -8010,7 +8010,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
     }
 
-    public void testFileMetadataCacheKeyDifferentiatesByDatasetEndpoint() {
+    public void testFileMetadataCacheKeyDifferentiatesByStorageIdentity() {
         // The endpoint reaches this key one way, and it is not the key reading the config for it: the provider
         // reports what identifies the objects it reads, and an endpoint is one of the settings it names.
         FileMetadataCacheKey rawA = new FileMetadataCacheKey(

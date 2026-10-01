@@ -45,13 +45,19 @@ import java.util.TreeMap;
  * decides nothing about what is read, so two definitions that are equal in content address one set of
  * entries and share the work of filling them. Renaming a dataset keeps its cache warm.
  * <p>
- * <b>A secret's value is not folded in.</b> A secret is stored encrypted, and the only rendering available
- * here is its ciphertext, which carries a fresh random IV per encryption — so folding it would version a
- * definition that has not changed, and two data sources registered with the same settings would address
- * nothing in common. Credential isolation is carried by the party that holds the decrypted value instead:
- * {@code Configured.secretIdentity}, digested from plaintext and therefore equal whenever the secrets are,
- * and the {@code StorageIdentity} a provider stamps on the objects it reads. What remains here is the key id
- * the secret was encrypted under, which changes when the project's encryption key does.
+ * <b>An encrypted secret's value is not folded in.</b> Encryption draws a fresh IV per write, so a stored
+ * secret's ciphertext is not a function of the secret: folding it versioned definitions that had not changed,
+ * and two data sources registered with the same settings addressed nothing in common. What is folded for such
+ * a secret is its name and the key id it is stored under, which moves when the project's encryption key does.
+ * Credential isolation is carried by the party holding the decrypted value instead: {@code
+ * Configured.secretIdentity}, digested from plaintext and therefore equal exactly when the secrets are, and
+ * the {@code StorageIdentity} a provider stamps on the objects it reads.
+ * <p>
+ * A cluster that has opted out of state encryption stores a secret as plaintext — {@code
+ * DataSourceService.applyEncryption} returns the settings unencrypted when the encryption service is
+ * unavailable and {@code cluster.state.encryption.required} is false — and there the value IS folded in,
+ * because for that shape it is stable. Rotating a secret moves every address derived from it on such a
+ * cluster and does not on an encrypted one. The asymmetry is in the storage shape, not decided here.
  */
 public final class DefinitionVersion {
 
@@ -91,8 +97,8 @@ public final class DefinitionVersion {
     }
 
     /**
-     * A data source's settings. A secret contributes its name and the key id it is encrypted under; its value
-     * does not reach the version, for the reason given in the class javadoc.
+     * A data source's settings. An encrypted secret contributes its name and the key id it is stored under, never
+     * its value; a secret held as plaintext contributes its value. See the class javadoc for why they differ.
      */
     private static void encodeDataSourceSettings(StringBuilder encoded, DataSource parent) {
         Map<String, String> sorted = new TreeMap<>();

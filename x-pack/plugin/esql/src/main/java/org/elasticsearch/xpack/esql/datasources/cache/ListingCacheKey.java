@@ -22,9 +22,8 @@ import java.util.Map;
  * <p>Both identities are supplied by the storage provider that would list the prefix, never derived here. This key
  * used to hold a hash it computed itself from seven credential names written beside it — which carried
  * {@code access_key} and {@code secret_key} and not {@code session_token}, {@code role_arn} or {@code auth}, so two
- * roles over one bucket addressed one listing, and on the inline path, where there is no definition version to
- * separate them, that hash was the only thing between them. A provider knows which of its own fields are declared
- * secret; a cache cannot.
+ * roles over one bucket addressed one listing, and that hash was the only thing between them on any path. A
+ * provider knows which of its own fields are declared secret; a cache cannot.
  *
  * <p>The {@code listingDiscriminatorH1/H2} are a 128-bit hash of everything about the query that changes which
  * files the listing contains — the filter hints that narrow it, and the resolved partition config (strategy and

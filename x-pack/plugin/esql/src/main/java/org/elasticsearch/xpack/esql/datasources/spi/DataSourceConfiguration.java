@@ -171,9 +171,9 @@ public abstract class DataSourceConfiguration {
      *
      * <p>Also derives the identity of what was kept: this is the one place that holds both the consumed
      * entries and each field's secret flag, so it is the only place that can identify a storage
-     * configuration without a list of credential names maintained elsewhere. A secret's value is folded
-     * into the definition version instead, so rotating one still moves every key derived from it while no
-     * secret value reaches one.
+     * configuration without a list of credential names maintained elsewhere. A secret's value reaches the
+     * secret identity derived alongside it instead, digested rather than carried, so rotating one moves every
+     * key that folds that identity while no secret value reaches a key.
      *
      * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
      * find out why the storage config came back with defaults. Only key <em>names</em> are

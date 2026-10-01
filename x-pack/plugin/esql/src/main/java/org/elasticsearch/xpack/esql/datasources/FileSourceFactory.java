@@ -130,7 +130,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // same way.
         inert.add(FormatNameResolver.CONFIG_READER);
         // The envelope carrying the data source's settings rather than a setting. Its contents reach an
-        // identity through the storage participant, and its credentials through the definition version.
+        // identity through the storage participant, and its credentials the secret identity that participant derives.
         inert.add(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
         COORDINATOR_IDENTITY_INERT_KEYS = Set.copyOf(inert);
     }

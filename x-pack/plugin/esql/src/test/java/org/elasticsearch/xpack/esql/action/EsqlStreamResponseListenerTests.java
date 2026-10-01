@@ -15,9 +15,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -177,7 +180,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testOnFailureRuntimeException() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
         listener.onFailure(new RuntimeException("exception"));
 
         RestResponse restResponse = channel.capturedResponse();
@@ -190,7 +193,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testOnFailureElasticsearchStatusException() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
         listener.onFailure(new ElasticsearchStatusException("not allowed", RestStatus.FORBIDDEN));
 
         RestResponse restResponse = channel.capturedResponse();
@@ -204,7 +207,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         RemoteTransportException wrapper = new RemoteTransportException("node/action", cause);
 
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
         listener.onFailure(wrapper);
 
         RestResponse restResponse = channel.capturedResponse();
@@ -341,7 +344,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         EarlyGetNextPartChannel channel = new EarlyGetNextPartChannel();
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
 
         listener.resultStreamListener()
             .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
@@ -360,7 +363,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     public void testFailedInitMustNotLeaveTheProducerBlocked() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
         ThrowingOkChannel channel = new ThrowingOkChannel();
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
 
         listener.resultStreamListener()
             .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
@@ -437,7 +440,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
         listener.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
         return new Subscribed(publisher, producer, channel, channel.capturedResponse(), listener);
     }
@@ -581,6 +584,70 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         lines.add(decodeLine(footerPart));
 
         return lines;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOnFailureUsesPreHeaderFooterWhenProvided() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+
+        RuntimeException cause = new RuntimeException("injected");
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            500,
+            12345L,
+            false,
+            List.of("warning from sub-plan"),
+            null,
+            cause
+        );
+        listener.onPreHeaderFailureFooter(footer);
+        listener.onFailure(cause);
+
+        RestResponse restResponse = channel.capturedResponse();
+        assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        assertThat("took must come from the supplied footer", line.get("took"), equalTo(12345));
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) line.get("warnings");
+        assertThat("warnings must come from the supplied footer", warnings, equalTo(List.of("warning from sub-plan")));
+        assertFalse("failure footer must not carry stats keys", line.containsKey("documents_found"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFallbackPreHeaderFooterHasTookAndWarnings() throws IOException {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit added"));
+
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext);
+        listener.onFailure(new RuntimeException("boom"));
+
+        RestResponse restResponse = channel.capturedResponse();
+        Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        int took = (int) line.get("took");
+        assertTrue("fallback took must be non-negative", took >= 0);
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) line.get("warnings");
+        assertThat("thread-context warning must appear in fallback footer", warnings, equalTo(List.of("limit added")));
+        assertFalse("fallback footer must not carry stats keys", line.containsKey("documents_found"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testErrorObjectHasRootCauseAndCausedBy() throws IOException {
+        ElasticsearchException root = new ElasticsearchException("root cause message");
+        ElasticsearchException wrapper = new ElasticsearchException("wrapper message", root);
+
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        listener.onFailure(wrapper);
+
+        RestResponse restResponse = channel.capturedResponse();
+        Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        Map<String, Object> error = (Map<String, Object>) line.get("error");
+        assertNotNull("error must be present", error);
+        assertThat("type must match the exception name", error.get("type"), equalTo(ElasticsearchException.getExceptionName(wrapper)));
+        assertNotNull("root_cause must be present", error.get("root_cause"));
+        assertNotNull("caused_by must be present", error.get("caused_by"));
     }
 
     @SuppressWarnings("unchecked")

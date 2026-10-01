@@ -142,12 +142,13 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
-            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
+            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel, client.threadPool().getThreadContext());
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
                 esqlRequest,
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
-                resolvedBatchSize
+                resolvedBatchSize,
+                restListener::onPreHeaderFailureFooter
             );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,

@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
     static final String NAME = "searchable_snapshots_enable";
-    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     private volatile EnableAllocationDecider.Allocation enableAllocation;
 
@@ -52,7 +51,7 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
             EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;
             if (enableAllocationCopy == EnableAllocationDecider.Allocation.PRIMARIES) {
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "no allocations of searchable snapshots allowed during rolling restart due to [%s=%s]",
                     EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),

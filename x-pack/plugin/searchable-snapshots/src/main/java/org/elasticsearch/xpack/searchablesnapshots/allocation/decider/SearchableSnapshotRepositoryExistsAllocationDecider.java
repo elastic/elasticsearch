@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 public class SearchableSnapshotRepositoryExistsAllocationDecider extends AllocationDecider {
 
     private static final String NAME = "searchable_snapshot_repository_exists";
-    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     private static final Decision YES_INAPPLICABLE = Decision.single(
         Decision.Type.YES,
@@ -61,7 +60,7 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
 
             final var repositoriesMetadata = RepositoriesMetadata.get(allocation.getClusterState());
             if (repositoriesMetadata.repositories().isEmpty()) {
-                return allocation.decision(NO_DECISION, NAME, "there are no repositories registered in this cluster");
+                return allocation.decision(Decision.NO, NAME, "there are no repositories registered in this cluster");
             }
 
             final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(settings);
@@ -72,7 +71,7 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
                 }
 
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "this index is backed by a searchable snapshot in a repository with UUID [%s] but no such repository is registered "
                         + "with this cluster; the required repository was originally named [%s]",
@@ -87,7 +86,7 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
                 }
 
                 return allocation.decision(
-                    NO_DECISION,
+                    Decision.NO,
                     NAME,
                     "this index is backed by a searchable snapshot in a repository named [%s] but no such repository is registered "
                         + "with this cluster",

@@ -19,7 +19,6 @@ import java.util.function.BooleanSupplier;
 public class ArchiveAllocationDecider extends AllocationDecider {
 
     static final String NAME = "archive";
-    private static final Decision NO_DECISION = new Decision.Single(Decision.Type.NO, NAME, null);
 
     private final BooleanSupplier hasValidLicenseSupplier;
 
@@ -52,7 +51,7 @@ public class ArchiveAllocationDecider extends AllocationDecider {
             if (hasValidLicenseSupplier.getAsBoolean()) {
                 return allocation.decision(Decision.YES, NAME, "valid license for archive functionality");
             } else {
-                return allocation.decision(NO_DECISION, NAME, "invalid license for archive functionality");
+                return allocation.decision(Decision.NO, NAME, "invalid license for archive functionality");
             }
         } else {
             return allocation.decision(Decision.YES, NAME, "decider only applicable for indices backed by archive functionality");

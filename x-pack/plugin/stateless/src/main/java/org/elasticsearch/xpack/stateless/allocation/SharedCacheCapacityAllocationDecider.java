@@ -34,8 +34,8 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
 
 /**
  * Deprioritizes allocation of search shards to a node whose shared cache is already, or would become, over-subscribed, by returning
- * {@link #NOT_PREFERRED_DECISION} from {@link #canAllocate}, and deprioritizes leaving a search shard on a node whose shared cache is
- * already over-subscribed by returning {@link #NOT_PREFERRED_DECISION} from {@link #canRemain}. The decider reasons about the
+ * {@link Decision#NOT_PREFERRED} from {@link #canAllocate}, and deprioritizes leaving a search shard on a node whose shared cache is
+ * already over-subscribed by returning {@link Decision#NOT_PREFERRED} from {@link #canRemain}. The decider reasons about the
  * boosted/unboosted cache commitment data recorded in {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
  * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is controlled by
  * {@link #ENABLED_SETTING}, and is enabled in snapshot builds, such as CI, by the {@code shared_cache_capacity_decider} feature flag.
@@ -45,7 +45,6 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
     public static final String NAME = "shared_cache_capacity";
     private static final FeatureFlag SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG = new FeatureFlag("shared_cache_capacity_decider");
-    private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -96,7 +95,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * The {@code canAllocate} threshold. Above this, the decider returns {@link #NOT_PREFERRED_DECISION} for new allocations.
+     * The {@code canAllocate} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for new allocations.
      * The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = Setting.ratioSetting(
@@ -107,7 +106,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * The {@code canRemain} threshold. Above this, the decider returns {@link #NOT_PREFERRED_DECISION} for shards already allocated to
+     * The {@code canRemain} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for shards already allocated to
      * the node. The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = Setting.ratioSetting(
@@ -232,9 +231,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 if (isDebugEnabled) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(NOT_PREFERRED_DECISION, NAME, message);
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return NOT_PREFERRED_DECISION;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 
@@ -272,9 +271,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 if (isDebugEnabled) {
                     logCanAllocateMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(NOT_PREFERRED_DECISION, NAME, message);
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return NOT_PREFERRED_DECISION;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 
@@ -343,9 +342,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logCanRemainMessage.maybeExecute(() -> logger.debug(message));
                 }
-                return allocation.decision(NOT_PREFERRED_DECISION, NAME, message);
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return NOT_PREFERRED_DECISION;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 

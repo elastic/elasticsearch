@@ -365,11 +365,15 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Listing weight plus the per-file schema-map allowance reserved before reconciliation.
-     * Visible for tests that pin the charge at the discovered-files cap.
+     * Bytes held for this listing after resolve. The walk (or a cache hit) reserves
+     * {@link FileList#LISTING_BYTES_PER_ENTRY} per file; compact listings weigh less and keep that floor.
+     * {@link FileList#planningBytes()} is used when it is larger. The per-file schema-map allowance is then
+     * added. Visible for tests that pin the charge at the discovered-files cap.
      */
     public static long listingPlanningCharge(FileList listing) {
-        return listing.planningBytes() + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
+        long files = listing.fileCount();
+        long listingHeld = Math.max(files * FileList.LISTING_BYTES_PER_ENTRY, listing.planningBytes());
+        return listingHeld + files * SCHEMA_MAP_BYTES_PER_FILE;
     }
 
     /**
@@ -382,15 +386,12 @@ public class ExternalSourceResolver {
         if (reservation == null) {
             return;
         }
-        // One LISTING_BYTES_PER_ENTRY per entry is already reserved: by the walk as it retained them, or - when the
-        // listing came from the cache and no walk ran - by DatasetListingService.cachedListing, which reserves that
-        // same figure for exactly this subtraction to stay valid. What is left is the listing's fixed overhead, its
-        // header and any notices it carries, plus the per-file schema map built over it, neither of which is known
-        // until the listing is complete. The two together come to exactly what this charged in one go before the walk
-        // started reserving.
+        // The walk (or cachedListing) already reserved LISTING_BYTES_PER_ENTRY per file. Compact listings weigh
+        // less than that floor; those bytes stay held. Charge any listing weight above the floor, then the schema
+        // map. The schema map is a separate add so a smaller allowance cannot be swallowed by max(0).
         long alreadyReserved = listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY;
-        long remainder = listing.planningBytes() - alreadyReserved + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
-        reservation.chargeQuery(Math.max(0L, remainder));
+        long listingRemainder = Math.max(0L, listing.planningBytes() - alreadyReserved);
+        reservation.chargeQuery(listingRemainder + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
     }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */

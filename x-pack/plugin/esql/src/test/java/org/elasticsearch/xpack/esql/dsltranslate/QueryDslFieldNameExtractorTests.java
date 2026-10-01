@@ -39,7 +39,9 @@ public class QueryDslFieldNameExtractorTests extends ESTestCase {
     public void testTermsRangeExistsCollectFields() {
         assertThat(extract(QueryBuilders.termsQuery("status", List.of(200, 300))).fieldNames(), containsInAnyOrder("status"));
         assertThat(extract(QueryBuilders.rangeQuery("cnt").gt(0)).fieldNames(), containsInAnyOrder("cnt"));
-        assertThat(extract(QueryBuilders.existsQuery("host.name")).fieldNames(), containsInAnyOrder("host.name"));
+        // An exists reference can be an object path, and pre-analysis cannot tell one from a leaf without the schema it
+        // is about to fetch — so both the name and its object-prefix pattern are requested. Field-caps takes patterns.
+        assertThat(extract(QueryBuilders.existsQuery("host.name")).fieldNames(), containsInAnyOrder("host.name", "host.name.*"));
     }
 
     public void testMatchAndMatchPhraseCollectFields() {
@@ -64,7 +66,18 @@ public class QueryDslFieldNameExtractorTests extends ESTestCase {
             .mustNot(QueryBuilders.existsQuery("error.stack"));
         var result = extract(filter);
         assertFalse(result.requiresAllFields());
-        assertThat(result.fieldNames(), containsInAnyOrder("service.name", "@timestamp", "error.stack"));
+        assertThat(result.fieldNames(), containsInAnyOrder("service.name", "@timestamp", "error.stack", "error.stack.*"));
+    }
+
+    /**
+     * An {@code exists} over an object path is the case the pattern exists for: the filter needs {@code user.name} in the
+     * view branch's output, and only the {@code user.*} request can bring it — asking for {@code user} alone resolves to
+     * nothing and the filter would bind to NULL and match no rows.
+     */
+    public void testExistsCollectsTheObjectPrefixPattern() {
+        var result = extract(QueryBuilders.existsQuery("user"));
+        assertFalse(result.requiresAllFields());
+        assertThat(result.fieldNames(), containsInAnyOrder("user", "user.*"));
     }
 
     /**

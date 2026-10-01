@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -80,7 +81,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("id", "type=integer", "status", "type=integer", "region", "type=keyword")
+                .setMapping("id", "type=integer", "status", "type=integer", "region", "type=keyword", "user.name", "type=keyword")
         );
         indexRows(INDEX, 0);
 
@@ -106,12 +107,15 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * combination exactly once, so each expected result in this class can be written out as a literal.
      */
     private static void indexRows(String index, int base) {
+        // user.name is present on the even ids only. No field is called "user", so a filter naming it has to resolve
+        // through the object prefix — and because the pre-filtered view shows ids 0 and 3, that split is visible
+        // through the view boundary in both directions.
         indexDocs(
-            new IndexRequest(index).source("id", base, "status", 200, "region", "eu"),
+            new IndexRequest(index).source("id", base, "status", 200, "region", "eu", "user.name", "u" + base),
             new IndexRequest(index).source("id", base + 1, "status", 300, "region", "us"),
-            new IndexRequest(index).source("id", base + 2, "status", 400, "region", "eu"),
+            new IndexRequest(index).source("id", base + 2, "status", 400, "region", "eu", "user.name", "u" + (base + 2)),
             new IndexRequest(index).source("id", base + 3, "status", 200, "region", "us"),
-            new IndexRequest(index).source("id", base + 4, "status", 300, "region", "eu"),
+            new IndexRequest(index).source("id", base + 4, "status", 300, "region", "eu", "user.name", "u" + (base + 4)),
             new IndexRequest(index).source("id", base + 5, "status", 400, "region", "us")
         );
     }
@@ -243,6 +247,49 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      */
     public void testRequestFilterOnPreFilteredViewIsComposedCorrectly() {
         assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("region", "eu")), equalTo(List.of(0)));
+    }
+
+    /**
+     * A filter over a view's output is evaluated in ES|QL, so every field it names has to survive column pruning into
+     * the view branch's output. An {@code exists} naming an object path resolves through {@code user.*}, and that is the
+     * request pre-analysis must make: ask field-caps for {@code user} alone and {@code user.name} never reaches the
+     * branch, the filter binds to NULL and the view returns nothing. Written over the pre-filtered view because only a
+     * surviving view boundary puts the filter on a view's output at all — see
+     * {@link #testTheObjectPathCasesNeedASurvivingViewBoundary}.
+     */
+    public void testExistsOnObjectPathAppliesToViewOutput() {
+        assertThat(ids(PREFILTERED_VIEW, QueryBuilders.existsQuery("user")), equalTo(List.of(0)));
+        assertThat(ids(PASSTHROUGH_VIEW, QueryBuilders.existsQuery("user")), equalTo(List.of(0, 2, 4)));
+    }
+
+    /** Negated, over the same boundary: the rows the view shows whose subfield is absent, not every row it shows. */
+    public void testMustNotExistsOnObjectPathAppliesToViewOutput() {
+        QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("user"));
+        assertThat(ids(PREFILTERED_VIEW, negated), equalTo(List.of(3)));
+        assertThat(ids(PASSTHROUGH_VIEW, negated), equalTo(List.of(1, 3, 5)));
+    }
+
+    /**
+     * Why the two cases above are written over the pre-filtered view. A request filter reaches a view's <em>output</em>
+     * only where a view boundary survives optimization: over the pre-filtered view the translated predicate is a
+     * {@code Filter} under the {@code ViewUnionAll}, bound to a real attribute. Over the passthrough view no boundary
+     * is left and the plan holds no {@code Filter} at all — that filter went to the index scan, the path this
+     * translation never touches, so the same case there would pass whatever the translator did.
+     */
+    public void testTheObjectPathCasesNeedASurvivingViewBoundary() {
+        String prefiltered = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
+        // The dump is a pre-order walk, so "later" means descendant or later sibling. This query is a single spine,
+        // where the two coincide: the predicate has to sit BELOW the view boundary, not above it.
+        assertThat(prefiltered, containsString("ViewUnionAll"));
+        assertThat(prefiltered, containsString("ISNOTNULL(user.name"));
+        assertThat(
+            "the translated predicate must sit under the view boundary",
+            prefiltered.indexOf("ViewUnionAll"),
+            lessThan(prefiltered.indexOf("ISNOTNULL(user.name"))
+        );
+        String passthrough = optimizedLogicalPlan("FROM " + PASSTHROUGH_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
+        assertThat(passthrough, not(containsString("ViewUnionAll")));
+        assertThat("no filter is evaluated in ESQL on this path at all", passthrough, not(containsString("Filter[")));
     }
 
     // ─── Stats view: filter on computed field must work ─────────────────────────

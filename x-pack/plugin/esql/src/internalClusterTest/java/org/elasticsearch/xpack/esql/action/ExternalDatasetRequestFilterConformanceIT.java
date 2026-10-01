@@ -121,6 +121,16 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return i * 1000L;
     }
 
+    // A subfield under an object path NO column is named after: the index answers exists:{field:"user"} by resolving
+    // it as the pattern user.*, so a translation that bound the bare name would select nothing here.
+    private static boolean hasUser(int i) {
+        return i % 4 != 0;
+    }
+
+    private static String user(int i) {
+        return "u" + i;
+    }
+
     private static String ts(int i) {
         return DateTimeFormatter.ISO_INSTANT.format(BASE.plus(Duration.ofDays(i))); // 12:34:56 on 2020-01-(i+1)
     }
@@ -154,6 +164,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                     "rating",
                     "type=integer",
                     "nick",
+                    "type=keyword",
+                    "user.name",
                     "type=keyword"
                 )
         );
@@ -171,13 +183,16 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             if (hasNick(i)) {
                 source.put("nick", nick(i));
             }
+            if (hasUser(i)) {
+                source.put("user", Map.of("name", user(i)));
+            }
             client().prepareIndex(INDEX).setSource(source).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
         StringBuilder csv = new StringBuilder(
-            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword\n"
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword,user.name:keyword\n"
         );
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
@@ -195,6 +210,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(hasRating(i) ? String.valueOf(rating(i)) : "")
                 .append(',')
                 .append(hasNick(i) ? nick(i) : "")
+                .append(',')
+                .append(hasUser(i) ? user(i) : "")
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
@@ -218,6 +235,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("label", new DatasetFieldMapping("keyword", null));
         properties.put("rating", new DatasetFieldMapping("integer", null));
         properties.put("nick", new DatasetFieldMapping("keyword", null));
+        properties.put("user.name", new DatasetFieldMapping("keyword", null));
         return properties;
     }
 
@@ -306,6 +324,58 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
 
     public void testExists() {
         assertSelectsSameRows(QueryBuilders.existsQuery("tags"));
+    }
+
+    /**
+     * {@code exists} on an OBJECT PATH. No column is called {@code user}; the index resolves the name as a pattern,
+     * finds nothing, retries it as {@code user.*} and selects the rows whose {@code user.name} has a value. Binding the
+     * bare name — which is what the dataset path used to do — folds to false and selects NO rows, the one direction a
+     * partial translation must never move in, and with no warning to show for it.
+     */
+    public void testExistsOnObjectPath() {
+        // Pinned to the row set itself, not just to parity: two paths that both select nothing agree perfectly, which is
+        // the exact failure this test was written for.
+        List<Object> withUser = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasUser);
+        assertThat("user.name must be present on some rows but not all", withUser.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertEquals(withUser, selectedIds(INDEX, QueryBuilders.existsQuery("user")));
+        assertEquals(withUser, selectedIds(dataset, QueryBuilders.existsQuery("user")));
+    }
+
+    /** Negated, the same expansion has to exclude exactly those rows rather than excluding nothing. */
+    public void testMustNotExistsOnObjectPath() {
+        List<Object> withoutUser = idsWhere(i -> hasUser(i) == false);
+        assertThat("some rows must lack user.name", withoutUser.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("user"));
+        assertEquals(withoutUser, selectedIds(INDEX, negated));
+        assertEquals(withoutUser, selectedIds(dataset, negated));
+    }
+
+    /** An explicit field pattern is the same resolution, one step shorter. */
+    public void testExistsOnFieldPattern() {
+        assertSelectsSameRows(QueryBuilders.existsQuery("user.*"));
+    }
+
+    /** A leaf name still means that one field, not a prefix of it. */
+    public void testExistsOnLeafUnderAnObjectPath() {
+        assertSelectsSameRows(QueryBuilders.existsQuery("user.name"));
+    }
+
+    /** A name neither source has selects nothing on both paths — the index's unmapped-field match-no-docs. */
+    public void testExistsOnUnmappedFieldSelectsNothing() {
+        assertSelectsSameRows(QueryBuilders.existsQuery("no_such_field"));
+        assertSelectsSameRows(QueryBuilders.existsQuery("no_such_prefix.*"));
+    }
+
+    /**
+     * Negated, that same reference excludes NOTHING — both paths return every row. This is the other direction, and the
+     * one an over-eager fold would break: answering the exists with anything but match-no-docs makes the NOT exclude
+     * rows the index keeps.
+     */
+    public void testMustNotExistsOnUnmappedFieldSelectsEverything() {
+        QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("no_such_field"));
+        List<Object> all = idsWhere(i -> true);
+        assertEquals(all, selectedIds(INDEX, negated));
+        assertEquals(all, selectedIds(dataset, negated));
     }
 
     public void testBoolMustWithShould() {
@@ -479,6 +549,10 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertEquals(withRating, selectedIds(dataset, QueryBuilders.existsQuery("rating")));
         assertEquals(withNick, selectedIds(INDEX, QueryBuilders.existsQuery("nick")));
         assertEquals(withNick, selectedIds(dataset, QueryBuilders.existsQuery("nick")));
+        List<Object> withUser = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasUser);
+        assertThat("user.name must be present on some rows but not all", withUser.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertEquals(withUser, selectedIds(INDEX, QueryBuilders.existsQuery("user.name")));
+        assertEquals(withUser, selectedIds(dataset, QueryBuilders.existsQuery("user.name")));
     }
 
     /**
@@ -588,7 +662,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             Map.entry("ts", DataType.DATETIME),
             Map.entry("label", DataType.KEYWORD),
             Map.entry("rating", DataType.INTEGER),
-            Map.entry("nick", DataType.KEYWORD)
+            Map.entry("nick", DataType.KEYWORD),
+            Map.entry("user.name", DataType.KEYWORD)
         );
         List<QueryBuilder> filters = List.of(
             QueryBuilders.termQuery("status", 200),
@@ -613,9 +688,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 DataType type = types.get(name);
                 return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
             };
-            boolean translatedInFull = new QueryDslTranslator(binder, types.keySet(), TEST_CFG, TransportVersion.current()).translate(
-                filter
-            ).unsupported().isEmpty();
+            boolean translatedInFull = new QueryDslTranslator(
+                binder,
+                QueryDslTranslator.over(types.keySet()),
+                TEST_CFG,
+                TransportVersion.current()
+            ).translate(filter).unsupported().isEmpty();
             assertThat(Strings.toString(filter), translatedInFull, equalTo(warned == false));
         }
     }

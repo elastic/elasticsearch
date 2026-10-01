@@ -34,6 +34,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
@@ -307,13 +308,33 @@ public class RequestFilterGoldenTests extends GoldenTestCase {
         runGoldenFilter(filter);
     }
 
+    /**
+     * An {@code exists} over an object path, whose emitted shape is an {@code OR} of one {@code IS NOT NULL} per
+     * subfield. The unit tests assert which fields it resolves; this records the whole expression against the plan, the
+     * only place the new leaf's shape is written down.
+     */
+    public void testExistsOnObjectPathShape() {
+        runGoldenFilter(
+            QueryBuilders.existsQuery("obj"),
+            List.of(new Column("obj.a", DataType.KEYWORD, "b", "a", "c"), new Column("obj.b", DataType.KEYWORD, "b", "a", "c"))
+        );
+    }
+
     private void runGoldenFilter(QueryBuilder filter) {
+        runGoldenFilter(filter, List.of());
+    }
+
+    /**
+     * {@code extraColumns} are appended to the shared schema for this one case. Adding them to {@link #COLUMNS} instead
+     * would rewrite the relation line of every golden file in this suite.
+     */
+    private void runGoldenFilter(QueryBuilder filter, List<Column> extraColumns) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         builder("FROM every_type").stages(STAGES)
             // Pinned: below the rewriter's version gate the filter is skipped, and the gate has its own tests.
             .transportVersion(TransportVersion.current())
             .datasetMetadata(datasetMetadata())
-            .externalSourceResolution(externalSourceResolution())
+            .externalSourceResolution(externalSourceResolution(extraColumns))
             .requestFilter(filter)
             .run();
     }
@@ -327,8 +348,10 @@ public class RequestFilterGoldenTests extends GoldenTestCase {
             .build();
     }
 
-    private static ExternalSourceResolution externalSourceResolution() {
-        List<Attribute> schema = COLUMNS.stream().<Attribute>map(c -> referenceAttribute(c.name(), c.type())).toList();
+    private static ExternalSourceResolution externalSourceResolution(List<Column> extraColumns) {
+        List<Attribute> schema = Stream.concat(COLUMNS.stream(), extraColumns.stream())
+            .<Attribute>map(c -> referenceAttribute(c.name(), c.type()))
+            .toList();
         ExternalSourceMetadata metadata = new ExternalSourceMetadata() {
             @Override
             public String location() {

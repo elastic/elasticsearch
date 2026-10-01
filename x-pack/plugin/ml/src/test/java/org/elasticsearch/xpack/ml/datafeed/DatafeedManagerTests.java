@@ -673,7 +673,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPutDatafeed_EsqlDatafeedWithSecurityEnabled_ShortCircuitsIndexPrivilegeCheck() {
+    public void testPutEsqlDatafeedWithSecurityEnabledShouldShortCircuitIndexPrivilegeCheck() {
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);

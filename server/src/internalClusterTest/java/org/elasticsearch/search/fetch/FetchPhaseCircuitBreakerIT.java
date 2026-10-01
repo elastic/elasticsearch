@@ -47,6 +47,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -543,6 +545,45 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 lessThanOrEqualTo(breakerBeforeSearch)
             );
         });
+    }
+
+    /**
+     * Verifies that the request circuit breaker is properly released when a
+     * {@code top_hits} aggregation fetches document {@code fields}. This exercises the
+     * {@code memoryChecker != null} branch, which routes field bytes through the
+     * aggregator's memory checker rather than the global accumulator used by normal searches.
+     */
+    public void testTopHitsWithFieldsReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String topHitsIndex = "top_hits_fields_idx";
+        assertAcked(
+            prepareCreate(topHitsIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(topHitsIndex, 20, 500);
+        ensureSearchable(topHitsIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(topHitsIndex)
+                .setQuery(matchAllQuery())
+                .setSize(0)
+                .addAggregation(global("all").subAggregation(topHits("top").size(5).fetchField("tag"))),
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(20L))
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after top_hits + fields search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
     }
 
     public void testRankFeaturePhaseReleasesCircuitBreaker() throws Exception {

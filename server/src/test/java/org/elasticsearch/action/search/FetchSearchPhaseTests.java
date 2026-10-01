@@ -100,6 +100,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
@@ -1311,6 +1312,57 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
         r.close();
         dir.close();
+    }
+
+    /**
+     * When a non-null {@code memoryChecker} is supplied, document-field bytes must be forwarded
+     * to it.
+     */
+    public void testDocumentFieldsBytesForwardedToMemoryCheckerWhenNonNull() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", Field.Store.YES));
+        w.addDocument(doc);
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        List<Object> tagValues = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            tagValues.add("tag-" + i);
+        }
+
+        AtomicLong checkerTotal = new AtomicLong();
+        IntConsumer memoryChecker = bytes -> checkerTotal.addAndGet(bytes);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, false)) {
+            setTotalHits(searchContext, 1);
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext ctx) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    hitContext.hit().setDocumentField(new DocumentField("tag", tagValues));
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
+            }));
+            fetchPhase.execute(searchContext, new int[] { 0 }, null, memoryChecker);
+
+            assertThat(
+                "document-field bytes must be forwarded to the memoryChecker when non-null",
+                checkerTotal.get(),
+                greaterThan(0L)
+            );
+        } finally {
+            r.close();
+            dir.close();
+        }
     }
 
     public void testStreamingFetchAccountsAndReleasesSourceBytes() throws IOException {

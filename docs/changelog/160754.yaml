@@ -1,0 +1,7 @@
+area: Data streams
+issues:
+ - 139158
+pr: 160754
+summary: "DLM is not granted permission to manage restricted indices, but it does\
+  \ not know this [#139158]"
+type: bug

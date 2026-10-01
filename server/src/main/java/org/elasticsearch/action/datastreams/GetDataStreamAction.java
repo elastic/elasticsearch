@@ -197,6 +197,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             ManagedBy(String displayValue) {
                 this.displayValue = displayValue;
             }
+
+            static ManagedBy fromLifecycleManagedBy(DataStream.LifecycleManagedBy lifecycleManagedBy) {
+                return switch (lifecycleManagedBy) {
+                    case ILM -> ILM;
+                    case DLM -> LIFECYCLE;
+                    case UNMANAGED -> UNMANAGED;
+                };
+            }
         }
 
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
@@ -486,20 +494,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              * Computes and returns which system will manage the next generation for this data stream.
              */
             public ManagedBy getNextGenerationManagedBy() {
-                // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
-                if (ilmPolicyName != null && dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
-                    return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
-                }
-
-                if (ilmPolicyName != null) {
-                    return ManagedBy.ILM;
-                }
-
-                if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
-                    return ManagedBy.LIFECYCLE;
-                }
-
-                return ManagedBy.UNMANAGED;
+                return ManagedBy.fromLifecycleManagedBy(
+                    DataStream.lifecycleManagedBy(
+                        ilmPolicyName,
+                        dataStream.getDataLifecycle(),
+                        () -> templatePreferIlmValue,
+                        dataStream.getIndexMode()
+                    )
+                );
             }
 
             @Override

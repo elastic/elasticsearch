@@ -2226,6 +2226,24 @@ fork2         | null
 ;
 
 
+# UNION ALL branches read books and books_english, which disagree on title's analyzer, yet each row comes from one index:
+# english stems "Rings" for the books_english row, standard does not for the books row. No warning.
+highlightPerIndexAnalyzerAcrossUnionAllBranches
+required_capability: highlight_mapping_analyzer
+required_capability: subquery_in_from_command
+
+FROM (FROM books | WHERE book_no == "2714"), (FROM books_english | WHERE book_no == "2714")
+| HIGHLIGHT "ring" ON title
+| KEEP highlight_title
+| SORT highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+null
+;
+
+
 # After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
 # "ring" matches "Ring", not "Rings".
 highlightPerIndexAnalyzerAfterStatsFallsBackToStandard

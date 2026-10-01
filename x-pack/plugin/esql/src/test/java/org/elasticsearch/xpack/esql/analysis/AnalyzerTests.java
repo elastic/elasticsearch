@@ -21,6 +21,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
@@ -6843,8 +6844,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
         assertNull(
             soleHighlight(
-                booksWithConflictingTitleAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
-                    .query("FROM books* | HIGHLIGHT \"ring\" ON title")
+                booksWithConflictingTitleAnalyzer().minimumTransportVersion(
+                    TransportVersionUtils.getPreviousVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                ).query("FROM books* | HIGHLIGHT \"ring\" ON title")
             ).indexKey()
         );
         // Response headers keep one copy of a repeated warning.
@@ -6963,8 +6965,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * A branch that computes the column leaves no one mapping to carry, so HIGHLIGHT falls back and says the branches
-     * disagree. A branch with STATS agrees on the mapping but has no source index per row, so the key is not threaded.
+     * A branch that computes the column while another maps it leaves no one mapping to carry, so HIGHLIGHT falls back and
+     * says the branches disagree. A branch with STATS agrees on the mapping but has no source index per row, so the key is not threaded.
      */
     public void testHighlightAfterForkFallsBack() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -6990,11 +6992,80 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings(analyzerConflictFallbackWarning("title"));
     }
 
+    /**
+     * FORK's merged column keeps the analyzer TO_TEXT declares, so HIGHLIGHT uses it instead of a mapping inferred from
+     * the branches, which compute the column. A mapped ON field next to it still gets the mapping its branches agree on.
+     */
+    public void testHighlightAfterForkKeepsDeclaredAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title, t
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(as(highlight.fields().getLast(), ReferenceAttribute.class).valuesAnalyzer(), equalTo("whitespace"));
+        assertThat(highlight.fieldMappings().keySet(), equalTo(Set.of("title")));
+        assertWarnings();
+    }
+
+    /**
+     * A column every branch computes carries no mapping, so HIGHLIGHT analyzes it like any computed column, without a
+     * warning. Branches that declare different TO_TEXT analyzers do disagree: unlike FORK, UNION ALL does not reject them.
+     */
+    public void testHighlightAfterMergeOfComputedColumn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (EVAL t = title) (EVAL t = title)
+            | HIGHLIGHT "ring" ON t
+            """);
+        assertThat(soleHighlight(plan).fieldMappings(), equalTo(Map.of()));
+        assertWarnings();
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})),
+                 (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "stop"}))
+            | HIGHLIGHT "ring" ON t
+            """);
+        TextEsField mapping = soleHighlight(plan).fieldMappings().get("t");
+        assertThat(mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
+        assertWarnings(highlightFallbackWarning("t", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+    }
+
+    /**
+     * UNION ALL branches over differently analyzed indices disagree on the column's mapping, but each row still comes from
+     * one index, so HIGHLIGHT gets the analyzer of every index and the row's index, and no warning.
+     */
+    public void testHighlightPerIndexAnalyzerAcrossUnionAllBranches() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
+            .addIndex(singleBooksIndex("books_english", "stop"))
+            .query("FROM (FROM books), (FROM books_english) | HIGHLIGHT \"ring\" ON title");
+        Highlight highlight = soleHighlight(plan);
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        assertThat(
+            highlight.fieldMappings().get("title").analyzerGroups(),
+            containsInAnyOrder(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+            )
+        );
+        assertNotNull(highlight.indexKey());
+        assertWarnings();
+    }
+
     private static String analyzerConflictFallbackWarning(String field) {
         return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
     }
 
-    /** {@code books} analyzes {@code title} with {@code whitespace}, {@code books_english} with {@code stop}. */
+    /**
+     * {@code books} analyzes {@code title} with {@code whitespace}, {@code books_english} with {@code stop}. Pins
+     * {@link TextEsField#TEXT_FIELD_ANALYZER}, the oldest version that can read HIGHLIGHT's index key.
+     */
     private TestAnalyzer booksWithConflictingTitleAnalyzer() {
         int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
         TextEsField title = new TextEsField(
@@ -7012,17 +7083,30 @@ public class AnalyzerTests extends AnalyzerTestCase {
             )
         );
         EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
-        Map<String, EsField> mapping = new LinkedHashMap<>();
-        mapping.put("title", title);
-        mapping.put("book_no", bookNo);
         EsIndex index = new EsIndex(
             "books*",
-            mapping,
+            Map.of("title", title, "book_no", bookNo),
             Map.of("books", new IndexProperties(IndexMode.STANDARD, 1), "books_english", new IndexProperties(IndexMode.STANDARD, 1)),
             Map.of(),
             Map.of()
         );
-        return supportsHighlight(analyzer().addIndex(index).stripErrorPrefix(true));
+        return analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+    }
+
+    /** {@code name} on its own, analyzing {@code title} with {@code analyzer}. */
+    private static EsIndex singleBooksIndex(String name, String analyzer) {
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            analyzer,
+            TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+            TextEsField.UnknownAnalyzer.NONE,
+            null
+        );
+        return new EsIndex(name, Map.of("title", title), Map.of(name, new IndexProperties(IndexMode.STANDARD, 1)), Map.of(), Map.of());
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {

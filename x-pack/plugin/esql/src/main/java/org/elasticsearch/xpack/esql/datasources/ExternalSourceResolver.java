@@ -776,16 +776,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Configure-time notices ({@link FormatReader#configWarnings()}) describe the dataset's options, not a file, so they
-     * are raised once per path here, where every rail passes. Per-file metadata cannot carry them: the strict
-     * declared-schema rail reads no file. The lookup is a registry lookup plus option parsing, no I/O. A path no
-     * format claims yet (a bare glob without {@code format}) is skipped; the rail that resolves it from a listed file
-     * fails with its own message if it cannot. A config the reader rejects is skipped too: this is a notice channel,
-     * not a validation gate, and a query the optimizer never sends to a data node ({@code LIMIT 0}) must keep
-     * succeeding on a stored dataset with a bad setting, as it did before these notices existed. Rejection stays
-     * where it was: the PUT-time validator and the data-node operator factory.
-     */
-    /**
      * The identities of every participant that decides what a cached record about this object holds, folded into the
      * one component a key carries: what the storage provider says identifies the object, what the format reader says
      * identifies its own configuration, and what the coordinator says identifies its own.
@@ -817,6 +807,16 @@ public class ExternalSourceResolver {
         }
     }
 
+    /**
+     * Configure-time notices ({@link FormatReader#configWarnings()}) describe the dataset's options, not a file, so they
+     * are raised once per path here, where every rail passes. Per-file metadata cannot carry them: the strict
+     * declared-schema rail reads no file. The lookup is a registry lookup plus option parsing, no I/O. A path no
+     * format claims yet (a bare glob without {@code format}) is skipped; the rail that resolves it from a listed file
+     * fails with its own message if it cannot. A config the reader rejects is skipped too: this is a notice channel,
+     * not a validation gate, and a query the optimizer never sends to a data node ({@code LIMIT 0}) must keep
+     * succeeding on a stored dataset with a bad setting, as it did before these notices existed. Rejection stays
+     * where it was: the PUT-time validator and the data-node operator factory.
+     */
     private void bufferConfigWarnings(String path, Map<String, Object> config) {
         currentPathConfigWarnings = List.of();
         // The one comma decomposition every rail shares: splitting on the first comma would tear a brace group.

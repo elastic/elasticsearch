@@ -63,7 +63,10 @@ public final class DefinitionVersion {
 
     /**
      * Key under which the version travels in a query's merged config map, alongside the settings it is
-     * computed from. Chosen to collide with no setting name a user can register.
+     * computed from. The underscore prefix collides with no <em>registered</em> setting name, and marks the key as
+     * the framework's; it does not stop a user typing it, because the unknown-key check skips framework keys by that
+     * same prefix. A map a user typed is therefore stripped of them by {@code ConfigKeyValidator.withoutFrameworkKeys}
+     * before it becomes a relation's config, so only the value set here can reach a cache key.
      */
     public static final String CONFIG_KEY = "_definition_version";
 

@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+/// Matcher for [Decision] objects
 public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
 
     private final Decision.Type expectedType;
@@ -75,21 +76,28 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
         if (!(actual instanceof Decision decision)) {
             return false;
         }
-        return decision.type() == expectedType
-            && expectedLabel.matches(decision.label())
-            && explanationMatcher.matches(safeGetExplanation(decision));
+        return decision.type() == expectedType && expectedLabel.matches(decision.label()) && explanationMatches(decision);
     }
 
     @Override
     public void describeMismatch(Object actual, Description mismatchDescription) {
         if (actual instanceof Decision decision) {
-            mismatchDescription.appendText("was a Decision with type ")
-                .appendValue(decision.type())
-                .appendText(" and label ")
-                .appendValue(decision.label())
-                .appendText(" and explanation = {")
-                .appendValue(safeGetExplanation(decision))
-                .appendText("}");
+            switch (decision) {
+                case Decision.Single single -> mismatchDescription.appendText("was a Decision.Single with type ")
+                    .appendValue(single.type())
+                    .appendText(" and label ")
+                    .appendValue(single.label())
+                    .appendText(" and explanation = {")
+                    .appendValue(single.getExplanation())
+                    .appendText("}");
+                case Decision.Multi multi -> mismatchDescription.appendText("was a Decision.Multi with type ")
+                    .appendValue(multi.type())
+                    .appendText(" and label ")
+                    .appendValue(multi.label())
+                    .appendText(" and decisions = {")
+                    .appendValue(multi.getDecisions().toString())
+                    .appendText("}");
+            }
         } else {
             mismatchDescription.appendText("was not a Decision");
         }
@@ -106,14 +114,20 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
             .appendText("}");
     }
 
-    /**
-     * {@link Decision.Multi#getExplanation} throws an {@link UnsupportedOperationException} so this
-     * method just returns null for those.
-     *
-     * @param decision The Decision
-     * @return The explanation string, or null if the Decision is a {@link Decision.Multi}
-     */
-    private static String safeGetExplanation(Decision decision) {
-        return decision instanceof Decision.Multi ? null : decision.getExplanation();
+    /// {@link Decision.Multi#getExplanation} throws an {@link UnsupportedOperationException} so
+    /// we traverse the decisions and assert that the effective one matches the specified pattern.
+    ///
+    /// This is only called for a multi-decision once we've already established the effective decision
+    /// is the one specified by {@link #expectedLabel} matcher.
+    private boolean explanationMatches(Decision decision) {
+        return switch (decision) {
+            case Decision.Single single -> explanationMatcher.matches(single.getExplanation());
+            case Decision.Multi multi -> multi.decisions()
+                .stream()
+                .filter(d -> expectedLabel.matches(d.label()))
+                .findFirst()
+                .map(explanationMatcher::matches)
+                .orElse(false);
+        };
     }
 }

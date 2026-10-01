@@ -1424,6 +1424,7 @@ class NodeConstruction {
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
                 throttlingRecoveryService::blockedState,
+                throttlingRecoveryService::queueLatencyMillis,
                 threadPool.relativeTimeInMillisSupplier()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);

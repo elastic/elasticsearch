@@ -3900,6 +3900,92 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * The sibling of the quoted case above, for the file shape that cannot converge: quoting on, because that is
+     * what {@code .csv} defaults to, and not one quote character in the payload. Nothing can retire the probe's
+     * in-quote reading, so every probe returns AMBIGUOUS and every macro-split boundary comes from the exact walk
+     * instead - the path the quoted payload above barely touches.
+     *
+     * <p>It also reads the record starts back out of each span and requires their union to be exactly the
+     * whole-file set, which is the property a query over a macro-split file depends on.
+     */
+    public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+
+        StringBuilder csv = new StringBuilder("id,pickup_datetime,passengers,distance,fare\n");
+        int dataRows = 0;
+        while (csv.length() < 3 * 1024 * 1024) {
+            csv.append(dataRows).append(",2024-06-14 02:31:07,").append(dataRows % 6 + 1).append(',');
+            csv.append(dataRows % 97).append('.').append(dataRows % 100).append(',').append(dataRows % 53).append(".25");
+            // Uneven widths, and a CRLF every seventh row, so records land on every offset modulo the block the
+            // walk reads in rather than tiling it.
+            csv.append(dataRows % 7 == 0 ? "\r\n" : "\n");
+            dataRows++;
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertEquals("the payload must contain no quote character", -1, csv.indexOf("\""));
+        long fileLength = payload.length;
+
+        var csvReader = new CsvFormatReader(blockFactory);
+        int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://quote-free.csv"));
+        Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(maxRecordBytes), payload);
+
+        // Every probe must fail to converge, or the boundaries come from the probe instead of the walk.
+        long stride = fileLength / 4;
+        for (long pos = stride; pos < fileLength; pos += stride) {
+            try (InputStream probe = obj.newStream(pos, fileLength - pos)) {
+                assertEquals(
+                    "a quote-free window cannot prove a boundary, at " + pos,
+                    RecordSplitter.AMBIGUOUS,
+                    csvReader.recordSplitter(maxRecordBytes).findProvenRecordBoundary(probe)
+                );
+            }
+        }
+
+        RecordBoundaryProbe.ProvenWalk walk = RecordBoundaryProbe.provenBoundaries(
+            csvReader.recordSplitter(maxRecordBytes),
+            obj,
+            fileLength,
+            stride,
+            csvReader.minimumSegmentSize(),
+            () -> false
+        );
+
+        List<Long> starts = walk.boundaries();
+        assertFalse("every record here is one the walk can get past", walk.stoppedBeforeEndOfFile());
+        assertThat("expected multiple macro-split boundaries from the walk", starts.size(), greaterThan(1));
+        assertEquals("first boundary is always the file start", 0L, (long) starts.get(0));
+        long prev = -1;
+        for (long start : starts) {
+            assertThat("boundaries must be strictly increasing", start, greaterThan(prev));
+            prev = start;
+            assertTrue("boundary " + start + " must be a true record start", trueStarts.contains(start));
+        }
+
+        // trueRecordStarts carries the post-final-terminator offset as well; the spans never start a record there.
+        TreeSet<Long> expected = new TreeSet<>(trueStarts);
+        expected.remove(expected.last());
+        Set<Long> reconstructed = new TreeSet<>();
+        RecordSplitter splitter = csvReader.recordSplitter(maxRecordBytes);
+        for (int i = 0; i < starts.size(); i++) {
+            long from = starts.get(i);
+            long to = i + 1 < starts.size() ? starts.get(i + 1) : fileLength;
+            long cursor = from;
+            while (cursor < to) {
+                reconstructed.add(cursor);
+                long consumed = splitter.findNextRecordBoundary(
+                    new ByteArrayInputStream(payload, Math.toIntExact(cursor), Math.toIntExact(to - cursor))
+                );
+                if (consumed < 0) {
+                    break;
+                }
+                cursor += consumed;
+            }
+        }
+        assertEquals("the spans must hold every record exactly once", expected, reconstructed);
+    }
+
+    /**
      * True record starts: the file start (0) plus every prefix sum of {@link RecordSplitter#findNextRecordBoundary}
      * consumed lengths from the trusted sequential scanner.
      */

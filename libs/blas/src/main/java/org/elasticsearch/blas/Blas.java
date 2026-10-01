@@ -81,7 +81,9 @@ public final class Blas {
         if (Runtime.version().feature() < 22) {
             return false;
         }
-        if (Platform.current() == Platform.DARWIN_X64) {
+        // The cross-toolchain darwin sysroot lacks headers OpenBLAS needs (sys/shm.h, sys/ipc.h,
+        // sys/sysctl.h, sys/time.h), so no darwin binary is built.
+        if (Platform.current() == Platform.DARWIN_X64 || Platform.current() == Platform.DARWIN_AARCH64) {
             return false;
         }
         String prop = System.getProperty(ENABLE_PROPERTY, "true");

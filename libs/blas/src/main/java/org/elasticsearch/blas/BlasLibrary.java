@@ -39,7 +39,7 @@ import java.lang.foreign.MemorySegment;
  * <p>OpenBLAS is built single-threaded ({@code USE_THREAD=0}); callers that want parallelism
  * distribute independent calls across ES executor threads.
  */
-@LibrarySpecification(name = "openblas", unavailableOn = { Platform.DARWIN_X64 })
+@LibrarySpecification(name = "openblas", unavailableOn = { Platform.DARWIN_X64, Platform.DARWIN_AARCH64 })
 interface BlasLibrary {
 
     /**

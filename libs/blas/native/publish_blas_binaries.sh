@@ -95,9 +95,8 @@ docker run --rm \
 
 echo "Packaging artifacts ..."
 
-for platform in darwin-aarch64 linux-aarch64 linux-x64 windows-x64; do
+for platform in linux-aarch64 linux-x64 windows-x64; do
   case "$platform" in
-    darwin-aarch64) lib_dir=aarch64 lib_name=libopenblas.dylib ;;
     linux-aarch64)  lib_dir=aarch64 lib_name=libopenblas.so ;;
     linux-x64)      lib_dir=amd64   lib_name=libopenblas.so ;;
     windows-x64)    lib_dir=windows-x64 lib_name=openblas.dll ;;
@@ -113,7 +112,7 @@ done
 
 ZIP_NAME="${ARTIFACT_ID}-${VERSION}.zip"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
-(cd "$DIST_DIR" && zip -r "$ZIP_NAME" darwin-aarch64 linux-aarch64 linux-x64 windows-x64)
+(cd "$DIST_DIR" && zip -r "$ZIP_NAME" linux-aarch64 linux-x64 windows-x64)
 echo "Created: ${ZIP_PATH}"
 
 if [ "$UPLOAD" = false ]; then

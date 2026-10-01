@@ -20,6 +20,9 @@ import java.util.Optional;
  */
 public final class HeapEstimates {
 
+    /** Flat per-entry charge shared by the map and statistics estimates. Not a measured size. */
+    private static final long MAP_ENTRY_BYTES = 100L;
+
     private HeapEstimates() {}
 
     /**
@@ -50,16 +53,26 @@ public final class HeapEstimates {
         if (map == null) {
             return 0L;
         }
-        long bytes = 0L;
+        long bytes = mapShapeBytes(map);
         for (Object value : map.values()) {
-            bytes += 100L + valuePayloadBytes(value);
+            bytes += valuePayloadBytes(value);
             if (value instanceof Map<?, ?> nested) {
+                bytes += mapShapeBytes(nested);
                 for (Object nestedValue : nested.values()) {
-                    bytes += 100L + valuePayloadBytes(nestedValue);
+                    bytes += valuePayloadBytes(nestedValue);
                 }
             }
         }
         return bytes;
+    }
+
+    /**
+     * The ~100B per-entry shape charge of {@link #mapBytes} without any value payload. For a shallow copy of a map
+     * ({@code Map.copyOf}, {@code new HashMap<>(other)}): the copy owns its entries, but its keys and values are the
+     * same objects as the original's, so charging their text again counts each string once per copy.
+     */
+    public static long mapShapeBytes(@Nullable Map<?, ?> map) {
+        return map == null ? 0L : MAP_ENTRY_BYTES * map.size();
     }
 
     /**
@@ -71,7 +84,7 @@ public final class HeapEstimates {
         Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = statistics.columnStatistics();
         if (columns != null && columns.isPresent()) {
             for (Map.Entry<String, SourceStatistics.ColumnStatistics> column : columns.get().entrySet()) {
-                bytes += 100L + stringBytes(column.getKey());
+                bytes += MAP_ENTRY_BYTES + stringBytes(column.getKey());
                 SourceStatistics.ColumnStatistics stats = column.getValue();
                 if (stats != null) {
                     bytes += valuePayloadBytes(stats.minValue().orElse(null));

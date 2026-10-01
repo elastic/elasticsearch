@@ -6138,6 +6138,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Each gathered file holds a shallow copy of the query config: the copy's entries are per file, but the setting
+     * strings are the query's own and shared by every file. The charge therefore depends on the number of settings,
+     * not on the length of their values.
+     */
+    public void testGatheredFileBytesChargesConfigByShapeOnly() {
+        String location = "s3://bucket/data/f0.parquet";
+        List<Attribute> schema = List.of(attr("c0", DataType.INTEGER));
+        Map<String, Object> shortConfig = Map.of("endpoint", "e", "region", "r");
+        Map<String, Object> longConfig = Map.of("endpoint", "https://" + "e".repeat(500), "region", "r".repeat(500));
+        SourceMetadata shortMeta = new SimpleSourceMetadata(schema, "parquet", location, null, null, null, shortConfig);
+        SourceMetadata longMeta = new SimpleSourceMetadata(schema, "parquet", location, null, null, null, longConfig);
+        SourceMetadata noConfig = new SimpleSourceMetadata(schema, "parquet", location, null, null, null, null);
+
+        assertEquals(ExternalSourceResolver.gatheredFileBytes(shortMeta, true), ExternalSourceResolver.gatheredFileBytes(longMeta, true));
+        assertEquals(
+            ExternalSourceResolver.gatheredFileBytes(noConfig, true) + HeapEstimates.mapShapeBytes(shortConfig),
+            ExternalSourceResolver.gatheredFileBytes(shortMeta, true)
+        );
+    }
+
+    /**
      * The FIRST_FILE_WINS stats gather keeps every file's own schema list in the results array until it completes,
      * with no interner and no private-list run. Each file's column statistics are folded away and only a slim record
      * is kept, so each file's charge covers at least its shell, location and private schema list, and the run is

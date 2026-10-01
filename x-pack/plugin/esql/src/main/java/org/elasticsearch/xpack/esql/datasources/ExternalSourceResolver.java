@@ -2229,13 +2229,14 @@ public class ExternalSourceResolver {
     /**
      * Estimated heap one file's metadata keeps reachable in {@link #gatherPerFile}'s results array until the gather
      * completes. Not a measured deep size. Counts the shell and location, the private schema list when
-     * {@code chargeSchema} (the reconcile path charges it on its own run), the config map, harvested
+     * {@code chargeSchema} (the reconcile path charges it on its own run), the config map's entries, harvested
      * {@link SourceStatistics} (never shared from the schema cache), and the source-metadata map unless it is the
      * schema cache entry's own map.
      *
      * <p>A multi-file gather stores {@link RunningFileStatsFold#slim} records: they carry no statistics, and their
-     * source-metadata and config maps are per-file copies, so both maps are always charged. The statistics term and
-     * the cache-entry map skip only apply to a single-file gather, which stores the resolved metadata as is.
+     * source-metadata and config maps are per-file copies, so both maps are always charged (the config map by shape
+     * only, see below). The statistics term and the cache-entry map skip only apply to a single-file gather, which
+     * stores the resolved metadata as is.
      */
     static long gatheredFileBytes(SourceMetadata meta, boolean chargeSchema) {
         // object header + field references
@@ -2251,8 +2252,10 @@ public class ExternalSourceResolver {
             bytes += HeapEstimates.mapBytes(meta.sourceMetadata());
         }
         // Slim records Map.copyOf the config, and cache-backed metadata may merge connector config into a fresh map,
-        // so count it per file. A config shared across files is over-counted, which errs on the safe side.
-        bytes += HeapEstimates.mapBytes(meta.config());
+        // so each file owns its entries. Both copies are shallow: the setting strings (endpoint, region, ...) are the
+        // query's own, shared by every file, so only the entries are charged. A config shared across files is
+        // over-counted by its shape, which errs on the safe side.
+        bytes += HeapEstimates.mapShapeBytes(meta.config());
         return bytes;
     }
 

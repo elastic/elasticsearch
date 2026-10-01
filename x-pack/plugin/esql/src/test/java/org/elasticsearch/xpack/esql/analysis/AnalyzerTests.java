@@ -4573,9 +4573,14 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
     }
 
+    /** Books analyzer pinned to a version that supports DENSE_VECTOR (rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND}). */
+    private TestAnalyzer denseVectorBooks() {
+        return books().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND));
+    }
+
     public void testDenseVectorResolvesTextField() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH {"inference_id" : "text-embedding-inference-id" }
             """);
@@ -4595,7 +4600,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorResolvesMultipleFields() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title, description WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4610,10 +4615,13 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorResolvesQualifiedFieldNames() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field.json").addAnalysisTestsInferenceResolution().query("""
-            FROM test
-            | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND))
+            .addIndex("test", "mapping-multi-field.json")
+            .addAnalysisTestsInferenceResolution()
+            .query("""
+                FROM test
+                | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
+                """);
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
         // One generated column per input field, keyed by the full dotted field name (no collision/shadowing).
@@ -4626,11 +4634,14 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorResolvesNestedAndMixedFields() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field-variation.json").addAnalysisTestsInferenceResolution().query("""
-            FROM test
-            | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
-                WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND))
+            .addIndex("test", "mapping-multi-field-variation.json")
+            .addAnalysisTestsInferenceResolution()
+            .query("""
+                FROM test
+                | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
+                    WITH { "inference_id" : "text-embedding-inference-id" }
+                """);
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
         // A plain root field, a deeply nested field, and a parent text field vs its keyword subfield all
@@ -4648,7 +4659,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorResolvesKeywordField() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR book_no WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4660,7 +4671,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorNonTextFieldFails() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
         );
@@ -4668,7 +4679,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorTextAcceptsTextEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH { "inference_id" : "text-embedding-inference-id", "type" : "text" }
             """);
@@ -4678,7 +4689,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorTextAcceptsEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "text" }
             """);
@@ -4688,7 +4699,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorImageAcceptsEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "image" }
             """);
@@ -4699,7 +4710,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorImageRejectsTextEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\", \"type\" : \"image\" }",
             containsString(
                 "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DENSE_VECTOR "
@@ -4714,7 +4725,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorRejectsCompletionEndpoint() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
             containsString(
                 "cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR "
@@ -4729,7 +4740,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorDefaultInferenceIdPrefersEisCandidate() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .query("FROM books | DENSE_VECTOR title");
 
@@ -4743,7 +4754,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorDefaultInferenceIdFallsBackToMlCandidate() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .query("FROM books | DENSE_VECTOR title");
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
@@ -4756,7 +4767,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorExplicitInferenceIdIsNotReplacedByCandidate() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\" }");
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
@@ -4769,7 +4780,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorExplicitMlEndpointIsNotReplacedByCandidate() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"" + DenseVector.DEFAULT_INFERENCE_ID + "\" }");
 
@@ -4782,7 +4793,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorNoDefaultInferenceIdAvailable() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title",
             containsString(
                 "no inference endpoint is available for the DENSE_VECTOR command: "
@@ -4805,7 +4816,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorSkipsCandidateWithUnusableTaskType() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
             .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
             .query("FROM books | DENSE_VECTOR title");
 
@@ -4820,7 +4831,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorNoDefaultInferenceIdReportsWhyEachCandidateFails() {
         assumeDenseVectorCommandEnabled();
-        books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+        denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
             .error(
                 "FROM books | DENSE_VECTOR title",
                 containsString(
@@ -4838,7 +4849,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorUnknownColumnFails() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("Unknown column [nonexistent]")
         );
@@ -4846,7 +4857,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorInvalidInferenceIdFails() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"unknown-inference-id\" }",
             containsString("unresolved inference [unknown-inference-id]")
         );
@@ -4854,7 +4865,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorDuplicateFieldIsDeduped() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4871,7 +4882,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorExplicitOutputNameResolves() {
         assumeDenseVectorNamingEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4890,7 +4901,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorSuffixResolvesForEachField() {
         assumeDenseVectorNamingEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR suffix = "_dv" ON title, description WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4910,7 +4921,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorExplicitNameShadowsExistingColumn() {
         assumeDenseVectorNamingEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR description = title WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4928,7 +4939,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testDenseVectorOutputNameMatchingInputReplacesIt() {
         assumeDenseVectorNamingEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title = title WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4943,7 +4954,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     /** Chained clauses naming the same output column: the later clause shadows the earlier one. */
     public void testDenseVectorChainedClausesWithSameOutputName() {
         assumeDenseVectorNamingEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
             | DENSE_VECTOR vec = description WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4958,7 +4969,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     /** A suffix that reproduces an existing column's name shadows it, exactly as the default suffix would. */
     public void testDenseVectorSuffixShadowsExistingColumn() {
         assumeDenseVectorNamingEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | EVAL title_dv = "placeholder"
             | DENSE_VECTOR suffix = "_dv" ON title WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4973,11 +4984,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorNamedOutputOnNonTextFieldFails() {
         assumeDenseVectorNamingEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR vec = year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
         );
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR suffix = \"_dv\" ON year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
         );
@@ -4985,7 +4996,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testDenseVectorNamedOutputOnUnknownColumnFails() {
         assumeDenseVectorNamingEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR vec = no_such_column WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("Unknown column [no_such_column]")
         );

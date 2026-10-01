@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160108
+summary: "Release the `DENSE_VECTOR` command"
+type: feature

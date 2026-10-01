@@ -286,6 +286,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
                 long cpuStart = ThreadCpuTimer.currentNanos();
                 Result result;
                 try {
+                    driverContext().checkForEarlyTermination();
                     result = Result.materialized(
                         page,
                         registry.materialize(refs, refs.length, deferredColumnNames, deferredColumnTypes, blockFactory.parent())

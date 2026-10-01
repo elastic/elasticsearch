@@ -1100,9 +1100,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private Map<String, Object> cannotRemainMoveAttributes(MoveDecision decision, ShardRouting shardRouting) {
-            final var canAllocateDecisionType = (decision.getCanAllocateDecision() != null
-                ? decision.getCanAllocateDecision().type()
-                : Decision.Type.YES);
+            assert decision.getCanAllocateDecision() != null
+                : "We should only get here if we canRemain is NO/NOT_PREFERRED, which should come with a non-null canAllocate decision";
+            final var canAllocateDecisionType = decision.getCanAllocateDecision().type();
             // We only attempt to populate the canAllocate decider if we're moving despite canAllocate being NOT_PREFERRED
             // to keep cardinality to a minimum
             final var canAllocateNotPreferredDecider = canAllocateDecisionType == Decision.Type.NOT_PREFERRED

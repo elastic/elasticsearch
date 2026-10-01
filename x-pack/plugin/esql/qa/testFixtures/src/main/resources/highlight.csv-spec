@@ -2244,6 +2244,25 @@ null
 ;
 
 
+# The nested UNION ALL's branches agree on title's analyzer, but its rows still come from books, not books_english. No warning.
+highlightPerIndexAnalyzerAcrossNestedUnionAll
+required_capability: highlight_mapping_analyzer
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM (FROM books | WHERE book_no == "2714"), (FROM books | WHERE book_no == "2714")),
+     (FROM books_english | WHERE book_no == "2714")
+| HIGHLIGHT "ring" ON title
+| KEEP highlight_title
+| SORT highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+null
+null
+;
+
+
 # After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
 # "ring" matches "Ring", not "Rings".
 highlightPerIndexAnalyzerAfterStatsFallsBackToStandard

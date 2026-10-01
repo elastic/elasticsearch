@@ -135,24 +135,16 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
      * values or disagree otherwise.
      */
     private static @Nullable TextEsField branchesMapping(MergePlan merge, String name) {
-        record Mapped(LogicalPlan branch, Attribute column, TextEsField found) {}
         TextEsField conflict = mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.BRANCH_CONFLICT, null);
         Set<String> computedAnalyzers = new HashSet<>();
-        List<Mapped> mapped = new ArrayList<>();
-        for (LogicalPlan branch : merge.children()) {
-            Attribute column = firstNamed(branch.output(), name, a -> true);
-            if (column == null || Fork.producesOnlyNull(branch, column)) {
-                continue; // no values to analyze
-            }
-            TextEsField found = column instanceof FieldAttribute
-                ? HighlightAnalyzers.mappingOf(column, Map.of())
-                : mergedMapping(branch, column);
-            if (found == null) {
+        List<BranchColumn> mapped = new ArrayList<>();
+        for (BranchColumn b : branchColumns(merge, name)) {
+            if (b.found() == null) {
                 // Computed, so analyzed like any column without a mapping: with the analyzer it declares, or standard.
-                String declared = AnalyzedTextExpression.valuesAnalyzerOf(column);
+                String declared = AnalyzedTextExpression.valuesAnalyzerOf(b.column());
                 computedAnalyzers.add(Objects.requireNonNullElse(declared, AnalyzedTextExpression.STANDARD_ANALYZER));
             } else {
-                mapped.add(new Mapped(branch, column, found));
+                mapped.add(b);
             }
         }
         if (mapped.isEmpty()) {
@@ -166,30 +158,56 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             return mappings.getFirst();
         }
         // Each row comes from one branch, so it can still use the analyzer of the index it was read from.
-        List<IndexAnalyzerGroup> groups = new ArrayList<>();
-        for (Mapped m : mapped) {
-            List<IndexAnalyzerGroup> branchGroups = indexGroups(m.branch(), m.column(), m.found());
-            if (branchGroups == null) {
-                return conflict;
-            }
-            groups.addAll(branchGroups);
-        }
-        List<IndexAnalyzerGroup> perIndex = byAnalyzer(groups);
+        List<IndexAnalyzerGroup> perIndex = indexGroups(mapped);
         int gap = mappings.getFirst().positionIncrementGap();
         return perIndex == null ? conflict : mapping(name, null, gap, UnknownAnalyzer.CONFLICT, perIndex);
     }
 
+    /** Column {@code name} of a branch that has values of it, with its mapping, or {@code null} when the branch computes it. */
+    private record BranchColumn(LogicalPlan branch, Attribute column, @Nullable TextEsField found) {}
+
+    private static List<BranchColumn> branchColumns(MergePlan merge, String name) {
+        List<BranchColumn> columns = new ArrayList<>();
+        for (LogicalPlan branch : merge.children()) {
+            Attribute column = firstNamed(branch.output(), name, a -> true);
+            if (column != null && Fork.producesOnlyNull(branch, column) == false) {
+                TextEsField found = column instanceof FieldAttribute
+                    ? HighlightAnalyzers.mappingOf(column, Map.of())
+                    : mergedMapping(branch, column);
+                columns.add(new BranchColumn(branch, column, found));
+            }
+        }
+        return columns;
+    }
+
+    /** The analyzer of each index the rows of {@code branches} are read from, or {@code null} when some branch names none. */
+    private static @Nullable List<IndexAnalyzerGroup> indexGroups(List<BranchColumn> branches) {
+        List<IndexAnalyzerGroup> groups = new ArrayList<>();
+        for (BranchColumn b : branches) {
+            List<IndexAnalyzerGroup> branchGroups = b.found() == null ? null : indexGroups(b.branch(), b.column(), b.found());
+            if (branchGroups == null) {
+                return null;
+            }
+            groups.addAll(branchGroups);
+        }
+        return byAnalyzer(groups);
+    }
+
     /**
      * Which indices of {@code branch} analyze {@code column}, mapped as {@code found}, with which analyzer, or {@code null}
-     * when the column is not read off the relation the branch's rows come from, like a LOOKUP JOIN field.
+     * when the column is not read off the plan the branch's rows come from, like a LOOKUP JOIN field.
      */
     private static @Nullable List<IndexAnalyzerGroup> indexGroups(LogicalPlan branch, Attribute column, TextEsField found) {
         if (found.analyzerGroups() != null) {
             return found.analyzerGroups();
         }
-        EsRelation relation = rowSource(branch);
-        if (relation == null || relation.outputSet().contains(column) == false) {
+        LogicalPlan source = rowSource(branch);
+        if (source == null || source.outputSet().contains(column) == false) {
             return null;
+        }
+        if (source instanceof MergePlan nested) {
+            // A nested merge's branches may agree on the mapping, which then names no indices.
+            return indexGroups(branchColumns(nested, column.name()));
         }
         return switch (found.unknownAnalyzer()) {
             case NONE, INDEX_LOCAL, NOT_REPORTED -> List.of(
@@ -197,21 +215,24 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                     found.analyzerName(),
                     found.unknownAnalyzer() == UnknownAnalyzer.INDEX_LOCAL,
                     found.positionIncrementGap(),
-                    relation.concreteQualifiedIndices()
+                    ((EsRelation) source).concreteQualifiedIndices()
                 )
             );
             case CONFLICT, BRANCH_CONFLICT -> null; // disagreement below that names no indices
         };
     }
 
-    /** The relation the rows of {@code plan} come from: the one {@link #withIndexKey} reads their {@code _index} off. */
-    private static @Nullable EsRelation rowSource(LogicalPlan plan) {
+    /**
+     * The relation, or nested FORK or UNION ALL, the rows of {@code plan} come from: where {@link #withIndexKey} reads
+     * their {@code _index} off.
+     */
+    private static @Nullable LogicalPlan rowSource(LogicalPlan plan) {
         return switch (plan) {
             case EsRelation relation -> relation;
             case LeafPlan ignored -> null;
             case UnaryPlan unary -> rowSource(unary.child());
             case BinaryPlan binary -> rowSource(binary.left());
-            case MergePlan ignored -> null; // rows from several relations
+            case MergePlan merge -> merge;
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };
     }

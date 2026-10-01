@@ -7037,25 +7037,34 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * UNION ALL branches over differently analyzed indices disagree on the column's mapping, but each row still comes from
-     * one index, so HIGHLIGHT gets the analyzer of every index and the row's index, and no warning.
+     * one index, so HIGHLIGHT gets the analyzer of every index and the row's index, and no warning. A nested UNION ALL whose
+     * own branches agree, or whose other branch has no values of the column, still names the indices its rows come from.
      */
     public void testHighlightPerIndexAnalyzerAcrossUnionAllBranches() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
-            .addIndex(singleBooksIndex("books_english", "stop"))
-            .query("FROM (FROM books), (FROM books_english) | HIGHLIGHT \"ring\" ON title");
-        Highlight highlight = soleHighlight(plan);
+        assumeTrue("requires nested subquery in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
-        assertThat(
-            highlight.fieldMappings().get("title").analyzerGroups(),
-            containsInAnyOrder(
-                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
-                new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
-            )
-        );
-        assertNotNull(highlight.indexKey());
-        assertWarnings();
+        for (String from : List.of(
+            "FROM (FROM books), (FROM books_english)",
+            "FROM (FROM (FROM books), (FROM books)), (FROM books_english)",
+            "FROM (FROM (FROM books | EVAL x = 1 | KEEP x), (FROM books)), (FROM books_english)"
+        )) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
+                .addIndex(singleBooksIndex("books_english", "stop"))
+                .query(from + " | HIGHLIGHT \"ring\" ON title");
+            Highlight highlight = soleHighlight(plan);
+            assertThat(
+                from,
+                highlight.fieldMappings().get("title").analyzerGroups(),
+                containsInAnyOrder(
+                    new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                    new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+                )
+            );
+            assertNotNull(from, highlight.indexKey());
+            assertWarnings();
+        }
     }
 
     private static String analyzerConflictFallbackWarning(String field) {

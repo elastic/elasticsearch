@@ -114,7 +114,10 @@ public final class ParallelHashAggregationOperator implements Operator {
         this.partitionKeysThreshold = config.partitionKeysThreshold();
         this.workers = new Worker[numWorkers];
         this.workerStatuses = new AtomicReferenceArray<>(numWorkers + 1);
-        this.partitions = new PartitionedHashAggregations(mainDriverContext.blockFactory().parent().breaker());
+        this.partitions = new PartitionedHashAggregations(
+            mainDriverContext.blockFactory().parent().breaker(),
+            HashAggregationOperator.PARTITION_COUNT
+        );
         this.pendingSplits = new AtomicInteger(numWorkers);
         boolean success = false;
         try {

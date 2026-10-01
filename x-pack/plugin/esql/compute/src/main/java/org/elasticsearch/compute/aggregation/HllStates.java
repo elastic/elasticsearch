@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 
 final class HllStates {
@@ -182,12 +181,24 @@ final class HllStates {
             // HLL auto-grows as groups are collected; no explicit pre-allocation needed
         }
 
-        GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-            return createPartitioningSplitter(breaker, PAGED_PARTITION_THRESHOLD_BYTES);
+        GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, int numPartitions) {
+            return createPartitioningSplitter(breaker, numPartitions, PAGED_PARTITION_THRESHOLD_BYTES);
         }
 
-        GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, long pagedThresholdBytes) {
-            return new HllPartitionSplitter(breaker, bigArrays, hll.maxOrd(), hllPrecision, hll.hllBucketCount(), pagedThresholdBytes);
+        GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+            CircuitBreaker breaker,
+            int numPartitions,
+            long pagedThresholdBytes
+        ) {
+            return new HllPartitionSplitter(
+                breaker,
+                numPartitions,
+                bigArrays,
+                hll.maxOrd(),
+                hllPrecision,
+                hll.hllBucketCount(),
+                pagedThresholdBytes
+            );
         }
 
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
@@ -237,20 +248,20 @@ final class HllStates {
             private int[] partitionDataUsed;
             private int[] partitionCounts;
 
-            FlatHllPartitionedState(CircuitBreaker breaker, int initialKeysPerPartition, int initialBytesPerPartition) {
-                baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionData outer ref[]
-                    + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionOffsets outer ref[]
-                    + bytesUsedByIntPage(NUM_PARTITIONS)       // partitionDataUsed
-                    + bytesUsedByIntPage(NUM_PARTITIONS);      // partitionCounts
+            FlatHllPartitionedState(CircuitBreaker breaker, int numPartitions, int initialKeysPerPartition, int initialBytesPerPartition) {
+                baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(numPartitions)   // partitionData outer ref[]
+                    + bytesUsedByPointerPage(numPartitions)   // partitionOffsets outer ref[]
+                    + bytesUsedByIntPage(numPartitions)       // partitionDataUsed
+                    + bytesUsedByIntPage(numPartitions);      // partitionCounts
                 final int initialOffsets = ArrayUtil.oversize(Math.max(initialKeysPerPartition + 1, 2), Integer.BYTES);
                 final int initialBytes = ArrayUtil.oversize(Math.max(initialBytesPerPartition, 1), 1);
-                long perPartitionBytes = (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS * bytesUsedByIntPage(initialOffsets);
+                long perPartitionBytes = (long) numPartitions * initialBytes + (long) numPartitions * bytesUsedByIntPage(initialOffsets);
                 breaker.addEstimateBytesAndMaybeBreak(baseBytes + perPartitionBytes, LABEL);
-                partitionDataUsed = new int[NUM_PARTITIONS];
-                partitionCounts = new int[NUM_PARTITIONS];
-                partitionData = new byte[NUM_PARTITIONS][];
-                partitionOffsets = new int[NUM_PARTITIONS][];
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                partitionDataUsed = new int[numPartitions];
+                partitionCounts = new int[numPartitions];
+                partitionData = new byte[numPartitions][];
+                partitionOffsets = new int[numPartitions][];
+                for (int p = 0; p < numPartitions; p++) {
                     partitionData[p] = new byte[initialBytes];
                     partitionOffsets[p] = new int[initialOffsets];
                 }
@@ -279,7 +290,7 @@ final class HllStates {
             public void releaseAll(CircuitBreaker breaker) {
                 long bytes = baseBytes;
                 if (partitionData != null) {
-                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    for (int p = 0; p < partitionData.length; p++) {
                         if (partitionData[p] != null) {
                             bytes += partitionData[p].length;
                         }
@@ -287,7 +298,7 @@ final class HllStates {
                     partitionData = null;
                 }
                 if (partitionOffsets != null) {
-                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    for (int p = 0; p < partitionOffsets.length; p++) {
                         if (partitionOffsets[p] != null) {
                             bytes += bytesUsedByIntPage(partitionOffsets[p].length);
                         }
@@ -301,11 +312,11 @@ final class HllStates {
         private static final class PagedHllPartitionedState implements GroupingAggregatorFunction.PartitionedState {
             private BytesRefArray[] partitionArrays;
 
-            PagedHllPartitionedState(BigArrays bigArrays, int avgKeysPerPartition, long avgBytesPerPartition) {
-                partitionArrays = new BytesRefArray[NUM_PARTITIONS];
+            PagedHllPartitionedState(BigArrays bigArrays, int numPartitions, int avgKeysPerPartition, long avgBytesPerPartition) {
+                partitionArrays = new BytesRefArray[numPartitions];
                 boolean success = false;
                 try {
-                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    for (int p = 0; p < numPartitions; p++) {
                         partitionArrays[p] = new BytesRefArray(avgKeysPerPartition, bigArrays, avgBytesPerPartition);
                     }
                     success = true;
@@ -333,7 +344,7 @@ final class HllStates {
 
             @Override
             public void releaseAll(CircuitBreaker breaker) {
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < partitionArrays.length; p++) {
                     if (partitionArrays[p] != null) {
                         partitionArrays[p].close();
                         partitionArrays[p] = null;
@@ -343,6 +354,7 @@ final class HllStates {
         }
 
         private final class HllPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+            private final int numPartitions;
             private final CircuitBreaker partitionBreaker;
             private FlatHllPartitionedState flatState;
             private PagedHllPartitionedState pagedState;
@@ -355,12 +367,14 @@ final class HllStates {
              */
             HllPartitionSplitter(
                 CircuitBreaker partitionBreaker,
+                int numPartitions,
                 BigArrays bigArrays,
                 long maxOrd,
                 int hllPrecision,
                 long numHll,
                 long pagedThresholdBytes
             ) {
+                this.numPartitions = numPartitions;
                 this.partitionBreaker = partitionBreaker;
                 long numLC = maxOrd - numHll;
                 long hllSize = 1L << hllPrecision;
@@ -370,12 +384,17 @@ final class HllStates {
                 long lcMaxSize = 6L + lcMaxCount * 4; // precision + algorithm + size + size * 4 => 1 + 1 + 4 + count * 4
                 long upperBound = numHll * hllSize + numLC * lcMaxSize;
                 long lowerBound = numHll * hllSize + numLC * lcMinSize;
-                int avgKeysPerPartition = Math.max((int) Math.ceilDiv(maxOrd, NUM_PARTITIONS), 1);
-                long avgBytesPerPartition = Math.max(Math.ceilDiv(lowerBound, NUM_PARTITIONS), 1);
+                int avgKeysPerPartition = Math.max((int) Math.ceilDiv(maxOrd, numPartitions), 1);
+                long avgBytesPerPartition = Math.max(Math.ceilDiv(lowerBound, numPartitions), 1);
                 if (upperBound <= pagedThresholdBytes) {
-                    flatState = new FlatHllPartitionedState(partitionBreaker, avgKeysPerPartition, (int) avgBytesPerPartition);
+                    flatState = new FlatHllPartitionedState(
+                        partitionBreaker,
+                        numPartitions,
+                        avgKeysPerPartition,
+                        (int) avgBytesPerPartition
+                    );
                 } else {
-                    pagedState = new PagedHllPartitionedState(bigArrays, avgKeysPerPartition, avgBytesPerPartition);
+                    pagedState = new PagedHllPartitionedState(bigArrays, numPartitions, avgKeysPerPartition, avgBytesPerPartition);
                 }
             }
 
@@ -391,7 +410,7 @@ final class HllStates {
             private void splitFlat(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
                 BytesRefStreamOutput out = new BytesRefStreamOutput();
                 try {
-                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    for (int p = 0; p < numPartitions; p++) {
                         final int count = batchPartitionCounts[p];
                         if (count == 0) {
                             continue;
@@ -420,7 +439,7 @@ final class HllStates {
             private void splitPaged(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
                 BytesRefStreamOutput out = new BytesRefStreamOutput();
                 try {
-                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    for (int p = 0; p < numPartitions; p++) {
                         final int count = batchPartitionCounts[p];
                         if (count == 0) {
                             continue;

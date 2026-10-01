@@ -168,6 +168,7 @@ public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+    static final int PARTITION_COUNT = 256;
 
     // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
@@ -626,7 +627,7 @@ public class HashAggregationOperator implements Operator {
         PreparedForEvaluation prepared = null;
         try {
             if (shouldEmitPartitionedPartialOutput()) {
-                var partitionedBlock = PartitionedHashAggregations.splitToPartitionedBlock(driverContext.breaker(), this);
+                var partitionedBlock = PartitionedHashAggregations.splitToPartitionedBlock(driverContext.breaker(), PARTITION_COUNT, this);
                 output = ReleasableIterator.single(new Page(partitionedBlock));
                 emittedPartitionedOutput = true;
             } else {

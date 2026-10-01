@@ -925,8 +925,9 @@ public class GroupingAggregatorImplementer {
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .addParameter(CIRCUIT_BREAKER, "breaker")
+            .addParameter(TypeName.INT, "numPartitions")
             .returns(PARTITION_SPLITTER)
-            .addStatement("return state.createPartitioningSplitter(breaker)")
+            .addStatement("return state.createPartitioningSplitter(breaker, numPartitions)")
             .build();
     }
 

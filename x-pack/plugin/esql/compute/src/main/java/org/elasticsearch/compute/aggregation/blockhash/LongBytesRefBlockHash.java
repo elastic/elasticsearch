@@ -420,6 +420,11 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     private record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
         @Override
+        public int numPartitions() {
+            return delegate.numPartitions();
+        }
+
+        @Override
         public int keysInPartition(int partition) {
             return delegate.keysInPartition(partition);
         }
@@ -436,12 +441,12 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
     }
 
     @Override
-    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, int numPartitions, PartitionSplitter partitionSplitter) {
         if (longIntHash != null
             && longIntHash.hash instanceof LongLongSwissHash longSwiss
             && bytesHash instanceof BytesRefSwissHash bytesSwiss) {
             try (BytesRefArray packedKeys = longIntHash.seenBlocks ? packKeysWithNulls(longSwiss) : packKeysWithoutNulls(longSwiss)) {
-                PartitionedHashKeys partitioned = bytesSwiss.splitPartition(breaker, packedKeys, partitionSplitter);
+                PartitionedHashKeys partitioned = bytesSwiss.splitPartition(breaker, numPartitions, packedKeys, partitionSplitter);
                 return new PartitionedHashKeysWithSeenNull(partitioned, longIntHash.seenBlocks);
             }
         }

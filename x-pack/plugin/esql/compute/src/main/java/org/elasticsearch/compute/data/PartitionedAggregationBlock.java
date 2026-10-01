@@ -74,6 +74,10 @@ public class PartitionedAggregationBlock implements Block {
         return aggs;
     }
 
+    public int numPartitions() {
+        return keys.numPartitions();
+    }
+
     /**
      * Moves the keys out of this block; the caller is responsible for releasing them.
      * @see #takeAggs()

@@ -50,6 +50,11 @@ public class PartitionedAggregationBlockTests extends ComputeTestCase {
         }
 
         @Override
+        public int numPartitions() {
+            return 1;
+        }
+
+        @Override
         public int keysInPartition(int partition) {
             return 0;
         }

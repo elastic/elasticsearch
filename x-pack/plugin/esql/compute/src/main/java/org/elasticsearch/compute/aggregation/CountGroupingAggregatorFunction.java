@@ -28,7 +28,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 
 public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -566,20 +565,20 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         final int[][] ints;
         final long[][] longs;
 
-        CountPartitionedState(CircuitBreaker breaker, boolean useInts, int partitionSize) {
+        CountPartitionedState(CircuitBreaker breaker, int numPartitions, boolean useInts, int partitionSize) {
             this.baseBytes = BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * NUM_PARTITIONS
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * numPartitions
             );
-            long requiredBytes = this.baseBytes + NUM_PARTITIONS * (useInts
+            long requiredBytes = this.baseBytes + numPartitions * (useInts
                 ? bytesUsedByIntArray(partitionSize)
                 : bytesUsedByLongArray(partitionSize));
             breaker.addEstimateBytesAndMaybeBreak(requiredBytes, "CountPartitionedState");
             if (useInts) {
-                this.ints = new int[NUM_PARTITIONS][partitionSize];
+                this.ints = new int[numPartitions][partitionSize];
                 this.longs = null;
             } else {
                 this.ints = null;
-                this.longs = new long[NUM_PARTITIONS][partitionSize];
+                this.longs = new long[numPartitions][partitionSize];
             }
         }
 
@@ -601,7 +600,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         public void releaseAll(CircuitBreaker breaker) {
             long usedBytes = this.baseBytes;
             if (ints != null) {
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < ints.length; p++) {
                     if (ints[p] != null) {
                         usedBytes += bytesUsedByIntArray(ints[p].length);
                         ints[p] = null;
@@ -609,7 +608,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 }
             }
             if (longs != null) {
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < longs.length; p++) {
                     if (longs[p] != null) {
                         usedBytes += bytesUsedByLongArray(longs[p].length);
                         longs[p] = null;
@@ -622,13 +621,15 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     final class CountPartitionSplitter implements PartitionSplitter {
         private static final String LABEL = "CountGroupingAggregatorFunction#partition";
+        private final int numPartitions;
         private final CircuitBreaker breaker;
         private CountPartitionedState state;
 
-        CountPartitionSplitter(CircuitBreaker breaker) {
+        CountPartitionSplitter(CircuitBreaker breaker, int numPartitions) {
+            this.numPartitions = numPartitions;
             this.breaker = breaker;
-            final int perPartition = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Integer.BYTES);
-            state = new CountPartitionedState(breaker, intPages != null, perPartition);
+            final int perPartition = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, numPartitions)), Integer.BYTES);
+            state = new CountPartitionedState(breaker, numPartitions, intPages != null, perPartition);
         }
 
         @Override
@@ -643,7 +644,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
         private void splitInts(int firstId, short[] shiftedIds, int[] batchPartitionCounts, int[] partitionOffsets) {
             final int[][] pages = intPages;
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int c = batchPartitionCounts[p];
                 if (c == 0) {
                     continue;
@@ -669,7 +670,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
         private void splitLongs(int firstId, short[] shiftedIds, int[] batchPartitionCounts, int[] partitionOffsets) {
             final long[][] pages = longPages;
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int c = batchPartitionCounts[p];
                 if (c == 0) {
                     continue;
@@ -710,8 +711,8 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-        return new CountPartitionSplitter(breaker);
+    public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, int numPartitions) {
+        return new CountPartitionSplitter(breaker, numPartitions);
     }
 
     @Override

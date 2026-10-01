@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class PartitionedHashAggregations extends AbstractRefCounted implements Releasable {
     private final CircuitBreaker globalBreaker;
+    private final int numPartitions;
     private final List<PartitionedKeyAndAggs> generations = new ArrayList<>();
 
     private final AtomicInteger nextPartition = new AtomicInteger();
@@ -35,8 +36,10 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     /** Returned by {@link #claimPartition()} when every partition has been claimed. */
     static final int NO_MORE_PARTITION = Integer.MAX_VALUE;
 
-    PartitionedHashAggregations(CircuitBreaker globalBreaker) {
+    PartitionedHashAggregations(CircuitBreaker globalBreaker, int numPartitions) {
         this.globalBreaker = globalBreaker;
+        PartitionedHashTable.checkNumPartitions(numPartitions);
+        this.numPartitions = numPartitions;
     }
 
     /**
@@ -44,25 +47,25 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
      */
     int claimPartition() {
         int p = nextPartition.getAndIncrement();
-        return p < PartitionedHashTable.NUM_PARTITIONS ? p : NO_MORE_PARTITION;
+        return p < numPartitions ? p : NO_MORE_PARTITION;
     }
 
     boolean hasUncombinedPartitions() {
-        return nextPartition.get() < PartitionedHashTable.NUM_PARTITIONS;
+        return nextPartition.get() < numPartitions;
     }
 
     /**
      * Records that one partition has been fully emitted; returns true when this was the last one.
      */
     boolean completePartition() {
-        return completedPartitions.incrementAndGet() == PartitionedHashTable.NUM_PARTITIONS;
+        return completedPartitions.incrementAndGet() == numPartitions;
     }
 
     void split(CircuitBreaker breaker, HashAggregationOperator op) {
         if (op.blockHash.numKeys() == 0) {
             return;
         }
-        PartitionedKeyAndAggs partitioned = splitKeysAndAggs(breaker, op);
+        PartitionedKeyAndAggs partitioned = splitKeysAndAggs(breaker, numPartitions, op);
         synchronized (generations) {
             generations.add(partitioned);
         }
@@ -85,9 +88,9 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         return new Combiner(op);
     }
 
-    static PartitionedAggregationBlock splitToPartitionedBlock(CircuitBreaker breaker, HashAggregationOperator op) {
+    static PartitionedAggregationBlock splitToPartitionedBlock(CircuitBreaker breaker, int numPartitions, HashAggregationOperator op) {
         int numKeys = op.blockHash.numKeys();
-        PartitionedKeyAndAggs keysAndAggs = splitKeysAndAggs(breaker, op);
+        PartitionedKeyAndAggs keysAndAggs = splitKeysAndAggs(breaker, numPartitions, op);
         try {
             var block = new PartitionedAggregationBlock(
                 op.driverContext.blockFactory(),
@@ -104,11 +107,11 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         }
     }
 
-    private static PartitionedKeyAndAggs splitKeysAndAggs(CircuitBreaker breaker, HashAggregationOperator op) {
+    private static PartitionedKeyAndAggs splitKeysAndAggs(CircuitBreaker breaker, int numPartitions, HashAggregationOperator op) {
         PartitionedHashTable.PartitionedHashKeys partitionedKeys = null;
-        MultiAggsPartitionSplitter aggSplitter = new MultiAggsPartitionSplitter(breaker, op.aggregators);
+        MultiAggsPartitionSplitter aggSplitter = new MultiAggsPartitionSplitter(breaker, numPartitions, op.aggregators);
         try {
-            partitionedKeys = ((PartitionedHashTable) op.blockHash).splitPartition(breaker, aggSplitter);
+            partitionedKeys = ((PartitionedHashTable) op.blockHash).splitPartition(breaker, numPartitions, aggSplitter);
             PartitionedKeyAndAggs result = new PartitionedKeyAndAggs(partitionedKeys, aggSplitter.finishAll(breaker));
             partitionedKeys = null;
             return result;
@@ -127,6 +130,11 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         // blocking but should be fast
         synchronized (generations) {
             for (PartitionedAggregationBlock block : blocks) {
+                if (block.numPartitions() != numPartitions) {
+                    throw new IllegalArgumentException(
+                        "partition count mismatch, expected [" + numPartitions + "] but got [" + block.numPartitions() + "]"
+                    );
+                }
                 var keys = block.takeKeys();
                 generations.add(new PartitionedKeyAndAggs(keys, new MultiAggsPartitionedState(block.takeAggs())));
             }
@@ -234,12 +242,12 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     private static class MultiAggsPartitionSplitter implements PartitionedHashTable.PartitionSplitter {
         final GroupingAggregatorFunction.PartitionSplitter[] splitters;
 
-        MultiAggsPartitionSplitter(CircuitBreaker breaker, List<GroupingAggregator> aggregators) {
+        MultiAggsPartitionSplitter(CircuitBreaker breaker, int numPartitions, List<GroupingAggregator> aggregators) {
             this.splitters = new GroupingAggregatorFunction.PartitionSplitter[aggregators.size()];
             boolean success = false;
             try {
                 for (int i = 0; i < splitters.length; i++) {
-                    splitters[i] = aggregators.get(i).aggregatorFunction().createPartitioningSplitter(breaker);
+                    splitters[i] = aggregators.get(i).aggregatorFunction().createPartitioningSplitter(breaker, numPartitions);
                 }
                 success = true;
             } finally {

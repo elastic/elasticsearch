@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
-import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -42,6 +41,7 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         var partitionBreaker = new NoopCircuitBreaker("partition");
+        int numPartitions = randomFrom(1, 2, 16, 64, 256);
 
         try (var state = new HllStates.GroupingState(driverContext, precisionThreshold)) {
             long[] expectedCardinalities = new long[numGroups];
@@ -53,26 +53,26 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
                 expectedCardinalities[g] = state.cardinality(g);
             }
 
-            var splitter = state.createPartitioningSplitter(partitionBreaker, pagedThresholdBytes);
-            int batchTotal = NUM_PARTITIONS * PARTITION_WRITE_BATCH;
-            int[] cumulativeCounts = new int[NUM_PARTITIONS];
+            var splitter = state.createPartitioningSplitter(partitionBreaker, numPartitions, pagedThresholdBytes);
+            int batchTotal = numPartitions * PARTITION_WRITE_BATCH;
+            int[] cumulativeCounts = new int[numPartitions];
 
             for (int batchStart = 0; batchStart < numGroups; batchStart += batchTotal) {
                 int batchEnd = Math.min(batchStart + batchTotal, numGroups);
                 int batchSize = batchEnd - batchStart;
 
-                int[] batchPartitionCounts = new int[NUM_PARTITIONS];
-                short[] shiftedIds = new short[NUM_PARTITIONS * PARTITION_WRITE_BATCH];
+                int[] batchPartitionCounts = new int[numPartitions];
+                short[] shiftedIds = new short[numPartitions * PARTITION_WRITE_BATCH];
 
                 for (int i = 0; i < batchSize; i++) {
-                    int p = (batchStart + i) % NUM_PARTITIONS;
+                    int p = (batchStart + i) % numPartitions;
                     shiftedIds[p * PARTITION_WRITE_BATCH + batchPartitionCounts[p]] = (short) i;
                     batchPartitionCounts[p]++;
                 }
 
                 splitter.split(batchStart, shiftedIds, batchSize, batchPartitionCounts, cumulativeCounts.clone());
 
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < numPartitions; p++) {
                     cumulativeCounts[p] += batchPartitionCounts[p];
                 }
             }
@@ -80,14 +80,14 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
             PartitionedState partitioned = splitter.finish();
 
             BytesRef scratch = new BytesRef();
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 assertThat("seen must be null for HLL", state.partitionSeen(partitioned, p), nullValue());
                 assertThat("hasAllValues must be true for HLL", partitioned.hasAllValues(p), equalTo(true));
 
                 BytesRefSequence values = state.partitionValues(partitioned, p);
 
                 int k = 0;
-                for (int g = p; g < numGroups; g += NUM_PARTITIONS) {
+                for (int g = p; g < numGroups; g += numPartitions) {
                     try (var check = new HllStates.GroupingState(driverContext, precisionThreshold)) {
                         check.merge(0, values.get(k, scratch), 0);
                         assertThat(

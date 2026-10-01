@@ -296,8 +296,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     /**
      * Returns the partition index using bits that do not overlap with the lower 32 hash-slot bits or the top 7 control bits.
      */
-    private static int partition(long hash64) {
-        return (int) (hash64 >>> Integer.SIZE) & PARTITION_MASK;
+    private static int partition(long hash64, int partitionMask) {
+        return (int) (hash64 >>> Integer.SIZE) & partitionMask;
     }
 
     @Override
@@ -985,31 +985,38 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     @Override
-    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, int numPartitions, PartitionSplitter partitionSplitter) {
         assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
-        return splitPartition(breaker, bytesRefs, partitionSplitter);
+        return splitPartition(breaker, numPartitions, bytesRefs, partitionSplitter);
     }
 
-    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, BytesRefArray bytesRefs, PartitionSplitter partitionSplitter) {
+    public PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        int numPartitions,
+        BytesRefArray bytesRefs,
+        PartitionSplitter partitionSplitter
+    ) {
+        PartitionedHashTable.checkNumPartitions(numPartitions);
+        final int partitionMask = numPartitions - 1;
         final int size = Math.toIntExact(bytesRefs.size());
-        final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
-        final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
+        final int[] batchPartitionCounts = new int[numPartitions];
+        final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * numPartitions];
         int batchStart = 0;
         final long totalKeyBytes = bytesRefs.totalBytes();
         final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= pagedPartitionBytesThreshold
-            ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes, bytesRefs.fixedLength())
-            : new PagedBytesRefPartitionedHashKeys(bigArrays, size, totalKeyBytes);
+            ? new FlatBytesRefPartitionedHashKeys(breaker, numPartitions, size, totalKeyBytes, bytesRefs.fixedLength())
+            : new PagedBytesRefPartitionedHashKeys(bigArrays, numPartitions, size, totalKeyBytes);
         final int[] partitionOffsets = partitionedKeys.partitionCounts;
         boolean success = false;
         try {
             for (int id = 0; id < size; id++) {
                 bytesRefs.get(id, scratch);
                 final long hash64 = hash64(scratch);
-                final int p = partition(hash64);
+                final int p = partition(hash64, partitionMask);
                 if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
                     partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
                     partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);
-                    for (int i = 0; i < NUM_PARTITIONS; i++) {
+                    for (int i = 0; i < numPartitions; i++) {
                         partitionOffsets[i] += batchPartitionCounts[i];
                     }
                     batchStart = id;
@@ -1021,7 +1028,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
             partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
             partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
-            for (int i = 0; i < NUM_PARTITIONS; i++) {
+            for (int i = 0; i < numPartitions; i++) {
                 partitionOffsets[i] += batchPartitionCounts[i];
             }
             success = true;
@@ -1076,7 +1083,18 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     abstract static sealed class BytesRefPartitionedHashKeys implements PartitionedHashKeys permits FlatBytesRefPartitionedHashKeys,
         PagedBytesRefPartitionedHashKeys {
 
-        final int[] partitionCounts = new int[NUM_PARTITIONS];
+        final int numPartitions;
+        final int[] partitionCounts;
+
+        BytesRefPartitionedHashKeys(int numPartitions) {
+            this.numPartitions = numPartitions;
+            this.partitionCounts = new int[numPartitions];
+        }
+
+        @Override
+        public int numPartitions() {
+            return numPartitions;
+        }
 
         @Override
         public int keysInPartition(int partition) {
@@ -1099,28 +1117,29 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         byte[][] partitionData;
         int[][] partitionOffsets;
 
-        FlatBytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes, int fixedLength) {
+        FlatBytesRefPartitionedHashKeys(CircuitBreaker breaker, int numPartitions, int totalKeys, long totalKeyBytes, int fixedLength) {
+            super(numPartitions);
             this.fixedLength = fixedLength;
-            final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
-            final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
+            final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, numPartitions), 1);
+            final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, numPartitions);
             final int initialBytes = ArrayUtil.oversize(avgBytesPerPartition, 1);
-            partitionDataUsed = new int[NUM_PARTITIONS];
-            partitionData = new byte[NUM_PARTITIONS][];
+            partitionDataUsed = new int[numPartitions];
+            partitionData = new byte[numPartitions][];
             if (fixedLength < 0) {
                 final int initialOffsets = ArrayUtil.oversize(avgKeysPerPartition + 1, Integer.BYTES);
-                long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS
+                long usedBytes = (long) numPartitions * Integer.BYTES + (long) numPartitions * initialBytes + (long) numPartitions
                     * initialOffsets * Integer.BYTES;
                 breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
-                partitionOffsets = new int[NUM_PARTITIONS][];
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                partitionOffsets = new int[numPartitions][];
+                for (int p = 0; p < numPartitions; p++) {
                     partitionData[p] = new byte[initialBytes];
                     partitionOffsets[p] = new int[initialOffsets];
                 }
             } else {
-                long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * initialBytes;
+                long usedBytes = (long) numPartitions * Integer.BYTES + (long) numPartitions * initialBytes;
                 breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
                 partitionOffsets = null;
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < numPartitions; p++) {
                     partitionData[p] = new byte[initialBytes];
                 }
             }
@@ -1128,8 +1147,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         @Override
         void splitKeys(CircuitBreaker breaker, BytesRefArray bytesRefs, BytesRef scratch, int idOffset, short[] positions, int[] fills) {
-            assert NUM_PARTITIONS * PARTITION_WRITE_BATCH < Short.MAX_VALUE : "shifted ids of one batch must fit in the short value range";
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int c = fills[p];
                 if (c == 0) {
                     continue;
@@ -1198,8 +1216,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         @Override
         public void releaseAll(CircuitBreaker breaker) {
-            long bytes = (long) NUM_PARTITIONS * Integer.BYTES;
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            long bytes = (long) numPartitions * Integer.BYTES;
+            for (int p = 0; p < numPartitions; p++) {
                 final byte[] data = partitionData[p];
                 if (data != null) {
                     bytes += data.length;
@@ -1220,13 +1238,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     static final class PagedBytesRefPartitionedHashKeys extends BytesRefPartitionedHashKeys {
         BytesRefArray[] partitionArrays;
 
-        PagedBytesRefPartitionedHashKeys(BigArrays bigArrays, int totalKeys, long totalKeyBytes) {
-            final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
-            final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
-            partitionArrays = new BytesRefArray[NUM_PARTITIONS];
+        PagedBytesRefPartitionedHashKeys(BigArrays bigArrays, int numPartitions, int totalKeys, long totalKeyBytes) {
+            super(numPartitions);
+            final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, numPartitions), 1);
+            final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, numPartitions);
+            partitionArrays = new BytesRefArray[numPartitions];
             boolean success = false;
             try {
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                for (int p = 0; p < numPartitions; p++) {
                     partitionArrays[p] = new BytesRefArray(avgKeysPerPartition, bigArrays, avgBytesPerPartition);
                 }
                 success = true;
@@ -1239,8 +1258,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         @Override
         void splitKeys(CircuitBreaker breaker, BytesRefArray bytesRefs, BytesRef scratch, int idOffset, short[] positions, int[] fills) {
-            assert NUM_PARTITIONS * PARTITION_WRITE_BATCH < Short.MAX_VALUE : "shifted ids of one batch must fit in the short value range";
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int c = fills[p];
                 if (c == 0) {
                     continue;
@@ -1264,7 +1282,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         @Override
         public void releaseAll(CircuitBreaker breaker) {
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 if (partitionArrays[p] != null) {
                     partitionArrays[p].close();
                     partitionArrays[p] = null;

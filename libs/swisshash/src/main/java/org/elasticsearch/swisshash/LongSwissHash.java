@@ -254,8 +254,8 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
      * Returns the partition index using a 64-bit mix of the key, which is independent of the 32-bit hash
      * used for the control byte and slot index.
      */
-    private static int partition(long key) {
-        return (int) (BitMixer.mix64(key) & PARTITION_MASK);
+    private static int partition(long key, int partitionMask) {
+        return (int) (BitMixer.mix64(key) & partitionMask);
     }
 
     @Override
@@ -783,24 +783,25 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
     }
 
     static final class LongPartitionedHashKeys implements PartitionedHashKeys {
+        final int numPartitions;
         final int[] partitionCounts;
         final long[][] partitionKeys;
 
-        LongPartitionedHashKeys(CircuitBreaker breaker, int estimatePartitionCount) {
+        LongPartitionedHashKeys(CircuitBreaker breaker, int numPartitions, int estimatePartitionCount) {
+            this.numPartitions = numPartitions;
             estimatePartitionCount = ArrayUtil.oversize(estimatePartitionCount, Long.BYTES);
-            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * estimatePartitionCount * Long.BYTES;
+            long usedBytes = (long) numPartitions * Integer.BYTES + (long) numPartitions * estimatePartitionCount * Long.BYTES;
             breaker.addEstimateBytesAndMaybeBreak(usedBytes, "LongSwissHash#partition");
-            final long[][] partitionKeys = new long[NUM_PARTITIONS][];
-            for (int i = 0; i < NUM_PARTITIONS; i++) {
+            final long[][] partitionKeys = new long[numPartitions][];
+            for (int i = 0; i < numPartitions; i++) {
                 partitionKeys[i] = new long[estimatePartitionCount];
             }
             this.partitionKeys = partitionKeys;
-            this.partitionCounts = new int[NUM_PARTITIONS];
+            this.partitionCounts = new int[numPartitions];
         }
 
         void splitKeys(CircuitBreaker breaker, byte[][] keyPages, int idOffset, short[] positions, int[] fills) {
-            assert NUM_PARTITIONS * PARTITION_WRITE_BATCH < Short.MAX_VALUE : "shifted ids of one batch must fit in the short value range";
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int c = fills[p];
                 if (c == 0) {
                     continue;
@@ -842,8 +843,13 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
         }
 
         @Override
+        public int numPartitions() {
+            return numPartitions;
+        }
+
+        @Override
         public void releaseAll(CircuitBreaker breaker) {
-            long bytes = (long) NUM_PARTITIONS * Integer.BYTES;
+            long bytes = (long) numPartitions * Integer.BYTES;
             for (long[] sub : partitionKeys) {
                 if (sub != null) {
                     bytes += (long) sub.length * Long.BYTES;
@@ -854,14 +860,16 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
     }
 
     @Override
-    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
-        final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
-        final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, int numPartitions, PartitionSplitter partitionSplitter) {
+        PartitionedHashTable.checkNumPartitions(numPartitions);
+        final int partitionMask = numPartitions - 1;
+        final int[] batchPartitionCounts = new int[numPartitions];
+        final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * numPartitions];
         int batchStart = 0;
         int pageIndex = 0;
         byte[] keyPage = keyPages[0];
         int indexInPage = 0;
-        var partitionedKeys = new LongPartitionedHashKeys(breaker, Math.max(Math.ceilDiv(size, NUM_PARTITIONS), 1));
+        var partitionedKeys = new LongPartitionedHashKeys(breaker, numPartitions, Math.max(Math.ceilDiv(size, numPartitions), 1));
         final int[] partitionOffsets = partitionedKeys.partitionCounts;
         boolean success = false;
         try {
@@ -872,11 +880,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
                 }
                 final long key = (long) LONG_HANDLE.get(keyPage, indexInPage);
                 indexInPage += KEY_SIZE;
-                final int p = partition(key);
+                final int p = partition(key, partitionMask);
                 if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
                     partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);
                     partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);
-                    for (int i = 0; i < NUM_PARTITIONS; i++) {
+                    for (int i = 0; i < numPartitions; i++) {
                         partitionOffsets[i] += batchPartitionCounts[i];
                     }
                     batchStart = id;
@@ -888,7 +896,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
             }
             partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);
             partitionSplitter.split(batchStart, shiftedIds, size - batchStart, batchPartitionCounts, partitionOffsets);
-            for (int i = 0; i < NUM_PARTITIONS; i++) {
+            for (int i = 0; i < numPartitions; i++) {
                 partitionOffsets[i] += batchPartitionCounts[i];
             }
             success = true;

@@ -537,6 +537,11 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
 
     private record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
         @Override
+        public int numPartitions() {
+            return delegate.numPartitions();
+        }
+
+        @Override
         public int keysInPartition(int partition) {
             return delegate.keysInPartition(partition);
         }
@@ -555,10 +560,11 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
     @Override
     public PartitionedHashTable.PartitionedHashKeys splitPartition(
         CircuitBreaker breaker,
+        int numPartitions,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
         if (bytesRefHash instanceof BytesRefSwissHash swiss) {
-            PartitionedHashKeys keys = swiss.splitPartition(breaker, partitionSplitter);
+            PartitionedHashKeys keys = swiss.splitPartition(breaker, numPartitions, partitionSplitter);
             return new PartitionedHashKeysWithSeenNull(keys, seenNull);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");

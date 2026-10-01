@@ -359,8 +359,8 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   @Override
   public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
-      CircuitBreaker breaker) {
-    return state.createPartitioningSplitter(breaker);
+      CircuitBreaker breaker, int numPartitions) {
+    return state.createPartitioningSplitter(breaker, numPartitions);
   }
 
   @Override

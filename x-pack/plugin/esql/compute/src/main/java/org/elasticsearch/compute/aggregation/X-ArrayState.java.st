@@ -29,7 +29,6 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 
 $if(long)$
-import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 $endif$
 
@@ -350,12 +349,12 @@ $if(long)$
         private final $type$[][] values;
         private final boolean[][] seen;
 
-        private $Type$PartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
-            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
+        private $Type$PartitionedState(CircuitBreaker breaker, int numPartitions, int partitionSize, boolean trackSeen) {
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(numPartitions) + (trackSeen ? bytesUsedByPagesArray(numPartitions) : 0);
             long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
-            breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new $type$[NUM_PARTITIONS][partitionSize];
-            seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
+            breaker.addEstimateBytesAndMaybeBreak(baseBytes + numPartitions * pageBytes, LABEL);
+            values = new $type$[numPartitions][partitionSize];
+            seen = trackSeen ? new boolean[numPartitions][partitionSize] : null;
         }
 
         @Override
@@ -380,7 +379,7 @@ $if(long)$
         @Override
         public void releaseAll(CircuitBreaker breaker) {
             long usedBytes = baseBytes;
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < values.length; p++) {
                 if (values[p] != null) {
                     usedBytes += bytesUsedByPartitionPage(values[p].length);
                     values[p] = null;
@@ -395,13 +394,15 @@ $if(long)$
     }
 
     private final class $Type$PartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+        private final int numPartitions;
         private final CircuitBreaker partitionBreaker;
         private $Type$PartitionedState partitionedState;
 
-        private $Type$PartitionSplitter(CircuitBreaker partitionBreaker) {
+        private $Type$PartitionSplitter(CircuitBreaker partitionBreaker, int numPartitions) {
+            this.numPartitions = numPartitions;
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
-            partitionedState = new $Type$PartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, numPartitions)), $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
+            partitionedState = new $Type$PartitionedState(partitionBreaker, numPartitions, partitionSize, trackingGroupIds());
         }
 
         @Override
@@ -410,7 +411,7 @@ $if(long)$
                 splitWithAllValues(firstId, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
                 return;
             }
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
                     continue;
@@ -430,7 +431,7 @@ $if(long)$
         }
 
         void splitWithAllValues(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
+            for (int p = 0; p < numPartitions; p++) {
                 final int count = batchPartitionCounts[p];
                 if (count == 0) {
                     continue;
@@ -480,8 +481,8 @@ $if(long)$
         }
     }
 
-    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-        return new $Type$PartitionSplitter(breaker);
+    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, int numPartitions) {
+        return new $Type$PartitionSplitter(breaker, numPartitions);
     }
 
     $type$[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {

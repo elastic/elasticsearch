@@ -302,6 +302,11 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
             PartitionedHashTable.PartitionedHashKeys {
 
         @Override
+        public int numPartitions() {
+            return delegate.numPartitions();
+        }
+
+        @Override
         public int keysInPartition(int partition) {
             return delegate.keysInPartition(partition) + (seenNull && partition == 0 ? 1 : 0);
         }
@@ -320,21 +325,22 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
     @Override
     public PartitionedHashTable.PartitionedHashKeys splitPartition(
         CircuitBreaker breaker,
+        int numPartitions,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
         if (hash instanceof BytesRefSwissHash swiss) {
             // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
             // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
             var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
-            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
+            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, numPartitions, groupIdSplitter);
             boolean success = false;
             try {
                 if (seenNull) {
                     // Emit null's aggregation state (group ID 0) as one extra entry appended to partition 0.
                     int nullOffset = keys.keysInPartition(0);
-                    int[] singleNullCounts = new int[PartitionedHashTable.NUM_PARTITIONS];
+                    int[] singleNullCounts = new int[numPartitions];
                     singleNullCounts[0] = 1;
-                    int[] singleNullOffsets = new int[PartitionedHashTable.NUM_PARTITIONS];
+                    int[] singleNullOffsets = new int[numPartitions];
                     singleNullOffsets[0] = nullOffset;
                     // shiftedIds needs only 1 element: null is the sole entry in partition 0 (shifted ID = 0)
                     partitionSplitter.split(0, new short[1], 1, singleNullCounts, singleNullOffsets);

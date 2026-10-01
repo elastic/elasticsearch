@@ -415,8 +415,8 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
-      CircuitBreaker breaker) {
-    return state.createPartitioningSplitter(breaker);
+      CircuitBreaker breaker, int numPartitions) {
+    return state.createPartitioningSplitter(breaker, numPartitions);
   }
 
   @Override

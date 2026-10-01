@@ -409,7 +409,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
               "usageMetadata": {
                 "promptTokenCount": 10,
                 "candidatesTokenCount": 20,
-                "totalTokenCount": 30,
+                "totalTokenCount": 37,
                 "thoughtsTokenCount": 7
               },
               "modelVersion": "gemini-3.5-flash-lite",
@@ -420,6 +420,8 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         // completionTokens must include reasoning tokens so that prompt + completion == total.
         assertThat(chunk.usage().completionTokens(), is(27));
         assertThat(chunk.usage().completionTokenDetails().reasoningTokens(), is(7));
+        // Gemini's totalTokenCount already includes thoughtsTokenCount, so it is passed through as is.
+        assertThat(chunk.usage().totalTokens(), is(37));
     }
 
     public void testUsageWithoutThoughtsTokenCountHasNoCompletionTokenDetails() throws IOException {

@@ -193,6 +193,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             }
             // Gemini's candidatesTokenCount excludes thoughtsTokenCount; in the OpenAI schema
             // completion_tokens is meant to include reasoning_tokens so we add them here.
+            // totalTokenCount already includes thoughtsTokenCount, so it is passed through unchanged. It also includes
+            // toolUsePromptTokenCount, which is why prompt + completion only equals the total when there is none.
+            // See https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GenerateContentResponse#UsageMetadata
             var thoughtsTokens = usage.thoughtsTokenCount() == null ? 0 : usage.thoughtsTokenCount();
             return new ChatCompletionUsageResponse(
                 usage.candidatesTokenCount() + thoughtsTokens,

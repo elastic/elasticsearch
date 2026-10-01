@@ -17,11 +17,10 @@ import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
-import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.ReasoningDetail.TextReasoningDetail;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +29,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedStreamingProcessor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 
 import java.io.IOException;
@@ -45,8 +43,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
-    private static final Logger logger = LogManager.getLogger(GoogleVertexAiUnifiedChatCompletionRequestEntity.class);
-
     private static final String CONTENTS = "contents";
     private static final String ROLE = "role";
     private static final String PARTS = "parts";
@@ -69,16 +65,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      * function call parts are missing the signature it previously issued for them.
      */
     private static final String THOUGHT_SIGNATURE = "thoughtSignature";
-    /**
-     * Google's documented placeholder that tells Gemini to skip thought signature validation. Used when a client
-     * replays a function call without the signature Gemini issued for it (e.g. because the client does not yet support
-     * {@code reasoning_details}), which Gemini 3 would otherwise reject with a 400.
-     * <p>
-     * The equivalent sentinel {@code context_engineering_is_the_way_to_go} is also accepted. Both are documented by
-     * Google for this use case; this one is used by gemini-cli, LiteLLM, and pydantic-ai.
-     * See <a href="https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures">thought signatures</a>.
-     */
-    private static final String SKIP_THOUGHT_SIGNATURE_VALIDATOR = "skip_thought_signature_validator";
 
     private static final String TOOLS = "tools";
     private static final String FUNCTION_DECLARATIONS = "functionDeclarations";
@@ -314,13 +300,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(turn.getFirst().role()));
             builder.startArray(PARTS);
             {
+                // Shared by every message of the turn: Gemini validates the first function call of the whole content,
+                // so the signature sentinel must not restart for each merged message.
+                var thoughtSignatures = new GoogleVertexAiThoughtSignatures();
                 // A merged turn keeps its messages' parts in message order, e.g. a tool result's functionResponse
                 // followed by the text of the user message after it.
                 for (var message : turn) {
                     if (isToolMessage(message)) {
                         buildFunctionResponsePart(builder, message, functionNameById);
                     } else {
-                        buildMessageParts(builder, message);
+                        buildMessageParts(builder, message, thoughtSignatures.forMessage(message));
                     }
                 }
             }
@@ -338,81 +327,79 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      * validates. A signature with no {@code id} and no text belongs to the text of the message, so it is attached to
      * the trailing text part, falling back to the first function call.
      * <p>
-     * When the first function call of a step has no signature at all,
-     * {@link #SKIP_THOUGHT_SIGNATURE_VALIDATOR} is used so that Gemini 3 does not reject
-     * the request with a 400. Real signatures always take precedence; the sentinel is only a fallback.
+     * When the first function call of the content has no signature at all,
+     * {@link GoogleVertexAiThoughtSignatures#SKIP_THOUGHT_SIGNATURE_VALIDATOR} is used so that Gemini 3 does not reject
+     * the request with a 400. The content is one Gemini step even when it merges several assistant messages, so only
+     * its first function call gets the sentinel. Real signatures always take precedence; the sentinel is only a
+     * fallback.
      */
-    private void buildMessageParts(XContentBuilder builder, Message message) throws IOException {
-        var texts = extractTextParts(message);
-        var googleReasoningDetails = textReasoningDetails(message);
-        var signaturesByToolCallId = signaturesByToolCallId(googleReasoningDetails);
-        var unboundSignature = unboundSignature(googleReasoningDetails);
-        var toolCalls = message.toolCalls();
-        var hasToolCalls = toolCalls != null && toolCalls.isEmpty() == false;
+    private void buildMessageParts(XContentBuilder builder, Message message, GoogleVertexAiThoughtSignatures.MessageSignatures signatures)
+        throws IOException {
+        buildThoughtParts(builder, signatures.thoughtSummaries());
+        buildTextParts(builder, extractTextParts(message), signatures);
+        buildFunctionCallParts(builder, message.toolCalls(), signatures);
+    }
 
-        for (var reasoningDetail : googleReasoningDetails) {
-            if (reasoningDetail.text() == null) {
-                continue;
-            }
+    private static void buildThoughtParts(XContentBuilder builder, List<TextReasoningDetail> thoughtSummaries) throws IOException {
+        for (var thoughtSummary : thoughtSummaries) {
             builder.startObject();
-            builder.field(TEXT, reasoningDetail.text());
+            builder.field(TEXT, thoughtSummary.text());
             builder.field(THOUGHT, true);
-            if (reasoningDetail.signature() != null) {
-                builder.field(THOUGHT_SIGNATURE, reasoningDetail.signature());
+            if (thoughtSummary.signature() != null) {
+                builder.field(THOUGHT_SIGNATURE, thoughtSummary.signature());
             }
             builder.endObject();
         }
+    }
 
+    private static void buildTextParts(
+        XContentBuilder builder,
+        List<String> texts,
+        GoogleVertexAiThoughtSignatures.MessageSignatures signatures
+    ) throws IOException {
         for (int i = 0; i < texts.size(); i++) {
             builder.startObject();
             builder.field(TEXT, texts.get(i));
-            if (unboundSignature != null && i == texts.size() - 1) {
-                builder.field(THOUGHT_SIGNATURE, unboundSignature);
-                unboundSignature = null;
+            if (i == texts.size() - 1) {
+                var signature = signatures.takeForLastTextPart();
+                if (signature != null) {
+                    builder.field(THOUGHT_SIGNATURE, signature);
+                }
             }
             builder.endObject();
         }
+    }
 
-        if (hasToolCalls) {
-            var firstCall = true;
-            for (var toolCall : toolCalls) {
-                var signature = signaturesByToolCallId.get(toolCall.id());
-                if (signature == null && unboundSignature != null) {
-                    // Google attaches the signature to the first function call of a step, so an unbound signature
-                    // belongs to the first call that does not already carry one.
-                    signature = unboundSignature;
-                    unboundSignature = null;
-                }
-                if (signature == null && firstCall) {
-                    // Gemini 3 requires a thought signature on the first functionCall of a step. When the client has
-                    // not sent reasoning_details (e.g. because the client predates that field), use Google's sentinel
-                    // so the request is not rejected with a 400.
-                    logger.debug(
-                        "No thought signature for first function call [{}]; using skip-validator sentinel",
-                        toolCall.function().name()
-                    );
-                    signature = SKIP_THOUGHT_SIGNATURE_VALIDATOR;
-                }
-                firstCall = false;
+    private static void buildFunctionCallParts(
+        XContentBuilder builder,
+        @Nullable List<ToolCall> toolCalls,
+        GoogleVertexAiThoughtSignatures.MessageSignatures signatures
+    ) throws IOException {
+        if (toolCalls == null) {
+            return;
+        }
+        for (var toolCall : toolCalls) {
+            buildFunctionCallPart(builder, toolCall, signatures.forFunctionCall(toolCall));
+        }
+    }
 
-                builder.startObject();
-                {
-                    builder.startObject(FUNCTION_CALL);
-                    builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
-                    builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
-                    // Only echo an id the model actually issued. When the id equals the function name it was
-                    // synthesized from that name because the response carried none.
-                    if (isModelIssuedId(toolCall.id(), toolCall.function().name())) {
-                        builder.field(FUNCTION_CALL_ID, toolCall.id());
-                    }
-                    builder.endObject();
-                    if (signature != null) {
-                        builder.field(THOUGHT_SIGNATURE, signature);
-                    }
-                }
-                builder.endObject();
+    private static void buildFunctionCallPart(XContentBuilder builder, ToolCall toolCall, @Nullable String signature) throws IOException {
+        builder.startObject();
+        {
+            builder.startObject(FUNCTION_CALL);
+            builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
+            builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
+            // Only echo an id the model actually issued. When the id equals the function name it was
+            // synthesized from that name because the response carried none.
+            if (isModelIssuedId(toolCall.id(), toolCall.function().name())) {
+                builder.field(FUNCTION_CALL_ID, toolCall.id());
+            }
+            builder.endObject();
+            if (signature != null) {
+                builder.field(THOUGHT_SIGNATURE, signature);
             }
         }
+        builder.endObject();
     }
 
     /**
@@ -465,47 +452,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             // Not a JSON object, so it is the raw function output and is wrapped below.
         }
         return Map.of(FUNCTION_RESPONSE_OUTPUT, text);
-    }
-
-    /**
-     * Returns the {@link ReasoningDetail.TextReasoningDetail} entries from the message that were produced by
-     * this provider ({@code format == google-vertex-ai-v1}). Details from other providers (e.g. Anthropic) are
-     * filtered out to avoid sending foreign signatures to Gemini, which would result in a 400.
-     */
-    private static List<ReasoningDetail.TextReasoningDetail> textReasoningDetails(Message message) {
-        if (message.reasoningDetails() == null) {
-            return List.of();
-        }
-        return message.reasoningDetails()
-            .stream()
-            .filter(ReasoningDetail.TextReasoningDetail.class::isInstance)
-            .map(ReasoningDetail.TextReasoningDetail.class::cast)
-            .filter(d -> GoogleVertexAiUnifiedStreamingProcessor.GOOGLE_VERTEX_AI_FORMAT.equals(d.format()))
-            .toList();
-    }
-
-    private static Map<String, String> signaturesByToolCallId(List<ReasoningDetail.TextReasoningDetail> details) {
-        var signatures = new HashMap<String, String>();
-        for (var reasoningDetail : details) {
-            if (reasoningDetail.id() != null && reasoningDetail.signature() != null) {
-                signatures.put(reasoningDetail.id(), reasoningDetail.signature());
-            }
-        }
-        return signatures;
-    }
-
-    /**
-     * The signature of a reasoning detail that names neither a tool call nor any thought text, and so has to be
-     * matched to a part positionally.
-     */
-    @Nullable
-    private static String unboundSignature(List<ReasoningDetail.TextReasoningDetail> details) {
-        for (var reasoningDetail : details) {
-            if (reasoningDetail.id() == null && reasoningDetail.text() == null && reasoningDetail.signature() != null) {
-                return reasoningDetail.signature();
-            }
-        }
-        return null;
     }
 
     /**

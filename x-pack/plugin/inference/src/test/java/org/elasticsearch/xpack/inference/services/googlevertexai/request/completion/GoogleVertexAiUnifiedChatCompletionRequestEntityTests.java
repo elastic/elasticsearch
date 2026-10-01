@@ -1903,8 +1903,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     /**
-     * Consecutive assistant messages become one {@code model} content. Each message's parts are resolved on their
-     * own, so the tool call message's first call still gets the signature sentinel.
+     * Consecutive assistant messages become one {@code model} content. That content is a single Gemini step, so the
+     * first function call in it gets the signature sentinel even though it comes from the second message.
      */
     public void testSerialization_ConsecutiveAssistantMessages_MergedIntoOneModelTurn() throws IOException {
         var messages = List.of(
@@ -2092,7 +2092,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testSerialization_MultipleUnboundSignatures_UsesFirst() throws IOException {
-        // When multiple unbound signatures are present only the first is used; the rest are silently ignored.
+        // Google documents one location for a non-function-call signature per response, so more than one unbound
+        // signature means a client merged several responses into one message. Only the first is used; the rest are
+        // dropped (and logged at debug) because these signatures are not strictly validated.
         var otherSignature = "Cs8BAdHtim9zbXR0aW5nIGFub3RoZXIgc2lnbmF0dXJl";
         var message = new Message(
             new ContentString("The answer is 42."),
@@ -2422,6 +2424,123 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 ]
             }
             """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_ConsecutiveAssistantToolCalls_OnlyFirstCallOfMergedContentGetsSentinel() throws IOException {
+        // Two consecutive assistant messages, each with a tool call and no signatures.
+        // toContentTurns merges them into one "model" content, which Gemini treats as a single step.
+        // Gemini only validates the first function call of a step, so only that call gets the sentinel,
+        // even though the second call is the first one of its own message.
+        var messages = List.of(
+            new Message(
+                null,
+                ASSISTANT_ROLE,
+                null,
+                List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"))
+            ),
+            new Message(
+                null,
+                ASSISTANT_ROLE,
+                null,
+                List.of(new ToolCall(SECOND_TOOL_CALL_ID, new ToolCall.FunctionField("{}", SECOND_FUNCTION_NAME), "function"))
+            )
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            },
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ConsecutiveAssistantToolCalls_SignedFirstCall_SecondHasNoSentinel() throws IOException {
+        // The first call of the merged content has a real signature, so the second call, which has none, must not
+        // get the sentinel just because it is the first call of its own message.
+        var signedFirstCall = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+        var unsignedSecondCall = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(SECOND_TOOL_CALL_ID, new ToolCall.FunctionField("{}", SECOND_FUNCTION_NAME), "function"))
+        );
+
+        assertJsonEquals(serialize(requestOf(List.of(signedFirstCall, unsignedSecondCall)), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            },
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ConsecutiveAssistantToolCalls_SignatureOnSecondMessage_FirstGetsSentinel() throws IOException {
+        // The first call of the merged content has no signature, so it gets the sentinel. The second call keeps
+        // the real signature that was issued for it.
+        var unsignedFirstCall = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"))
+        );
+        var signedSecondCall = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(SECOND_TOOL_CALL_ID, new ToolCall.FunctionField("{}", SECOND_FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, SECOND_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(List.of(unsignedFirstCall, signedSecondCall)), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            },
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID, THOUGHT_SIGNATURE));
     }
 
     private static UnifiedCompletionRequestBody parseRequest(String json) throws IOException {

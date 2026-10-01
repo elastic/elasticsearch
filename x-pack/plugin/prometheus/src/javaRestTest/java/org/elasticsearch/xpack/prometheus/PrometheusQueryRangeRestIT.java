@@ -502,4 +502,13 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("sum by (cluster) (tx) * scalar(max(rx))", "cluster", Map.of("prod", 160.0, "qa", 48.0));
         assertBinopRangeValues("count(rx * scalar(sum(tx)))", 3);
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantClosedAggregateAgainstRawVectorMatchesOnTheFullLabelSet}. */
+    public void testRangeClosedAggregateAgainstRawVectorMatchesOnTheFullLabelSet() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("max by (host, cluster) (tx) * rx", 20, 90, 48);
+        assertBinopRangeGroups("sum by (host, cluster) (tx) / rx{host!=\"c\"}", "host", Map.of("a", 5.0, "b", 10.0));
+        assertBinopRangeValues("max by (host) (tx) * rx");
+        assertBinopRangeValues("sum(tx) / rx");
+    }
 }

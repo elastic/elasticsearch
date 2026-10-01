@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
@@ -70,6 +71,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMa
 
 public abstract sealed class VectorBinaryOperator extends BinaryPlan implements PromqlPlan permits VectorBinarySet, VectorBinaryComparison,
     VectorBinaryArithmetic {
+
+    /** The packed identity of a series with no labels left, as {@code TimeSeriesMetadataFieldBlockLoader} emits it. */
 
     private final VectorMatch match;
     private final boolean dropMetricName;
@@ -186,6 +189,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             // Same label set on both sides: the result carries the left operand's columns, like every other
             // one-to-one match.
             return leftAttrs;
+        } else if (hasPackedLabels(leftAttrs) && hasPackedLabels(rightAttrs) == false) {
+            // Default matching of a packed operand against a closed one pairs only where the packed series carries exactly
+            // the closed side's labels, so the result's label set is the closed side's, whichever side it is.
+            outputLabels = new HashSet<>(rightLabels);
         } else {
             // Default matching between different label sets: a pair matches only where the labels one side lacks are
             // absent on the other side too (a Prometheus signature has no entry for an absent label), and like every
@@ -261,13 +268,29 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (match.filter() == VectorMatch.Filter.NONE && match.grouping() == Joining.NONE) {
             boolean scalarOperand = left().resolved() && getType(left()) == SCALAR || right().resolved() && getType(right()) == SCALAR;
             boolean nestedMatch = anyMatchVectorBinaryOperator(left()) || anyMatchVectorBinaryOperator(right());
-            // Operands over one label set fold into a shared aggregate. Different concrete label sets match like
-            // Prometheus does, pair by pair on the actual labels, which only the join expresses.
-            if (scalarOperand || (nestedMatch == false && hasMismatchedLabelSets() == false)) {
+            // Operands over one label set fold into a shared aggregate: two raw selectors pair per series inside one
+            // collapse, two closed aggregates over the same keys fuse. Everything else matches like Prometheus does, pair
+            // by pair on the actual label sets, which only the join expresses: different closed label sets, a closed
+            // operand against a packed one, and a packed operand that is already a table (a reduction).
+            boolean fusable = nestedMatch == false
+                && hasMismatchedLabelSets() == false
+                && closedAgainstPacked() == false
+                && reductionOperand() == false;
+            if (scalarOperand || fusable) {
                 return translateFused(translation);
             }
         }
         return translateJoin(translation);
+    }
+
+    /** One operand names its labels while the other packs them: only the join can compare the two label sets. */
+    private boolean closedAgainstPacked() {
+        return hasPackedLabels(left().output()) != hasPackedLabels(right().output());
+    }
+
+    /** A reduction ({@code topk}) is a finished table over packed series: it pairs through the join, not a shared collapse. */
+    private boolean reductionOperand() {
+        return left().anyMatch(AcrossSeriesReduction.class::isInstance) || right().anyMatch(AcrossSeriesReduction.class::isInstance);
     }
 
     private static boolean anyMatchVectorBinaryOperator(LogicalPlan plan) {
@@ -561,18 +584,31 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      */
     private TranslationResult translateJoin(TranslationContext translation) {
         // TODO: revisit once expression like foo on(a,b) / bar is supported
-        // IN: declared output labels + required names (operands have concrete label sets, so every label is named);
-        // key on top: on (k) -> k; ignoring (i) -> any - i; none -> declared
-        TranslationConstraint declared = union(of(PromqlLabels.labelNames(output())), of(translation.required().names()));
-        TranslationConstraint in = switch (match.filter()) {
-            case ON -> union(declared, of(match.filterLabels()));
-            case IGNORING -> union(declared, sub(any(), of(match.filterLabels())));
+        // IN: declared output labels + required names (explicit matching: operands have concrete label sets, so every
+        // label is named); key on top: on (k) -> k; ignoring (i) -> any - i; none -> every label either operand names
+        // plus the packing of whatever else a packed operand carries
+        TranslationConstraint declared = union(of(labelNames(output())), of(translation.required().names()));
+        Set<String> residual = null;
+        TranslationConstraint in;
+        switch (match.filter()) {
+            case ON -> in = union(declared, of(match.filterLabels()));
+            case IGNORING -> in = union(declared, sub(any(), of(match.filterLabels())));
             case NONE -> {
-                assert hasPackedLabels(left().output()) == false && hasPackedLabels(right().output()) == false
-                    : "[INVARIANT]: an unmatched join needs operands with concrete label sets [" + sourceText() + "]";
-                yield declared;
+                // Prometheus compares whole label sets (the name aside): the key is every label either operand names, null
+                // where a side lacks it, and the packing of everything else, which a pair needs empty - a packed series
+                // matches a closed one only when it carries no further label, and two packed operands when the rest agrees.
+                var keys = new TreeSet<>(declared.names());
+                keys.addAll(labelNames(left().output()));
+                keys.addAll(labelNames(right().output()));
+                keys.remove(LabelMatcher.NAME);
+                declared = of(keys);
+                var except = new HashSet<>(keys);
+                except.add(LabelMatcher.NAME);
+                residual = Set.copyOf(except);
+                in = union(declared, any());
             }
-        };
+            default -> throw new IllegalStateException("unknown vector match filter [" + match.filter() + "]");
+        }
         TranslationResult left = translation.translateOperand(left(), in);
         TranslationResult right = translation.translateOperand(right(), in);
 
@@ -581,14 +617,26 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         PromqlCommand cmd = translation.cmd();
         boolean probeRight = match.grouping() == Joining.RIGHT;
         TranslationResult probe = probeRight ? right : left;
+        if (dropMetricName) {
+            probe = translation.bind(probe, sub(probe.shape(), of(LabelMatcher.NAME)), source());
+        }
         TranslationResult build = reidentify(cmd, probeRight ? left : right);
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
 
-        LogicalPlan join = emitJoin(translation, probe, build, keyLabels(left, right));
-        // OUT: every declared label bound to the operand carrying it, or null
-        Output output = bindOutput(declared, probe, build);
+        LogicalPlan join = emitJoin(translation, probe, build, keyLabels(left, right), residual);
+        // OUT: every declared label bound to the operand carrying it, or null; the probe's remaining packed labels if any
+        Output output = bindOutput(declared, probe, build, residual);
         return bindResult(translation, leftValue, rightValue, probe.step(), join, output);
+    }
+
+    /** The label names an operand declares as columns, its packed identity aside. */
+    private static List<String> labelNames(List<Attribute> output) {
+        return output.stream()
+            .filter(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false)
+            .map(PromqlLabels::labelName)
+            .distinct()
+            .toList();
     }
 
     /** One side of the join: its plan with the key columns defined, and the fields the join matches on. */
@@ -692,10 +740,16 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /** The inner join of the two operands on step plus the packed match key. */
-    private LogicalPlan emitJoin(TranslationContext translation, TranslationResult probe, TranslationResult build, List<String> keyLabels) {
+    private LogicalPlan emitJoin(
+        TranslationContext translation,
+        TranslationResult probe,
+        TranslationResult build,
+        List<String> keyLabels,
+        Set<String> residual
+    ) {
         PromqlCommand cmd = translation.cmd();
-        Input probeInput = emitInput(translation, probe, keyLabels);
-        Input buildInput = emitInput(translation, build, keyLabels);
+        Input probeInput = emitInput(translation, probe, keyLabels, residual);
+        Input buildInput = emitInput(translation, build, keyLabels, residual);
 
         // The build side carries its join fields plus what the join adds: its value and the group_x labels. Neither can
         // already be a join field (the step, or the freshly packed key), so the two lists are disjoint.
@@ -732,27 +786,41 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * One side's plan with its match key defined and packed next to step; step alone when the key is empty. The key is the
      * shared key labels, each as the operand's own column or a null where it lacks the label, or a projection of the operand's current JSON record when matching is open-schema.
      */
-    private Input emitInput(TranslationContext translation, TranslationResult input, List<String> keyLabels) {
+    private Input emitInput(TranslationContext translation, TranslationResult input, List<String> keyLabels, Set<String> residual) {
         Source source = translation.cmd().source();
-        TranslationResult keyed = translation.bind(
-            input,
-            match.filter() != VectorMatch.Filter.ON && input.packedLabels() != null
-                ? sub(input.shape(), of(match.filterLabels()))
-                : of(keyLabels),
-            source
-        );
-        List<Attribute> fields = keyed.attributes();
+        TranslationResult keyed = translation.bind(input, of(keyLabels), source);
+        LogicalPlan plan = keyed.plan();
+        var fields = new ArrayList<Attribute>();
+        if (residual != null || match.filter() != VectorMatch.Filter.ON && input.packedLabels() != null) {
+            var excluded = new LinkedHashSet<>(keyLabels);
+            excluded.addAll(match.filterLabels());
+            excluded.add(LabelMatcher.NAME);
+            if (residual != null) {
+                excluded.addAll(residual);
+            }
+            // This is an auxiliary matching key, not a replacement for the current record kept for the output.
+            Alias remainder = new Alias(
+                source,
+                TemporaryNameGenerator.locallyUniqueTemporaryName("remaining_labels"),
+                translation.excludeLabels(input, excluded)
+            );
+            plan = new Eval(source, plan, List.of(remainder));
+            fields.add(remainder.toAttribute());
+        }
+        fields.addAll(keyed.labels().values());
         if (fields.isEmpty()) {
-            return new Input(keyed.plan(), List.of(input.step()));
+            return new Input(plan, List.of(input.step()));
         }
         Attribute packed = new ReferenceAttribute(source, null, PackDims.PACKED_FIELD_NAME, DataType.KEYWORD);
-        return new Input(new PackDims(source, keyed.plan(), fields, packed), List.of(input.step(), packed));
+        return new Input(new PackDims(source, plan, fields, packed), List.of(input.step(), packed));
     }
 
-    /** The join result's label columns: every required label bound to the operand carrying it, or to null. */
-    private Output bindOutput(TranslationConstraint required, TranslationResult probe, TranslationResult build) {
+    /** Binds result labels without exposing the auxiliary matching record as the current identity. */
+    private Output bindOutput(TranslationConstraint required, TranslationResult probe, TranslationResult build, Set<String> residual) {
         var columns = new LinkedHashMap<String, Attribute>();
         var nullFills = new ArrayList<Alias>();
+        // If either side is closed, matching guarantees that the named keys describe the whole result.
+        Attribute packed = residual != null && probe.packedLabels() != null && build.packedLabels() != null ? probe.packedLabels() : null;
         for (String name : required.names()) {
             // A label the match semantics dropped (e.g. on(...) narrowing) may still be required by an enclosing
             // translation; it must come back null rather than leak through from an operand.
@@ -773,8 +841,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             }
             columns.put(name, attribute);
         }
-        // Operands are required to have concrete label sets, so the result names every label and carries no dynamic column.
-        return new Output(columns, null, nullFills);
+        return new Output(columns, packed, nullFills);
     }
 
     /** Renames an attribute or alias in a re-identification pass; other expressions pass through unchanged. */

@@ -141,11 +141,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 type,
                 () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
-            case STRING -> writeStringColumn(
-                field,
-                type,
-                () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
-            );
+            case STRING -> {
+                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
+                writeStringColumn(
+                    field,
+                    type,
+                    singleValued
+                        ? () -> ColumnarStringBinaryDocValues.decodeRawValues(valuesProducer.getBinary(field))
+                        : () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
+                );
+            }
         }
     }
 
@@ -163,7 +168,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
+                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
+                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary, singleValued), vocabulary);
             }
         }
     }
@@ -474,8 +480,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return map;
     }
 
-    private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState, Vocabulary.Terms vocabulary)
-        throws IOException {
+    private static StringColumnValues stringMergeCursor(
+        FieldInfo field,
+        MergeState mergeState,
+        Vocabulary.Terms vocabulary,
+        boolean singleValued
+    ) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
         // What the counting pass would work out, summed from what the segments recorded. Held only while
@@ -525,7 +535,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // what this merge takes from it.
                 recorded &= mergeState.liveDocs[i] == null;
             } else {
-                values = ColumnarStringBinaryDocValues.decodePayloads(binary);
+                values = singleValued
+                    ? ColumnarStringBinaryDocValues.decodeRawValues(binary)
+                    : ColumnarStringBinaryDocValues.decodePayloads(binary);
                 recorded = false;
             }
             cost += values.cost();

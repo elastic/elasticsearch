@@ -1227,6 +1227,11 @@ public final class ParallelParsingCoordinator {
                 }
                 super.abortStream(stream);
             }
+
+            @Override
+            public InputStream withoutResume(InputStream stream) {
+                return super.withoutResume(stream instanceof LiveStream live ? live.inner() : stream);
+            }
         }
 
         /** Unregisters the inner GET on close. Abort must use {@link #inner()}, not this filter. */

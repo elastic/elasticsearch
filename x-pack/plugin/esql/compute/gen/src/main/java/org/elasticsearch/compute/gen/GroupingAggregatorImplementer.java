@@ -939,6 +939,21 @@ public class GroupingAggregatorImplementer {
             .build();
     }
 
+    /**
+     * Booleans are partitioned as bitsets packed into longs, matching the layout of the unpartitioned state.
+     */
+    private boolean partitionsAsBitset() {
+        return aggState.declaredType().equals(TypeName.BOOLEAN);
+    }
+
+    private TypeName partitionValueType() {
+        return partitionsAsBitset() ? TypeName.LONG : aggState.declaredType();
+    }
+
+    private String partitionValueAt() {
+        return partitionsAsBitset() ? "(values[i >>> 6] & (1L << i)) != 0" : "values[i]";
+    }
+
     private MethodSpec combinePartition() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("combinePartition")
             .addAnnotation(Override.class)
@@ -953,7 +968,7 @@ public class GroupingAggregatorImplementer {
         builder.endControlFlow();
         final boolean primitive = aggState.declaredType().isPrimitive();
         if (primitive) {
-            builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(aggState.declaredType()));
+            builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(partitionValueType()));
         } else {
             builder.addStatement("$T values = state.partitionValues(source, partition)", BYTES_REF_SEQUENCE);
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
@@ -968,7 +983,7 @@ public class GroupingAggregatorImplementer {
             if (useIntermediateForPartitions) {
                 builder.addStatement("$T.combineIntermediate(state, dstIds[i], values.get(i, scratch))", declarationType);
             } else if (primitive) {
-                builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+                builder.addStatement("$T.combine(state, dstIds[i], $L)", declarationType, partitionValueAt());
             } else {
                 builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
             }
@@ -982,7 +997,7 @@ public class GroupingAggregatorImplementer {
         if (useIntermediateForPartitions) {
             builder.addStatement("$T.combineIntermediate(state, dstIds[i], values.get(i, scratch))", declarationType);
         } else if (primitive) {
-            builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+            builder.addStatement("$T.combine(state, dstIds[i], $L)", declarationType, partitionValueAt());
         } else {
             builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
         }

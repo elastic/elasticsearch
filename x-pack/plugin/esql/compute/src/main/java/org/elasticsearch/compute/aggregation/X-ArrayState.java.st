@@ -331,9 +331,35 @@ $endif$
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Long.BYTES$else$$BYTES$$endif$ * length);
     }
 
-    private static long bytesUsedByPartitionPage(int length) {
-        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Byte.BYTES$else$$BYTES$$endif$ * length);
+$if(boolean)$
+    /**
+     * Partition buffers use the same bitset layout as the pages: one bit per group, packed into longs.
+     * Partition sizes are multiples of {@code Long.SIZE} so the values and {@code seen} buffers cover the same groups.
+     */
+    private static int partitionSize(int minSize) {
+        return (ArrayUtil.oversize(minSize, Byte.BYTES) + Long.SIZE - 1) & -Long.SIZE;
     }
+
+    private static int partitionValuesLength(int partitionSize) {
+        return partitionSize >>> 6;
+    }
+
+    private static int partitionCapacity(long[] values) {
+        return values.length << 6;
+    }
+$else$
+    private static int partitionSize(int minSize) {
+        return ArrayUtil.oversize(minSize, $BYTES$);
+    }
+
+    private static int partitionValuesLength(int partitionSize) {
+        return partitionSize;
+    }
+
+    private static int partitionCapacity($type$[] values) {
+        return values.length;
+    }
+$endif$
 
     private static long bytesUsedBySeenPage(int length) {
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
@@ -344,14 +370,14 @@ $endif$
         private static final String LABEL = "$Type$ArrayState#partition";
 
         private final long baseBytes;
-        private final $type$[][] values;
+        private final $if(boolean)$long$else$$type$$endif$[][] values;
         private final boolean[][] seen;
 
         private $Type$PartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
             baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
-            long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            long pageBytes = bytesUsedByPage(partitionValuesLength(partitionSize)) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
             breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new $type$[NUM_PARTITIONS][partitionSize];
+            values = new $if(boolean)$long$else$$type$$endif$[NUM_PARTITIONS][partitionValuesLength(partitionSize)];
             seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
         }
 
@@ -364,7 +390,7 @@ $endif$
         public void releasePartition(CircuitBreaker breaker, int partition) {
             long usedBytes = 0;
             if (values[partition] != null) {
-                usedBytes += bytesUsedByPartitionPage(values[partition].length);
+                usedBytes += bytesUsedByPage(values[partition].length);
                 values[partition] = null;
             }
             if (seen != null && seen[partition] != null) {
@@ -379,7 +405,7 @@ $endif$
             long usedBytes = baseBytes;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 if (values[p] != null) {
-                    usedBytes += bytesUsedByPartitionPage(values[p].length);
+                    usedBytes += bytesUsedByPage(values[p].length);
                     values[p] = null;
                 }
                 if (seen != null && seen[p] != null) {
@@ -397,7 +423,7 @@ $endif$
 
         private $Type$PartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
+            int partitionSize = partitionSize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)));
             partitionedState = new $Type$PartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
         }
 
@@ -419,7 +445,7 @@ $endif$
                     final int id = firstId + shiftedIds[base + i];
                     if (hasValue(id)) {
                         assert id < capacity : id + ">=" + capacity;
-                        partitionedState.values[p][offset + i] = get(id);
+                        setPartitionValue(partitionedState.values[p], offset + i, get(id));
                         partitionedState.seen[p][offset + i] = true;
                     }
                 }
@@ -438,20 +464,36 @@ $endif$
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
                     assert id < capacity : id + ">=" + capacity;
-                    partitionedState.values[p][offset + i] = get(id);
+                    setPartitionValue(partitionedState.values[p], offset + i, get(id));
                 }
             }
         }
 
+$if(boolean)$
+        /**
+         * Buffers are zero-initialized and each slot is written once, so only {@code true} needs to be recorded.
+         */
+        private static void setPartitionValue(long[] values, int index, boolean value) {
+            if (value) {
+                values[index >>> 6] |= 1L << index;
+            }
+        }
+$else$
+        private static void setPartitionValue($type$[] values, int index, $type$ value) {
+            values[index] = value;
+        }
+$endif$
+
         private void ensurePartitionCapacity(int partition, int minSize) {
-            final $type$[] oldValues = partitionedState.values[partition];
-            if (oldValues.length >= minSize) {
+            final $if(boolean)$long$else$$type$$endif$[] oldValues = partitionedState.values[partition];
+            if (partitionCapacity(oldValues) >= minSize) {
                 return;
             }
-            final int newSize = ArrayUtil.oversize(minSize, $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), $Type$PartitionedState.LABEL);
-            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
-            partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
+            final int newSize = partitionSize(minSize);
+            final int newLength = partitionValuesLength(newSize);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPage(newLength), $Type$PartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newLength);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPage(oldValues.length));
 
             if (partitionedState.seen != null) {
                 final boolean[] oldSeen = partitionedState.seen[partition];
@@ -481,7 +523,7 @@ $endif$
         return new $Type$PartitionSplitter(breaker);
     }
 
-    $type$[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+    $if(boolean)$long$else$$type$$endif$[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
         return (($Type$PartitionedState) source).values[partition];
     }
 
@@ -490,14 +532,14 @@ $endif$
         return seen == null ? null : seen[partition];
     }
 
-    void appendPartition($type$[] src, int firstId, int length) {
+    void appendPartition($if(boolean)$long$else$$type$$endif$[] src, int firstId, int length) {
         final int end = firstId + length;
         assert end <= capacity : end + " > " + capacity;
 $if(boolean)$
         for (int id = firstId, i = 0; id < end; id++, i++) {
             final long[] page = pages[id >>> PAGE_SHIFT];
             final int word = (id & PAGE_MASK) >>> 6;
-            if (src[i]) {
+            if ((src[i >>> 6] & (1L << i)) != 0) {
                 page[word] |= 1L << id;
             } else {
                 page[word] &= ~(1L << id);

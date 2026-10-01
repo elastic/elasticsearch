@@ -233,8 +233,16 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Double.BYTES * length);
     }
 
-    private static long bytesUsedByPartitionPage(int length) {
-        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Double.BYTES * length);
+    private static int partitionSize(int minSize) {
+        return ArrayUtil.oversize(minSize, Double.BYTES);
+    }
+
+    private static int partitionValuesLength(int partitionSize) {
+        return partitionSize;
+    }
+
+    private static int partitionCapacity(double[] values) {
+        return values.length;
     }
 
     private static long bytesUsedBySeenPage(int length) {
@@ -251,9 +259,9 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
         private DoublePartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
             baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
-            long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            long pageBytes = bytesUsedByPage(partitionValuesLength(partitionSize)) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
             breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-            values = new double[NUM_PARTITIONS][partitionSize];
+            values = new double[NUM_PARTITIONS][partitionValuesLength(partitionSize)];
             seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
         }
 
@@ -266,7 +274,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         public void releasePartition(CircuitBreaker breaker, int partition) {
             long usedBytes = 0;
             if (values[partition] != null) {
-                usedBytes += bytesUsedByPartitionPage(values[partition].length);
+                usedBytes += bytesUsedByPage(values[partition].length);
                 values[partition] = null;
             }
             if (seen != null && seen[partition] != null) {
@@ -281,7 +289,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
             long usedBytes = baseBytes;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 if (values[p] != null) {
-                    usedBytes += bytesUsedByPartitionPage(values[p].length);
+                    usedBytes += bytesUsedByPage(values[p].length);
                     values[p] = null;
                 }
                 if (seen != null && seen[p] != null) {
@@ -299,7 +307,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
         private DoublePartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Double.BYTES);
+            int partitionSize = partitionSize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)));
             partitionedState = new DoublePartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
         }
 
@@ -321,7 +329,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
                     final int id = firstId + shiftedIds[base + i];
                     if (hasValue(id)) {
                         assert id < capacity : id + ">=" + capacity;
-                        partitionedState.values[p][offset + i] = get(id);
+                        setPartitionValue(partitionedState.values[p], offset + i, get(id));
                         partitionedState.seen[p][offset + i] = true;
                     }
                 }
@@ -340,20 +348,25 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
                     assert id < capacity : id + ">=" + capacity;
-                    partitionedState.values[p][offset + i] = get(id);
+                    setPartitionValue(partitionedState.values[p], offset + i, get(id));
                 }
             }
         }
 
+        private static void setPartitionValue(double[] values, int index, double value) {
+            values[index] = value;
+        }
+
         private void ensurePartitionCapacity(int partition, int minSize) {
             final double[] oldValues = partitionedState.values[partition];
-            if (oldValues.length >= minSize) {
+            if (partitionCapacity(oldValues) >= minSize) {
                 return;
             }
-            final int newSize = ArrayUtil.oversize(minSize, Double.BYTES);
-            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), DoublePartitionedState.LABEL);
-            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
-            partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
+            final int newSize = partitionSize(minSize);
+            final int newLength = partitionValuesLength(newSize);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPage(newLength), DoublePartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newLength);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPage(oldValues.length));
 
             if (partitionedState.seen != null) {
                 final boolean[] oldSeen = partitionedState.seen[partition];

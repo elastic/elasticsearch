@@ -418,21 +418,21 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     if (length == 0) {
       return;
     }
-    boolean[] values = state.partitionValues(source, partition);
+    long[] values = state.partitionValues(source, partition);
     boolean[] seen = state.partitionSeen(source, partition);
     if (seen == null) {
       if (appendOnly) {
         state.appendPartition(values, dstIds[0], length);
       } else {
         for (int i = 0; i < length; i++) {
-          MaxBooleanAggregator.combine(state, dstIds[i], values[i]);
+          MaxBooleanAggregator.combine(state, dstIds[i], (values[i >>> 6] & (1L << i)) != 0);
         }
       }
       return;
     }
     for (int i = 0; i < length; i++) {
       if (seen[i]) {
-        MaxBooleanAggregator.combine(state, dstIds[i], values[i]);
+        MaxBooleanAggregator.combine(state, dstIds[i], (values[i >>> 6] & (1L << i)) != 0);
       }
     }
   }

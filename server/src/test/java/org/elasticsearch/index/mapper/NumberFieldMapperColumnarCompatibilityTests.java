@@ -24,9 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Parity tests for {@link NumberFieldMapper#mapColumnBatch} against the row path.
- * One test per numeric type and ESCF source kind combination; absent (sparse) docs are exercised
- * in every scenario to confirm validity-bitset handling.
+ * Parity tests for {@link NumberFieldMapper#mapColumnBatch} against the row path. Single-valued
+ * fields get one test per numeric type and ESCF source kind combination; multi-valued fields are
+ * covered by a property test over type, array shape, index profile and encoder. Absent (sparse)
+ * docs are exercised in every scenario to confirm validity-bitset handling.
  */
 public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -740,8 +741,8 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     }
 
     /**
-     * As {@link #testMultiValueShapesAcrossEncoders}, for a null value. A null makes the column a UNION
-     * rather than a plain LONG, which the same kind switch rejects.
+     * A null among scalar values makes the column a UNION rather than a plain LONG, which the kind
+     * switch in {@link NumberFieldMapper#mapColumnBatch} rejects.
      */
     @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement null numeric values; UNION columns fall back to the row path")
     public void testLongField_nullValue() throws IOException {
@@ -942,6 +943,57 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
                 doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[1.5,-2.25,1.5]}")
             )
         );
+    }
+
+    public void testEmptyStringWithOffsetsBailsOutOfColumnarPath() throws IOException {
+        final var mapperService = createMapperService(
+            multiValueColumnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject())
+        );
+        for (String source : List.of("{\"f\":\"\"}", "{\"f\":[\"\",\"5\"]}")) {
+            final UnsupportedOperationException ex = expectThrows(
+                UnsupportedOperationException.class,
+                source,
+                () -> mapColumnarLeaf(mapperService, FIELD, source)
+            );
+            assertTrue(source + ": " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
+        }
+    }
+
+    private static Settings tsdbKeepArraysSettings() {
+        return Settings.builder().put(tsdbSettings()).put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build();
+    }
+
+    private static CheckedConsumer<XContentBuilder, IOException> tsdbLongMapping() {
+        return b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").endObject();
+        };
+    }
+
+    public void testLongField_tsdbKeepArraysScalar() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(
+            mapping(tsdbLongMapping()),
+            tsdbKeepArraysSettings(),
+            batch(
+                "long tsdb keep arrays scalar",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":\"42\"}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":\"\"}")
+            )
+        );
+    }
+
+    public void testLongField_tsdbKeepArraysArrayBailsOut() throws IOException {
+        final var mapperService = createMapperService(tsdbKeepArraysSettings(), mapping(tsdbLongMapping()));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[1,2]}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("records array offsets outside a strict-columnar index mode"));
     }
 
     /** TSDB settings naming both the keyword {@code dim} and the numeric {@code f} as index dimensions. */

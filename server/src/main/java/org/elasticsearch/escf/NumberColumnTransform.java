@@ -79,8 +79,8 @@ public final class NumberColumnTransform {
 
     /**
      * @param rejectDroppedValues whether to throw rather than let a source slot produce no output value. The
-     *     offsets sidecar needs one ordinal per slot, so a dropped slot has nothing to point at. Callers that
-     *     emit a sidecar pass {@code true} to fall the chunk back to the row path instead.
+     *     row path records such a slot in the offsets sidecar as a null ordinal, which {@link ColumnarOffsetsBuilder}
+     *     does not emit. Callers that record a sidecar pass {@code true} to fall the chunk back to the row path instead.
      */
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
@@ -174,8 +174,8 @@ public final class NumberColumnTransform {
                         builder.setLong(doc, nullReplacement);
                     } else if (rejectDroppedValues) {
                         throw new UnsupportedOperationException(
-                            "toSortableLongColumn: an empty string with no null_value has no output value, which a positional sidecar "
-                                + "cannot represent"
+                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot, which the columnar "
+                                + "offsets sidecar does not emit"
                         );
                     }
                     continue;

@@ -2872,10 +2872,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // ignore_malformed is not enforced by mapColumnBatch — it only matters for documents the
         // columnar path already refuses, and refusing late falls back to the row path.
-        return docValuesParameters.enabled()
-            && indexTerms == false
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && (offsetsFieldName == null || indexSettings.getMode().isStrictColumnar());
+        return docValuesParameters.enabled() && indexTerms == false && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     @Override
@@ -2885,8 +2882,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        assert offsetsFieldName == null || indexSettings.getMode().isStrictColumnar()
-            : "offsets field [" + offsetsFieldName + "] outside a strict-columnar index mode";
         switch (source.kind()) {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> {
             } // handled below
@@ -2898,6 +2893,12 @@ public class NumberFieldMapper extends FieldMapper {
                 )
             );
         }
+        final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
+        if (source.kind() == EscfColumnKind.ARRAY && offsetsFieldName != null && recordsOffsets == false) {
+            throw new UnsupportedOperationException(
+                Strings.format("mapColumnBatch: field [%s] records array offsets outside a strict-columnar index mode", fullPath())
+            );
+        }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
             source,
@@ -2905,7 +2906,7 @@ public class NumberFieldMapper extends FieldMapper {
             coerce(),
             ctx.recycler(),
             nullSortableLong,
-            offsetsFieldName != null,
+            recordsOffsets,
             ctx::addResource
         );
         assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
@@ -2951,7 +2952,7 @@ public class NumberFieldMapper extends FieldMapper {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
             }
         }
-        if (offsetsFieldName != null && outData.kind() == EscfColumnKind.ARRAY) {
+        if (recordsOffsets && outData.kind() == EscfColumnKind.ARRAY) {
             LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(
                 EscfColumn.from(outData),
                 offsetsFieldName,

@@ -598,4 +598,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("topk(1, tx) / topk(1, rx)");
         assertBinopInstantValues("bottomk(2, bottomk(1, tx)) * tx", 100);
     }
+
+    /**
+     * A series without a partner is dropped by the operator before any enclosing aggregate sees it: Prometheus has no
+     * group for it, so {@code count by (cluster) (tx / rx{host!="c"})} has no {@code qa} group at all rather than
+     * {@code qa 0}.
+     */
+    public void testInstantUnmatchedPairsNeverReachTheEnclosingAggregate() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("count by (cluster) (tx / rx{host!=\"c\"})", "cluster", Map.of("prod", 2.0));
+        assertBinopInstantValues("count(tx / rx{host!=\"c\"})", 2);
+        assertBinopInstantGroups("sum by (cluster) (tx - rx{host!=\"c\"})", "cluster", Map.of("prod", 35.0));
+        assertBinopInstantGroups(
+            "count by (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"}))",
+            "host",
+            Map.of("a", 1.0, "b", 1.0)
+        );
+        assertBinopInstantValues("count(tx / rx{host=~\"nope\"})");
+    }
 }

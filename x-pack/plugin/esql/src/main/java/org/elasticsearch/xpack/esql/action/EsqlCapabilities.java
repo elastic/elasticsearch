@@ -1542,6 +1542,11 @@ public class EsqlCapabilities {
         NESTED_SUBQUERY_IN_FROM_COMMAND_PLANNER_FIX,
 
         /**
+         * Support nested non-correlated subqueries, views with Fork and dataset.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,

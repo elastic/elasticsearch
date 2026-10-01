@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -165,6 +166,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
     private final List<String> deferredColumnNames;
     private final List<DataType> deferredColumnTypes;
     private final SourceExtractors registry;
+    private final RefCountingRunnable registryRefs;
     private final BlockFactory blockFactory;
     private final Executor executor;
     private final LongAdder rowsExtracted = new LongAdder();
@@ -246,6 +248,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         this.deferredColumnNames = deferredColumnNames;
         this.deferredColumnTypes = deferredColumnTypes;
         this.registry = registry;
+        this.registryRefs = new RefCountingRunnable(registry::close);
         this.blockFactory = driverContext.blockFactory();
         this.executor = executor;
     }
@@ -279,7 +282,11 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
 
         SubscribableListener<Void> ready = new SubscribableListener<>();
         materializationBlocked = new IsBlockedResult(ready, "external field materialization");
-        ActionListener<Result> completion = ActionListener.runAfter(listener, () -> ready.onResponse(null));
+        var registryRef = Releasables.releaseOnce(registryRefs.acquire());
+        ActionListener<Result> completion = ActionListener.releaseAfter(
+            ActionListener.runAfter(listener, () -> ready.onResponse(null)),
+            registryRef
+        );
         try {
             executor.execute(() -> {
                 long start = System.nanoTime();
@@ -304,6 +311,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         } catch (RuntimeException e) {
             completion.onFailure(ExternalFailures.classify(e));
         } catch (Error e) {
+            registryRef.close();
             ready.onResponse(null);
             releasePageOnAnyThread(page);
             throw e;
@@ -446,9 +454,10 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
 
     @Override
     protected void doClose() {
-        // The registry is shared between source and this operator. The lifecycle is the driver:
-        // wait for materialization before releasing per-file extractors and held StorageObjects.
-        driverContext().waitForAsyncActions(ActionListener.running(registry::close));
+        // Do not tie registry closure to DriverContext.finish(): a later operator factory may fail
+        // after constructing this operator, in which case the context is never finished. Pending
+        // materializations retain their own refs and close the registry when the last one completes.
+        registryRefs.close();
     }
 
     /**

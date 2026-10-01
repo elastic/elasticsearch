@@ -38,6 +38,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -306,7 +307,28 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
         }
     }
 
-    public void testCloseWaitsForMaterializationBeforeClosingRegistry() {
+    public void testCloseClosesRegistryWithoutFinishingDriverContext() {
+        SourceExtractors registry = new SourceExtractors();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+            1,
+            List.of(0, 2),
+            List.of("col"),
+            List.of(DataType.INTEGER),
+            registry,
+            driverContext,
+            Runnable::run
+        );
+        registry.register(new IntListExtractor(new int[] { 10 }));
+
+        op.close();
+
+        assertFalse(driverContext.isFinished());
+        assertEquals(0, registry.size());
+        driverContext.finish();
+    }
+
+    public void testCloseDefersRegistryClosureUntilMaterializationCompletes() {
         SourceExtractors registry = new SourceExtractors();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         AtomicReference<Runnable> scheduled = new AtomicReference<>();
@@ -324,14 +346,43 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
             op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
 
             op.close();
-            driverContext.finish();
             assertEquals("the pending worker still owns the registry", 1, registry.size());
 
             Runnable task = scheduled.getAndSet(null);
             assertNotNull(task);
             task.run();
-            assertEquals("the registry closes after the worker releases its async action", 0, registry.size());
+            assertFalse(driverContext.isFinished());
+            assertEquals("the registry closes after the worker releases its materialization ref", 0, registry.size());
         } finally {
+            driverContext.finish();
+            registry.close();
+        }
+    }
+
+    public void testExecutorRejectionReleasesRegistryRef() {
+        SourceExtractors registry = new SourceExtractors();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+            1,
+            List.of(0, 2),
+            List.of("col"),
+            List.of(DataType.INTEGER),
+            registry,
+            driverContext,
+            command -> {
+                throw new RejectedExecutionException("simulated rejection");
+            }
+        );
+        try {
+            int id = registry.register(new IntListExtractor(new int[] { 10 }));
+            op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
+
+            op.close();
+
+            assertFalse(driverContext.isFinished());
+            assertEquals("executor rejection must not retain the registry", 0, registry.size());
+        } finally {
+            driverContext.finish();
             registry.close();
         }
     }

@@ -960,3 +960,8 @@ tasks.named('benchmark').configure {
   // Forward the same flags to JMH forked VMs, where the benchmark bodies execute.
   args '-jvmArgsAppend', '--add-opens=java.base/java.nio=ALL-UNNAMED --enable-native-access=ALL-UNNAMED --add-modules=jdk.incubator.vector'
 }
+
+// Benchmarks are developer tools, not production code. They were not checked when they lived in :benchmarks.
+['forbiddenApisBenchmark', 'forbiddenApisBenchmarkTest'].each { name ->
+  tasks.named(name).configure { enabled = false }
+}

@@ -433,18 +433,18 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             }
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
-            ManagedBy managedBy;
-            if (metadata.isIndexManagedByILM(indexMetadata)) {
-                managedBy = ManagedBy.ILM;
-            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
-                managedBy = ManagedBy.LIFECYCLE;
-            } else {
-                managedBy = ManagedBy.UNMANAGED;
-            }
-            String indexMode = IndexSettings.MODE.get(indexMetadata.getSettings()).getName();
+            IndexMode indexMode = indexMetadata.getIndexMode() == null ? IndexMode.STANDARD : indexMetadata.getIndexMode();
+            ManagedBy managedBy = ManagedBy.fromLifecycleManagedBy(
+                DataStream.lifecycleManagedBy(
+                    indexMetadata.getLifecyclePolicyName(),
+                    dataStream.getDataLifecycle(),
+                    indexMetadata.getSettings(),
+                    indexMode
+                )
+            );
             backingIndicesSettingsValues.put(
                 index,
-                new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy, indexMode)
+                new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy, indexMode.getName())
             );
         }
     }

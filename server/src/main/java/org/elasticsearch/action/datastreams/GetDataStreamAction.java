@@ -198,7 +198,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.displayValue = displayValue;
             }
 
-            static ManagedBy fromLifecycleManagedBy(DataStream.LifecycleManagedBy lifecycleManagedBy) {
+            public static ManagedBy fromLifecycleManagedBy(DataStream.LifecycleManagedBy lifecycleManagedBy) {
                 return switch (lifecycleManagedBy) {
                     case ILM -> ILM;
                     case DLM -> LIFECYCLE;

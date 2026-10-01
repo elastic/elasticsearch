@@ -68,4 +68,16 @@ public interface StorageProvider extends Closeable {
     default boolean supportsStableMetadata() {
         return true;
     }
+
+    /**
+     * Whether this provider's {@link #listObjects} and {@link #listChildren} results arrive in
+     * lexicographic key order. When {@code true}, concatenating the per-child listings produced by
+     * a prefix fan-out — each prefix's entries in their own lexicographic span — reproduces the
+     * order of a single flat listing, so the fan-out result is deterministic and matches the serial
+     * path entry for entry. Returns {@code false} by default; providers whose listing order is
+     * unspecified or filesystem-dependent must not override this.
+     */
+    default boolean listsInKeyOrder() {
+        return false;
+    }
 }

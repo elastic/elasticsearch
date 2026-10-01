@@ -866,6 +866,11 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     @Override
+    public boolean listsInKeyOrder() {
+        return true;
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateS3Scheme(path);
         String bucket = path.host();

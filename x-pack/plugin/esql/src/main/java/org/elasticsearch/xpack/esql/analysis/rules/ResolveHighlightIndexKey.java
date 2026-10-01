@@ -81,8 +81,8 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * The relation that produces the rows of {@code plan}, or {@code null} when no single relation does.
-     * {@link #withIndexKey} reads their {@code _index} there.
+     * The relation, or nested FORK or UNION ALL, that produces the rows of {@code plan}. {@link #withIndexKey} reads their
+     * {@code _index} there.
      */
     private static @Nullable LogicalPlan rowSource(LogicalPlan plan) {
         return switch (plan) {
@@ -90,13 +90,13 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             case LeafPlan ignored -> null;
             case UnaryPlan unary -> rowSource(unary.child());
             case BinaryPlan binary -> rowSource(binary.left());
-            case MergePlan ignored -> null; // no single relation produces a merge's rows
+            case MergePlan merge -> merge;
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };
     }
 
     /** The {@link #rowSource} of {@code plan} when {@code column} is read off it, so the rows' {@code _index} names its index. */
-    private static @Nullable LogicalPlan rowSourceOf(LogicalPlan plan, Attribute column) {
+    static @Nullable LogicalPlan rowSourceOf(LogicalPlan plan, Attribute column) {
         LogicalPlan source = rowSource(plan);
         return source != null && source.outputSet().contains(column) ? source : null;
     }

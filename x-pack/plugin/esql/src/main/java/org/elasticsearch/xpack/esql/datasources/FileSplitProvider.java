@@ -670,12 +670,10 @@ public class FileSplitProvider implements SplitProvider {
         long probedFileBytes = 0;
         int[] fileIndices = new int[fileCount];
         ArrayList<Map<String, Object>> partitionValues = new ArrayList<>(fileCount);
-        // Intern only when a survivor will keep {@code _file.directory}. A known projection that does not
-        // retain it, including an empty retain set, must not hold every parent BytesRef until this method
-        // returns. Full path URIs are never interned. Filters that read directory still see a per-file value.
+        // Survivor maps never store path, name, or directory. A bound filter still reads them from the
+        // scratch. Directory BytesRefs are interned for that scan only, one per parent, and die with this
+        // method. Full path URIs are never interned.
         boolean knownProjectionWithoutFilter = retainedPartitionKeys != null && filterHints.isEmpty();
-        boolean keepDirectory = layout.directoryKeys().contains(FileMetadataColumns.DIRECTORY);
-        Map<String, BytesRef> directoryIntern = keepDirectory ? new HashMap<>() : null;
         Map<String, Integer> hiveColumnIndex = hiveColumnIndex(partitionInfo);
         Map<String, Map<String, Object>> directoryTuples = new HashMap<>();
         LinkedHashMap<String, Object> scratch = new LinkedHashMap<>();
@@ -685,8 +683,10 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
         // Hive / _file.* listing values live in the temporary map the filter reads. Copy and strip
         // unbound _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
-        boolean overlayPerFileConstants = filterHints.isEmpty() == false
-            && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
+        boolean overlayPerFileConstants = referencedNames(
+            filterHints,
+            namesInBoth(metadataColumnNames, ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES)
+        ).isEmpty() == false;
         Set<String> unboundFileMetadataNames = Set.of();
         if (filterHints.isEmpty() == false) {
             unboundFileMetadataNames = new LinkedHashSet<>();
@@ -696,10 +696,11 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
         }
-        boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
-        // A hive-only filter, or an unknown projection with no location filter, must not allocate a path
-        // BytesRef per file. Those keys are derived at read and are not on the survivor map.
-        boolean writeLocationKeys = hintsReferenceBoundLocation(filterHints, metadataColumnNames);
+        boolean copyFilterValues = overlayPerFileConstants || referencedNames(filterHints, unboundFileMetadataNames).isEmpty() == false;
+        // Only the location names a bound filter actually reads. A hive-only filter, or a name-only
+        // filter, does not allocate the other location strings.
+        Set<String> locationToWrite = referencedNames(filterHints, namesInBoth(metadataColumnNames, FileMetadataColumns.LOCATION_NAMES));
+        Map<String, BytesRef> filterDirectoryIntern = locationToWrite.contains(FileMetadataColumns.DIRECTORY) ? new HashMap<>() : null;
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
             Map<String, Object> frozen;
@@ -707,16 +708,7 @@ public class FileSplitProvider implements SplitProvider {
                 // No hint reads the listing map, so only the retained keys are built. An empty set is Map.of().
                 frozen = layout.isEmpty()
                     ? Map.of()
-                    : composeSurvivorPartitionMap(
-                        filePath,
-                        fileList,
-                        i,
-                        partitionInfo,
-                        layout,
-                        hiveColumnIndex,
-                        directoryIntern,
-                        directoryTuples
-                    );
+                    : composeSurvivorPartitionMap(filePath, fileList, i, partitionInfo, layout, hiveColumnIndex, directoryTuples);
             } else {
                 scratch.clear();
                 if (partitionInfo != null && partitionInfo.isEmpty() == false) {
@@ -725,7 +717,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
-                FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, directoryIntern, writeLocationKeys);
+                FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, filterDirectoryIntern, locationToWrite);
                 // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
                 Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
@@ -754,16 +746,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 frozen = layout.isEmpty()
                     ? Map.of()
-                    : composeSurvivorPartitionMap(
-                        filePath,
-                        fileList,
-                        i,
-                        partitionInfo,
-                        layout,
-                        hiveColumnIndex,
-                        directoryIntern,
-                        directoryTuples
-                    );
+                    : composeSurvivorPartitionMap(filePath, fileList, i, partitionInfo, layout, hiveColumnIndex, directoryTuples);
             }
 
             long fileLength = fileList.size(i);
@@ -807,7 +790,6 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable PartitionMetadata partitionInfo,
         PartitionValueLayout layout,
         Map<String, Integer> hiveColumnIndex,
-        @Nullable Map<String, BytesRef> directoryIntern,
         Map<String, Map<String, Object>> directoryTuples
     ) {
         boolean keepNulls = layout.keepNulls();
@@ -819,19 +801,10 @@ public class FileSplitProvider implements SplitProvider {
         String parentKey = parent == null ? null : parent.toString();
         Map<String, Object> existing = directoryTuples.get(parentKey);
         Map<String, Object> shared = existing != null
-            && sameDirectoryTuple(existing, filePath, resolved, partitionInfo, layout, hiveColumnIndex, directoryIntern, keepNulls)
+            && sameDirectoryTuple(existing, resolved, partitionInfo, layout, hiveColumnIndex, keepNulls)
                 ? existing
-                : publishDirectoryTuple(
-                    filePath,
-                    resolved,
-                    partitionInfo,
-                    layout,
-                    hiveColumnIndex,
-                    directoryIntern,
-                    keepNulls,
-                    directoryTuples
-                );
-        Map<String, Object> overlay = perFileOverlay(filePath, fileList, index, layout, keepNulls);
+                : publishDirectoryTuple(filePath, resolved, partitionInfo, layout, hiveColumnIndex, keepNulls, directoryTuples);
+        Map<String, Object> overlay = perFileOverlay(fileList, index, layout, keepNulls);
         if (shared.isEmpty() && overlay.isEmpty()) {
             return Map.of();
         }
@@ -846,17 +819,15 @@ public class FileSplitProvider implements SplitProvider {
 
     private static boolean sameDirectoryTuple(
         Map<String, Object> existing,
-        StoragePath filePath,
         int resolved,
         @Nullable PartitionMetadata partitionInfo,
         PartitionValueLayout layout,
         Map<String, Integer> hiveColumnIndex,
-        @Nullable Map<String, BytesRef> directoryIntern,
         boolean keepNulls
     ) {
         int included = 0;
         for (String key : layout.directoryKeys()) {
-            Object value = directoryKeyValue(key, filePath, resolved, partitionInfo, hiveColumnIndex, keepNulls, directoryIntern);
+            Object value = directoryKeyValue(key, resolved, partitionInfo, hiveColumnIndex, keepNulls);
             if (value == ABSENT) {
                 if (existing.containsKey(key)) {
                     return false;
@@ -877,7 +848,6 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable PartitionMetadata partitionInfo,
         PartitionValueLayout layout,
         Map<String, Integer> hiveColumnIndex,
-        @Nullable Map<String, BytesRef> directoryIntern,
         boolean keepNulls,
         Map<String, Map<String, Object>> directoryTuples
     ) {
@@ -887,7 +857,7 @@ public class FileSplitProvider implements SplitProvider {
         }
         LinkedHashMap<String, Object> directory = Maps.newLinkedHashMapWithExpectedSize(keys.size());
         for (String key : keys) {
-            Object value = directoryKeyValue(key, filePath, resolved, partitionInfo, hiveColumnIndex, keepNulls, directoryIntern);
+            Object value = directoryKeyValue(key, resolved, partitionInfo, hiveColumnIndex, keepNulls);
             if (value != ABSENT) {
                 directory.put(key, value);
             }
@@ -898,35 +868,14 @@ public class FileSplitProvider implements SplitProvider {
         return internDirectoryTuple(filePath, directory, directoryTuples);
     }
 
-    /**
-     * The value {@code key} would take on this file, or {@link #ABSENT} when the key is not stored.
-     * Directory {@link BytesRef}s are interned as a side effect so a later comparison reuses them.
-     */
+    /** The hive value {@code key} would take on this file, or {@link #ABSENT} when the key is not stored. */
     private static Object directoryKeyValue(
         String key,
-        StoragePath filePath,
         int resolved,
         @Nullable PartitionMetadata partitionInfo,
         Map<String, Integer> hiveColumnIndex,
-        boolean keepNulls,
-        @Nullable Map<String, BytesRef> directoryIntern
+        boolean keepNulls
     ) {
-        if (key.equals(FileMetadataColumns.DIRECTORY)) {
-            StoragePath parent = filePath.parentDirectory();
-            if (parent == null) {
-                return keepNulls ? null : ABSENT;
-            }
-            String parentText = parent.toString();
-            if (directoryIntern == null) {
-                return new BytesRef(parentText);
-            }
-            BytesRef directoryRef = directoryIntern.get(parentText);
-            if (directoryRef == null) {
-                directoryRef = new BytesRef(parentText);
-                directoryIntern.put(parentText, directoryRef);
-            }
-            return directoryRef;
-        }
         if (resolved < 0) {
             return ABSENT;
         }
@@ -941,13 +890,7 @@ public class FileSplitProvider implements SplitProvider {
         return value;
     }
 
-    private static Map<String, Object> perFileOverlay(
-        StoragePath filePath,
-        FileList fileList,
-        int index,
-        PartitionValueLayout layout,
-        boolean keepNulls
-    ) {
+    private static Map<String, Object> perFileOverlay(FileList fileList, int index, PartitionValueLayout layout, boolean keepNulls) {
         List<String> keys = layout.perFileKeys();
         if (keys.isEmpty()) {
             return Map.of();
@@ -955,8 +898,6 @@ public class FileSplitProvider implements SplitProvider {
         LinkedHashMap<String, Object> overlay = Maps.newLinkedHashMapWithExpectedSize(keys.size());
         for (String key : keys) {
             switch (key) {
-                case FileMetadataColumns.PATH -> overlay.put(key, new BytesRef(filePath.toString()));
-                case FileMetadataColumns.NAME -> overlay.put(key, new BytesRef(filePath.objectName()));
                 case FileMetadataColumns.SIZE -> overlay.put(key, fileList.size(index));
                 case FileMetadataColumns.MODIFIED -> {
                     long modifiedMillis = fileList.lastModifiedMillis(index);
@@ -3307,48 +3248,44 @@ public class FileSplitProvider implements SplitProvider {
         return filterValues;
     }
 
-    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints, Set<String> metadataColumnNames) {
-        for (Expression hint : filterHints) {
-            if (hint.references()
-                .stream()
-                .anyMatch(
-                    a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
-                )) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
-     * True when a filter names a bound location column. Unbound location names are stripped before
-     * matching, so writing them would allocate a path string the filter never reads.
+     * Names from {@code candidates} that a filter references. Empty when nothing matches. Callers pass a
+     * set that is already limited to the names this scan should treat as bound.
      */
-    private static boolean hintsReferenceBoundLocation(List<Expression> filterHints, Set<String> metadataColumnNames) {
-        if (filterHints.isEmpty() || metadataColumnNames.isEmpty()) {
-            return false;
+    private static Set<String> referencedNames(List<Expression> filterHints, Set<String> candidates) {
+        if (filterHints.isEmpty() || candidates.isEmpty()) {
+            return Set.of();
         }
+        Set<String> matched = null;
         for (Expression hint : filterHints) {
             for (Attribute attribute : hint.references()) {
                 String name = attribute.name();
-                if (metadataColumnNames.contains(name) && FileMetadataColumns.LOCATION_NAMES.contains(name)) {
-                    return true;
+                if (candidates.contains(name)) {
+                    if (matched == null) {
+                        matched = new LinkedHashSet<>();
+                    }
+                    matched.add(name);
                 }
             }
         }
-        return false;
+        return matched == null ? Set.of() : matched;
     }
 
-    private static boolean hintsReferenceUnboundFileMetadata(List<Expression> filterHints, Set<String> unboundFileMetadataNames) {
-        if (unboundFileMetadataNames.isEmpty()) {
-            return false;
+    /** Members of {@code candidates} that are also in {@code bound}. */
+    private static Set<String> namesInBoth(Set<String> bound, Set<String> candidates) {
+        if (bound.isEmpty() || candidates.isEmpty()) {
+            return Set.of();
         }
-        for (Expression hint : filterHints) {
-            if (hint.references().stream().anyMatch(a -> unboundFileMetadataNames.contains(a.name()))) {
-                return true;
+        Set<String> both = null;
+        for (String name : candidates) {
+            if (bound.contains(name)) {
+                if (both == null) {
+                    both = new LinkedHashSet<>();
+                }
+                both.add(name);
             }
         }
-        return false;
+        return both == null ? Set.of() : both;
     }
 
     /**

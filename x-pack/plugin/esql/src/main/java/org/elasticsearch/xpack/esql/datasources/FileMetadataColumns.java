@@ -79,17 +79,17 @@ public final class FileMetadataColumns {
      */
     public static Map<String, Object> extractValues(StoragePath path, long length, Instant lastModified) {
         var map = new LinkedHashMap<String, Object>(8);
-        putValues(map, path, length, lastModified, null, true);
+        putValues(map, path, length, lastModified, null, LOCATION_NAMES);
         return Collections.unmodifiableMap(map);
     }
 
     /**
-     * Writes the per-file constants into {@code dest}. Callers that already own a map skip the
-     * throwaway map {@link #extractValues} allocates. {@code directoryIntern}, when non-null, reuses
-     * one {@link BytesRef} per distinct parent path for this call; full {@link #PATH} URIs are never
-     * interned. A null parent or a null {@code lastModified} is stored as a null value.
-     * {@code includeLocation} false skips {@link #PATH}, {@link #NAME}, and {@link #DIRECTORY}: discovery
-     * uses that when no bound filter reads them, so those strings are not allocated only to be dropped.
+     * Writes size, modified, and whichever location names {@code locationNames} contains.
+     * Callers that already own a map skip the throwaway map {@link #extractValues} allocates.
+     * An empty {@code locationNames} writes no path, name, or directory: discovery uses that when no
+     * bound filter reads them. {@code directoryIntern}, when non-null, reuses one {@link BytesRef} per
+     * distinct parent path for this call; full {@link #PATH} URIs are never interned. A null parent or a
+     * null {@code lastModified} is stored as a null value.
      */
     static void putValues(
         Map<String, Object> dest,
@@ -97,31 +97,54 @@ public final class FileMetadataColumns {
         long length,
         @Nullable Instant lastModified,
         @Nullable Map<String, BytesRef> directoryIntern,
-        boolean includeLocation
+        Set<String> locationNames
     ) {
-        if (includeLocation) {
-            dest.put(PATH, new BytesRef(path.toString()));
-            dest.put(NAME, new BytesRef(path.objectName()));
-            StoragePath parent = path.parentDirectory();
-            if (parent == null) {
-                dest.put(DIRECTORY, null);
-            } else {
-                String parentText = parent.toString();
-                BytesRef directory;
-                if (directoryIntern == null) {
-                    directory = new BytesRef(parentText);
-                } else {
-                    directory = directoryIntern.get(parentText);
-                    if (directory == null) {
-                        directory = new BytesRef(parentText);
-                        directoryIntern.put(parentText, directory);
-                    }
-                }
-                dest.put(DIRECTORY, directory);
-            }
+        if (locationNames.contains(PATH)) {
+            putLocationValue(dest, path, PATH, null);
+        }
+        if (locationNames.contains(NAME)) {
+            putLocationValue(dest, path, NAME, null);
+        }
+        if (locationNames.contains(DIRECTORY)) {
+            putLocationValue(dest, path, DIRECTORY, directoryIntern);
         }
         dest.put(SIZE, length);
         dest.put(MODIFIED, lastModified != null ? lastModified.toEpochMilli() : null);
+    }
+
+    /**
+     * One location column derived from {@code path}. {@code directoryIntern}, when non-null, reuses one
+     * directory {@link BytesRef} per parent. Path and name are never interned.
+     */
+    private static void putLocationValue(
+        Map<String, Object> dest,
+        StoragePath path,
+        String name,
+        @Nullable Map<String, BytesRef> directoryIntern
+    ) {
+        switch (name) {
+            case PATH -> dest.put(PATH, new BytesRef(path.toString()));
+            case NAME -> dest.put(NAME, new BytesRef(path.objectName()));
+            case DIRECTORY -> dest.put(DIRECTORY, directoryValue(path, directoryIntern));
+            default -> throw new IllegalArgumentException("unexpected location column [" + name + "]");
+        }
+    }
+
+    private static Object directoryValue(StoragePath path, @Nullable Map<String, BytesRef> directoryIntern) {
+        StoragePath parent = path.parentDirectory();
+        if (parent == null) {
+            return null;
+        }
+        String parentText = parent.toString();
+        if (directoryIntern == null) {
+            return new BytesRef(parentText);
+        }
+        BytesRef directory = directoryIntern.get(parentText);
+        if (directory == null) {
+            directory = new BytesRef(parentText);
+            directoryIntern.put(parentText, directory);
+        }
+        return directory;
     }
 
     /**
@@ -167,14 +190,13 @@ public final class FileMetadataColumns {
         }
         LinkedHashMap<String, Object> copy = map == null ? new LinkedHashMap<>() : new LinkedHashMap<>(map);
         if (needPath) {
-            copy.put(PATH, new BytesRef(path.toString()));
+            putLocationValue(copy, path, PATH, null);
         }
         if (needName) {
-            copy.put(NAME, new BytesRef(path.objectName()));
+            putLocationValue(copy, path, NAME, null);
         }
         if (needDirectory) {
-            StoragePath parent = path.parentDirectory();
-            copy.put(DIRECTORY, parent == null ? null : new BytesRef(parent.toString()));
+            putLocationValue(copy, path, DIRECTORY, null);
         }
         return Collections.unmodifiableMap(copy);
     }

@@ -212,6 +212,9 @@ tests:
 - class: org.elasticsearch.system_indices.action.FeatureMigrationIT
   method: testMigrateWithTemplatesV1
   issue: https://github.com/elastic/elasticsearch/issues/160712
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/preview_data_frame_analytics/Test feature preview given job}
+  issue: https://github.com/elastic/elasticsearch/issues/160713
 
 # Examples:
 #

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocatorMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.HashSet;
@@ -65,7 +65,7 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
                 balancerSettings,
                 TEST_WRITE_LOAD_FORECASTER,
                 new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings),
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
@@ -117,7 +117,7 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
                 balancerSettings,
                 TEST_WRITE_LOAD_FORECASTER,
                 new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings),
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,

@@ -60,7 +60,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -649,7 +648,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 PrefixBalancingWeightsFactory.withDefaultThreshold(
                     Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0), "weightsOnly", new WeightFunction(0, 0, 1, 0))
                 ),
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
@@ -721,7 +720,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                         new PrefixBalancingWeightsFactory.WeightFunctionAndThreshold(new WeightFunction(1, 0, 0, 0), 100)
                     )
                 ),
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
@@ -807,7 +806,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     return true; // This makes the computation ignore disk usage
                 }
             },
-            MeterRegistry.NOOP
+            BalancedShardsAllocatorMetrics.NOOP
         );
 
         final String indexName = randomIdentifier();
@@ -1080,7 +1079,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
             new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            MeterRegistry.NOOP
+            BalancedShardsAllocatorMetrics.NOOP
         );
 
         final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AllocationDecider() {
@@ -1319,7 +1318,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             BalancerSettings.DEFAULT,
             WriteLoadForecaster.DEFAULT,
             new NodeNameDrivenBalancingWeightsFactory(),
-            MeterRegistry.NOOP
+            BalancedShardsAllocatorMetrics.NOOP
         ).allocate(allocation);
 
         // We should have relocated the shard to the YES node
@@ -1543,7 +1542,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
             balancingWeightsFactory,
-            MeterRegistry.NOOP
+            BalancedShardsAllocatorMetrics.NOOP
         );
         balancedShardsAllocator.allocate(routingAllocation);
         return ClusterState.builder(clusterState)
@@ -1983,11 +1982,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
             new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            meterRegistry
+            new BalancedShardsAllocatorMetrics(meterRegistry)
         );
         allocator.allocate(allocation);
         final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CANNOT_REMAIN_MOVE_METRIC);
+            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocatorMetrics.CANNOT_REMAIN_MOVE_METRIC);
         assertThat(measurements, hasSize(1));
         final var measurement = measurements.getFirst();
         assertThat(measurement.getLong(), is(1L));

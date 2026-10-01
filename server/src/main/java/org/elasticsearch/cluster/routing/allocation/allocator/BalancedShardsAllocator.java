@@ -48,8 +48,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -86,8 +84,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
-
-    static final String CANNOT_REMAIN_MOVE_METRIC = "es.allocator.shards.cannot_remain_moves.total";
 
     public enum MoveType {
         CANNOT_REMAIN("move(cannot-remain)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
@@ -158,7 +154,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
     private final FrequencyCappedAction logInvalidWeights;
-    private final LongCounter cannotRemainMoveCounter;
+    private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -169,7 +165,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
-        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings), MeterRegistry.NOOP);
+        this(
+            balancerSettings,
+            writeLoadForecaster,
+            new GlobalBalancingWeightsFactory(balancerSettings),
+            BalancedShardsAllocatorMetrics.NOOP
+        );
     }
 
     @Inject
@@ -177,18 +178,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
         BalancingWeightsFactory balancingWeightsFactory,
-        MeterRegistry meterRegistry
+        BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics
     ) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
+        this.balancedShardsAllocatorMetrics = balancedShardsAllocatorMetrics;
         this.logInvalidWeights = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         balancerSettings.getClusterSettings().initializeAndWatch(INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
-        this.cannotRemainMoveCounter = meterRegistry.registerLongCounter(
-            CANNOT_REMAIN_MOVE_METRIC,
-            "Total number of shard moves triggered by a non-YES canRemain decision",
-            "unit"
-        );
     }
 
     @Override
@@ -221,7 +218,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights,
-            cannotRemainMoveCounter
+            balancedShardsAllocatorMetrics
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
@@ -301,7 +298,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights,
-            cannotRemainMoveCounter
+            balancedShardsAllocatorMetrics
         );
         return explainShardAllocation(balancer, shard, allocation);
     }
@@ -333,7 +330,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights,
-            cannotRemainMoveCounter
+            balancedShardsAllocatorMetrics
         );
 
         return new Function<ShardRouting, ShardAllocationDecision>() {
@@ -389,7 +386,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
         private final FrequencyCappedAction logInvalidWeights;
-        private final LongCounter cannotRemainMoveCounter;
+        private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
@@ -397,7 +394,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange,
             FrequencyCappedAction logInvalidWeights,
-            LongCounter cannotRemainMoveCounter
+            BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -413,7 +410,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
             this.logInvalidWeights = logInvalidWeights;
-            this.cannotRemainMoveCounter = cannotRemainMoveCounter;
+            this.balancedShardsAllocatorMetrics = balancedShardsAllocatorMetrics;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -1165,8 +1162,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
             }
             switch (type) {
-                case CANNOT_REMAIN, NOT_PREFERRED -> cannotRemainMoveCounter.incrementBy(
-                    1,
+                case CANNOT_REMAIN, NOT_PREFERRED -> balancedShardsAllocatorMetrics.incrementCannotRemainMoveCounter(
                     cannotRemainMoveAttributes(moveDecision, shardRouting)
                 );
                 case REBALANCE -> {

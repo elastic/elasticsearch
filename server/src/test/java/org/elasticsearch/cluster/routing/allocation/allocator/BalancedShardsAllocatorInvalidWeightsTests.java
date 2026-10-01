@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.mockito.invocation.InvocationOnMock;
@@ -58,7 +57,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory,
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -90,7 +89,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory,
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
@@ -150,7 +149,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory,
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final ClusterState clusterState = failAllShards(ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1));
@@ -171,7 +170,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory,
-                MeterRegistry.NOOP
+                BalancedShardsAllocatorMetrics.NOOP
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);

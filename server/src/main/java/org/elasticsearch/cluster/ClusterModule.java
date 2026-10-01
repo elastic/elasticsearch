@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocatorMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
@@ -102,7 +103,6 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -147,6 +147,7 @@ public class ClusterModule extends AbstractModule {
     private final TelemetryProvider telemetryProvider;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
     private final AllocationBalancingRoundMetrics balancingRoundMetrics;
+    private final BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics;
 
     public ClusterModule(
         Settings settings,
@@ -176,6 +177,7 @@ public class ClusterModule extends AbstractModule {
         );
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.balancingRoundMetrics = new AllocationBalancingRoundMetrics(telemetryProvider.getMeterRegistry());
+        this.balancedShardsAllocatorMetrics = new BalancedShardsAllocatorMetrics(telemetryProvider.getMeterRegistry());
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
@@ -190,8 +192,8 @@ public class ClusterModule extends AbstractModule {
             this::explainShardAllocation,
             desiredBalanceMetrics,
             balancingRoundMetrics,
-            shardRelocationOrder,
-            telemetryProvider.getMeterRegistry()
+            balancedShardsAllocatorMetrics,
+            shardRelocationOrder
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
@@ -543,19 +545,24 @@ public class ClusterModule extends AbstractModule {
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics,
         AllocationBalancingRoundMetrics balancingRoundMetrics,
-        ShardRelocationOrder shardRelocationOrder,
-        MeterRegistry meterRegistry
+        BalancedShardsAllocatorMetrics balancedShardsAllocatorMetrics,
+        ShardRelocationOrder shardRelocationOrder
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
             BALANCED_ALLOCATOR,
-            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory, meterRegistry)
+            () -> new BalancedShardsAllocator(
+                balancerSettings,
+                writeLoadForecaster,
+                balancingWeightsFactory,
+                balancedShardsAllocatorMetrics
+            )
         );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory, meterRegistry),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory, balancedShardsAllocatorMetrics),
                 threadPool,
                 clusterService,
                 reconciler,

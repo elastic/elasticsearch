@@ -1509,7 +1509,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         Response response = performRequest(request);
@@ -1544,7 +1544,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1634,13 +1634,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return removeAsyncProperties(result);
     }
 
-    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+    private static void prepareProfileLogger(@Nullable ProfileLogger profileLogger) {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
-            if (isProfileSafe) {
-                requestObject.profile(true);
-            }
         }
     }
 

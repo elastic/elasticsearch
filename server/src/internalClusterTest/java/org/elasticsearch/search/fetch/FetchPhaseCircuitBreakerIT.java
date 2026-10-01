@@ -686,6 +686,106 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when fetching large
+     * {@code stored_fields} arrays exceeds the configured limit, and that the breaker is
+     * released after the trip.
+     */
+    public void testCircuitBreakerTripsOnLargeStoredFieldsFetch() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String storedIndex = "stored_fields_trip_idx";
+        assertAcked(
+            prepareCreate(storedIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword,store=true")
+        );
+        populateIndexWithKeywordArray(storedIndex, 20, 500);
+        ensureSearchable(storedIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .storedField("tag");
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(storedIndex).setSource(source).get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped stored_fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when fetching large
+     * {@code docvalue_fields} arrays exceeds the configured limit, and that the breaker is
+     * released after the trip.
+     */
+    public void testCircuitBreakerTripsOnLargeDocValueFieldsFetch() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String dvIndex = "docvalue_fields_trip_idx";
+        assertAcked(
+            prepareCreate(dvIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(dvIndex, 20, 500);
+        ensureSearchable(dvIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .docValueField("tag");
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(dvIndex).setSource(source).get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped docvalue_fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
      * Regression test for double-counting: when the same stored field is requested via both
      * {@code stored_fields} (StoredFieldsPhase) and {@code fields} (FetchFieldsPhase), the
      * central charge in FetchPhase#nextDoc covers only the final state of the hit's field maps

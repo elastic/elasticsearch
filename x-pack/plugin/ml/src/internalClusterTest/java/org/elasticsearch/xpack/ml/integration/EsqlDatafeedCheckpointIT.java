@@ -11,7 +11,9 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
@@ -35,6 +38,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
+import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -54,6 +59,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -151,6 +157,73 @@ public class EsqlDatafeedCheckpointIT extends MlSingleNodeTestCase {
         Job job = buildEsqlJob(jobId);
         DatafeedConfig datafeed = buildEsqlDatafeed(datafeedId, jobId);
         assertThat(DatafeedContextProvider.validateLoadedCheckpoint(datafeed, job, checkpoint), nullValue());
+    }
+
+    public void testCheckpointShouldBeLoadedAfterResultsIndexRollover() throws Exception {
+        String jobId = createJob();
+        String datafeedId = datafeedIdFor(jobId);
+        EsqlDatafeedSourceCheckpoint checkpoint = persistCheckpoint(jobId, datafeedId, 3_600_000L, WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        rolloverResultsIndex(jobId);
+
+        assertCheckpointLoaded(jobId, checkpoint.getSourceEndMs(), checkpoint.getFingerprint());
+    }
+
+    public void testNewestCheckpointShouldBeLoadedAfterRepeatedRollovers() throws Exception {
+        String jobId = createJob();
+        String datafeedId = datafeedIdFor(jobId);
+        // The two values differ in digit count so that a lexicographic comparison would pick the older one.
+        persistCheckpoint(jobId, datafeedId, 9_000_000L, WriteRequest.RefreshPolicy.IMMEDIATE);
+        rolloverResultsIndex(jobId);
+        EsqlDatafeedSourceCheckpoint newest = persistCheckpoint(jobId, datafeedId, 10_800_000L, WriteRequest.RefreshPolicy.IMMEDIATE);
+        rolloverResultsIndex(jobId);
+
+        assertCheckpointLoaded(jobId, newest.getSourceEndMs(), newest.getFingerprint());
+    }
+
+    public void testCheckpointWrittenAfterRolloverShouldBeReadableWithoutRefresh() throws Exception {
+        String jobId = createJob();
+        String datafeedId = datafeedIdFor(jobId);
+        persistCheckpoint(jobId, datafeedId, 9_000_000L, WriteRequest.RefreshPolicy.IMMEDIATE);
+        rolloverResultsIndex(jobId);
+        EsqlDatafeedSourceCheckpoint newest = persistCheckpoint(jobId, datafeedId, 10_800_000L, WriteRequest.RefreshPolicy.NONE);
+
+        assertCheckpointLoaded(jobId, newest.getSourceEndMs(), newest.getFingerprint());
+    }
+
+    /**
+     * Roll the results indices over the way the nightly maintenance task does: the write alias moves to the new
+     * index while the read alias spans the old and the new index.
+     */
+    private void rolloverResultsIndex(String jobId) {
+        MlDailyMaintenanceService maintenanceService = new MlDailyMaintenanceService(
+            Settings.EMPTY,
+            ClusterName.DEFAULT,
+            threadPool,
+            client(),
+            getInstanceFromNode(ClusterService.class),
+            mock(AnomalyDetectionAuditor.class),
+            mock(MlAssignmentNotifier.class),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            false,
+            false,
+            false
+        );
+        // zero max size makes the rollover unconditional
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        maintenanceService.triggerRollResultsIndicesIfNecessaryTask(future);
+        assertTrue(future.actionGet().isAcknowledged());
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .setIndices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                .get()
+                .getIndices().length,
+            greaterThan(1)
+        );
     }
 
     private String createJob() {

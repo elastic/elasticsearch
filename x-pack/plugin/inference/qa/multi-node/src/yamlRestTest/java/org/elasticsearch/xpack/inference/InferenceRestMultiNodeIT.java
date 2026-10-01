@@ -34,6 +34,8 @@ public class InferenceRestMultiNodeIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        // ML NLP is disabled, as in VectorDB serverless projects, so tests also cover inference without NLP
+        .setting("xpack.ml.nlp.enabled", "false")
         .plugin("inference-service-test")
         .nodes(3)
         .distribution(DistributionType.DEFAULT)

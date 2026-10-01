@@ -1647,14 +1647,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertWarnings(nonLoadablePunkWarning("tx", "aggregate_metric_double"));
     }
 
-    public void testLoadAllModeAllowsNonBranchingView() {
-        test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM v | KEEP emp_no"));
-    }
-
-    public void testLoadAllModeAllowsBranchingView() {
-        test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM test, v | KEEP emp_no"));
-    }
-
     public void testLoadAllViewEvalThenKeepExactNamesDoesNotExpand() {
         LogicalPlan plan = partialMappingTest().addView("v", "FROM partial_mapping_sample_data").statement(setUnmappedLoadAll("""
             FROM v

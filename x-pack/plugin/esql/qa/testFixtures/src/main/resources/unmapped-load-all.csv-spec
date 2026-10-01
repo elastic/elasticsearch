@@ -3127,7 +3127,7 @@ FROM partial_mapping_view
 ;
 
 @timestamp:datetime          | message:keyword | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 42              | 43
+2024-10-23T13:33:34.937Z     | 42              | 43
 ;
 
 loadAllViewPassthroughLoadsFromSource_WithStatsUnmapped
@@ -3171,7 +3171,7 @@ FROM partial_mapping_view
 ;
 
 @timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
 ;
 
 loadAllViewUnmappedFieldInOneBranch
@@ -3375,8 +3375,8 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 ;
 
 @timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 // event_duration is long on partial_mapping and unmapped in the view; LOAD_ALL casts the view's _source value to long.

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -41,6 +43,31 @@ public class EsqlDatafeedQueryValidator {
 
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
+
+    /**
+     * Message fragment ES|QL uses to report that a queried index does not exist (or is not visible to the caller).
+     * ES|QL does not surface a missing index as {@link IndexNotFoundException}: it rewraps it as a 400
+     * {@code VerificationException} (see {@code IndexResolver}, {@code IndexResolution#notFound} and
+     * {@code EsqlCCSUtils}) whose message contains {@code Unknown index [<pattern>]}, possibly prefixed by the
+     * verifier's {@code Found N problem(s)\nline L:C: } header. The exception class lives in the ES|QL plugin, which
+     * the ML plugin does not depend on, and ES|QL itself matches on this text (see {@code TransportEsqlQueryAction}),
+     * so the 400 status plus this fragment is the available signal.
+     */
+    private static final String ESQL_UNKNOWN_INDEX_MESSAGE = "Unknown index [";
+
+    /**
+     * Whether a failed {@code LIMIT 0} / {@code KEEP} probe means the datafeed's source does not exist <em>yet</em>
+     * (the index may be created later, or the CPS project linked later), so there is nothing to validate against.
+     * Mirrors the DSL datafeed behaviour of accepting a PUT for a not-yet-existing index.
+     */
+    static boolean isDeferredExistenceFailure(Throwable cause) {
+        if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+            return true;
+        }
+        return cause instanceof ElasticsearchException esException
+            && esException.status() == RestStatus.BAD_REQUEST
+            && esException.getDetailedMessage().contains(ESQL_UNKNOWN_INDEX_MESSAGE);
+    }
 
     /**
      * Returns the summary count field name that the ESQL query must output, or {@code null} if it is
@@ -95,7 +122,7 @@ public class EsqlDatafeedQueryValidator {
             }
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+            if (isDeferredExistenceFailure(cause)) {
                 // Deferred-existence cases: the project may be linked later or the index may not
                 // exist yet. Skip the column check — there is nothing to validate against.
                 listener.onResponse(Boolean.TRUE);
@@ -114,7 +141,7 @@ public class EsqlDatafeedQueryValidator {
      * (rather than a separate field-caps call) so CPS/remote sources resolve the source_time_field the same
      * way {@link org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor#next()} resolves it
      * when building its {@code RangeQueryBuilder} time filter. Tolerates {@link NoMatchingProjectException}
-     * and {@link IndexNotFoundException} exactly like {@link #validateQuery} — the index/project may not
+     * and a missing index exactly like {@link #validateQuery} (see {@link #isDeferredExistenceFailure}) — the index/project may not
      * exist yet. Calls {@code listener.onResponse(true)} on success or those tolerated failures, and
      * {@code listener.onFailure} for an unresolvable column, a wrong column type, or any other problem.
      */
@@ -147,7 +174,7 @@ public class EsqlDatafeedQueryValidator {
             }
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+            if (isDeferredExistenceFailure(cause)) {
                 // Deferred-existence cases: the project may be linked later or the index may not
                 // exist yet. Skip the column check — there is nothing to validate against.
                 listener.onResponse(Boolean.TRUE);
@@ -253,7 +280,7 @@ public class EsqlDatafeedQueryValidator {
      * Probe run before minting a CPS internal credential: executes {@code esqlQuery | LIMIT 0} under
      * the caller's credential to confirm access. Does NOT check output columns (that is done by
      * {@link #validateQuery}). Tolerates {@link NoMatchingProjectException} (a project may be linked
-     * later) and {@link IndexNotFoundException} (the index may be created later).
+     * later) and a missing index (it may be created later; see {@link #isDeferredExistenceFailure}).
      * Calls {@code listener.onResponse(null)} on success or for those tolerated failures, and
      * {@code listener.onFailure} for all other problems.
      */
@@ -268,7 +295,7 @@ public class EsqlDatafeedQueryValidator {
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
+            if (isDeferredExistenceFailure(cause)) {
                 // Deferred-existence cases: the project may be linked later or the index may not
                 // exist yet. Defer to runtime — consistent with the classic SearchRequest probe.
                 listener.onResponse(null);

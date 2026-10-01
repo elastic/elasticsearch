@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -152,6 +153,62 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateQueryGivenEsqlUnknownIndexVerificationExceptionSucceeds() {
+        TestValidator validator = new TestValidator(new VerificationException("Unknown index [logs]"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            SUMMARY_COUNT_FIELD,
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected success for missing index", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateQueryGivenEsqlUnknownIndexInVerifierProblemListSucceeds() {
+        TestValidator validator = new TestValidator(new VerificationException("Found 1 problem\nline 1:1: Unknown index [logs-new]"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            "FROM logs-new",
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected success for missing index", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateQueryGivenEsqlUnknownColumnVerificationExceptionPropagates() {
+        VerificationException unknownColumn = new VerificationException("Found 1 problem\nline 1:30: Unknown column [bucket]");
+        TestValidator validator = new TestValidator(unknownColumn);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(unknownColumn));
     }
 
     public void testValidateQueryGivenNoMatchingProjectIsDeferred() {
@@ -318,6 +375,23 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
+    public void testValidateAccessForMintGivenEsqlUnknownIndexVerificationExceptionIsDeferred() {
+        TestValidator validator = new TestValidator(new VerificationException("Unknown index [logs]"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
+                throw new AssertionError("expected deferral", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
     public void testValidateAccessForMintOtherFailurePropagates() {
         RuntimeException securityFailure = new RuntimeException("auth failure");
         TestValidator validator = new TestValidator(securityFailure);
@@ -432,6 +506,25 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     public void testValidateSourceTimeFieldGivenIndexNotFoundSucceeds() {
         TestValidator validator = new TestValidator(new IndexNotFoundException("logs"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected success for missing index", e);
+            }),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateSourceTimeFieldGivenEsqlUnknownIndexVerificationExceptionSucceeds() {
+        TestValidator validator = new TestValidator(new VerificationException("Found 1 problem\nline 1:1: Unknown index [logs]"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
         validator.validateSourceTimeField(

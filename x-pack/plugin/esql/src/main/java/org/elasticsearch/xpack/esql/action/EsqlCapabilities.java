@@ -4233,6 +4233,13 @@ public class EsqlCapabilities {
          */
         FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
+        /**
+         * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
+         * {@code MATCH_PHRASE} or {@code KNN} over it adds its per-row score rather than returning {@code null}. Older
+         * nodes still answer {@code null}. See elastic/esql-planning#1976.
+         */
+        EXTERNAL_SOURCE_SCORE_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

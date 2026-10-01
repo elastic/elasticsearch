@@ -11,6 +11,7 @@ required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: dataset_in_from_command
 required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
 dataset: books_ds: "{{books}}"
 
 FROM books_ds METADATA _score
@@ -33,6 +34,7 @@ required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: dataset_in_from_command
 required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
 dataset: books_ds: "{{books}}"
 
 // books matching both terms score 2.0, books matching one score 1.0
@@ -58,6 +60,7 @@ required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: dataset_in_from_command
 required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
 dataset: books_ds: "{{books}}"
 
 // with operator AND both terms must match, and each matched term scores the boost
@@ -77,6 +80,7 @@ required_capability: metadata_score
 required_capability: fn_match_phrase_runtime_score
 required_capability: dataset_in_from_command
 required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
 dataset: books_ds: "{{books}}"
 
 // a runtime match_phrase scores the boost (1.0 by default) on match, not BM25
@@ -100,6 +104,7 @@ required_capability: metadata_score
 required_capability: fn_match_phrase_runtime_score
 required_capability: dataset_in_from_command
 required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
 dataset: books_ds: "{{books}}"
 
 FROM books_ds METADATA _score
@@ -124,6 +129,7 @@ required_capability: fn_match_runtime_score
 required_capability: fn_match_phrase_runtime_score
 required_capability: dataset_in_from_command
 required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
 dataset: books_ds: "{{books}}"
 
 // OR sums each matched clause's contribution: 1463 and 2714 match both "Tolkien" and the "Lord

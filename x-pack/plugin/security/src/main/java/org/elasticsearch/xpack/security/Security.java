@@ -28,8 +28,14 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -800,7 +806,7 @@ public class Security extends Plugin
      * and it cannot see that list. A system data stream with a lifecycle that falls outside the list makes lifecycle rollover fail with a
      * security exception at runtime, so this is checked at startup in tests via an assertion.
      *
-     * @return the names of the system data streams that declare a lifecycle but cannot be rolled over by the data stream lifecycle user
+     * @return the names of the system data streams that data stream lifecycle would manage but cannot be rolled over by its user
      */
     // pkg private for testing
     static List<String> systemDataStreamsNotManageableByDataStreamLifecycle(
@@ -816,7 +822,7 @@ public class Security extends Plugin
         return systemIndices.getFeatures()
             .stream()
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
-            .filter(Security::hasLifecycle)
+            .filter(Security::isManagedByDataStreamLifecycle)
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .filter(
                 name -> canRollover.test(name, null, IndexComponentSelector.DATA) == false
@@ -825,9 +831,26 @@ public class Security extends Plugin
             .toList();
     }
 
-    private static boolean hasLifecycle(SystemDataStreamDescriptor descriptor) {
-        final var template = descriptor.getComposableIndexTemplate().template();
-        return template != null && template.lifecycle() != null;
+    /**
+     * Mirrors how a system data stream resolves its lifecycles at creation and how data stream lifecycle decides to run on it:
+     * either an enabled data lifecycle, or an enabled failures lifecycle, which defaults on when the failure store is enabled.
+     */
+    private static boolean isManagedByDataStreamLifecycle(SystemDataStreamDescriptor descriptor) {
+        final ComposableIndexTemplate template = descriptor.getComposableIndexTemplate();
+        final Map<String, ComponentTemplate> componentTemplates = descriptor.getComponentTemplates();
+        final DataStreamLifecycle.Builder dataLifecycle = MetadataIndexTemplateService.resolveLifecycle(template, componentTemplates);
+        if (dataLifecycle != null && dataLifecycle.build().enabled()) {
+            return true;
+        }
+        final DataStreamOptions.Builder options = MetadataIndexTemplateService.resolveDataStreamOptions(template, componentTemplates);
+        final DataStreamFailureStore failureStore = options == null ? null : options.build().failureStore();
+        if (failureStore == null) {
+            return false;
+        }
+        if (failureStore.lifecycle() != null) {
+            return failureStore.lifecycle().enabled();
+        }
+        return Boolean.TRUE.equals(failureStore.enabled());
     }
 
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly

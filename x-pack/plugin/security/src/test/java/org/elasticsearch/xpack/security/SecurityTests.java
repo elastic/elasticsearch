@@ -20,8 +20,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -166,7 +169,6 @@ import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -925,9 +927,18 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testSystemDataStreamsNotManageableByDataStreamLifecycle() {
-        final String coveredName = ".fleet-actions-results";
-        final String uncoveredName = ".not-covered-with-lifecycle";
-        final String uncoveredWithoutLifecycleName = ".not-covered-without-lifecycle";
+        final DataStreamLifecycle.Builder enabledDataLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(1));
+        final Template.Builder enabledFailureStore = Template.builder()
+            .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)));
+
+        final String coveredDataLifecycle = ".fleet-actions-results";
+        final String uncoveredDataLifecycle = ".uncovered-data-lifecycle";
+        final String uncoveredComponentTemplateLifecycle = ".uncovered-component-template-lifecycle";
+        final String uncoveredFailureStoreOnly = ".uncovered-failure-store-only";
+        final String uncoveredDisabledDataLifecycle = ".uncovered-disabled-data-lifecycle";
+        final String uncoveredDisabledFailuresLifecycle = ".uncovered-disabled-failures-lifecycle";
+        final String uncoveredNoLifecycle = ".uncovered-no-lifecycle";
         final SystemIndices systemIndices = new SystemIndices(
             List.of(
                 new SystemIndices.Feature(
@@ -935,23 +946,53 @@ public class SecurityTests extends ESTestCase {
                     "feature with system data streams for the data stream lifecycle user check",
                     List.of(),
                     List.of(
-                        systemDataStreamDescriptor(coveredName, true),
-                        systemDataStreamDescriptor(uncoveredName, true),
-                        systemDataStreamDescriptor(uncoveredWithoutLifecycleName, false)
+                        systemDataStreamDescriptor(coveredDataLifecycle, Template.builder().lifecycle(enabledDataLifecycle), Map.of()),
+                        systemDataStreamDescriptor(uncoveredDataLifecycle, Template.builder().lifecycle(enabledDataLifecycle), Map.of()),
+                        systemDataStreamDescriptor(
+                            uncoveredComponentTemplateLifecycle,
+                            Template.builder(),
+                            Map.of(
+                                "with-lifecycle",
+                                new ComponentTemplate(Template.builder().lifecycle(enabledDataLifecycle).build(), null, null)
+                            )
+                        ),
+                        systemDataStreamDescriptor(uncoveredFailureStoreOnly, enabledFailureStore, Map.of()),
+                        systemDataStreamDescriptor(
+                            uncoveredDisabledDataLifecycle,
+                            Template.builder().lifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(false)),
+                            Map.of()
+                        ),
+                        systemDataStreamDescriptor(
+                            uncoveredDisabledFailuresLifecycle,
+                            Template.builder()
+                                .dataStreamOptions(
+                                    new DataStreamOptions.Template(
+                                        new DataStreamFailureStore.Template(
+                                            true,
+                                            DataStreamLifecycle.failuresLifecycleBuilder().enabled(false).buildTemplate()
+                                        )
+                                    )
+                                ),
+                            Map.of()
+                        ),
+                        systemDataStreamDescriptor(uncoveredNoLifecycle, Template.builder(), Map.of())
                     )
                 )
             )
         );
         final RestrictedIndices restrictedIndices = new RestrictedIndices(systemIndices.getSystemNameAutomaton());
 
-        assertThat(Security.systemDataStreamsNotManageableByDataStreamLifecycle(systemIndices, restrictedIndices), contains(uncoveredName));
+        assertThat(
+            Security.systemDataStreamsNotManageableByDataStreamLifecycle(systemIndices, restrictedIndices),
+            containsInAnyOrder(uncoveredDataLifecycle, uncoveredComponentTemplateLifecycle, uncoveredFailureStoreOnly)
+        );
     }
 
-    private static SystemDataStreamDescriptor systemDataStreamDescriptor(String name, boolean withLifecycle) {
-        final Template.Builder template = Template.builder();
-        if (withLifecycle) {
-            template.lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(1)));
-        }
+    private static SystemDataStreamDescriptor systemDataStreamDescriptor(
+        String name,
+        Template.Builder template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
         return new SystemDataStreamDescriptor(
             name,
             "system data stream for testing",
@@ -959,9 +1000,10 @@ public class SecurityTests extends ESTestCase {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(name))
                 .template(template)
+                .componentTemplates(List.copyOf(componentTemplates.keySet()))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build(),
-            Map.of(),
+            componentTemplates,
             List.of("test"),
             "test",
             null

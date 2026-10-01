@@ -2793,6 +2793,7 @@ Connected to 10.1.0.1! | null                     | null         | null         
 
 loadAllUnmappedFieldAsInSubqueryLeftKey
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2807,6 +2808,7 @@ message:keyword | unmapped_message:keyword
 
 loadAllUnmappedFieldAsNotInSubqueryLeftKey
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2822,6 +2824,7 @@ Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 
 loadAllUnmappedFieldAsInSubqueryLeftKeyNonAlignedNames
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2837,6 +2840,7 @@ message:keyword | unmapped_message:keyword
 // KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
 loadAllUnmappedFieldAsInSubqueryLeftKeyWithSubqueryUnionRhs
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2855,6 +2859,7 @@ Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 
 loadAllUnmappedFieldAsNotInSubqueryUnionKeepLoadsOnSibling
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2874,6 +2879,7 @@ Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 // Mapped LONG on one IN-union branch is a named column and is loaded from _source on the unmapped sibling.
 loadAllUnmappedFieldAsInSubqueryUnionMappedLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2892,6 +2898,7 @@ Connected to 10.1.0.3! | 3450232
 
 loadAllUnmappedFieldAsInSubqueryUnionKeepInOneBranchScopesField
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2909,6 +2916,7 @@ message:keyword | unmapped_message:keyword
 
 loadAllUnmappedFieldAsInSubqueryUnionDropInOneBranch
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2927,6 +2935,7 @@ Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 // KEEP * admits every name, so the sibling-mapped column is still loaded into the IN set.
 loadAllUnmappedFieldAsInSubqueryUnionKeepStarLoadsMappedSibling
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2946,6 +2955,7 @@ Connected to 10.1.0.3! | 2024-10-23T12:15:03.360Z
 // unmapped* does not admit @timestamp, so that IN-union branch null-fills it.
 loadAllUnmappedFieldAsInSubqueryUnionKeepPatternNullFillsMappedSibling
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2963,6 +2973,7 @@ message:keyword | @timestamp:datetime
 
 loadAllUnmappedFieldAsNestedInSubqueryLeftKey
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2980,6 +2991,7 @@ message:keyword | unmapped_message:keyword
 
 loadAllUnmappedFieldAsInSubqueryAfterFork
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -2999,6 +3011,7 @@ Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2
 
 loadAllUnmappedFieldAsInSubqueryInsideFork
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -3051,6 +3064,7 @@ Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 
 loadAllUnmappedFieldAsMultiColumnInSubquery
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -3066,6 +3080,7 @@ message:keyword | unmapped_message:keyword
 
 loadAllUnmappedFieldAsMultiColumnInSubqueryUnionKeepLoadsOnSibling
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -3084,6 +3099,7 @@ Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 
 loadAllUnmappedFieldAsInSubqueryNoKeepExpandsExtras
 required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

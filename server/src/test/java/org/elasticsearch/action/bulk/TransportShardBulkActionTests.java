@@ -81,6 +81,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -715,8 +716,51 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
                 verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
+                // retries collapse into one final outcome, so the APM counters see the item exactly once
+                verify(shard, times(1)).recordBulkItemFailure(any());
+                verify(shard).recordBulkItemFailure(err);
+                verify(shard, times(1)).recordBulkItemsCompleted(1);
             }
         }
+    }
+
+    public void testBulkItemOutcomesAreRecordedOnThePrimary() throws Exception {
+        Exception err = new ElasticsearchException(randomAlphaOfLength(8));
+        BulkItemRequest[] items = new BulkItemRequest[2];
+        for (int i = 0; i < items.length; i++) {
+            IndexRequest request = new IndexRequest("index").id("id_" + i)
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", randomAlphaOfLength(5));
+            items[i] = new BulkItemRequest(i, request);
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mockShard(null, null);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 13, true, new Translog.Location(42, 42, 42), "id_0"),
+            new Engine.IndexResult(err, 0, 0, 0, "id_1")
+        );
+        when(shard.routingEntry()).thenReturn(newShardRouting(ShardRouting.Role.DEFAULT));
+
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        while (context.hasMoreOperationsToExecute()) {
+            TransportShardBulkAction.executeBulkItemRequest(
+                context,
+                null,
+                threadPool::absoluteTimeInMillis,
+                new NoopMappingUpdatePerformer(),
+                (listener, mappingVersion) -> {},
+                ASSERTING_DONE_LISTENER,
+                DocumentParsingProvider.EMPTY_INSTANCE
+            );
+        }
+
+        assertFalse(bulkShardRequest.items()[0].getPrimaryResponse().isFailed());
+        assertTrue(bulkShardRequest.items()[1].getPrimaryResponse().isFailed());
+        verify(shard, times(1)).recordBulkItemFailure(any());
+        verify(shard).recordBulkItemFailure(err);
+        // the operation count is recorded once for the whole request, not once per item
+        verify(shard, times(1)).recordBulkItemsCompleted(anyInt());
+        verify(shard).recordBulkItemsCompleted(2);
     }
 
     @SuppressWarnings("unchecked")

@@ -69,6 +69,7 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
+    private int completedItems;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this(request, primary, IndexingPressure.PrimaryExpansionTracker.noop());
@@ -406,9 +407,21 @@ class BulkPrimaryExecutionContext {
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
+
+        // failures are recorded per item for their error type; the operation count is tallied here and recorded once at the end
+        completedItems++;
+        if (translatedResponse.isFailed()) {
+            primary.recordBulkItemFailure(translatedResponse.getFailure().getCause());
+        }
+
         getCurrentItem().setPrimaryResponse(translatedResponse);
         currentItemState = ItemProcessingState.COMPLETED;
         advance();
+
+        // record the operation count at the end
+        if (hasMoreOperationsToExecute() == false) {
+            primary.recordBulkItemsCompleted(completedItems);
+        }
     }
 
     /** builds the bulk shard response to return to the user */

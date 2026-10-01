@@ -2229,8 +2229,13 @@ public class ExternalSourceResolver {
     /**
      * Estimated heap one file's metadata keeps reachable in {@link #gatherPerFile}'s results array until the gather
      * completes. Not a measured deep size. Counts the shell and location, the private schema list when
-     * {@code chargeSchema} (the reconcile path charges it on its own run), harvested {@link SourceStatistics} (never
-     * shared from the schema cache), and the source-metadata map unless it is the schema cache entry's own map.
+     * {@code chargeSchema} (the reconcile path charges it on its own run), the config map, harvested
+     * {@link SourceStatistics} (never shared from the schema cache), and the source-metadata map unless it is the
+     * schema cache entry's own map.
+     *
+     * <p>A multi-file gather stores {@link RunningFileStatsFold#slim} records: they carry no statistics, and their
+     * source-metadata and config maps are per-file copies, so both maps are always charged. The statistics term and
+     * the cache-entry map skip only apply to a single-file gather, which stores the resolved metadata as is.
      */
     static long gatheredFileBytes(SourceMetadata meta, boolean chargeSchema) {
         // object header + field references
@@ -2245,6 +2250,9 @@ public class ExternalSourceResolver {
         if ((meta instanceof CacheBackedMetadata cached && cached.sharesCachedSourceMetadata()) == false) {
             bytes += HeapEstimates.mapBytes(meta.sourceMetadata());
         }
+        // Slim records Map.copyOf the config, and cache-backed metadata may merge connector config into a fresh map,
+        // so count it per file. A config shared across files is over-counted, which errs on the safe side.
+        bytes += HeapEstimates.mapBytes(meta.config());
         return bytes;
     }
 

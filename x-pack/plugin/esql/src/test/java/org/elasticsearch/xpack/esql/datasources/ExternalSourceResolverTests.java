@@ -6070,7 +6070,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
         future.actionGet();
 
-        // Probe was invoked; each file's planningBytes() was charged.
+        // Probe was invoked; each file's gatheredFileBytes was charged.
         assertNotNull(capturedRun[0]);
         assertThat(peakResultsHeld[0], greaterThan(0L));
         // After gather completion the results run is released — only the listing credit remains on the breaker.
@@ -6086,7 +6086,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      *
      * <p>Note: in the UNION_BY_NAME reconcile path each file's {@code privateLists.charge} fires before
      * {@code resultsRun.charge}, so with a narrow limit the private-list charge is what triggers the
-     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}. This test verifies that the results run is
+     * {@link CircuitBreakingException}. This test verifies that the results run is
      * still cleaned up correctly in that scenario.
      */
     public void testCBTripDuringReconcileGatherReleasesResultsRun() throws Exception {
@@ -6138,11 +6138,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The FIRST_FILE_WINS stats gather keeps every file's own schema list and harvested statistics in the results
-     * array until it completes, with no interner and no private-list run. Each file's charge therefore covers its
-     * private schema list plus its statistics, and the run is released once the gather completes.
+     * The FIRST_FILE_WINS stats gather keeps every file's own schema list in the results array until it completes,
+     * with no interner and no private-list run. Each file's column statistics are folded away and only a slim record
+     * is kept, so each file's charge covers at least its shell, location and private schema list, and the run is
+     * released once the gather completes.
      */
-    public void testStatsGatherChargesPerFileSchemaAndStatistics() throws Exception {
+    public void testStatsGatherChargesPerFileSchemaList() throws Exception {
         int columns = 20;
         StatsGatherFixture fixture = statsGatherFixture(3, columns);
         CircuitBreaker breaker = requestBreaker("1gb");
@@ -6164,8 +6165,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         future.actionGet();
 
         assertEquals(3, held.size());
-        // The stub statistics carry a row count and no column statistics, so they weigh only the statistics shell.
-        long perFileFloor = SchemaInterner.privateListBytes(columns) + HeapEstimates.statisticsBytes(ROW_COUNT_ONLY_STATISTICS);
+        // Every fixture path has the same length, so the shell and location weigh the same for each file.
+        long perFileFloor = 64L + HeapEstimates.stringBytes(fixture.paths().get(0)) + SchemaInterner.privateListBytes(columns);
         long previous = 0L;
         for (long total : held) {
             assertThat(total - previous, greaterThanOrEqualTo(perFileFloor));
@@ -6180,13 +6181,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * footers are not read, the resolve degrades to partial stats, and the results run is released.
      */
     public void testStatsGatherTripsBreakerAndDegradesToPartialStats() throws Exception {
+        assertStatsGatherTripsBreakerAndDegradesToPartialStats(null, null);
+    }
+
+    /**
+     * Same as {@link #testStatsGatherTripsBreakerAndDegradesToPartialStats} with the schema cache enabled, the
+     * production default: the gather goes through {@code readAndAggregateAllFileStatsWithCache} and stores
+     * cache-backed metadata. Each resolver gets its own cold cache so the narrow run reads the same footers.
+     */
+    public void testStatsGatherTripsBreakerAndDegradesToPartialStatsWithCache() throws Exception {
+        try (
+            ExternalSourceCacheService wideCache = new ExternalSourceCacheService(cacheEnabledSettings());
+            ExternalSourceCacheService narrowCache = new ExternalSourceCacheService(cacheEnabledSettings())
+        ) {
+            assertStatsGatherTripsBreakerAndDegradesToPartialStats(wideCache, narrowCache);
+        }
+    }
+
+    private void assertStatsGatherTripsBreakerAndDegradesToPartialStats(
+        @Nullable ExternalSourceCacheService wideCache,
+        @Nullable ExternalSourceCacheService narrowCache
+    ) throws Exception {
         int files = 4;
         StatsGatherFixture fixture = statsGatherFixture(files, 20);
 
         // Measure breaker usage right after the first gathered file is charged.
         CircuitBreaker wide = requestBreaker("1gb");
         AtomicInteger wideReads = new AtomicInteger();
-        ExternalSourceResolver wideResolver = planningResolver(fixture.reader(wideReads), fixture.schemas(), fixture.listings(), wide);
+        ExternalSourceResolver wideResolver = planningResolver(
+            fixture.reader(wideReads),
+            fixture.schemas(),
+            fixture.listings(),
+            wide,
+            wideCache
+        );
         EsqlExecutionInfo wideInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         bindPlanning(wideResolver, wideInfo, wide);
         long wideBaseline = wide.getUsed();
@@ -6196,8 +6224,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         wideResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), wideFuture);
         ExternalSourceResolution wideResolution = wideFuture.actionGet();
         assertEquals(files, usedAtProbe.size());
+        if (wideCache != null) {
+            // Guards against the cacheable variant silently taking the uncached path.
+            assertEquals((long) files, ((Number) wideCache.usageStats().get("schema_cache.count")).longValue());
+        }
         assertNull(
             wideResolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+        );
+        long fullRowCount = fixture.rowCounts().values().stream().mapToLong(Long::longValue).sum();
+        assertEquals(
+            fullRowCount,
+            ((Number) wideResolution.resolvedSource(StatsGatherFixture.GLOB)
+                .metadata()
+                .sourceMetadata()
+                .get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
         );
 
         CircuitBreaker narrow = requestBreaker(usedAtProbe.get(0) + "b");
@@ -6207,7 +6247,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             fixture.reader(narrowReads),
             fixture.schemas(),
             fixture.listings(),
-            narrow
+            narrow,
+            narrowCache
         );
         EsqlExecutionInfo narrowInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation narrowReservation = bindPlanning(narrowResolver, narrowInfo, narrow);
@@ -6219,25 +6260,23 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
 
         assertEquals(1, charged[0]);
-        assertThat(narrowReads.get(), lessThan(wideReads.get()));
+        // The gather is sequential here (direct executor): the file that tripped is read but never charged, and every
+        // later file is drained without a read, so exactly (files - 2) reads are saved against the full gather.
+        assertEquals(files - 2, wideReads.get() - narrowReads.get());
+        // Partial stats keep the anchor (first) file's own statistics, not the dataset-wide sum.
+        assertEquals(
+            fixture.rowCounts().get(fixture.paths().get(0)).longValue(),
+            ((Number) resolution.resolvedSource(StatsGatherFixture.GLOB)
+                .metadata()
+                .sourceMetadata()
+                .get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
         assertEquals(
             Boolean.TRUE,
             resolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
         );
         assertEquals(narrowReservation.queryHeld() + wideBaseline, narrow.getUsed());
     }
-
-    private static final SourceStatistics ROW_COUNT_ONLY_STATISTICS = new SourceStatistics() {
-        @Override
-        public OptionalLong rowCount() {
-            return OptionalLong.of(1L);
-        }
-
-        @Override
-        public OptionalLong sizeInBytes() {
-            return OptionalLong.empty();
-        }
-    };
 
     /** A FIRST_FILE_WINS glob whose files all share a wide schema and report row-count statistics. */
     private record StatsGatherFixture(Map<String, List<Attribute>> schemas, Map<String, Long> rowCounts, List<String> paths) {
@@ -6310,6 +6349,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<StorageEntry>> listingsByPrefix,
         CircuitBreaker breaker
     ) {
+        return planningResolver(formatReader, schemasByPath, listingsByPrefix, breaker, null);
+    }
+
+    private ExternalSourceResolver planningResolver(
+        FormatReader formatReader,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        CircuitBreaker breaker,
+        @Nullable ExternalSourceCacheService cacheService
+    ) {
         BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
         DataSourcePlugin plugin = new DataSourcePlugin() {
@@ -6344,7 +6393,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
-        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     private static CircuitBreaker requestBreaker(String limit) {

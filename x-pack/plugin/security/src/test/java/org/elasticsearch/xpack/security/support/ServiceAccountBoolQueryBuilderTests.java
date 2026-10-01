@@ -46,8 +46,6 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         "roles",
         "enabled",
         "description",
-        "updated_by.full_name",
-        "updated_by.email",
         "updated_by.realm",
         "updated_by.realm_type",
         "updated_by.api_key.id",
@@ -61,8 +59,6 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
      */
     private static final Map<String, String> TRANSLATED_FIELDS = Map.ofEntries(
         Map.entry("created_by.username", "creator.principal"),
-        Map.entry("created_by.full_name", "creator.full_name"),
-        Map.entry("created_by.email", "creator.email"),
         Map.entry("created_by.realm", "creator.realm"),
         Map.entry("created_by.realm_type", "creator.realm_type"),
         Map.entry("created_by.api_key.id", "creator.api_key.id"),
@@ -145,9 +141,10 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
     public void testFieldsOutsideTheAllowlistAreRejected() {
         // Fields of other document types in the security index, and fields of the account document itself that the
         // API does not expose, are refused alike.
-        // The metadata of an API key's creator, and the realm domain, are stored under the same "creator" object but
-        // are not part of an account's attribution as the API reports it, under either of the object's names. The
-        // domain is stored as API keys store it, but is neither reported nor queryable.
+        // The metadata of an API key's creator, the realm domain, and the user's full name and email are stored under
+        // the same "creator" object but are not part of an account's attribution as the API reports it, under either
+        // of the object's names. The domain, name and email are stored as API keys store them, but are neither
+        // reported nor queryable.
         final String fieldName = randomFrom(
             "doc_type",
             "version",
@@ -157,10 +154,16 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
             "creator.metadata",
             "created_by.metadata",
             "created_by.metadata.foo",
+            "creator.full_name",
+            "creator.email",
+            "created_by.full_name",
+            "created_by.email",
             "creator.realm_domain.name",
             "created_by.realm_domain",
             "created_by.realm_domain.name",
             "created_by.realm_domain.realms.name",
+            "updated_by.full_name",
+            "updated_by.email",
             "updated_by.realm_domain",
             "updated_by.realm_domain.name",
             "updated_by.realm_domain.realms.type"
@@ -219,12 +222,16 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
                 "full_name",
                 "metadata_flattened",
                 "creator.metadata",
+                "creator.full_name",
+                "creator.email",
                 "creator.realm_domain",
                 "creator.realm_domain.name",
                 "creator.realm_domain.realms.name",
                 "created_by.username",
                 "created_at",
                 "updated_by.username",
+                "updated_by.full_name",
+                "updated_by.email",
                 "updated_by.realm_domain",
                 "updated_by.realm_domain.name",
                 "updated_at"

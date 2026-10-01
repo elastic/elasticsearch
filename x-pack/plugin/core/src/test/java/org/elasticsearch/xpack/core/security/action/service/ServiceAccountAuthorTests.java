@@ -240,25 +240,24 @@ public class ServiceAccountAuthorTests extends AbstractWireSerializingTestCase<S
     }
 
     /**
-     * Absent fields are left out rather than written as {@code null}, the realm domain is left out even when the
-     * author has one, since it is stored but not reported, and the user is named {@code username} as the API key and
-     * authenticate responses name one, not {@code principal} as stored.
+     * An absent key is left out rather than written as {@code null}; the full name, email and realm domain are left
+     * out even when the author has them, since they are stored but not reported; and the user is named
+     * {@code username} as the API key and authenticate responses name one, not {@code principal} as stored.
      */
-    public void testToXContentLeavesOutAbsentFieldsAndTheDomain() throws IOException {
+    public void testToXContentLeavesOutAbsentFieldsAndWhatIsStoredOnly() throws IOException {
         final RealmDomain domain = AuthenticationTestHelper.randomDomain(randomBoolean());
         final ServiceAccountAuthor author = new ServiceAccountAuthor("alice", "Alice", "alice@example.com", "ldap1", "ldap", domain);
+        assertThat(author.fullName(), equalTo("Alice"));
+        assertThat(author.email(), equalTo("alice@example.com"));
         assertThat(author.realmDomain(), equalTo(domain));
-        assertThat(
-            toMap(author),
-            equalTo(Map.of("username", "alice", "full_name", "Alice", "email", "alice@example.com", "realm", "ldap1", "realm_type", "ldap"))
-        );
+        assertThat(toMap(author), equalTo(Map.of("username", "alice", "realm", "ldap1", "realm_type", "ldap")));
+        assertThat(toMap(author), not(hasKey("full_name")));
+        assertThat(toMap(author), not(hasKey("email")));
         assertThat(toMap(author), not(hasKey("realm_domain")));
 
         final ServiceAccountAuthor bare = new ServiceAccountAuthor("alice", null, null, "ldap1", "ldap", null);
-        assertThat(toMap(bare), equalTo(Map.of("username", "alice", "realm", "ldap1", "realm_type", "ldap")));
+        assertThat(toMap(bare), equalTo(toMap(author)));
         assertThat(toMap(bare), not(hasKey("principal")));
-        assertThat(toMap(bare), not(hasKey("full_name")));
-        assertThat(toMap(bare), not(hasKey("realm_domain")));
         assertThat(toMap(bare), not(hasKey("api_key")));
         assertThat(bare.realmDomain(), nullValue());
     }

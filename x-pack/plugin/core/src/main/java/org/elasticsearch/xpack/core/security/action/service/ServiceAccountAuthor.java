@@ -43,6 +43,10 @@ import java.util.Objects;
  * is also absent for an author who acted through an API key, since the key's metadata does not carry the owner's
  * domain.
  * <p>
+ * The user's full name and email are likewise stored only, as the {@code creator} mapping records them for an API
+ * key's creator: responses leave them out, as the API key APIs leave out a creator's, and the query API does not
+ * accept them. Carrying them here keeps the stored form in one place and leaves room to report them later.
+ * <p>
  * The user is reported as {@code username}, as the authenticate and API key responses name a user. The store keeps it
  * under {@code principal}, the name the {@code creator} mapping gives it, and the query API translates between the
  * two as it does for API keys.
@@ -184,19 +188,13 @@ public record ServiceAccountAuthor(
     }
 
     /**
-     * Renders the author for a response. Absent values are left out rather than written as {@code null}, and the
-     * realm domain is never written, for the reasons given on the class.
+     * Renders the author for a response. An absent key is left out rather than written as {@code null}, and the
+     * full name, email and realm domain are never written, for the reasons given on the class.
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(USERNAME_FIELD, username);
-        if (fullName != null) {
-            builder.field(FULL_NAME_FIELD, fullName);
-        }
-        if (email != null) {
-            builder.field(EMAIL_FIELD, email);
-        }
         builder.field(REALM_FIELD, realm);
         builder.field(REALM_TYPE_FIELD, realmType);
         if (apiKey != null) {

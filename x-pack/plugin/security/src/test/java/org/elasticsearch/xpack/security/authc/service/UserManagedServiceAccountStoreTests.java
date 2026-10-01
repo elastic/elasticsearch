@@ -473,9 +473,14 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
     /**
      * A new document records the caller as its creator and has no updater yet. The changes for an existing document
-     * record the caller as its updater and leave the creator alone.
+     * record the caller as its updater and leave the creator alone. Either records the user's full name and email,
+     * which responses leave out.
      */
     public void testPutAccountAttributesACreationToTheCallerAndAReplacementToTheUpdater() {
+        authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User("alice", new String[] { "role" }, "Alice", "alice@example.com", Map.of(), true))
+            .build(false);
         respondWithUpdateResult(randomFrom(DocWriteResponse.Result.CREATED, DocWriteResponse.Result.UPDATED));
         final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
 

@@ -117,10 +117,11 @@ teardown:
   - match:
       "attributed/worker_1.created_by":
         username: "sa_creator"
-        full_name: "Sa Creator"
-        email: "sa_creator@example.com"
         realm: "default_native"
         realm_type: "native"
+  # sa_creator has a full name and an email, but neither is reported, as neither is for an API key's creator.
+  - is_false: "attributed/worker_1.created_by.full_name"
+  - is_false: "attributed/worker_1.created_by.email"
   - is_true: "attributed/worker_1.created_at"
   - set: { "attributed/worker_1.created_at": created_at }
   # Nothing has replaced the account yet.
@@ -155,9 +156,6 @@ teardown:
         username: "sa_editor"
         realm: "default_native"
         realm_type: "native"
-  # sa_editor has no full name or email, so neither is reported.
-  - is_false: "attributed/worker_1.updated_by.full_name"
-  - is_false: "attributed/worker_1.updated_by.email"
   - is_true: "attributed/worker_1.updated_at"
 
   # Attribution is for administrators: authenticating as the account does not surface it.
@@ -292,6 +290,27 @@ teardown:
           }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Field [created_by.realm_domain] is not allowed for querying or aggregation" }
+
+  # The author's full name and email are likewise stored but neither reported nor queryable.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "created_by.full_name": "Sa Creator" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [created_by.full_name] is not allowed for querying or aggregation" }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "updated_by.email": "someone@example.com" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [updated_by.email] is not allowed for querying or aggregation" }
 
   # Fields stored under the same object that are not part of the author stay outside the allowlist.
   - do:

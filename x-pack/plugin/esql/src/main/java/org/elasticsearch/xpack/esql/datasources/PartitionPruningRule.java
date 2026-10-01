@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -20,9 +22,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RowCountPreserving;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -103,7 +108,8 @@ final class PartitionPruningRule {
             || plan instanceof RegexExtract  // DISSECT, GROK — extracted names come from the parser
             || plan instanceof Rename
             || plan instanceof Project       // column selection; KEEP extends Project
-            || plan instanceof Drop;
+            || plan instanceof Drop
+            || plan instanceof UnresolvedMetadata; // parse-time carrier of the FROM's METADATA request; see shadowedNames
     }
 
     /**
@@ -125,6 +131,18 @@ final class PartitionPruningRule {
         }
         if (plan instanceof Rename rename) {
             return rename.renamings().stream().map(Alias::name).collect(Collectors.toSet());
+        }
+        if (plan instanceof UnresolvedMetadata metadata && metadata.child() instanceof UnresolvedSourceRelation == false) {
+            // Directly above a source relation the request binds to that relation and adds nothing, so filters on e.g.
+            // `_file.size` still describe the file. Above a subquery or union the Analyzer may instead null-fill the
+            // requested names, making them row-derived like an EVAL would; be conservative and shadow them.
+            // Fields outside the core metadata set (e.g. `_file.size`) and wildcard requests are still unresolved
+            // expressions here, so read their pattern text rather than a name that does not exist yet.
+            Set<String> names = new HashSet<>();
+            for (NamedExpression field : metadata.metadataFields()) {
+                names.add(field instanceof UnresolvedMetadataAttributeExpression unresolved ? unresolved.pattern() : field.name());
+            }
+            return names;
         }
         return Set.of();
     }

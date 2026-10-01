@@ -1559,6 +1559,12 @@ public class EsqlCapabilities {
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
+         * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
+         * fields - null values are injected instead.
+         */
+        OUTER_METADATA_NULL_INJECTION,
+
+        /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
          * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
          * (1) a view used inside a {@code TS} command now raises a clear verification exception
@@ -3038,6 +3044,12 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -3556,6 +3568,39 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
+
+        /**
+         * Read an unmapped field straight from _source, so an object value reads as null rather than as Java's
+         * Map.toString(). Applies to both source modes.
+         * See https://github.com/elastic/elasticsearch/issues/158306.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE,
+
+        /**
+         * The {@code partition_detection} and {@code partition_path} dataset settings reach the read path:
+         * {@code none} suppresses detection and the Hive column-shadow substitution with it, and
+         * {@code template} binds and prunes on the templated column.
+         */
+        PARTITION_DETECTION_ON_READ_PATH,
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+         * field-caps request, so the coordinator never plans nested subfields. Shard extraction
+         * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
+         * loading the nested mapper's native type, which used to crash
+         * {@code ValuesSourceReaderOperator.sanityCheckBlock} on cross-index type skew
+         * (e.g. nested {@code integer} vs object {@code long}).
+         * If ES|QL later supports nested fields, this capability and its tests will need updating.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>.
+         */
+        FIX_NESTED_SUBFIELD_EXTRACTION,
+
+        /**
+         * A GROK typed capture (eg. {@code %{NUMBER:n:int}}) that matches a value it cannot convert
+         * (eg. "1.5" as int) now treats the row as a failed match (null values plus a warning) instead
+         * of failing the whole query.
+         */
+        GROK_TYPED_CONVERSION_WARNINGS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

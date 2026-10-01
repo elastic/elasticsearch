@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -124,7 +125,8 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         String fieldName,
         NumberType numberType,
         int limit,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(
             contexts,
@@ -137,7 +139,8 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             false,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,
             directoryBytesRead,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            singleValueQueryWarnings
         );
         this.contexts = contexts;
         this.fieldName = fieldName;
@@ -148,13 +151,14 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
     public SourceOperator get(DriverContext driverContext) {
         return new LuceneMinMaxOperator(
             contexts,
-            driverContext.blockFactory(),
+            driverContext,
             sliceQueue,
             fieldName,
             numberType,
             limit,
             Long.MIN_VALUE,
-            directoryBytesRead
+            directoryBytesRead,
+            singleValueQueryWarnings
         );
     }
 

@@ -5,6 +5,11 @@
 // fulfilment is an absence — suppressed partition metadata — or a cache-identity property are pinned in
 // PartitionDetectionSettingTests instead.
 //
+// Every case that sets `partition_detection`/`partition_path`, or that asserts the shadow warning text, requires
+// `partition_detection_on_read_path` as well: a coordinator that predates it ignores both settings and prescribes
+// the old `hive_partitioning: false` in the warning, so the case would fail rather than skip on the BWC legs.
+// Add the capability to any new case here that is not purely about Hive-by-default detection.
+//
 // Fixtures:
 //   {{employees_hive}}         hive-partitioned/lang=*/              partition key `lang`, payload column `languages`
 //   {{employees_hive_shadow}}  hive-partitioned-shadow/languages=*/  partition key COLLIDES with payload `languages`
@@ -52,6 +57,7 @@ count:long
 
 templateStrategyNamesTheColumnFromTheTemplate
 required_capability: dataset_in_from_command
+required_capability: partition_detection_on_read_path
 dataset: employees_hive_template: "{{employees_hive}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
 
 FROM employees_hive_template
@@ -76,6 +82,7 @@ count:long | bucket:keyword
 
 shadowedColumnSubstitutionAndWarning
 required_capability: dataset_in_from_command
+required_capability: partition_detection_on_read_path
 dataset: employees_hive_shadow_ds: "{{employees_hive_shadow}}"
 
 FROM employees_hive_shadow_ds
@@ -101,6 +108,7 @@ count:long | languages:integer
 
 noneStopsTheColumnSubstitution
 required_capability: dataset_in_from_command
+required_capability: partition_detection_on_read_path
 dataset: employees_hive_shadow_none: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
 
 FROM employees_hive_shadow_none

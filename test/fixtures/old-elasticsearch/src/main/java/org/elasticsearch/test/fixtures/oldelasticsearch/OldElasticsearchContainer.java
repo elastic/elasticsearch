@@ -71,7 +71,11 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
     private final String version;
 
     public OldElasticsearchContainer(String version, String repoLocation) {
-        super(new PullOrBuildImage(resolveImage(version), localImage(version)));
+        this(version, repoLocation, PullOrBuildImage.DEFAULT_PULL_TIMEOUT);
+    }
+
+    public OldElasticsearchContainer(String version, String repoLocation, Duration pullTimeout) {
+        super(new PullOrBuildImage(resolveImage(version), localImage(version), pullTimeout));
         this.version = version;
         addExposedPort(HTTP_PORT);
         withFileSystemBind(repoLocation, repoLocation);

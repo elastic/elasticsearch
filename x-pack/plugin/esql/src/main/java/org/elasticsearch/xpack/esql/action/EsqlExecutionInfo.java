@@ -276,8 +276,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
         return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
             final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
-            if (newCluster != null && isPartial == false) {
-                isPartial = newCluster.isPartial();
+            if (newCluster != null && newCluster.isPartial()) {
+                isPartial = true;
             }
             return newCluster;
         });

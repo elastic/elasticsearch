@@ -46,7 +46,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
             {
                 "source": {
                     "index": "%s",
-                    "size": 50
+                    "size": 20
                 },
                 "dest": {
                   "index": "%s",

@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -33,6 +36,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -101,7 +105,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -206,6 +211,258 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * {@code IndexResolver} applies {@code -nested} on the field-caps request, so the
+     * coordinator never plans nested subfields. The shard must return constant nulls rather
+     * than the nested field's
+     * real doc-values loader, or a cross-index type skew crashes
+     * {@code ValuesSourceReaderOperator.sanityCheckBlock} (see #154011).
+     * If ES|QL later supports nested fields, these expectations will need updating.
+     */
+    public void testNestedSubfieldBlockLoaderReturnsNull() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("value")
+                        .field("type", "integer")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        BlockLoader blockLoader = blockLoader(searchExecutionContext, "item.value");
+        assertThat(
+            "Nested subfields must not be extracted; field caps hides them from the coordinator",
+            blockLoader,
+            equalTo(ConstantNull.INSTANCE)
+        );
+    }
+
+    /**
+     * {@code include_in_root} copies nested values onto the root Lucene document, but
+     * {@code IndexResolver} still applies {@code -nested}. Extraction must stay null to match planning.
+     */
+    public void testNestedSubfieldWithIncludeInRootBlockLoaderReturnsNull() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .field("include_in_root", true)
+                        .startObject("properties")
+                        .startObject("value")
+                        .field("type", "integer")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        assertThat(blockLoader(searchExecutionContext, "item.value"), equalTo(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * Intermediate object mappers under a nested parent must still be treated as nested
+     * ({@code NestedLookup.getNestedParent} walks past them).
+     */
+    public void testDeepNestedSubfieldBlockLoaderReturnsNull() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("a")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("b")
+                        .startObject("properties")
+                        .startObject("c")
+                        .field("type", "integer")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        assertThat(blockLoader(searchExecutionContext, "a.b.c"), equalTo(ConstantNull.INSTANCE));
+    }
+
+    public void testObjectSubfieldBlockLoaderIsNotNull() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .startObject("properties")
+                        .startObject("value")
+                        .field("type", "integer")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        BlockLoader blockLoader = blockLoader(searchExecutionContext, "item.value");
+        assertThat(blockLoader, instanceOf(IntsBlockLoader.class));
+    }
+
+    /**
+     * COUNT-only is rewritten to {@code EsStatsQueryExec} and uses {@code querySupplierForField}.
+     * Nested subfields are mapped, so {@code isMappedField} alone would still run EXISTS; with
+     * {@code include_in_root} that matches parent docs and inflates COUNT.
+     */
+    public void testQuerySupplierForFieldSkipsNestedSubfield() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .field("include_in_root", true)
+                        .startObject("properties")
+                        .startObject("value")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        assertTrue("nested subfield is mapped; isMappedField alone would not skip the shard", shardContext.isMappedField("item.value"));
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        org.elasticsearch.compute.lucene.ShardContext luceneShard = Mockito.mock(org.elasticsearch.compute.lucene.ShardContext.class);
+        Mockito.when(luceneShard.index()).thenReturn(0);
+        assertThat(
+            "COUNT pushdown must not run EXISTS on nested subfields",
+            provider.querySupplierForField(new ExistsQueryBuilder("item.value"), "item.value").apply(luceneShard),
+            equalTo(List.of())
+        );
+    }
+
+    /** A mapped nested subfield stays null under {@code unmapped_fields=load}. */
+    public void testMappedNestedSubfieldStaysNullUnderUnmappedFieldContext() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("value")
+                        .field("type", "integer")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(
+            defaultCtx,
+            new PotentiallyUnmappedKeywordEsField("item.value")
+        );
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "item.value",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(blockLoader, equalTo(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A leaf that is not declared anywhere in the mapping behaves like any other unmapped field even when its parent is
+     * a nested object: the wrap loads it from {@code _source}.
+     */
+    public void testUnmappedLeafUnderNestedParentLoadsFromSource() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("item").field("type", "nested").endObject())),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(
+            defaultCtx,
+            new PotentiallyUnmappedKeywordEsField("item.extra")
+        );
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "item.extra",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+    }
+
+    /**
+     * When unmapped_fields="load" and the field is truly unmapped (absent from the shard's mapping),
+     * the shard context should use {@link UnmappedKeywordBlockLoader} to read from _source and return
+     * null for object values, rather than delegating to the broken KeywordFieldType loader paths.
+     */
+    public void testTrulyUnmappedFieldUsesUnmappedKeywordBlockLoader() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(mapping(b -> {})), null);
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(
+            defaultCtx,
+            new PotentiallyUnmappedKeywordEsField("unmapped_field")
+        );
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "unmapped_field",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(
+            "Truly unmapped field should use UnmappedKeywordBlockLoader to correctly handle object values",
+            blockLoader,
+            instanceOf(UnmappedKeywordBlockLoader.class)
+        );
+    }
+
     public void testTemporalityForMissingSetting() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())),
@@ -222,7 +479,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -255,7 +513,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
             PlannerSettings.DEFAULTS,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
@@ -299,6 +558,24 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
     }
 
+    private static BlockLoader blockLoader(SearchExecutionContext searchExecutionContext, String fieldName) {
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        return shardContext.blockLoader(
+            fieldName,
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+    }
+
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
@@ -317,7 +594,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             MappedFieldType.FieldExtractPreference.NONE
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
-        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private static Settings tsdbSettings(String temporalityFieldName) {

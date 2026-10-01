@@ -7,6 +7,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -39,5 +40,9 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
         }
 
         return customizer.apply(builder).build();
+    }
+
+    protected static boolean isOriginalClusterCurrent() {
+        return getOldClusterVersion().equals(Build.current().version());
     }
 }

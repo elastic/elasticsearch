@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.useragent.api.Details;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.VersionedName;
@@ -26,6 +28,7 @@ import static org.elasticsearch.useragent.api.UserAgentParsedInfo.OS_FULL;
 import static org.elasticsearch.useragent.api.UserAgentParsedInfo.OS_NAME;
 import static org.elasticsearch.useragent.api.UserAgentParsedInfo.OS_VERSION;
 import static org.elasticsearch.useragent.api.UserAgentParsedInfo.VERSION;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class UserAgentFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
 
@@ -64,7 +67,18 @@ public class UserAgentFunctionBridgeTests extends AbstractCompoundOutputEvaluato
 
     private boolean extractDeviceType = false;
 
-    private final Warnings WARNINGS = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
+    private final DriverContext warningsContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        TestBlockFactory.getNonBreakingInstance(),
+        null
+    );
+
+    private void assertCollectedWarnings(String... expected) {
+        warningsContext.finish();
+        assertThat(warningsContext.warnings(), containsInAnyOrder(expected));
+    }
+
+    private final Warnings WARNINGS = warningsContext.createWarnings(new WarningSourceLocation() {
         @Override
         public int lineNumber() {
             return 1;
@@ -171,7 +185,7 @@ public class UserAgentFunctionBridgeTests extends AbstractCompoundOutputEvaluato
         List<String> input = List.of(CHROME_UA, FIREFOX_UA);
         List<Object[]> expected = Collections.nCopies(requestedFields.size(), new Object[] { null });
         evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertWarnings(
+        assertCollectedWarnings(
             "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );

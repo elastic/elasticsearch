@@ -32,6 +32,12 @@ Views are available in serverless and [Cross-project search](/reference/query-la
 Query parameters are not allowed in the view definition, and therefore query
 parameters in the main query will never impact the view results.
 
+#### Views with METADATA
+
+`METADATA` directives inside and outside a view definition behave the same
+as they do for
+[`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
+
 #### Known issues (tech preview)
 
 Views are in tech-preview and there are a number of known issues, or behavior
@@ -41,7 +47,3 @@ that is likely to change in the future:
   indices in the view definition, and this will change in later releases.
     * The future design will have the query filtering impact the output of the
       view, not the source indices.
-* `METADATA` directives inside and outside a view definition behave the same
-  as they do for
-  [`METADATA` in subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata).
-  This will change for views.

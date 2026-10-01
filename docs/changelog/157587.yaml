@@ -1,6 +1,5 @@
 pr: 157587
-summary: Fix Parquet filter pushdown failing the query when a predicate column batch
-  decodes all-null
+summary: Fix ES|QL Parquet late-materialization filter crashing with `ClassCastException` on all-null predicate batches
 area: ES|QL
 type: bug
 issues:

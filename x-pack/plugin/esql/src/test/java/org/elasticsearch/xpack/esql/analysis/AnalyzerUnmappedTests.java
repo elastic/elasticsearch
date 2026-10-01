@@ -626,8 +626,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * same-named column) — a loaded {@link FieldAttribute}, or a {@code ReferenceAttribute} to it once above a FORK/union. #142033.
      */
     private void expectInSubqueryLeftKeyResolved(String column, String query) {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoad(query));
+        expectInSubqueryLeftKeyPlan(column, setUnmappedLoad(query));
+    }
+
+    private void expectInSubqueryLeftKeyPlan(String column, String queryWithSet) {
+        LogicalPlan plan = partialMappingTest().statement(queryWithSet);
         assertThat("plan should be fully resolved once the IN left key loads from _source", plan.resolved(), is(true));
         assertThat("column [" + column + "] should be present in the resolved output", Expressions.names(plan.output()), hasItem(column));
         plan.forEachDown(AbstractSubqueryJoin.class, join -> {
@@ -1464,26 +1467,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
-        )) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
-            );
-        }
-    }
-
-    /**
-     * WHERE IN / NOT IN rewrite to SemiJoin / AntiJoin; the LOAD_ALL allow-list admits LookupJoin only.
-     */
-    public void testLoadAllModeRejectsInAndNotInSubqueries() {
-        for (var commandAndLabel : List.of(
-            Tuple.tuple("| WHERE emp_no IN (FROM test | KEEP emp_no)", "SemiJoin"),
-            Tuple.tuple("| WHERE emp_no NOT IN (FROM test | KEEP emp_no)", "AntiJoin")
         )) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.util.CachedSupplier;
@@ -24,7 +26,11 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
-public class Privilege {
+public class Privilege implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Privilege.class);
+    private static final long GRANTS_ALL_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedSupplier.class) + RamUsageEstimator
+        .alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
     public static final Privilege NONE = new Privilege(Collections.singleton("none"), Automatons.EMPTY);
     public static final Privilege ALL = new Privilege(Collections.singleton("all"), Automatons.MATCH_ALL);
@@ -90,6 +96,17 @@ public class Privilege {
      */
     public boolean grantsAll() {
         return grantsAll.get();
+    }
+
+    /**
+     * Estimates the heap retained by this privilege: the object itself, its names, its predicate and its {@code grantsAll} supplier. The
+     * automaton is not added separately because the predicate already includes it. The run automaton that evaluates the predicate
+     * references the same {@link Automaton} object as {@link #automaton} and counts it in its own size, see
+     * {@link Automatons#predicate(Automaton)}. Adding the automaton here would count it twice.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + GRANTS_ALL_SIZE + RamUsageEstimator.sizeOfObject(predicate) + RamUsageEstimator.sizeOfCollection(name);
     }
 
     /**

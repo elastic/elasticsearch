@@ -2003,16 +2003,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                            "updatable": true,
                            "type": "int",
                            "supported_task_types": ["sparse_embedding"]
-                       },
-                       "output_format": {
-                           "description": "The format of the extracted document content. \
-            Can be overridden per request via task_settings.",
-                           "label": "Output Format",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": true,
-                           "type": "str",
-                           "supported_task_types": ["document_extraction"]
                        }
                    }
                }
@@ -2068,16 +2058,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                            "updatable": true,
                            "type": "int",
                            "supported_task_types": ["sparse_embedding"]
-                       },
-                       "output_format": {
-                           "description": "The format of the extracted document content. \
-            Can be overridden per request via task_settings.",
-                           "label": "Output Format",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": true,
-                           "type": "str",
-                           "supported_task_types": ["document_extraction"]
                        }
                    }
                }

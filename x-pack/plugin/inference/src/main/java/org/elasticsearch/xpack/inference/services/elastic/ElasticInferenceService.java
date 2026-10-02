@@ -591,19 +591,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 .build()
         );
 
-        configurationMap.put(
-            ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT,
-            new SettingsConfiguration.Builder(EnumSet.of(DOCUMENT_EXTRACTION)).setDescription(
-                "The format of the extracted document content. Can be overridden per request via task_settings."
-            )
-                .setLabel("Output Format")
-                .setRequired(false)
-                .setSensitive(false)
-                .setUpdatable(true)
-                .setType(SettingsConfigurationFieldType.STRING)
-                .build()
-        );
-
         return new InferenceServiceConfiguration.Builder().setService(NAME)
             .setName(SERVICE_NAME)
             .setTaskTypes(enabledTaskTypes)

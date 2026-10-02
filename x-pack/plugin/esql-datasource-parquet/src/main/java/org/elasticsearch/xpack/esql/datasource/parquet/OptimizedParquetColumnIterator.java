@@ -562,7 +562,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * {@link ParquetIoWatermark} is a second gate: look-ahead is refused when {@code used + next}
      * would exceed {@code heap / 8}. The first group of {@link #prefetchFirstRowGroup} may block
      * in {@code admitWait} (PER_GET). Refills from {@link #triggerNextRowGroupPrefetch} always
-     * pass {@code lookahead=true}, including when the queue is empty — that empty queue is the
+     * use non-blocking {@code tryAdmit}, including when the queue is empty — that empty queue is the
      * next group, not the current one, and blocking it on this thread would wait for bytes this
      * same thread will only release after {@link #advanceRowGroup} returns. Breaker
      * accounting for the prefetched bytes happens inside {@code readBytesAsync}. Actual
@@ -655,7 +655,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (perGet) {
                     byteGate = ParquetIoWatermark.ByteGate.PER_GET;
                 } else if (watermark != null) {
-                    admitHold = watermark.tryAdmit(prefetchBytes, true);
+                    admitHold = watermark.tryAdmit(prefetchBytes);
                     if (admitHold == null) {
                         break;
                     }

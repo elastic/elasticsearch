@@ -68,11 +68,11 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * Attempts to reserve {@code bytes} of retained I/O. {@code lookahead} is true when the
-     * caller already has a live or queued group (DuckDB-style: no extra job once over budget).
-     * Returns {@code false} without throwing; never a query failure.
+     * Attempts to reserve {@code bytes} of retained I/O. Refuses once {@code used + bytes} would
+     * exceed the cap; the one overshoot is {@link #admitWait}. Returns {@code false} without
+     * throwing; never a query failure.
      */
-    boolean tryReserve(long bytes, boolean lookahead) {
+    boolean tryReserve(long bytes) {
         if (bytes < 0L) {
             throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
         }
@@ -83,14 +83,7 @@ final class ParquetIoWatermark {
         try {
             long current = used.get();
             long next = current + bytes;
-            if (next < 0L) {
-                return false;
-            }
-            if (next <= limit) {
-                used.set(next);
-                return true;
-            }
-            if (lookahead || current > limit) {
+            if (next < 0L || next > limit) {
                 return false;
             }
             used.set(next);
@@ -106,8 +99,8 @@ final class ParquetIoWatermark {
      * future settles. Returns {@code null} when admission refuses.
      */
     @Nullable
-    AdmitHold tryAdmit(long bytes, boolean lookahead) {
-        if (tryReserve(bytes, lookahead) == false) {
+    AdmitHold tryAdmit(long bytes) {
+        if (tryReserve(bytes) == false) {
             return null;
         }
         return new AdmitHold(this, bytes);

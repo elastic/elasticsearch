@@ -553,7 +553,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit(..., true)}.
+     * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit}.
      * Non-look-ahead (first bucket and the stall path) uses blocking {@code PER_GET}.
      */
     @Nullable
@@ -573,7 +573,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         final ParquetIoWatermark.ByteGate byteGate;
         if (lookahead) {
             if (prefetchBytes > 0L && watermark != null) {
-                hold = watermark.tryAdmit(prefetchBytes, true);
+                hold = watermark.tryAdmit(prefetchBytes);
                 if (hold == null && requireHold) {
                     return null;
                 }

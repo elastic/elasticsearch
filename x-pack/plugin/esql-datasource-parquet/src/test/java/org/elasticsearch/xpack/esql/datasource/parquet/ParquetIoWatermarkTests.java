@@ -37,38 +37,37 @@ public class ParquetIoWatermarkTests extends ESTestCase {
 
     public void testAdmitUntilLimitThenRejectLookahead() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
-        assertTrue(watermark.tryReserve(40, false));
-        assertTrue(watermark.tryReserve(40, true));
+        assertTrue(watermark.tryReserve(40));
+        assertTrue(watermark.tryReserve(40));
         assertEquals(80, watermark.used());
-        assertFalse("look-ahead must not cross the cap", watermark.tryReserve(30, true));
+        assertFalse("tryReserve must not cross the cap", watermark.tryReserve(30));
         assertEquals(80, watermark.used());
-        assertTrue("current work may take the one overshoot", watermark.tryReserve(30, false));
-        assertEquals(110, watermark.used());
-        assertFalse("second overshoot is refused even for current work", watermark.tryReserve(1, false));
-        assertFalse(watermark.tryReserve(1, true));
     }
 
     public void testOneNodeWideOvershootForGroupLargerThanLimit() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
-        assertTrue(watermark.tryReserve(80, false));
+        assertFalse("tryReserve refuses a group larger than the cap", watermark.tryReserve(80));
+        assertEquals(0, watermark.used());
+        RowGroupIo lease = new RowGroupIo();
+        watermark.admitWait(80, lease, 1_000L);
         assertEquals(80, watermark.used());
-        assertFalse(watermark.tryReserve(80, false));
-        assertFalse(watermark.tryReserve(1, true));
+        assertSame(lease, watermark.overshootOwner());
+        assertFalse(watermark.tryReserve(80));
+        assertFalse(watermark.tryReserve(1));
     }
 
     public void testReleaseAllowsNextIterator() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
-        assertTrue(watermark.tryReserve(80, false));
-        watermark.release(80);
+        assertTrue(watermark.tryReserve(50));
+        watermark.release(50);
         assertEquals(0, watermark.used());
-        assertTrue("release returns the overshoot slot", watermark.tryReserve(80, false));
-        assertEquals(80, watermark.used());
+        assertTrue("release returns capacity", watermark.tryReserve(50));
+        assertEquals(50, watermark.used());
     }
 
     public void testZeroReserveIsNoop() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
-        assertTrue(watermark.tryReserve(0, true));
-        assertTrue(watermark.tryReserve(0, false));
+        assertTrue(watermark.tryReserve(0));
         assertEquals(0, watermark.used());
         watermark.forceAdd(0);
         watermark.release(0);
@@ -90,7 +89,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     public void testAdmitHoldDroppedOnceOnAllocNotDoubleCounted() throws Exception {
         CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
-        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(64, false);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(64);
         assertNotNull(hold);
         assertEquals(64, watermark.used());
         DirectBufferFactory factory = watermark.accountingFactory(breaker, hold);
@@ -106,7 +105,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     public void testAdmitHoldDropsPerAllocKeepsInFlightEstimate() throws Exception {
         CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
-        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(152, false);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(152);
         assertNotNull(hold);
         DirectBufferFactory factory = watermark.accountingFactory(breaker, hold);
         DirectReadBuffer first = factory.allocate(10);
@@ -123,23 +122,23 @@ public class ParquetIoWatermarkTests extends ESTestCase {
 
     public void testTryReserveRetriesWhenReleaseLandsOverLimit() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
-        assertTrue(watermark.tryReserve(50, false));
+        watermark.forceAdd(50);
         watermark.release(50);
-        assertTrue("stale over-limit snapshot must not refuse after a concurrent release", watermark.tryReserve(10, false));
+        assertTrue("release returns capacity for a later tryReserve", watermark.tryReserve(10));
         assertEquals(10, watermark.used());
     }
 
     public void testTryAdmitNullWhenLookaheadWouldExceed() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
-        ParquetIoWatermark.AdmitHold current = watermark.tryAdmit(40, false);
+        ParquetIoWatermark.AdmitHold current = watermark.tryAdmit(40);
         assertNotNull(current);
-        assertNull(watermark.tryAdmit(20, true));
+        assertNull(watermark.tryAdmit(20));
         assertEquals(40, watermark.used());
         current.drop();
         assertEquals(0, watermark.used());
     }
 
-    public void testConcurrentCurrentWorkTakesOneOvershoot() throws Exception {
+    public void testConcurrentTryReserveNeverOvershoots() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         AtomicInteger admitted = new AtomicInteger();
         CountDownLatch start = new CountDownLatch(1);
@@ -152,7 +151,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
                     Thread.currentThread().interrupt();
                     return;
                 }
-                if (watermark.tryReserve(50, false)) {
+                if (watermark.tryReserve(50)) {
                     admitted.incrementAndGet();
                 }
             });
@@ -162,8 +161,38 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+        assertEquals("tryReserve must not take the overshoot slot", 0, admitted.get());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testConcurrentAdmitWaitTakesOneOvershoot() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        AtomicInteger admitted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+        CyclicBarrier start = new CyclicBarrier(9);
+        Thread[] threads = new Thread[8];
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    start.await(5, TimeUnit.SECONDS);
+                    watermark.admitWait(50, new RowGroupIo(), 1_000L);
+                    admitted.incrementAndGet();
+                } catch (EsRejectedExecutionException e) {
+                    rejected.incrementAndGet();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].start();
+        }
+        start.await(5, TimeUnit.SECONDS);
+        for (Thread thread : threads) {
+            thread.join();
+        }
         assertEquals("overshoot is node-wide", 1, admitted.get());
+        assertEquals(7, rejected.get());
         assertEquals(50, watermark.used());
+        assertNotNull(watermark.overshootOwner());
     }
 
     public void testNonFavouredWaitsUntilRelease() throws Exception {

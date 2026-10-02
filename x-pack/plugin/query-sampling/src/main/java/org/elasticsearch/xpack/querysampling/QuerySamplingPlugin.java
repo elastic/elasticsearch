@@ -110,6 +110,10 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
+        // the settings stay registered either way, but without the flag nothing may act on them
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
         return List.of(captureFilter.get());
     }
 }

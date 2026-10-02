@@ -81,6 +81,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
                 case SEPARATE_COUNT -> indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
                     ? MultiValuedSortableBinaryDocValues.from(leafReader, fieldName)
                     : MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, fieldName);
+                case PLAIN -> MultiValuedSortableBinaryDocValues.fromPlain(leafReader, fieldName);
             };
         } catch (IOException e) {
             throw new UncheckedIOException(e);

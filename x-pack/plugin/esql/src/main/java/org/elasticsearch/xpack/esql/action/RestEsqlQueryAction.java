@@ -105,9 +105,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         if (esqlRequest.columnar()) {
             throw incompatibleWithStreaming("columnar");
         }
-        if (esqlRequest.profile()) {
-            throw incompatibleWithStreaming("profile");
-        }
         if (Boolean.TRUE.equals(esqlRequest.includeCCSMetadata())) {
             throw incompatibleWithStreaming("include_ccs_metadata");
         }

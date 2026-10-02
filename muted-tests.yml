@@ -452,9 +452,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testCancelUnnecessaryRequests
   issue: https://github.com/elastic/elasticsearch/issues/158868
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/158668
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/158911
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
@@ -507,18 +504,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/158881
-- class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
-  method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/159398
-- class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
-  method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/159400
-- class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
-  method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/159401
-- class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
-  method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/159402
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
   issue: https://github.com/elastic/elasticsearch/issues/159417
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
@@ -533,9 +518,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleTranslogsGCIT
-  method: testTranslogGCDoesNotDeleteLeftNodeWhenRecovering
-  issue: https://github.com/elastic/elasticsearch/issues/159790
 - class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
   method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
   issue: https://github.com/elastic/elasticsearch/issues/159795
@@ -613,9 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalRequestFilterRowGroupPruningIT
   method: testWhereAndRequestFilterPruneIdentically
   issue: https://github.com/elastic/elasticsearch/issues/160084
-- class: org.elasticsearch.indices.IndicesLifecycleListenerIT
-  method: testRelocationFailureNotRetriedForever
-  issue: https://github.com/elastic/elasticsearch/issues/160100
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testStopNestedSubquery
   issue: https://github.com/elastic/elasticsearch/issues/160115
@@ -648,9 +627,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/160379
-- class: org.elasticsearch.columnar.substrate.ChunkedBytesTests
-  method: testWritesNothingButItsTwoFiles
-  issue: https://github.com/elastic/elasticsearch/issues/160409
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/160410
@@ -675,3 +651,27 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/160055
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testTrackOldSearchNodesWhenIndexingShardRelocates
+  issue: https://github.com/elastic/elasticsearch/issues/160699
+- class: org.elasticsearch.xpack.shutdown.DesiredBalanceShutdownIT
+  method: testDesiredBalanceWithShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/160708
+- class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
+  method: testRandomValueIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/160716
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testCancelOnExpiry
+  issue: https://github.com/elastic/elasticsearch/issues/160823
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationContinuesAfterMasterFailover
+  issue: https://github.com/elastic/elasticsearch/issues/160824
+- class: org.elasticsearch.columnar.string.StringMatchTests
+  method: testWindowedCollectionOnAMultiValuedDictionary
+  issue: https://github.com/elastic/elasticsearch/issues/160837
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
+  method: testWatermarkEmptyQueueOverrunIsNodeWide
+  issue: https://github.com/elastic/elasticsearch/issues/160849

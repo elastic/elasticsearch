@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -28,15 +29,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,7 +50,9 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -253,6 +260,19 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
           }
         }""";
 
+    private static final String RUNTIME_FIELD_MAPPING = """
+        {
+          "dynamic": "strict",
+          "runtime": {
+            "title_upper": { "type": "keyword" }
+          },
+          "properties": {
+            "title":   { "type": "keyword" },
+            "count":   { "type": "integer" },
+            "tag":     { "type": "keyword" }
+          }
+        }""";
+
     private IndexShard newPrimaryShardWithMapping(String mapping) throws IOException {
         IndexMetadata metadata = IndexMetadata.builder("index")
             .putMapping(mapping)
@@ -345,6 +365,76 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         closeShards(shard);
+    }
+
+    public void testFallbackIndexesRowsThroughSequentialPath() throws Exception {
+        IndexShard shard = newPrimaryShardWithMapping(RUNTIME_FIELD_MAPPING);
+
+        int numDocs = 10;
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        List<BytesReference> sources = new ArrayList<>();
+        Map<String, Map<String, Object>> expectedById = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
+            BytesReference source = new BytesArray("{\"title\":\"doc-" + i + "\",\"count\":" + i + ",\"tag\":\"batch\"}");
+            sources.add(source);
+            expectedById.put(Integer.toString(i), asMap(source));
+        }
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            for (int i = 0; i < numDocs; i++) {
+                // the shape BulkShardRequest(StreamInput) produces on the receiving node: a row reference and no bytes
+                ((IndexRequest) items[i].request()).indexSource().setSourceRow(batch, i, XContentType.JSON);
+            }
+            BulkShardRequest request = new BulkShardRequest(shard.shardId(), SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+            request.setBulkShardBatch(new BulkShardBatch(batch));
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, shard);
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+            // Columnar indexing does not support runtime fields
+            // TODO: Possibly add a test mapper which always returns false for this test.
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            future.actionGet();
+            assertTrue("a runtime field in the mapping must send the batch to the sequential path", context.hasMoreOperationsToExecute());
+
+            // Mimic production runnable
+            while (context.hasMoreOperationsToExecute()) {
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    null,
+                    threadPool::absoluteTimeInMillis,
+                    new TransportShardBulkActionTests.NoopMappingUpdatePerformer(),
+                    (listener, mappingVersion) -> {},
+                    ActionTestUtils.assertNoFailureListener(v -> {}),
+                    DocumentParsingProvider.EMPTY_INSTANCE
+                );
+            }
+
+            assertNotNull("the batch must stay attached to the request", request.getBulkShardBatch());
+            for (BulkItemRequest item : items) {
+                assertFalse(item.getPrimaryResponse().toString(), item.getPrimaryResponse().isFailed());
+                assertTrue("the sequential path must not inline the row", ((IndexRequest) item.request()).indexSource().hasSourceRow());
+            }
+            assertDocCount(shard, numDocs);
+
+            // Assert that all items are written by the engine as expected
+            Map<String, Map<String, Object>> translogById = new HashMap<>();
+            try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    Translog.Index index = (Translog.Index) operation;
+                    translogById.put(Uid.decodeId(index.uid()), asMap(index.source()));
+                }
+            }
+            assertThat(translogById, equalTo(expectedById));
+        }
+
+        closeShards(shard);
+    }
+
+    private static Map<String, Object> asMap(BytesReference source) {
+        return XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
     }
 
     public void testBatchIndexOnPrimarySingleDoc() throws Exception {

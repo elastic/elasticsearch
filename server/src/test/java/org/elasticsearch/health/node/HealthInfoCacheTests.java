@@ -169,6 +169,24 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
     }
 
+    public void testDataRecoveryHealthInfoOnlyAcceptedFromMaster() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        // node1 is local node, master, and health node
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
+
+        DataRecoveryHealthInfo fromMaster = HealthInfoTests.randomDataRecoveryHealthInfo();
+        DataRecoveryHealthInfo fromNonMaster = randomValueOtherThan(fromMaster, HealthInfoTests::randomDataRecoveryHealthInfo);
+
+        // update from master (node1) is accepted
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromMaster);
+        assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), equalTo(fromMaster));
+
+        // update from non-master (node2) is rejected; old value is preserved
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromNonMaster);
+        assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), equalTo(fromMaster));
+    }
+
     public void testNotAHealthNode() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         healthInfoCache.updateNodeHealth(
@@ -177,7 +195,8 @@ public class HealthInfoCacheTests extends ESTestCase {
             randomDslHealthInfo(),
             randomRepoHealthInfo(),
             FileSettingsHealthInfo.INDETERMINATE,
-            randomDlmFrozenTransitionsHealthInfo()
+            randomDlmFrozenTransitionsHealthInfo(),
+            HealthInfoTests.randomDataRecoveryHealthInfo()
         );
         healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
@@ -191,6 +210,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
         assertThat(repoHealthInfo.isEmpty(), equalTo(true));
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), is(nullValue()));
+        assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), is(nullValue()));
     }
 
 }

@@ -38,6 +38,8 @@ public class HealthInfoCache implements ClusterStateListener {
     @Nullable
     private volatile DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo = null;
     @Nullable
+    private volatile DataRecoveryHealthInfo dataRecoveryHealthInfo = null;
+    @Nullable
     private volatile String masterNodeId = null;
 
     private HealthInfoCache() {}
@@ -66,6 +68,26 @@ public class HealthInfoCache implements ClusterStateListener {
         @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
         @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo
     ) {
+        updateNodeHealth(
+            nodeId,
+            diskHealthInfo,
+            latestDslHealthInfo,
+            repositoriesHealthInfo,
+            fileSettingsHealthInfo,
+            latestDlmFrozenTransitionsHealthInfo,
+            null
+        );
+    }
+
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo,
+        @Nullable DataRecoveryHealthInfo latestDataRecoveryHealthInfo
+    ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
         }
@@ -83,6 +105,9 @@ public class HealthInfoCache implements ClusterStateListener {
             }
             if (latestDlmFrozenTransitionsHealthInfo != null) {
                 this.dlmFrozenTransitionsHealthInfo = latestDlmFrozenTransitionsHealthInfo;
+            }
+            if (latestDataRecoveryHealthInfo != null) {
+                this.dataRecoveryHealthInfo = latestDataRecoveryHealthInfo;
             }
         }
     }
@@ -114,6 +139,7 @@ public class HealthInfoCache implements ClusterStateListener {
             fileSettingsHealthInfo = INDETERMINATE;
             masterNodeId = null;
             dlmFrozenTransitionsHealthInfo = null;
+            dataRecoveryHealthInfo = null;
         }
     }
 
@@ -123,7 +149,8 @@ public class HealthInfoCache implements ClusterStateListener {
             || repositoriesInfoByNode.isEmpty() == false
             || fileSettingsHealthInfo != INDETERMINATE
             || masterNodeId != null
-            || dlmFrozenTransitionsHealthInfo != null;
+            || dlmFrozenTransitionsHealthInfo != null
+            || dataRecoveryHealthInfo != null;
     }
 
     /**
@@ -137,7 +164,8 @@ public class HealthInfoCache implements ClusterStateListener {
             dslHealthInfo,
             Map.copyOf(repositoriesInfoByNode),
             fileSettingsHealthInfo,
-            dlmFrozenTransitionsHealthInfo
+            dlmFrozenTransitionsHealthInfo,
+            dataRecoveryHealthInfo
         );
     }
 }

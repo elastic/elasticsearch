@@ -20,6 +20,9 @@ teardown:
         ignore_unavailable: true
 
 ---
+# Muted in muted-tests.yml: collapse groups by ordinal and columnar keyword doc values are BINARY,
+# so the search fails with "unexpected doc values type BINARY".
+# Tracked by https://github.com/elastic/elasticsearch/issues/158753
 "field collapse on columnar keyword field":
   - do:
       indices.create:

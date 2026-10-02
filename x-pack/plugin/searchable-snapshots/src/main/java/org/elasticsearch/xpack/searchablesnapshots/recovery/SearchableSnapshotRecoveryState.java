@@ -19,10 +19,6 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
     private boolean preWarmComplete;
     private boolean remoteTranslogSet;
 
-    public SearchableSnapshotRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
-        this(shardRouting, targetNode, sourceNode, 0);
-    }
-
     public SearchableSnapshotRecoveryState(
         ShardRouting shardRouting,
         DiscoveryNode targetNode,

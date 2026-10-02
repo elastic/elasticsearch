@@ -1070,7 +1070,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         implements
             BlockLoader.OptionalColumnAtATimeReader,
             BlockLoader.OptionalLengthReader,
-            BlockLoader.OptionalDecodeSizeHint {
+            BlockLoader.OptionalDecodeMemoryUsageEstimator {
 
         /**
          * Returns the raw compressed block backing the value this iterator is currently positioned

@@ -43,6 +43,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
@@ -230,7 +231,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         query.visit(visitor);
 
-        long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
         assertEquals(expected, visitor.getEstimatedBytes());
         assertEquals(1, visitor.getNumClauses());
     }
@@ -244,7 +245,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         for (int i = 0; i < clauses; i++) {
             Query fq = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT);
             bool.add(fq, BooleanClause.Occur.SHOULD);
-            expected += RamUsageEstimator.shallowSizeOf(fq) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+            expected += RamUsageEstimator.shallowSizeOf(fq) + TrackingBinaryDocValues.ESTIMATED_SIZE;
         }
         bool.build().visit(visitor);
 
@@ -267,7 +268,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         query.visit(visitor);
 
-        long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+        long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
         assertEquals(
             "a TermInSet query opens a single decoder regardless of how many terms it holds, so it must be charged once",
             expected,
@@ -277,13 +278,12 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     }
 
     public void testLargeDisjunctionOfBinaryDocValuesScanClausesTripsBreakerBeforeSearch() {
-        long limit = 1_000_000L;
+        long limit = 10_000L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
 
         BooleanQuery.Builder bool = new BooleanQuery.Builder();
-        // One clause (~544 KB) fits under the 1 MB limit, but two already exceed it; ten clauses gives comfortable
-        // margin so the trip doesn't depend on the exact constant.
+        // One clause (~3 KB) fits under the limit, but ten clauses comfortably exceed it.
         int clauses = 10;
         for (int i = 0; i < clauses; i++) {
             bool.add(
@@ -331,7 +331,8 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         }
     }
 
-    public void testFallsBackWhenAnyLeafDoesNotSupportTheHint() throws IOException {
+    public void testLeafWithoutHintUsesGenericTrackingEstimate() throws IOException {
+        long realDecodeBytes = 1_000L;
         try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE))) {
                 writer.addDocument(new Document());
@@ -343,7 +344,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
                 DirectoryReader reader = wrapBinaryDocValues(
                     DirectoryReader.open(directory),
                     "field",
-                    i -> i == 0 ? new FakeHintBinaryDocValues(1_000L) : new PlainBinaryDocValues()
+                    i -> i == 0 ? new FakeHintBinaryDocValues(realDecodeBytes) : new PlainBinaryDocValues()
                 )
             ) {
                 MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
@@ -357,12 +358,35 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
                 query.visit(visitor);
 
-                long expected = RamUsageEstimator.shallowSizeOf(query) + BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE;
-                assertEquals(
-                    "one leaf lacking the hint must not let a partial answer from the other leaf be trusted",
-                    expected,
-                    visitor.getEstimatedBytes()
+                // The hint-less leaf's generic estimate wins the max over the hint-supporting leaf's smaller real value.
+                long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+                assertThat(realDecodeBytes, lessThan(TrackingBinaryDocValues.ESTIMATED_SIZE));
+                assertEquals(expected, visitor.getEstimatedBytes());
+            }
+        }
+    }
+
+    public void testLeafReturningUnsupportedSentinelUsesGenericTrackingEstimate() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (
+                DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> new FakeHintBinaryDocValues(-1))
+            ) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
                 );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+                assertEquals(expected, visitor.getEstimatedBytes());
             }
         }
     }
@@ -467,10 +491,10 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     }
 
     /**
-     * Test double for a binary-DV reader that supports {@link BlockLoader.OptionalDecodeSizeHint}, as the TSDB
+     * Test double for a binary-DV reader that supports {@link BlockLoader.OptionalDecodeMemoryUsageEstimator}, as the TSDB
      * codec's compressed binary DV readers do.
      */
-    private static final class FakeHintBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalDecodeSizeHint {
+    private static final class FakeHintBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalDecodeMemoryUsageEstimator {
         private final long maxDecodeBytes;
         private int doc = -1;
 
@@ -516,7 +540,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     }
 
     /**
-     * Test double for a binary-DV reader that does not support {@link BlockLoader.OptionalDecodeSizeHint}, standing
+     * Test double for a binary-DV reader that does not support {@link BlockLoader.OptionalDecodeMemoryUsageEstimator}, standing
      * in for a non-TSDB codec.
      */
     private static final class PlainBinaryDocValues extends BinaryDocValues {

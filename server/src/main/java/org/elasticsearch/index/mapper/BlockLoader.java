@@ -336,12 +336,15 @@ public interface BlockLoader {
      * field's storage on this segment can allocate, so a caller building a worst-case memory estimate (see
      * {@code BinaryDocValuesScanCost}) can use the segment's actual bound instead of a fixed, codec-wide constant.
      */
-    interface OptionalDecodeSizeHint {
+    interface OptionalDecodeMemoryUsageEstimator {
         /**
-         * @return the largest number of bytes a single decode of this reader's storage can allocate, or {@code 0}
-         *         if this reader's storage never buffers more than the value's own bytes (e.g. uncompressed storage).
+         * @return the largest number of bytes a single decode of this reader's storage can allocate, {@code 0} if
+         *         this reader's storage never buffers more than the value's own bytes (e.g. uncompressed storage),
+         *         or {@code -1} if this instance can't provide an estimate.
          */
-        long maxDecodeBytes();
+        default long maxDecodeBytes() {
+            return -1;
+        }
     }
 
     /**

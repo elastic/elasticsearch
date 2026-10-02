@@ -385,9 +385,9 @@ The connector service has the following known issues:
 
     A single cached LDAP connection could sit idle for hours between user batches; a dropped connection then failed user enumeration and aborted the sync.
 
-    **Affected versions**: 8.11.0–8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3. On-prem Exchange with Active Directory only.
+    **Affected versions**: 8.11.0–8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4. On-prem Exchange with Active Directory only.
 
-    **Fix**: [elastic/connectors#4441](https://github.com/elastic/connectors/pull/4441), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+    **Fix**: [elastic/connectors#4441](https://github.com/elastic/connectors/pull/4441), shipped in 8.19.22, 9.4.8, 9.5.5, and 9.6.0.
 
 
 * **Outlook connector fails when Exchange returns `ErrorMailboxStoreUnavailable` while reading folders**

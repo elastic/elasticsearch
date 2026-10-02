@@ -392,11 +392,10 @@ public class SharedBlobCacheWarmingService {
 
     public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX = SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME
         + ".recovery_warming_timeout_reevaluation";
-    /**
-     * Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and opening a shard.
-     * This means that warming for a shard will continue extending until we need to stop to give minimum time slices for to-be-relocated shards to relocate.
-     * Enabling this setting should reduce blob store cache misses after shard relocations.
-     */
+
+    /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
+    /// opening a shard. This means that warming for a shard will continue extending until we need to stop to give minimum time slices for
+    /// to-be-relocated shards to relocate. Enabling this setting should reduce blob store cache misses after shard relocations.
     public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
         false,
@@ -404,11 +403,9 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Minimum re-evaluation slice that is worth rescheduling. When the remaining grace-period budget would produce a slice shorter than
-     * this value, the re-evaluation loop terminates and recovery resumes immediately. Setting this too low (approaching zero) risks a
-     * busy-reschedule loop; setting it too high causes the loop to abort earlier than necessary, reducing the warming window.
-     */
+    /// Minimum re-evaluation slice that is worth rescheduling. When the remaining grace-period budget would produce a slice shorter than
+    /// this value, the re-evaluation loop terminates and recovery resumes immediately. Setting this too low (approaching zero) risks a
+    /// busy-reschedule loop; setting it too high causes the loop to abort earlier than necessary, reducing the warming window.
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING = Setting.timeSetting(
         SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".abort_threshold",
         TimeValue.timeValueMillis(300L),
@@ -417,13 +414,11 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Minimum grace-period budget reserved per wave of pending shards on the relocation source when computing the timeout slice for a
-     * relocating shard. Pending (STARTED, not yet relocating) shards still on the source are expected to relocate in parallel waves, whose
-     * size is approximated by the number of relocations currently in flight from the source to the target. For each such wave, this many
-     * milliseconds are subtracted from the available budget before capping the current shard's slice. This prevents in-flight
-     * re-evaluations from consuming all remaining grace time and leaving later-starting shards with no warming budget at all.
-     */
+    /// Minimum grace-period budget reserved per wave of pending shards on the relocation source when computing the timeout slice for a
+    /// relocating shard. Pending (STARTED, not yet relocating) shards still on the source are expected to relocate in parallel waves, whose
+    /// size is approximated by the number of relocations currently in flight from the source to the target. For each such wave, this many
+    /// milliseconds are subtracted from the available budget before capping the current shard's slice. This prevents in-flight
+    /// re-evaluations from consuming all remaining grace time and leaving later-starting shards with no warming budget at all.
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting
         .timeSetting(
             SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".min_budget_per_pending_shard",

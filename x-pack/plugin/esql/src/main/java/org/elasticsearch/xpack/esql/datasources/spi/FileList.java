@@ -203,8 +203,8 @@ public interface FileList {
      * or size) yields a different one. This makes the fingerprint a content-addressed cache key for
      * dataset-level derived state (e.g. the warm COUNT(*) aggregate): keys derived from it are
      * correct-or-miss by construction, with no separate invalidation protocol — and they survive listing
-     * refreshes (the 30s listing TTL) as long as the underlying files are unchanged, because the
-     * fingerprint derives from listing CONTENT, not listing object identity.
+     * refreshes (the listing TTL, five minutes by default) as long as the underlying files are unchanged,
+     * because the fingerprint derives from listing CONTENT, not listing object identity.
      * <p>
      * {@code null} for the sentinels and for implementations that do not compute one.
      */

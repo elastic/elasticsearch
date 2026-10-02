@@ -179,9 +179,12 @@ public class ExternalSourceResolver {
 
     /**
      * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
-     * Not a measured deep size.
+     * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
+     * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
+     * leaves a few megabytes of slack at the default discovered-files cap. A file with its own attribute list
+     * can exceed it.
      */
-    private static final long SCHEMA_MAP_BYTES_PER_FILE = 760L;
+    private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
@@ -369,6 +372,18 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Bytes held for this listing after resolve. The walk (or a cache hit) reserves
+     * {@link FileList#LISTING_BYTES_PER_ENTRY} per file; compact listings weigh less and keep that floor.
+     * {@link FileList#planningBytes()} is used when it is larger. The per-file schema-map allowance is then
+     * added. Visible for tests that pin the charge at the discovered-files cap.
+     */
+    public static long listingPlanningCharge(FileList listing) {
+        long files = listing.fileCount();
+        long listingHeld = Math.max(files * FileList.LISTING_BYTES_PER_ENTRY, listing.planningBytes());
+        return listingHeld + files * SCHEMA_MAP_BYTES_PER_FILE;
+    }
+
+    /**
      * Reserves the per-file schema map this listing will carry. The listing's own entries were reserved as they
      * were listed ({@link #planningMemory()}); this is the map built over them afterwards, whose size is known
      * only once the listing is complete.
@@ -378,15 +393,12 @@ public class ExternalSourceResolver {
         if (reservation == null) {
             return;
         }
-        // One LISTING_BYTES_PER_ENTRY per entry is already reserved: by the walk as it retained them, or - when the
-        // listing came from the cache and no walk ran - by DatasetListingService.cachedListing, which reserves that
-        // same figure for exactly this subtraction to stay valid. What is left is the listing's fixed overhead, its
-        // header and any notices it carries, plus the per-file schema map built over it, neither of which is known
-        // until the listing is complete. The two together come to exactly what this charged in one go before the walk
-        // started reserving.
+        // The walk (or cachedListing) already reserved LISTING_BYTES_PER_ENTRY per file. Compact listings weigh
+        // less than that floor; those bytes stay held. Charge any listing weight above the floor, then the schema
+        // map. The schema map is a separate add so a smaller allowance cannot be swallowed by max(0).
         long alreadyReserved = listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY;
-        long remainder = listing.planningBytes() - alreadyReserved + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
-        reservation.chargeQuery(Math.max(0L, remainder));
+        long listingRemainder = Math.max(0L, listing.planningBytes() - alreadyReserved);
+        reservation.chargeQuery(listingRemainder + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
     }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */

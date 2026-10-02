@@ -208,7 +208,8 @@ public final class MetadataAttribute extends TypedAttribute {
     }
 
     public static boolean isScoreAttribute(Expression a) {
-        return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
+        return a instanceof MetadataAttribute ma && ma.name().equals(SCORE)
+            || a instanceof ExternalMetadataAttribute ema && ema.name().equals(SCORE);
     }
 
     public static boolean isTimeSeriesAttributeName(String name) {

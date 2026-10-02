@@ -327,30 +327,46 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         assertThat(updatedServiceSettings, is(serviceSettings));
     }
 
-    public void testUpdateServiceSettings_NullRateLimit_KeepsCurrentRateLimit() {
-        var serviceSettings = createServiceSettingsWithNonDefaultRateLimit();
+    public void testUpdateServiceSettings_ExplicitNullRateLimit_RevertsToDefault() {
         var updateMap = new HashMap<String, Object>();
         updateMap.put(RateLimitSettings.FIELD_NAME, null);
 
-        var updatedServiceSettings = serviceSettings.updateServiceSettings(updateMap);
-
-        assertThat(updatedServiceSettings, is(serviceSettings));
+        assertUpdateRevertsRateLimitToDefault(updateMap);
     }
 
-    public void testUpdateServiceSettings_NullRequestsPerMinute_KeepsCurrentRateLimit() {
-        var serviceSettings = createServiceSettingsWithNonDefaultRateLimit();
+    public void testUpdateServiceSettings_EmptyRateLimitObject_RevertsToDefault() {
+        assertUpdateRevertsRateLimitToDefault(new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>())));
+    }
+
+    public void testUpdateServiceSettings_NullRequestsPerMinute_RevertsToDefault() {
         var rateLimitMap = new HashMap<String, Object>();
         rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
 
-        var updatedServiceSettings = serviceSettings.updateServiceSettings(
-            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap))
-        );
+        assertUpdateRevertsRateLimitToDefault(new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap)));
+    }
+
+    public void testUpdateServiceSettings_RateLimitAbsent_KeepsCurrentRateLimit() {
+        var serviceSettings = createServiceSettingsWithNonDefaultRateLimit();
+
+        var updatedServiceSettings = serviceSettings.updateServiceSettings(new HashMap<>());
 
         assertThat(updatedServiceSettings, is(serviceSettings));
     }
 
+    private void assertUpdateRevertsRateLimitToDefault(Map<String, Object> updateSettings) {
+        var serviceSettings = createServiceSettingsWithNonDefaultRateLimit();
+
+        var updatedServiceSettings = (CohereServiceSettings) serviceSettings.updateServiceSettings(updateSettings);
+
+        assertThat(
+            updatedServiceSettings.commonSettings().rateLimitSettings(),
+            is(CohereCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS)
+        );
+    }
+
     /**
-     * Creates settings whose rate limit differs from the default, so an update that wrongly resets it would be detected.
+     * Creates settings whose rate limit differs from the default, so an update that resets the rate limit can be told apart from one
+     * that keeps the current value.
      */
     private T createServiceSettingsWithNonDefaultRateLimit() {
         var serviceSettings = createGivenCommonSettings(

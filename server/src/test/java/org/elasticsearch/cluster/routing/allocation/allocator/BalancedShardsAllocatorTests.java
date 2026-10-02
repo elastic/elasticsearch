@@ -59,6 +59,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -97,8 +98,10 @@ import static org.elasticsearch.cluster.routing.allocation.decider.DiskThreshold
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -1976,21 +1979,69 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         return name != null && name.isEmpty() == false ? name : sourceNodeId;
     }
 
+    public void testNoCanRemainMetricsRecordedWhenAllShardsCanRemain() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        assertThat(allocateAndGetCanRemainMeasurements(TestRoutingAllocationFactory.forClusterState(clusterState).mutable()), empty());
+    }
+
+    public void testNoCanRemainMetricsRecordedWhenNoTargetNodeCanAcceptShard() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(new CannotRemainAndNoTargetDecider())
+            .mutable();
+        assertThat(allocateAndGetCanRemainMeasurements(allocation), empty());
+        // The shard wanted to move but had nowhere to go
+        assertThat(allocation.routingNodes().getRelocatingShardCount(), equalTo(0));
+    }
+
+    public void testNoCanRemainMetricsRecordedForRebalanceMoves() {
+        final var discoveryNodes = DiscoveryNodes.builder().add(newNode("node-0")).add(newNode("node-1"));
+        final var metadataBuilder = Metadata.builder();
+        final var routingTableBuilder = RoutingTable.builder();
+        // Add an index, placing all 4 shards on a single node
+        addIndex(metadataBuilder, routingTableBuilder, randomIdentifier(), Map.of("node-0", 4));
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
+        assertThat(allocateAndGetCanRemainMeasurements(allocation), empty());
+        // The shards were moved to balance the cluster, not because they couldn't remain
+        assertThat(allocation.routingNodes().getRelocatingShardCount(), greaterThan(0));
+    }
+
     private Map<String, Object> allocateAndGetCanRemainMetricAttributes(RoutingAllocation allocation) {
-        final var meterRegistry = new RecordingMeterRegistry();
-        final var allocator = new BalancedShardsAllocator(
-            BalancerSettings.DEFAULT,
-            TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            new BalancedShardsAllocatorMetrics(meterRegistry)
-        );
-        allocator.allocate(allocation);
-        final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocatorMetrics.CANNOT_REMAIN_MOVE_METRIC);
+        final var measurements = allocateAndGetCanRemainMeasurements(allocation);
         assertThat(measurements, hasSize(1));
         final var measurement = measurements.getFirst();
         assertThat(measurement.getLong(), is(1L));
         return measurement.attributes();
+    }
+
+    private List<Measurement> allocateAndGetCanRemainMeasurements(RoutingAllocation allocation) {
+        final var meterRegistry = new RecordingMeterRegistry();
+        new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
+            new BalancedShardsAllocatorMetrics(meterRegistry)
+        ).allocate(allocation);
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocatorMetrics.CANNOT_REMAIN_MOVE_METRIC);
+    }
+
+    /** canRemain is NO everywhere and no node can accept the shard, so no move is possible. */
+    private static class CannotRemainAndNoTargetDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
     }
 
     /**

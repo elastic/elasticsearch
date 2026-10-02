@@ -682,7 +682,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      */
     public void testCloseWhileSegmentatorParkedOnBufferPool() throws Exception {
         byte[] payload = "abc\n".repeat(1024).getBytes(StandardCharsets.UTF_8);
-        ExecutorService executor = Executors.newFixedThreadPool(6);
+        // Thread.getAllStackTraces() is forbidden, so track the pool's own threads to inspect their stacks.
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
         try {
             CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
                 new LineFormatReader(256),
@@ -694,7 +700,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 ErrorPolicy.STRICT
             );
             assertBusy(
-                () -> assertTrue("segmentator not parked on the buffer pool", isParkedInTakeOrAllocateBuffer()),
+                () -> assertTrue("segmentator not parked on the buffer pool", isParkedInTakeOrAllocateBuffer(poolThreads)),
                 5,
                 TimeUnit.SECONDS
             );
@@ -708,10 +714,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    private static boolean isParkedInTakeOrAllocateBuffer() {
-        for (Map.Entry<Thread, StackTraceElement[]> entry : Thread.getAllStackTraces().entrySet()) {
-            if (entry.getKey().getState() == Thread.State.WAITING
-                && Arrays.stream(entry.getValue()).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"))) {
+    private static boolean isParkedInTakeOrAllocateBuffer(List<Thread> threads) {
+        for (Thread thread : threads) {
+            if (thread.getState() == Thread.State.WAITING
+                && Arrays.stream(thread.getStackTrace()).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"))) {
                 return true;
             }
         }

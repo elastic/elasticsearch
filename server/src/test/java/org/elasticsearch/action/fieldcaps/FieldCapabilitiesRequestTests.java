@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;

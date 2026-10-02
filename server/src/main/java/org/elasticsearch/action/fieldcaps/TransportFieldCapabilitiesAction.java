@@ -408,7 +408,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 localIndices,
                 nowInMillis,
                 concreteLocalIndices,
-                canCache(request, concreteLocalIndices) ? cache : null,
+                canCache(request, remoteClusterIndices, concreteLocalIndices) ? cache : null,
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,

@@ -21,7 +21,8 @@ import java.util.Map;
  *
  * <p>Summed counts under-state, so reaching the coverage bar with them proves a dictionary worth keeping. A
  * bound taken under a cap no smaller than this merge's over-states, so falling short of the bar proves that
- * no dictionary can reach it. Anything else is left to the caller, which surveys the merged values.
+ * no dictionary can reach it. Where neither proves it and the summary was allowed the dictionary's bytes,
+ * the column is written plain against the summed terms; only a tighter summary cap leaves it to the values.
  *
  * <p>Summaries are summed as they arrive and trimmed to {@link SummaryPolicy#mergeBudgetBytes}, so the
  * terms held do not grow with the number of inputs.
@@ -101,7 +102,9 @@ public final class SummaryMerger {
     /**
      * What the summaries settle about the merged column's dictionary. Summed counts under-state, so
      * reaching {@code minCoverage} with them proves a dictionary worth keeping; the bound over-states, so
-     * falling short of it proves none can be. Anything else leaves the values to decide.
+     * falling short of it proves none can be. Where neither proves it, the terms are still returned to write
+     * the column plain against, unless the summary cap is tighter than the dictionary's and the values may
+     * hold terms it could not record.
      *
      * @param countsAreLive whether the counts still describe values that are there. Deleted ones settle
      *                      nothing: they neither bound the column from above nor witness it from below.

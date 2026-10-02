@@ -84,7 +84,8 @@ public final class StringColumnWriter {
      *                                  remaining pass (values, and on the dictionary path the ordinals)
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
-     * @param precomputedVocabulary                     a vocabulary already worked out for these values, or null to survey them
+     * @param precomputedVocabulary     a vocabulary already worked out for these values, or null to survey
+     *                                  them
      * @param directory                 directory a dictionary column stages its ordinals and escapes in
      * @param context                   IO context for those staged files
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
@@ -541,7 +542,7 @@ public final class StringColumnWriter {
         return (numValues + escapeRankBlockSize - 1) / escapeRankBlockSize + 1L;
     }
 
-    /** Writes the staged escaped values, now that how many of them there are is precomputedVocabulary. */
+    /** Writes the staged escaped values, now that how many of them there are is known. */
     private static ValueStream.Metadata replayEscapes(
         Directory directory,
         String name,

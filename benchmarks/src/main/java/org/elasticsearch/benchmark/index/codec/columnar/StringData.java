@@ -116,7 +116,7 @@ public enum StringData {
      * A small repeated head over a tail distinct to the index, at a share just under the coverage bar. The
      * head is all an input summary can record, since the tail outgrows it, so the summed counts fall short
      * of the bar while the mass they lost is credited in full and the bound clears it. A merge cannot settle
-     * this from the summaries and surveys the values.
+     * this either way from the summaries, so it writes the column plain against them.
      */
     UNDECIDED_HEAD {
         @Override
@@ -127,7 +127,7 @@ public enum StringData {
 
     /**
      * The same shape with the head above the bar, which the summed counts settle on their own. It is the
-     * control for {@link #UNDECIDED_HEAD}: same vocabulary and same bytes, without the survey.
+     * control for {@link #UNDECIDED_HEAD}: same vocabulary and same bytes, settled by the counts alone.
      */
     SETTLED_HEAD {
         @Override
@@ -245,7 +245,6 @@ public enum StringData {
         }
     },
 
-    /** A trace id: entirely distinct, and long enough that the values dominate the column. */
     /**
      * An opaque session identifier, with as many distinct values as a segment holds documents. A term is
      * held about once per segment and about once per segment in every other segment too, which is the band
@@ -268,6 +267,7 @@ public enum StringData {
         }
     },
 
+    /** A trace id: entirely distinct, and long enough that the values dominate the column. */
     TRACE_ID {
         @Override
         BytesRef[] generate(int count, Random random) {

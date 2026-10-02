@@ -271,9 +271,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             DICTIONARY_UNION,
             /** Summed from what the segments recorded surveying, when their dictionaries do not cover it. */
             COMBINED_SUMMARIES,
-            /** Ruled out by what the segments recorded, which no dictionary within the cap could better. */
+            /** No dictionary kept, either because the segments' records rule one out or because they cannot
+             * show one, which at equal caps is as much as the values would show. */
             SUMMARY_REFUSAL,
-            /** None of those settled it, so the merged values are surveyed as a flush surveys them. */
+            /** The records cannot speak: a deletion, a segment without one, or a cap tighter than the
+             * dictionary's. The merged values are surveyed as a flush surveys them. */
             SURVEY
         }
     }
@@ -283,9 +285,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     /**
      * How a merged column's vocabulary is settled, without reading a value where that is possible.
      *
-     * <p>Three ways, tried in order: the union of the segments' own dictionaries, which names every value
-     * between them; what the segments summarised, whose summed counts can prove a dictionary worth keeping
-     * and whose best coverage can prove none is; and failing both, the values.
+     * <p>Tried in order: the union of the segments' own dictionaries, which names every value between them;
+     * what the segments summarised, whose summed counts can prove a dictionary worth keeping and whose best
+     * coverage can prove none is, and which decides the layout either way while it was allowed the
+     * dictionary's bytes; and the values, where deletions, a missing summary or a tighter cap leave the
+     * records unable to speak.
      */
     MergedVocabulary mergedVocabulary(
         FieldInfo field,

@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -104,16 +105,22 @@ public class FieldInfoCachingDirectoryTests extends ESTestCase {
             cache.internFieldInfo("ephemeral", () -> makeFieldInfo("ephemeral", 0, 0L));
             assertEquals(1, cache.fieldInfoCacheSize());
 
-            // The next intern call will drain stale refs; eventually GC will clear the weak ref and the entry will be removed.
+            // Hold a strong reference to a separate trigger entry so it is never reclaimed.
+            // Once the ephemeral entry is reclaimed and drained, only the trigger entry remains.
+            FieldInfo trigger = cache.internFieldInfo("trigger", () -> makeFieldInfo("trigger", 1, 0L));
+            assertEquals(2, cache.fieldInfoCacheSize());
+
+            // System.gc() is only a hint and the cleared reference is enqueued asynchronously on the ReferenceHandler thread, so retry
+            // until the ephemeral entry is drained.
             assertBusy(() -> {
                 System.gc();
-                // Touch the cache to trigger drainDeadRefs from the intern path.
-                cache.internFieldInfo("trigger-" + System.nanoTime(), () -> makeFieldInfo("trigger", 0, 0L));
-                assertTrue(
+                assertSame(trigger, cache.internFieldInfo("trigger", () -> { throw new AssertionError("trigger must stay cached"); }));
+                assertEquals(
                     "ephemeral FieldInfo entry should be reclaimed once no strong reference remains",
-                    cache.fieldInfoCacheSize() < 2
+                    1,
+                    cache.fieldInfoCacheSize()
                 );
-            });
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,6 +41,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
     GetDataStreamLifecycleStatsAction.Response> {
 
     private final DataStreamLifecycleService lifecycleService;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @Inject
     public TransportGetDataStreamLifecycleStatsAction(
@@ -47,7 +50,8 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataStreamLifecycleService lifecycleService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(
             GetDataStreamLifecycleStatsAction.NAME,
@@ -61,6 +65,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.lifecycleService = lifecycleService;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
     }
 
     @Override
@@ -70,19 +75,20 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         ProjectState state,
         ActionListener<GetDataStreamLifecycleStatsAction.Response> listener
     ) throws Exception {
-        listener.onResponse(collectStats(state.metadata()));
+        listener.onResponse(collectStats(state.metadata(), dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()));
     }
 
     // Visible for testing
-    GetDataStreamLifecycleStatsAction.Response collectStats(ProjectMetadata project) {
+    GetDataStreamLifecycleStatsAction.Response collectStats(ProjectMetadata project, boolean defaultLifecycleForTimeSeriesEnabled) {
         Set<Index> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices(project.id());
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
         for (DataStream dataStream : project.dataStreams().values()) {
-            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
+            DataStreamLifecycle effectiveLifecycle = dataStream.getEffectiveDataLifecycle(defaultLifecycleForTimeSeriesEnabled);
+            if (effectiveLifecycle != null && effectiveLifecycle.enabled()) {
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {
-                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index)) {
+                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index, defaultLifecycleForTimeSeriesEnabled)) {
                         total++;
                         if (indicesInErrorStore.contains(index)) {
                             inError++;

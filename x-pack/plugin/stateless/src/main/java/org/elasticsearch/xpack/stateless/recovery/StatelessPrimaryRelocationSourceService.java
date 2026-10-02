@@ -28,6 +28,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -687,8 +688,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final RelocationRunner runner;
         private final ByteSizeValue maxHeap;
 
-        private int maxConcurrentRelocations = Integer.MAX_VALUE;
-        private double maxConcurrentRelocationsPerHeapGb = Double.MAX_VALUE;
+        /// Effective max concurrent outgoing relocations, derived from
+        /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] and
+        /// [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING].
+        private int effectiveMaxConcurrentOutgoingRelocations;
         private int activeRelocationCount = 0;
 
         private final Queue<PendingRelocation> pendingRelocations = new ArrayDeque<>();
@@ -700,16 +703,25 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.executor = executor;
             this.runner = runner;
             this.maxHeap = maxHeap;
-            clusterService.getClusterSettings()
-                .initializeAndWatchIfRegistered(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                    this::updateMaxConcurrentOutgoingRelocations
-                );
-            clusterService.getClusterSettings()
-                .initializeAndWatchIfRegistered(
-                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
-                    this::updateMaxConcurrentOutgoingRelocationsPerHeapGb
-                );
+
+            final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+            final List<Setting<?>> outgoingThrottleSettings = List.of(
+                PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+            );
+            this.effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(
+                clusterSettings.get(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
+                clusterSettings.get(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING)
+            );
+            // These settings jointly determine the effective outgoing relocation limit. Watch them as a group so that a
+            // single cluster-settings update that changes more than one is applied atomically before startRelocationsUpToLimit runs.
+            clusterSettings.addSettingsUpdateConsumer(
+                settings -> applyOutgoingThrottleSettings(
+                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings),
+                    INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(settings)
+                ),
+                outgoingThrottleSettings
+            );
         }
 
         @Override
@@ -793,51 +805,35 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         // visible for testing
-        void updateMaxConcurrentOutgoingRelocations(int newMax) {
-            final int oldMax;
+        void applyOutgoingThrottleSettings(int newMax, double newHeapRatio) {
+            final boolean maxIncreased;
             synchronized (this) {
-                oldMax = maxConcurrentRelocations;
-                maxConcurrentRelocations = newMax;
+                final int oldMax = effectiveMaxConcurrentOutgoingRelocations;
+                effectiveMaxConcurrentOutgoingRelocations = effectiveMaxConcurrentRelocations(newMax, newHeapRatio);
+                maxIncreased = oldMax < effectiveMaxConcurrentOutgoingRelocations;
             }
-            if (oldMax < newMax) {
+            if (maxIncreased) {
                 // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
                 // applier thread stops before the thread pool shuts down so this should never be rejected.
                 executor.execute(this::startRelocationsUpToLimit);
             }
         }
 
-        // visible for testing
-        void updateMaxConcurrentOutgoingRelocationsPerHeapGb(double newRatio) {
-            final double oldRatio;
-            synchronized (this) {
-                oldRatio = maxConcurrentRelocationsPerHeapGb;
-                maxConcurrentRelocationsPerHeapGb = newRatio;
-            }
-            if (oldRatio < newRatio) {
-                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
-                // applier thread stops before the thread pool shuts down so this should never be rejected.
-                executor.execute(this::startRelocationsUpToLimit);
-            }
-        }
-
-        /// Returns the effective max concurrent outgoing relocations, derived from [#maxConcurrentRelocations] and
-        /// [#maxConcurrentRelocationsPerHeapGb].
-        private int effectiveMaxConcurrentRelocations() {
-            assert Thread.holdsLock(this);
+        /// Computes the effective max concurrent outgoing relocations from the static and heap-based limits.
+        private int effectiveMaxConcurrentRelocations(int maxConcurrent, double perHeapGb) {
             final double heapInGb = maxHeap.getGbFrac();
             assert heapInGb >= 0;
             if (heapInGb == 0) { // Heap size unknown, fall back to the static limit.
-                return maxConcurrentRelocations;
+                return maxConcurrent;
             }
-            return Math.min(maxConcurrentRelocations, (int) Math.ceil(heapInGb * maxConcurrentRelocationsPerHeapGb));
+            return Math.min(maxConcurrent, (int) Math.ceil(heapInGb * perHeapGb));
         }
 
         private void startRelocationsUpToLimit() {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             final List<PendingRelocation> relocationsToStart = new ArrayList<>();
             synchronized (this) {
-                final int effectiveMax = effectiveMaxConcurrentRelocations();
-                while (activeRelocationCount < effectiveMax && pendingRelocations.isEmpty() == false) {
+                while (activeRelocationCount < effectiveMaxConcurrentOutgoingRelocations && pendingRelocations.isEmpty() == false) {
                     final PendingRelocation relocation = pendingRelocations.poll();
                     relocationsToStart.add(relocation);
                     relocation.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();

@@ -68,7 +68,43 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
         }
         assertEquals("exclusion warnings", raw.listingWarnings(), compact.listingWarnings());
+        PartitionMetadata rawPm = raw.partitionMetadata();
+        PartitionMetadata compactPm = compact.partitionMetadata();
+        if (rawPm != null && rawPm.isEmpty() == false) {
+            assertNotNull(compactPm);
+            assertFalse(compactPm.isEmpty());
+            assertEquals(rawPm.partitionColumns(), compactPm.partitionColumns());
+            for (int i = 0; i < raw.fileCount(); i++) {
+                for (String col : rawPm.partitionColumns().keySet()) {
+                    assertEquals(
+                        "partition [" + col + "] at " + i,
+                        rawPm.getValue(i, raw.path(i), col),
+                        compactPm.getValue(i, compact.path(i), col)
+                    );
+                }
+            }
+            if (compact != raw && directoriesRepeat(raw)) {
+                assertThat(
+                    "shared rows follow directories, including a dictionary listing",
+                    compactPm.rowCount(),
+                    Matchers.lessThan(compactPm.fileCount())
+                );
+            }
+        }
         return compact;
+    }
+
+    /** True when at least two listed files share a parent directory, so grouping can shrink the row count. */
+    private static boolean directoriesRepeat(GenericFileList raw) {
+        Set<String> parents = new HashSet<>();
+        for (int i = 0; i < raw.fileCount(); i++) {
+            StoragePath parent = raw.path(i).parentDirectory();
+            String key = parent == null ? "" : parent.toString();
+            if (parents.add(key) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void assertPathsDistinct(FileList list) {
@@ -301,6 +337,7 @@ public class FileListCompactorTests extends ESTestCase {
         }
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", keys.toArray(new String[0])));
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+        assertEquals(compact.fileCount(), compact.partitionMetadata().rowCount());
     }
 
     // ------------------------------------------------------------------
@@ -423,8 +460,9 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     /**
-     * Partition maps are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache weight and
-     * does not grow with them; {@link FileList#planningBytes()} adds 560 bytes per partitioned file.
+     * Partition value arrays are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache
+     * weight and does not grow with them; {@link FileList#planningBytes()} adds
+     * {@link PartitionMetadata#planningBytes()}.
      */
     public void testPlanningBytesAddsPartitionMetadataOnGroupedList() {
         String base = "s3://b/d/";
@@ -432,18 +470,28 @@ public class FileListCompactorTests extends ESTestCase {
         FileList grouped = FileListCompactor.compact(base, raw);
         assertThat(grouped, Matchers.instanceOf(DirectoryGroupedFileList.class));
         assertFalse(grouped.partitionMetadata().isEmpty());
-        int partitionedFiles = grouped.partitionMetadata().filePartitionValues().size();
-        assertThat(partitionedFiles, Matchers.greaterThan(0));
-        assertEquals(grouped.estimatedBytes() + 560L * partitionedFiles, grouped.planningBytes());
+        // Two files under the same directory share one value row after DGF compaction.
+        assertEquals(2, grouped.partitionMetadata().fileCount());
+        assertEquals(1, grouped.partitionMetadata().rowCount());
+        assertEquals(grouped.estimatedBytes() + grouped.partitionMetadata().planningBytes(), grouped.planningBytes());
 
         // Same entries with and without partition metadata: estimatedBytes is the listing-cache weight and
-        // must not grow when the partition map is attached. planningBytes is the one that adds 560 per file.
+        // must not grow when the partition map is attached. planningBytes adds the columnar estimate.
         GenericFileList without = new GenericFileList(raw.files(), raw.originalPattern(), PartitionMetadata.EMPTY);
         GenericFileList with = new GenericFileList(raw.files(), raw.originalPattern(), grouped.partitionMetadata());
         assertEquals(without.estimatedBytes(), with.estimatedBytes());
         assertEquals(without.estimatedBytes(), without.planningBytes());
-        assertEquals(with.estimatedBytes() + 560L * with.partitionMetadata().filePartitionValues().size(), with.planningBytes());
+        assertEquals(with.estimatedBytes() + with.partitionMetadata().planningBytes(), with.planningBytes());
         assertThat(with.planningBytes(), Matchers.greaterThan(with.estimatedBytes()));
+    }
+
+    /** Values are looked up by listing position, so metadata covering a different file count must not be attached. */
+    public void testListingRejectsMisalignedPartitionMetadata() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2025/f2.parquet");
+        PartitionMetadata twoFiles = raw.partitionMetadata();
+        List<StorageEntry> oneFile = List.of(raw.files().get(0));
+        expectThrows(AssertionError.class, () -> new GenericFileList(oneFile, raw.originalPattern(), twoFiles));
     }
 
     /** Empty partition metadata adds nothing on top of {@link FileList#estimatedBytes()}. */

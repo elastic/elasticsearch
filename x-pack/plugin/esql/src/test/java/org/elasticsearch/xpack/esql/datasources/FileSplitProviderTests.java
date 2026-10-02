@@ -921,6 +921,15 @@ public class FileSplitProviderTests extends ESTestCase {
                 Set.of("name")
             )
         );
+        // Unlike Equals, the prefix need not be a literal: STARTS_WITH(null, anything) is unknown,
+        // so a file missing the left column is still unread. That over-skips vs a two-column Equals.
+        assertTrue(
+            "STARTS_WITH on a missing column skips even when the prefix is another column",
+            FileSplitProvider.skipIfFilterOnMissingColumns(
+                List.of(new StartsWith(SRC, keywordField("status"), keywordField("name"))),
+                Set.of("name")
+            )
+        );
     }
 
     // --- multivalue comparison functions: what the out-of-band request filter translates into ---

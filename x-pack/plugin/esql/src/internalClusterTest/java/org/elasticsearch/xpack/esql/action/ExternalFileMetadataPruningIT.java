@@ -233,8 +233,11 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
     }
 
     /**
-     * {@code registerLocalFileDataset} stores {@code first_file_wins}, so resolution re-lists in
-     * {@code listForQuery} and prefix listing hints can drop files before they are opened.
+     * {@code registerLocalFileDataset} stores {@code first_file_wins}, so resolution re-lists
+     * through {@code listForQuery}. Path coverage of that re-list: it must not fail, and
+     * evaluateFilter still skips the non-prefix file. COUNT/rowsEmitted match the union_by_name
+     * tests even if listing hints are broken — listing-size shrink is
+     * {@code PartitionFilterHintExtractorTests} and {@code GlobExpanderTests}.
      */
     public void testStartsWithFileNamePrunesAtListingFirstFileWins() throws Exception {
         assertPrefixPruned(

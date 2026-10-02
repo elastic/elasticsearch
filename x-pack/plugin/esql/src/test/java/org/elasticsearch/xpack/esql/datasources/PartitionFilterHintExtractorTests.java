@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -722,6 +723,21 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     public void testResolvedEmptyPrefixEmitsNothing() {
         Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(""));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedOrOfTwoPrefixesEmitsNothing() {
+        // Walking OR would AND two GTE/LT ranges in matchesAllFileHints and drop every file.
+        Expression filter = new Or(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-")),
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("b-"))
+        );
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedCaseInsensitiveLikeEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"), true);
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
     }
 

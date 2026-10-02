@@ -7,10 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.junit.Before;
 
@@ -18,7 +26,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -311,6 +321,528 @@ public class ParsedFooterCacheTests extends ESTestCase {
         FooterByteCache.Key k = key("file.parquet", 1000);
         assertSame("v", fromSettings.getOrLoad(k, ignore -> "v"));
         assertSame("v", fromSettings.get(k));
+    }
+
+    public void testFromSettingsReadsCoalesceSetting() {
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        ParsedFooterCache<String> coalescing = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);
+        AtomicInteger loads = new AtomicInteger();
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        coalescing.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            held.set(l);
+        }, leader);
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        coalescing.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            l.onResponse("no");
+        }, waiter);
+        held.get().onResponse("v");
+        assertEquals(1, loads.get());
+        assertSame("v", leader.actionGet(0, TimeUnit.SECONDS));
+        assertSame("v", waiter.actionGet(0, TimeUnit.SECONDS));
+
+        ParsedFooterCache<String> threeArg = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TTL, ignored -> ENTRY_WEIGHT);
+        AtomicInteger threeArgLoads = new AtomicInteger();
+        AtomicReference<ActionListener<String>> threeArgHeld = new AtomicReference<>();
+        PlainActionFuture<String> threeArgLeader = new PlainActionFuture<>();
+        threeArg.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            threeArgLoads.incrementAndGet();
+            threeArgHeld.set(l);
+        }, threeArgLeader);
+        PlainActionFuture<String> threeArgWaiter = new PlainActionFuture<>();
+        threeArg.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            threeArgLoads.incrementAndGet();
+            l.onResponse("no");
+        }, threeArgWaiter);
+        threeArgHeld.get().onResponse("default-on");
+        assertEquals("3-arg constructor defaults coalesce on", 1, threeArgLoads.get());
+        assertSame("default-on", threeArgWaiter.actionGet(0, TimeUnit.SECONDS));
+
+        ParsedFooterCache<String> disabled = ParsedFooterCache.fromSettings(
+            Settings.builder().put(ExternalSourceCacheSettings.FOOTER_COALESCE.getKey(), false).build(),
+            ignored -> ENTRY_WEIGHT
+        );
+        AtomicInteger disabledLoads = new AtomicInteger();
+        List<ActionListener<String>> heldLoads = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            disabled.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+                disabledLoads.incrementAndGet();
+                heldLoads.add(l);
+            }, new PlainActionFuture<>());
+        }
+        assertEquals("coalesce off starts one load per caller", 3, disabledLoads.get());
+        heldLoads.forEach(l -> l.onResponse("v"));
+        assertEquals(0, disabled.asyncInFlightCount());
+    }
+
+    /**
+     * Fourteen sequential attaches against a held-open loader must share one load and the same
+     * instance, and the in-flight map must drain before waiters run.
+     */
+    public void testAsyncFourteenCallersCoalesceToOneLoad() {
+        FooterByteCache.Key k = key("shared.parquet", 5000);
+        String expected = "winner";
+        AtomicInteger loadCount = new AtomicInteger();
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loadCount.incrementAndGet();
+            held.set(l);
+        }, leader);
+
+        List<DeterministicTaskQueue> queues = new ArrayList<>();
+        List<PlainActionFuture<String>> waiters = new ArrayList<>();
+        for (int i = 0; i < 13; i++) {
+            DeterministicTaskQueue queue = new DeterministicTaskQueue();
+            queues.add(queue);
+            PlainActionFuture<String> future = new PlainActionFuture<>();
+            waiters.add(future);
+            cache.getOrLoadAsync(k, queue::scheduleNow, l -> {
+                loadCount.incrementAndGet();
+                l.onResponse("should-not-run");
+            }, future);
+            assertFalse("waiter must not complete before the load", future.isDone());
+        }
+        assertEquals(1, loadCount.get());
+        assertEquals(1, cache.asyncInFlightCount());
+
+        AtomicBoolean sawEmptyMap = new AtomicBoolean();
+        PlainActionFuture<String> directWaiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loadCount.incrementAndGet();
+            l.onResponse("should-not-run");
+        }, ActionListener.wrap(v -> {
+            assertEquals("remove before notify: DIRECT waiter runs inside flight completion", 0, cache.asyncInFlightCount());
+            sawEmptyMap.set(true);
+            directWaiter.onResponse(v);
+        }, directWaiter::onFailure));
+
+        held.get().onResponse(expected);
+        assertSame(expected, leader.actionGet(0, TimeUnit.SECONDS));
+        assertSame(expected, directWaiter.actionGet(0, TimeUnit.SECONDS));
+        assertTrue(sawEmptyMap.get());
+        assertSame("put then remove then notify: cache visible before waiters run", expected, cache.get(k));
+        assertEquals(0, cache.asyncInFlightCount());
+        for (PlainActionFuture<String> waiter : waiters) {
+            assertFalse("waiters complete on their own executor, not inline", waiter.isDone());
+        }
+        for (int i = 0; i < waiters.size(); i++) {
+            queues.get(i).runAllRunnableTasks();
+            assertSame(expected, waiters.get(i).actionGet(0, TimeUnit.SECONDS));
+        }
+        assertEquals(1, loadCount.get());
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncRepeeksAndRemovesWhenCacheFilled() {
+        FooterByteCache.Key k = key("seeded.parquet", 1000);
+        String seeded = "seeded";
+        cache.put(k, seeded);
+        AtomicInteger loads = new AtomicInteger();
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            l.onResponse("loaded");
+        }, future);
+        assertEquals("re-peek hit must not invoke the loader", 0, loads.get());
+        assertSame(seeded, future.actionGet(0, TimeUnit.SECONDS));
+        assertEquals("re-peek hit must remove the flight", 0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncOversizedReturnedNotAdmitted() {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key small = key("small.parquet", 1);
+        FooterByteCache.Key oversized = key("wide.parquet", 2);
+        weighted.put(small, "abc");
+        PlainActionFuture<String> future = new PlainActionFuture<>();
+        weighted.getOrLoadAsync(oversized, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> l.onResponse("eleven chrs"), future);
+        assertEquals("eleven chrs", future.actionGet(0, TimeUnit.SECONDS));
+        assertNull("an entry heavier than the budget must not be cached", weighted.get(oversized));
+        assertEquals("abc", weighted.get(small));
+        assertEquals(0, weighted.asyncInFlightCount());
+    }
+
+    public void testAsyncFailureNotCachedWaitersCoalesceIntoOneRetry() {
+        FooterByteCache.Key k = key("bad.parquet", 1000);
+        RuntimeException boom = new RuntimeException("simulated parse failure");
+        String recovered = "recovered";
+        AtomicInteger loads = new AtomicInteger();
+        List<ActionListener<String>> heldLoads = new ArrayList<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            heldLoads.add(l);
+        }, leader);
+
+        List<DeterministicTaskQueue> queues = new ArrayList<>();
+        List<PlainActionFuture<String>> waiters = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            DeterministicTaskQueue queue = new DeterministicTaskQueue();
+            queues.add(queue);
+            PlainActionFuture<String> future = new PlainActionFuture<>();
+            waiters.add(future);
+            cache.getOrLoadAsync(k, queue::scheduleNow, l -> {
+                loads.incrementAndGet();
+                heldLoads.add(l);
+            }, future);
+        }
+        heldLoads.get(0).onFailure(boom);
+        assertSame(boom, expectThrows(RuntimeException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)));
+        assertNull(cache.get(k));
+        assertEquals(0, cache.asyncInFlightCount());
+
+        for (DeterministicTaskQueue queue : queues) {
+            queue.runAllRunnableTasks();
+        }
+        assertEquals("waiters coalesce into one retry load", 2, loads.get());
+        assertEquals(1, cache.asyncInFlightCount());
+        heldLoads.get(1).onResponse(recovered);
+        for (DeterministicTaskQueue queue : queues) {
+            queue.runAllRunnableTasks();
+        }
+        for (PlainActionFuture<String> waiter : waiters) {
+            assertSame(recovered, waiter.actionGet(0, TimeUnit.SECONDS));
+        }
+        assertSame(recovered, cache.get(k));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncNextCallAfterFailedLoadLoadsAgain() {
+        FooterByteCache.Key k = key("again.parquet", 1000);
+        RuntimeException boom = new RuntimeException("failed");
+        AtomicInteger loads = new AtomicInteger();
+        PlainActionFuture<String> first = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            l.onFailure(boom);
+        }, first);
+        assertSame(boom, expectThrows(RuntimeException.class, () -> first.actionGet(0, TimeUnit.SECONDS)));
+        assertNull("a failed load must not be cached", cache.get(k));
+        PlainActionFuture<String> second = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            l.onResponse("recovered");
+        }, second);
+        assertEquals("next call after a drained failure loads again", 2, loads.get());
+        assertEquals("recovered", second.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncRetryFlightFailureIsFinalForThoseSubscribersFreshCallerStillRetries() {
+        FooterByteCache.Key k = key("retry.parquet", 1000);
+        RuntimeException first = new RuntimeException("first");
+        RuntimeException retryBoom = new RuntimeException("retry");
+        AtomicInteger loads = new AtomicInteger();
+        List<ActionListener<String>> heldLoads = new ArrayList<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            heldLoads.add(l);
+        }, leader);
+
+        DeterministicTaskQueue waiterQueue = new DeterministicTaskQueue();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, waiterQueue::scheduleNow, l -> {
+            loads.incrementAndGet();
+            heldLoads.add(l);
+        }, waiter);
+
+        heldLoads.get(0).onFailure(first);
+        waiterQueue.runAllRunnableTasks();
+        assertEquals(2, loads.get());
+        assertFalse(waiter.isDone());
+
+        DeterministicTaskQueue freshQueue = new DeterministicTaskQueue();
+        PlainActionFuture<String> fresh = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, freshQueue::scheduleNow, l -> {
+            loads.incrementAndGet();
+            heldLoads.add(l);
+        }, fresh);
+
+        heldLoads.get(1).onFailure(retryBoom);
+        waiterQueue.runAllRunnableTasks();
+        assertSame(retryBoom, expectThrows(RuntimeException.class, () -> waiter.actionGet(0, TimeUnit.SECONDS)));
+
+        freshQueue.runAllRunnableTasks();
+        assertEquals("fresh caller whose first attach was the retry flight still retries once", 3, loads.get());
+        heldLoads.get(2).onResponse("ok");
+        freshQueue.runAllRunnableTasks();
+        assertEquals("ok", fresh.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncCancelledWaiterDoesNotRetry() {
+        FooterByteCache.Key k = key("cancel.parquet", 1000);
+        RuntimeException boom = new RuntimeException("failed");
+        AtomicInteger loads = new AtomicInteger();
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            held.set(l);
+        }, leader);
+
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        Executor cancelledWaiter = ExternalIoExecutors.restoring(queue::scheduleNow, null, () -> true);
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, cancelledWaiter, l -> {
+            loads.incrementAndGet();
+            l.onResponse("retry-should-not-run");
+        }, waiter);
+
+        held.get().onFailure(boom);
+        queue.runAllRunnableTasks();
+        assertEquals("cancelled waiter must not retry", 1, loads.get());
+        assertSame(boom, expectThrows(RuntimeException.class, () -> waiter.actionGet(0, TimeUnit.SECONDS)));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncSyncLoaderThrowFailsFlight() {
+        FooterByteCache.Key k = key("throw.parquet", 1000);
+        RuntimeException boom = new RuntimeException("sync throw");
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> { throw boom; }, leader);
+        assertSame(boom, expectThrows(RuntimeException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)));
+        assertNull(cache.get(k));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncLoaderErrorLeavesMapEmpty() {
+        FooterByteCache.Key k = key("oom.parquet", 1000);
+        OutOfMemoryError boom = new OutOfMemoryError("simulated");
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        OutOfMemoryError thrown = expectThrows(
+            OutOfMemoryError.class,
+            () -> cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+                cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, ignored -> fail("waiter must not load"), waiter);
+                throw boom;
+            }, leader)
+        );
+        assertSame(boom, thrown);
+        assertEquals(0, cache.asyncInFlightCount());
+        assertNull(cache.get(k));
+        Exception waiterFailure = expectThrows(Exception.class, () -> waiter.actionGet(0, TimeUnit.SECONDS));
+        assertThat(waiterFailure.getMessage(), org.hamcrest.Matchers.containsString("parsed footer load failed"));
+    }
+
+    /** A weigher/{@code put} throw after a successful load must drain the flight and fail waiters. */
+    public void testAsyncPutThrowDrainsFlightAndFailsWaiters() {
+        ParsedFooterCache<String> throwing = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TTL, v -> {
+            if ("boom".equals(v)) {
+                throw new IllegalStateException("weigher");
+            }
+            return ENTRY_WEIGHT;
+        });
+        FooterByteCache.Key k = key("weigher.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        throwing.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), leader);
+
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        throwing.getOrLoadAsync(k, queue::scheduleNow, l -> l.onResponse("boom"), waiter);
+
+        held.get().onResponse("boom");
+        assertThat(
+            expectThrows(RuntimeException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)).getMessage(),
+            org.hamcrest.Matchers.containsString("weigher")
+        );
+        queue.runAllRunnableTasks();
+        assertThat(
+            expectThrows(RuntimeException.class, () -> waiter.actionGet(0, TimeUnit.SECONDS)).getMessage(),
+            org.hamcrest.Matchers.containsString("weigher")
+        );
+        assertNull(throwing.get(k));
+        assertEquals(0, throwing.asyncInFlightCount());
+    }
+
+    /** Leader CBE belongs to that query; waiters retry once as a coalesced extra GET. */
+    public void testAsyncCircuitBreakingExceptionWaitersRetryOnce() {
+        FooterByteCache.Key k = key("cbe.parquet", 1000);
+        CircuitBreakingException cbe = new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
+        AtomicInteger loads = new AtomicInteger();
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            loads.incrementAndGet();
+            held.set(l);
+        }, leader);
+
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, queue::scheduleNow, l -> {
+            loads.incrementAndGet();
+            l.onResponse("retry-ok");
+        }, waiter);
+
+        held.get().onFailure(cbe);
+        queue.runAllRunnableTasks();
+        assertEquals("waiters retry a leader CBE as one extra load", 2, loads.get());
+        assertSame(cbe, expectThrows(CircuitBreakingException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)));
+        assertEquals("retry-ok", waiter.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+        assertEquals("retry-ok", cache.get(k));
+    }
+
+    /**
+     * Waiters are notified before the leader convert, so they do not sit idle while the leader
+     * runs {@code buildFooterMetadata}.
+     */
+    public void testAsyncWaitersNotifiedBeforeLeaderConvert() {
+        FooterByteCache.Key k = key("order.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        AtomicBoolean waiterDone = new AtomicBoolean();
+        AtomicBoolean leaderSawWaiterDone = new AtomicBoolean();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), ActionListener.wrap(v -> {
+            leaderSawWaiterDone.set(waiterDone.get());
+            leader.onResponse(v);
+        }, leader::onFailure));
+
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> fail("waiter must not load"), ActionListener.wrap(v -> {
+            waiterDone.set(true);
+            waiter.onResponse(v);
+        }, waiter::onFailure));
+
+        held.get().onResponse("footer");
+        assertTrue("DIRECT waiter must finish before the leader listener runs", leaderSawWaiterDone.get());
+        assertEquals("footer", leader.actionGet(0, TimeUnit.SECONDS));
+        assertEquals("footer", waiter.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    /**
+     * Waiters fan out even if the leader convert throws. {@link ActionListener#assertOnce} forbids
+     * a throwing {@code onResponse}, so the leader instead parks until the waiter has finished.
+     */
+    public void testAsyncLeaderConvertThrowStillFansOutWaiters() throws Exception {
+        FooterByteCache.Key k = key("leader-throw.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        CountDownLatch waiterDone = new CountDownLatch(1);
+        CountDownLatch leaderMayFinish = new CountDownLatch(1);
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), ActionListener.wrap(v -> {
+            assertTrue(waiterDone.await(10, TimeUnit.SECONDS));
+            leaderMayFinish.countDown();
+            leader.onResponse(v);
+        }, leader::onFailure));
+
+        PlainActionFuture<String> waiter = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> fail("waiter must not load"), ActionListener.wrap(v -> {
+            waiterDone.countDown();
+            waiter.onResponse(v);
+        }, waiter::onFailure));
+
+        held.get().onResponse("footer");
+        assertTrue(leaderMayFinish.await(10, TimeUnit.SECONDS));
+        assertEquals("footer", waiter.actionGet(0, TimeUnit.SECONDS));
+        assertEquals("footer", leader.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncRejectingWaiterExecutorFailsOnlyThatWaiter() {
+        FooterByteCache.Key k = key("reject.parquet", 1000);
+        String expected = "ok";
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        PlainActionFuture<String> leader = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), leader);
+
+        Executor rejecting = ExternalIoExecutors.preserving(
+            command -> { throw new EsRejectedExecutionException("rejected"); },
+            Runnable::run
+        );
+        PlainActionFuture<String> rejected = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, rejecting, l -> { fail("rejecting waiter must not load"); }, rejected);
+
+        DeterministicTaskQueue okQueue = new DeterministicTaskQueue();
+        PlainActionFuture<String> ok = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, okQueue::scheduleNow, l -> { fail("ok waiter must not load"); }, ok);
+
+        held.get().onResponse(expected);
+        assertSame(expected, leader.actionGet(0, TimeUnit.SECONDS));
+        expectThrows(EsRejectedExecutionException.class, () -> rejected.actionGet(0, TimeUnit.SECONDS));
+        assertFalse(ok.isDone());
+        okQueue.runAllRunnableTasks();
+        assertSame(expected, ok.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncCoalesceDisabledOneLoadPerCaller() {
+        ParsedFooterCache<String> disabled = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TTL, ignored -> ENTRY_WEIGHT, false);
+        FooterByteCache.Key k = key("nocoalesce.parquet", 1000);
+        AtomicInteger loads = new AtomicInteger();
+        List<ActionListener<String>> held = new ArrayList<>();
+        List<PlainActionFuture<String>> futures = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            PlainActionFuture<String> future = new PlainActionFuture<>();
+            futures.add(future);
+            disabled.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+                loads.incrementAndGet();
+                held.add(l);
+            }, future);
+        }
+        assertEquals(4, loads.get());
+        assertEquals(0, disabled.asyncInFlightCount());
+        for (int i = 0; i < held.size(); i++) {
+            held.get(i).onResponse("v" + i);
+        }
+        assertEquals("v0", futures.get(0).actionGet(0, TimeUnit.SECONDS));
+        assertEquals("v3", futures.get(3).actionGet(0, TimeUnit.SECONDS));
+    }
+
+    public void testAsyncSyncGetOrLoadRaceLeavesOneCachedValue() throws Exception {
+        FooterByteCache.Key k = key("race.parquet", 1000);
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        CountDownLatch asyncStarted = new CountDownLatch(1);
+        PlainActionFuture<String> async = new PlainActionFuture<>();
+        cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+            held.set(l);
+            asyncStarted.countDown();
+        }, async);
+        safeAwait(asyncStarted);
+
+        String syncValue = "sync";
+        String fromSync = cache.getOrLoad(k, ignore -> syncValue);
+        held.get().onResponse("async");
+
+        assertEquals("async last writer wins after sync put", "async", cache.get(k));
+        assertEquals(syncValue, fromSync);
+        assertEquals("async", async.actionGet(0, TimeUnit.SECONDS));
+        assertEquals(0, cache.asyncInFlightCount());
+    }
+
+    public void testAsyncRandomizedLoadsAtMostCallersAndMapDrains() {
+        FooterByteCache.Key k = key("rand.parquet", 1000);
+        String value = "v";
+        int callers = randomIntBetween(1, 30);
+        boolean overlap = randomBoolean();
+        AtomicInteger loads = new AtomicInteger();
+        AtomicReference<ActionListener<String>> held = new AtomicReference<>();
+        List<PlainActionFuture<String>> futures = new ArrayList<>(callers);
+        for (int i = 0; i < callers; i++) {
+            PlainActionFuture<String> future = new PlainActionFuture<>();
+            futures.add(future);
+            cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> {
+                loads.incrementAndGet();
+                if (overlap && held.compareAndSet(null, l)) {
+                    return;
+                }
+                l.onResponse(value);
+            }, future);
+        }
+        ActionListener<String> pending = held.get();
+        if (pending != null) {
+            pending.onResponse(value);
+        }
+        for (PlainActionFuture<String> future : futures) {
+            assertSame(value, future.actionGet(0, TimeUnit.SECONDS));
+        }
+        assertEquals(1, loads.get());
+        assertEquals(0, cache.asyncInFlightCount());
     }
 
     private static FooterByteCache.Key key(String path, long length) {

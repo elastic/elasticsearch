@@ -1542,6 +1542,11 @@ public class EsqlCapabilities {
         NESTED_SUBQUERY_IN_FROM_COMMAND_PLANNER_FIX,
 
         /**
+         * Support nested non-correlated subqueries, views with Fork and dataset.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -1695,6 +1700,12 @@ public class EsqlCapabilities {
          * Makes views not visible on remote clusters / linked projects
          */
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
+
+        /**
+         * Support for the {@code wildcards_match_views} query setting, which lets wildcard
+         * patterns in {@code FROM} match registered views.
+         */
+        VIEWS_MATCH_WILDCARDS,
 
         /**
          * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
@@ -3319,6 +3330,12 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -3613,6 +3630,19 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * {@code WHERE IN} / {@code NOT IN} under {@code unmapped_fields="LOAD_ALL"}.
+         * Separate from {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} so nodes that only support FROM subqueries skip these tests.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
+         * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
+         * See https://github.com/elastic/elasticsearch/issues/158466.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3761,6 +3791,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
+         * PromQL math and arithmetic now preserve non-finite IEEE-754 results ({@code NaN}, {@code +Inf},
+         * {@code -Inf}) instead of dropping the series, matching Prometheus. Affects e.g. {@code metric * Inf},
+         * {@code metric * NaN}, {@code metric / 0}, {@code metric % 0}, {@code sqrt(-x)}, {@code ln(-x)},
+         * {@code log2(-x)}, {@code log10(-x)}, and {@code clamp(metric, max, min)} when {@code min > max}.
+         */
+        PROMQL_NON_FINITE_MATH,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
@@ -3790,6 +3828,11 @@ public class EsqlCapabilities {
          * Support for the {@code HIGHLIGHT} command.
          */
         HIGHLIGHT_V6,
+
+        /**
+         * Support for deriving the {@code HIGHLIGHT} query and target fields, including {@code ON *}.
+         */
+        HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -4181,6 +4224,26 @@ public class EsqlCapabilities {
          * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
          */
         TOPN_PREFILTER_LONG,
+
+        /**
+         * A GROK typed capture (eg. {@code %{NUMBER:n:int}}) that matches a value it cannot convert
+         * (eg. "1.5" as int) now treats the row as a failed match (null values plus a warning) instead
+         * of failing the whole query.
+         */
+        GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * Full-text functions ({@code :}, {@code MATCH}, {@code MATCH_PHRASE}, {@code KNN}) can search fields of a
+         * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
+         */
+        FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
+
+        /**
+         * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
+         * {@code MATCH_PHRASE} over it adds its per-row score rather than returning {@code null}. Older nodes still
+         * answer {@code null}.
+         */
+        EXTERNAL_SOURCE_SCORE_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

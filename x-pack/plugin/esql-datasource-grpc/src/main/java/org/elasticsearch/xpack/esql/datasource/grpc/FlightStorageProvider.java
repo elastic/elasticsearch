@@ -15,6 +15,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -35,6 +36,10 @@ import java.util.Locale;
  * entry (length / mtime) and satisfy the storage SPI contract.
  */
 public final class FlightStorageProvider implements StorageProvider {
+
+    private record FlightIdentity() implements StorageIdentity {}
+
+    private static final FlightIdentity FLIGHT_IDENTITY = new FlightIdentity();
 
     @Override
     public StorageObject newObject(StoragePath path) {
@@ -185,6 +190,11 @@ public final class FlightStorageProvider implements StorageProvider {
         @Override
         public StoragePath path() {
             return path;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return FLIGHT_IDENTITY;
         }
     }
 }

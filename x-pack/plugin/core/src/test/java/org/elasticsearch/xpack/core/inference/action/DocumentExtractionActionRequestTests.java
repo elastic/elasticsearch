@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DocumentExtractionActionRequestTests extends AbstractBWCWireSerializationTestCase<DocumentExtractionAction.Request> {
-    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
     public void testConstructor_WithNullTimeout_UsesPlaceholder() {
         var request = new DocumentExtractionAction.Request(randomAlphanumericOfLength(8), randomDocumentExtractionRequest(), null);
@@ -129,17 +128,7 @@ public class DocumentExtractionActionRequestTests extends AbstractBWCWireSeriali
         DocumentExtractionAction.Request instance,
         TransportVersion version
     ) {
-        var context = instance.getContext();
-        if (version.supports(INFERENCE_CONTEXT) == false) {
-            context = InferenceContext.EMPTY_INSTANCE;
-        }
-
-        return new DocumentExtractionAction.Request(
-            instance.getInferenceEntityId(),
-            instance.getDocumentExtractionRequest(),
-            context,
-            instance.getTimeout()
-        );
+        return instance;
     }
 
     @Override

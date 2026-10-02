@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
@@ -85,10 +84,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
-            CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
-            if (callerCredential != null) {
-                request.setCloudCredential(callerCredential);
-            }
+            datafeedManager.carryCallerCredential(threadPool, securityContext, request::setCloudCredential);
             super.doExecute(task, request, releasingListener);
         } else {
             releasingListener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

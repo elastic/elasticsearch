@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
@@ -80,10 +79,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     @Override
     protected void doExecute(Task task, UpdateDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
-        CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
-        if (callerCredential != null) {
-            request.setCloudCredential(callerCredential);
-        }
+        datafeedManager.carryCallerCredential(threadPool, securityContext, request::setCloudCredential);
         super.doExecute(task, request, releasingListener);
     }
 }

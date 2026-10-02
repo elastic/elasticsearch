@@ -18,8 +18,12 @@ import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.Byte
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -194,6 +198,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         StorageObject storage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(new byte[0]);
             }
@@ -273,6 +282,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         AtomicInteger asyncCallCount = new AtomicInteger();
         StorageObject storageObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -379,6 +393,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<Long> requestLengths = new ArrayList<>();
         StorageObject storageObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream(long position, long length) {
                 throw new UnsupportedOperationException("async path only");
             }
@@ -478,6 +497,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     public void testReadCoalescedFailure() throws Exception {
         StorageObject failingObject = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new IOException("test failure");
             }
@@ -571,6 +595,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10));
 
         StorageObject shortReadObject = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream(long position, long length) {
                 throw new UnsupportedOperationException("async path only");
@@ -677,6 +706,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(90, 10), new ByteRange(5000, 10));
 
                 StorageObject injecting = new StorageObject() {
+                    @Override
+                    public StorageIdentity storageIdentity() {
+                        return AbstractTestStorageObject.NOOP;
+                    }
+
                     @Override
                     public InputStream newStream(long position, long length) {
                         throw new UnsupportedOperationException("async path only");
@@ -843,7 +877,10 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         cache.put(key, data);
         assertNotNull(cache.get(key));
         for (int i = 0; i < 16; i++) {
-            cache.put(new FooterByteCache.Key("memory://other-" + i + ".parquet", 256), sequentialBytes(256));
+            cache.put(
+                new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "memory://other-" + i + ".parquet", 256),
+                sequentialBytes(256)
+            );
         }
         assertNull(cache.get(key));
 
@@ -968,6 +1005,94 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
     }
 
+    public void testUnissuedCountsGetMissesOnly() throws Exception {
+        byte[] data = sequentialBytes(100 * 1024);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        int tail = 64 * 1024;
+        cache.put(FooterByteCache.Key.keyFor(counting), java.util.Arrays.copyOfRange(data, data.length - tail, data.length));
+
+        RowGroupIo lease = new RowGroupIo();
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
+            result = awaitCoalesced(counting, List.of(new ByteRange(0, 100), new ByteRange(data.length - 50, 50)), cache);
+        }
+        try {
+            assertEquals("only footer-cache misses are unissued GETs", 1, lease.outstanding());
+            assertEquals(1, counting.asyncGets.get());
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testScopeVisibleOnCallingThreadDuringStart() throws Exception {
+        byte[] data = sequentialBytes(64);
+        RowGroupIo lease = new RowGroupIo();
+        AtomicReference<RowGroupIo> seenLease = new AtomicReference<>();
+        AtomicBoolean seenCountGets = new AtomicBoolean();
+        CountingStorage counting = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+                seenLease.set(scope == null ? null : scope.lease());
+                seenCountGets.set(scope != null && scope.countGets);
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
+            result = awaitCoalesced(counting, List.of(new ByteRange(0, 16)), null);
+        }
+        try {
+            assertSame(lease, seenLease.get());
+            assertTrue(seenCountGets.get());
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testNestedScopeRestoresOuter() throws Exception {
+        byte[] data = sequentialBytes(64);
+        RowGroupIo outerLease = new RowGroupIo();
+        RowGroupIo innerLease = new RowGroupIo();
+        AtomicReference<RowGroupIo> seenDuringStart = new AtomicReference<>();
+        CountingStorage counting = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+                seenDuringStart.set(scope == null ? null : scope.lease());
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope outer = StorageIoAffinity.open(outerLease, true)) {
+            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(innerLease, false)) {
+                result = awaitCoalesced(counting, List.of(new ByteRange(0, 8)), null);
+            }
+            assertSame(outer, StorageIoAffinity.current());
+            assertSame(outerLease, StorageIoAffinity.current().lease());
+            assertTrue(StorageIoAffinity.current().countGets);
+        }
+        assertNull(StorageIoAffinity.current());
+        try {
+            assertSame(innerLease, seenDuringStart.get());
+        } finally {
+            result.release().close();
+        }
+    }
+
     private static FooterByteCache footerCache() {
         return FooterByteCache.fromSettings(Settings.EMPTY);
     }
@@ -1032,6 +1157,11 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     private static class CountingStorage implements StorageObject {
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
         private final byte[] data;
         final AtomicInteger asyncGets = new AtomicInteger();
         final AtomicInteger syncGets = new AtomicInteger();

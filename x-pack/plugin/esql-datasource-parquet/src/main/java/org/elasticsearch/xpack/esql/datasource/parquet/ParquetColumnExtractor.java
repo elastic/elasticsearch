@@ -19,11 +19,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -35,7 +36,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -175,7 +175,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @Nullable Consumer<String> warningSink
     ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
-        this.messageLocation = ExternalFailures.redactHttpUrl(storageObject.path().toString());
+        this.messageLocation = storageObject.path().objectName();
         this.reader = Objects.requireNonNull(reader, "reader");
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
@@ -412,19 +412,23 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // interleaved so a rejected look-ahead can retry after decode releases watermark bytes.
         int dispatched = 0;
         int pending = futures.length;
+        RowGroupIo[] inflightLeases = new RowGroupIo[futures.length];
         try {
             while (pending > 0) {
-                dispatched = dispatchAdmittedPrefetches(buckets, blocks, projection, blockFactory, futures, dispatched);
+                dispatched = dispatchAdmittedPrefetches(buckets, blocks, projection, blockFactory, futures, inflightLeases, dispatched);
                 if (inFlightCount(futures) == 0) {
                     if (dispatched >= buckets.size()) {
                         throw new IllegalStateException("no in-flight prefetch but buckets remain");
                     }
                     futures[dispatched] = startBucketPrefetch(
+                        buckets.get(dispatched).rowGroupIndex,
                         blocks.get(buckets.get(dispatched).rowGroupIndex),
                         projection,
                         blockFactory,
                         false,
-                        false
+                        false,
+                        inflightLeases,
+                        dispatched
                     );
                     dispatched++;
                 }
@@ -481,12 +485,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     // decoded values now live in perBucketBlocks and the raw bytes are no longer
                     // referenced.
                     prefetchedResult.release().close();
+                    finishExtractorLease(inflightLeases, bucketIdx);
                 }
             }
         } catch (Throwable t) {
             // Cancel every still-pending prefetch and release any buffers that already landed so
             // the failure path leaves no breaker reservation outstanding.
             for (int i = 0; i < futures.length; i++) {
+                finishExtractorLease(inflightLeases, i);
                 CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> f = futures[i];
                 if (f == null) {
                     continue;
@@ -495,9 +501,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 ColumnChunkPrefetcher.PrefetchedChunks landed;
                 try {
                     landed = f.getNow(null);
-                } catch (CompletionException | CancellationException ignored) {
+                } catch (Throwable ignored) {
                     // Future completed exceptionally (or was cancelled) — no chunks were ever
-                    // produced so there is nothing for us to release.
+                    // produced so there is nothing for us to release. Catch Throwable so a
+                    // surprising failure still drains later buckets' leases and buffers.
                     continue;
                 }
                 if (landed != null) {
@@ -525,16 +532,20 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         Set<String> projection,
         BlockFactory blockFactory,
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures,
+        RowGroupIo[] inflightLeases,
         int dispatched
     ) {
         while (dispatched < buckets.size()) {
             boolean lookahead = inFlightCount(futures) > 0;
             CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = startBucketPrefetch(
+                buckets.get(dispatched).rowGroupIndex,
                 blocks.get(buckets.get(dispatched).rowGroupIndex),
                 projection,
                 blockFactory,
                 lookahead,
-                true
+                true,
+                inflightLeases,
+                dispatched
             );
             if (future == null) {
                 break;
@@ -552,11 +563,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      */
     @Nullable
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketPrefetch(
+        int rowGroupIndex,
         BlockMetaData block,
         Set<String> projection,
         BlockFactory blockFactory,
         boolean lookahead,
-        boolean requireHold
+        boolean requireHold,
+        RowGroupIo[] inflightLeases,
+        int bucketIdx
     ) {
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projection);
         ParquetIoWatermark watermark = reader.ioWatermark();
@@ -570,16 +584,21 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             hold = null;
         }
         boolean reserved = hold != null;
+        RowGroupIo lease = leaseForExtractor(rowGroupIndex);
+        inflightLeases[bucketIdx] = lease;
         try {
-            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
-                storageObject,
-                block,
-                projection,
-                blockFactory.breaker(),
-                watermark,
-                hold,
-                reader.footerBytes()
-            );
+            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
+            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
+                future = ColumnChunkPrefetcher.prefetchAsync(
+                    storageObject,
+                    block,
+                    projection,
+                    blockFactory.breaker(),
+                    watermark,
+                    hold,
+                    reader.footerBytes()
+                );
+            }
             if (hold != null) {
                 future.whenComplete((ignored, error) -> hold.drop());
                 reserved = false;
@@ -589,6 +608,32 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             if (reserved) {
                 hold.drop();
             }
+        }
+    }
+
+    /** One lease per physical row-group index, created on first use and rebound after finish. */
+    private RowGroupIo[] extractorLeases;
+
+    private RowGroupIo leaseForExtractor(int rowGroupIndex) {
+        if (extractorLeases == null) {
+            extractorLeases = new RowGroupIo[ownedFooter.getBlocks().size()];
+        }
+        RowGroupIo lease = extractorLeases[rowGroupIndex];
+        if (lease == null || lease.isFinished()) {
+            lease = new RowGroupIo();
+            extractorLeases[rowGroupIndex] = lease;
+            if (storageObject != null) {
+                storageObject.bindRowGroup(lease);
+            }
+        }
+        return lease;
+    }
+
+    private static void finishExtractorLease(RowGroupIo[] inflightLeases, int i) {
+        RowGroupIo lease = inflightLeases[i];
+        if (lease != null) {
+            inflightLeases[i] = null;
+            lease.finish();
         }
     }
 

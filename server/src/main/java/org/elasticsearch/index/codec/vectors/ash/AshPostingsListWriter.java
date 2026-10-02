@@ -12,11 +12,13 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.ClusterAssignmentBuilder;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
@@ -49,6 +51,13 @@ public class AshPostingsListWriter {
 
     private static final Logger logger = LogManager.getLogger(AshPostingsListWriter.class);
 
+    /**
+     * Number of Procrustes refinement iterations to run when warm-starting W from an inherited
+     * projection matrix at merge time. Fewer than the full {@code trainingIterations} used for cold
+     * training, since the inherited matrix is already a good starting basis.
+     */
+    private static final int WARM_START_REFINE_ITERATIONS = 1;
+
     private AshProjectionMatrix ashProjectionMatrix;
 
     /**
@@ -70,6 +79,14 @@ public class AshPostingsListWriter {
      * @param skipDocIds when {@code true}, per-block doc IDs are not written into the posting lists.
      *        Used for sliced flush segments where vectors are in ordinal order and the reader
      *        translates ordinals to doc IDs via {@code KnnVectorValues.ordToDoc()}.
+     * @param pretrainedWT an already-learned transposed projection matrix W^T (row-major, shape
+     *        {@code (nDims, originalDim)}) to reuse instead of training a new one, or {@code null}
+     *        to train W from the supplied vectors. Used at merge time to seed the merged segment's
+     *        projection matrix from an existing input segment. When supplied, its length must equal
+     *        {@code originalDim * nDims}; a mismatch is a programming error and throws.
+     * @param trainOnFullSample when {@code true}, W is learned on the full training sample; when
+     *        {@code false}, W is learned on a reduced training sample to cut training cost and
+     *        heap footprint at the expense of a slightly smaller training set.
      */
     public PostingsOffsetAndLength buildAndWrite(
         FieldInfo fieldInfo,
@@ -81,39 +98,80 @@ public class AshPostingsListWriter {
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig.AshConfig ashConfig,
         VectorSimilarityFunction similarityFunction,
-        boolean skipDocIds
+        boolean skipDocIds,
+        float[] pretrainedWT,
+        boolean trainOnFullSample
     ) throws IOException {
         int nVectors = assignments.length;
         int originalDim = fieldInfo.getVectorDimension();
         int nClusters = centroidSupplier.size();
 
-        // Collect all vectors into arrays for ASH training and per-write re-encoding.
-        // ClusteringFloatVectorValues (KMeansFloatVectorValues) supports random-access vectorValue(ord)
-        // without requiring iterator advance — the same pattern used in ESNextDiskBBQVectorsWriter.
-        float[][] vectors = new float[nVectors][];
-        for (int i = 0; i < nVectors; i++) {
-            vectors[i] = floatVectorValues.vectorValue(i).clone();
-        }
+        // Vector access for training and encoding. Read directly from the supplied vectors by
+        // ordinal rather than cloning the whole corpus on-heap:
+        // - flush: the vectors are already resident on-heap in the flat-vector writer's buffer.
+        // - merge: the vectors are backed by an off-heap temp file (streamed via seek+readFloats).
+        // The encode loop and training both fetch each vector once and consume it before requesting
+        // the next ordinal, so a provider that returns a shared/reused buffer (the merge case) is
+        // safe. This mirrors the OSQ (BBQ) writer, which also encodes directly from the off-heap
+        // values at merge without cloning the corpus.
+        final CheckedIntFunction<float[], IOException> vectors = floatVectorValues::vectorValue;
 
-        // Create and train the ASH quantizer
-        // TODO: consider whether using AsymmetricHashingQuantizer.Method.RANDOM is sufficient
+        // Select the projection-matrix training profile. When training on a reduced sample
+        // we keep the recall-critical PCA subspace while cutting training cost and heap
+        // footprint; otherwise we train on the full sample.
+        final int effectiveTrainingFactor = trainOnFullSample ? ashConfig.trainingFactor() : ashConfig.flushTrainingFactor();
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
             ashConfig.projectedDimsFraction(),
             ashConfig.bitsPerDim(),
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),
-            ashConfig.trainingFactor(),
+            effectiveTrainingFactor,
             42L
         );
 
-        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
-
-        // Train W using primary assignments only.
-        float[] wT = ashQuantizer.train(vectors, centroidGetter);
         int nDims = ashQuantizer.nDims(originalDim);
 
-        // Store the projection matrix for later serialization
-        this.ashProjectionMatrix = new AshProjectionMatrix(wT, originalDim, nDims);
+        // Projection matrix selection:
+        // - merge with an inheritable W (pretrainedWT != null): warm-start from it, running a few
+        // Procrustes refinement iterations to re-fit the rotation to the merged set (skips PCA).
+        // - flush: full LEARNED training but on a reduced training sample.
+        // - otherwise: full cold training (PCA + Procrustes).
+        final float[] wT;
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
+        final AsymmetricHashingQuantizer.TrainedProjection trained;
+        if (pretrainedWT != null) {
+            if (pretrainedWT.length != originalDim * nDims) {
+                throw new IllegalArgumentException(
+                    "inherited projection matrix has length ["
+                        + pretrainedWT.length
+                        + "] but expected ["
+                        + (originalDim * nDims)
+                        + "] for originalDim ["
+                        + originalDim
+                        + "] and nDims ["
+                        + nDims
+                        + "]"
+                );
+            }
+            trained = ashQuantizer.trainWarmStart(
+                vectors,
+                nVectors,
+                originalDim,
+                centroidGetter,
+                pretrainedWT,
+                WARM_START_REFINE_ITERATIONS
+            );
+        } else {
+            // LEARNED runs full PCA + Procrustes on the (possibly reduced) training sample.
+            trained = ashQuantizer.train(vectors, nVectors, originalDim, centroidGetter);
+        }
+        wT = trained.wT();
+
+        // Store the projection matrix for later serialization. The quantizer reports whether W was
+        // genuinely learned or a random orthonormal fallback (degenerate tiny segments); only a learned
+        // W may be inherited/warm-started at merge time, so a random one is marked learned=false
+        // to stop merge inheriting a random rotation.
+        this.ashProjectionMatrix = new AshProjectionMatrix(wT, originalDim, nDims, trained.learned());
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);
@@ -139,7 +197,7 @@ public class AshPostingsListWriter {
      * Writes ASH-encoded posting lists for all clusters.
      */
     private PostingsOffsetAndLength writePostingLists(
-        float[][] vectors,
+        CheckedIntFunction<float[], IOException> vectors,
         AsymmetricHashingQuantizer ashQuantizer,
         float[] wT,
         int originalDim,
@@ -170,94 +228,112 @@ public class AshPostingsListWriter {
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         DocIdsWriter idsWriter = new DocIdsWriter();
 
-        for (int c = 0; c < nClusters; c++) {
-            float[] centroid = centroidSupplier.centroid(c);
-            // Precompute centroid projection + norm once per posting list
-            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
-            int[] cluster = assignmentsByCluster[c];
-            long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
-            offsets.add(offset);
-            // Header: size, centroid ordinal, centroid norm squared
-            int size = cluster.length;
-            postingsOutput.writeVInt(size);
-            postingsOutput.writeVInt(c);
-            float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
-            postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
+        // On merge the vectors are read from an off-heap temp file in cluster order, which is a
+        // scattered (random) access pattern rather than the sequential scan the file was opened with.
+        // Switch the read-advice to RANDOM for the encode phase so the OS does not waste read-ahead on
+        // pages we will not touch next, and restore SEQUENTIAL afterwards. This is a no-op on flush,
+        // where the values are resident on-heap (not a KMeansFloatVectorValues).
+        final KMeansFloatVectorValues offHeapValues = floatVectorValues instanceof KMeansFloatVectorValues kmeans ? kmeans : null;
+        if (offHeapValues != null) {
+            offHeapValues.updateReadAdvice(DataAccessHint.RANDOM);
+        }
+        try {
+            for (int c = 0; c < nClusters; c++) {
+                float[] centroid = centroidSupplier.centroid(c);
+                // Precompute centroid projection + norm once per posting list
+                AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+                int[] cluster = assignmentsByCluster[c];
+                long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+                offsets.add(offset);
+                // Header: size, centroid ordinal, centroid norm squared
+                int size = cluster.length;
+                postingsOutput.writeVInt(size);
+                postingsOutput.writeVInt(c);
+                float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
+                postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
 
-            // Sort by docId
-            for (int j = 0; j < size; j++) {
-                docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
-                clusterOrds[j] = j;
-            }
-            new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
-            for (int j = 0; j < size; j++) {
-                docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
-            }
-
-            byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
-            // The encoding byte is always written for header consistency, even when skipDocIds is true.
-            // In the sliced flush path the reader consumes it in resetPostingsScorer but never uses it.
-            postingsOutput.writeByte(encoding);
-
-            // Write vectors in bulk blocks:
-            // [docIds][packed_codes × blockSize]
-            // [scales × blockSize][offsets × blockSize][docSums × blockSize]
-            // [vecCentroidDots × blockSize][vecCentroidSqDists × blockSize]
-            // When skipDocIds is true (sliced flush), doc IDs are omitted -- the reader uses ordToDoc().
-            int written = 0;
-            while (written < size) {
-                int blockSize = Math.min(BULK_SIZE, size - written);
-                final int blockStart = written;
-                if (skipDocIds == false) {
-                    idsWriter.writeDocIds(d -> docDeltas[blockStart + d], blockSize, encoding, postingsOutput);
+                // Sort by docId
+                for (int j = 0; j < size; j++) {
+                    docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                    clusterOrds[j] = j;
+                }
+                new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
+                for (int j = 0; j < size; j++) {
+                    docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
                 }
 
-                // Encode all vectors in this block into pre-allocated buffers.
-                // Corrections are packed in SoA order: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
-                int scaleBase = 0;
-                int offsetBase = blockSize * Float.BYTES;
-                int docSumBase = 2 * blockSize * Float.BYTES;
-                int vcdBase = 3 * blockSize * Float.BYTES;
-                int vcsdBase = 4 * blockSize * Float.BYTES;
-                for (int j = 0; j < blockSize; j++) {
-                    int vectorOrd = cluster[clusterOrds[written + j]];
-                    AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vectors[vectorOrd], centroid, wT, precomputed);
-                    byte[] vectorPacked = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
-                    System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
-                    int jOff = j * Float.BYTES;
-                    BitUtil.VH_BE_INT.set(blockCorrectionsBuf, scaleBase + jOff, Float.floatToIntBits(enc.scale()));
-                    BitUtil.VH_BE_INT.set(blockCorrectionsBuf, offsetBase + jOff, Float.floatToIntBits(enc.offset()));
-                    // Compute docSum: sum of unsigned code values directly from the centered float codes
-                    int docSum = 0;
-                    float[] xEnc = enc.xEnc();
-                    for (int d = 0; d < nDims; d++) {
-                        docSum += Math.round(xEnc[d] + centerOffset);
+                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
+                // The encoding byte is always written for header consistency, even when skipDocIds is true.
+                // In the sliced flush path the reader consumes it in resetPostingsScorer but never uses it.
+                postingsOutput.writeByte(encoding);
+
+                // Write vectors in bulk blocks:
+                // [docIds][packed_codes × blockSize]
+                // [scales × blockSize][offsets × blockSize][docSums × blockSize]
+                // [vecCentroidDots × blockSize][vecCentroidSqDists × blockSize]
+                // When skipDocIds is true (sliced flush), doc IDs are omitted -- the reader uses ordToDoc().
+                int written = 0;
+                while (written < size) {
+                    int blockSize = Math.min(BULK_SIZE, size - written);
+                    final int blockStart = written;
+                    if (skipDocIds == false) {
+                        idsWriter.writeDocIds(d -> docDeltas[blockStart + d], blockSize, encoding, postingsOutput);
                     }
-                    BitUtil.VH_BE_INT.set(blockCorrectionsBuf, docSumBase + jOff, docSum);
-                    // EUCLIDEAN: ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors; 0 otherwise
-                    if (isEuclidean) {
-                        float[] vec = vectors[vectorOrd];
-                        BitUtil.VH_BE_INT.set(
-                            blockCorrectionsBuf,
-                            vcdBase + jOff,
-                            Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, vec))
-                        );
-                        BitUtil.VH_BE_INT.set(
-                            blockCorrectionsBuf,
-                            vcsdBase + jOff,
-                            Float.floatToIntBits(ESVectorUtil.squareDistance(vec, centroid))
-                        );
-                    } else {
-                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcdBase + jOff, 0);
-                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcsdBase + jOff, 0);
+
+                    // Encode all vectors in this block into pre-allocated buffers.
+                    // Corrections are packed in SoA order: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
+                    int scaleBase = 0;
+                    int offsetBase = blockSize * Float.BYTES;
+                    int docSumBase = 2 * blockSize * Float.BYTES;
+                    int vcdBase = 3 * blockSize * Float.BYTES;
+                    int vcsdBase = 4 * blockSize * Float.BYTES;
+                    for (int j = 0; j < blockSize; j++) {
+                        int vectorOrd = cluster[clusterOrds[written + j]];
+                        // Fetch the vector once. Providers may return a shared/live buffer, so it must be
+                        // fully consumed within this iteration (encode + the EUCLIDEAN corrections below)
+                        // before the next ordinal is requested.
+                        float[] vec = vectors.apply(vectorOrd);
+                        AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vec, centroid, wT, precomputed);
+                        byte[] vectorPacked = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
+                        System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
+                        int jOff = j * Float.BYTES;
+                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, scaleBase + jOff, Float.floatToIntBits(enc.scale()));
+                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, offsetBase + jOff, Float.floatToIntBits(enc.offset()));
+                        // Compute docSum: sum of unsigned code values directly from the centered float codes
+                        int docSum = 0;
+                        float[] xEnc = enc.xEnc();
+                        for (int d = 0; d < nDims; d++) {
+                            docSum += Math.round(xEnc[d] + centerOffset);
+                        }
+                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, docSumBase + jOff, docSum);
+                        // EUCLIDEAN: ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors; 0 otherwise
+                        if (isEuclidean) {
+                            BitUtil.VH_BE_INT.set(
+                                blockCorrectionsBuf,
+                                vcdBase + jOff,
+                                Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, vec))
+                            );
+                            BitUtil.VH_BE_INT.set(
+                                blockCorrectionsBuf,
+                                vcsdBase + jOff,
+                                Float.floatToIntBits(ESVectorUtil.squareDistance(vec, centroid))
+                            );
+                        } else {
+                            BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcdBase + jOff, 0);
+                            BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcsdBase + jOff, 0);
+                        }
                     }
+                    // Write packed codes, then all corrections in one call
+                    postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
+                    postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AshPostingsVisitor.CORRECTION_BYTES);
+                    written += blockSize;
                 }
-                // Write packed codes, then all corrections in one call
-                postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
-                postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AshPostingsVisitor.CORRECTION_BYTES);
-                written += blockSize;
+                lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
-            lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
+        } finally {
+            if (offHeapValues != null) {
+                offHeapValues.updateReadAdvice(DataAccessHint.SEQUENTIAL);
+            }
         }
 
         if (logger.isDebugEnabled()) {

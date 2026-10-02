@@ -15,9 +15,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
@@ -37,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * using exponential backoff with jitter. Throttling errors (429/503) get a higher
  * retry budget than other transient errors.
  */
-class RetryableStorageObject implements StorageObject {
+class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private static final Logger logger = LogManager.getLogger(RetryableStorageObject.class);
 
@@ -256,6 +258,11 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
+    }
+
+    @Override
     public void abortStream(InputStream stream) throws IOException {
         // No retry on abort: the underlying provider's abortStream is a best-effort
         // connection-discard (e.g. S3 ResponseInputStream.abort()). If we silently fall back to
@@ -270,6 +277,18 @@ class RetryableStorageObject implements StorageObject {
         } else {
             delegate.abortStream(stream);
         }
+    }
+
+    /**
+     * Returns the live provider stream behind {@code stream} if it came from this class, else {@code stream}.
+     * Reading the result bypasses resume, so a fault surfaces to the caller instead of sleeping through a
+     * backoff and re-opening a GET for a stream about to be aborted anyway.
+     */
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return stream instanceof ResumingInputStream resuming
+            ? ResumeBypassingStorageObject.withoutResume(delegate, resuming.currentStream())
+            : stream;
     }
 
     @Override
@@ -565,15 +584,16 @@ class RetryableStorageObject implements StorageObject {
                     return n;
                 }
                 if (n < 0 && isPrematureEof()) {
-                    reopenOrThrow(
-                        new ExternalUnavailableException(
-                            false,
-                            "Premature end of object body for [{}] after [{}] of [{}] bytes",
-                            delegate.path(),
-                            delivered,
-                            expectedCount()
-                        )
+                    ExternalUnavailableException peof = new ExternalUnavailableException(
+                        Condition.STORE_UNAVAILABLE,
+                        delegate.path(),
+                        "",
+                        "",
+                        false,
+                        0L
                     );
+                    peof.setDetail("premature end after " + delivered + " of " + expectedCount() + " bytes");
+                    reopenOrThrow(peof);
                     continue;
                 }
                 return n;
@@ -610,14 +630,18 @@ class RetryableStorageObject implements StorageObject {
                 MIN_PROGRESS_BYTES_PER_SEC
             );
             belowProgressFloor = true;
-            throw new ExternalUnavailableException(
-                false,
-                "Read of [{}] at byte [{}] below progress floor: [{}] bytes in [{}] ms",
+            ExternalUnavailableException belowFloor = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
                 delegate.path(),
-                position + delivered,
-                bytesInWindow,
-                elapsedMs
+                "",
+                "",
+                false,
+                0L
             );
+            belowFloor.setDetail(
+                "below progress floor at byte " + (position + delivered) + ": " + bytesInWindow + " bytes in " + elapsedMs + " ms"
+            );
+            throw belowFloor;
         }
 
         private static long minBytesForWindow(long windowMs) {
@@ -654,7 +678,7 @@ class RetryableStorageObject implements StorageObject {
                 StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
+                throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
             }
             throwIfAborted(e);
             long resumeFrom = position + delivered;
@@ -759,19 +783,19 @@ class RetryableStorageObject implements StorageObject {
             String observed = delegate.contentGeneration();
             if (pinnedGeneration == null) {
                 if (observed != null && delivered > 0) {
-                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                    throw new ExternalObjectChangedException(delegate.path());
                 }
                 pinnedGeneration = observed;
             } else if (observed != null && pinnedGeneration.equals(observed) == false) {
                 // Providers set the pin once, so this is unreachable today; kept as an assertion of that
                 // invariant rather than as a silent splice if a provider ever moves its pin.
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException(delegate.path());
             }
             long observedLength = delegate.knownLength();
             if (pinnedKnownLength == READ_TO_END) {
                 pinnedKnownLength = observedLength;
             } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException(delegate.path());
             }
         }
 

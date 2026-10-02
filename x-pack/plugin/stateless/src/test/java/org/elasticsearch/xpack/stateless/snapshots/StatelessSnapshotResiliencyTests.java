@@ -48,6 +48,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -73,6 +74,7 @@ import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -418,6 +420,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
+            res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING);
@@ -430,6 +433,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
+            res.add(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
             return Set.copyOf(res);
         }
 
@@ -538,7 +543,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                     mock(IndexShardCacheWarmer.class),
                     HollowShardsMetrics.NOOP,
-                    client
+                    client,
+                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
                 final var primaryRelocationTargetService = new StatelessPrimaryRelocationTargetService(
                     clusterService(),
@@ -641,7 +647,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     EmptyClusterInfoService.INSTANCE,
                     snapshotsInfoService,
                     new StatelessShardRoutingRoleStrategy(),
-                    MeterRegistry.NOOP
+                    MeterRegistry.NOOP,
+                    createBuiltInClusterSettings(settings)
                 );
                 allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
                 return allocationService;

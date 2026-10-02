@@ -22,7 +22,6 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -39,11 +38,6 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "indices_segments_action";
-    }
-
-    @Override
-    public Set<String> supportedCapabilities() {
-        return Set.of("segment_include_auto_calibration");
     }
 
     @Override

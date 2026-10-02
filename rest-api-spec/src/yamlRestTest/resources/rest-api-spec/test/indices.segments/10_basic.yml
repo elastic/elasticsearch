@@ -87,11 +87,7 @@
 ---
 "segments with include_auto_calibration on non-vector index":
   - requires:
-      capabilities:
-        - method: GET
-          path: /{index}/_segments
-          capabilities: [ segment_include_auto_calibration ]
-      test_runner_features: capabilities
+      cluster_features: ["index.segments_include_auto_calibration"]
       reason: include_auto_calibration is not supported by older nodes
 
   - do:

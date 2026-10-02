@@ -69,11 +69,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return Set.of("stats_include_auto_calibration");
-    }
-
-    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);

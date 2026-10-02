@@ -13,18 +13,22 @@ import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * A query that was picked for the sample.
  * <p>
- * It is created when the query is picked and gets its ground truth later, once the exact search has been
- * run; until then {@link #groundTruth()} is {@code null}.
+ * It is created when the query is picked. What a use of the sample needs to know about it beyond that,
+ * such as the ground truth for recall estimation, is attached later under an {@link AttachmentKey}; until
+ * then the attachment is {@code null}.
  */
 public final class SampledQuery {
 
     private final QueryFingerprint fingerprint;
     private final CapturedSearch search;
     private final TrackedQuery tracked;
-    private volatile GroundTruth groundTruth;
+    private final Map<AttachmentKey<?>, Object> attachments = new ConcurrentHashMap<>();
 
     /**
      * @param fingerprint identity of the query
@@ -50,12 +54,28 @@ public final class SampledQuery {
         return tracked;
     }
 
+    /**
+     * The payload attached under the key, or {@code null} if there is none yet.
+     */
+    @Nullable
+    public <T> T attachment(AttachmentKey<T> key) {
+        return key.type().cast(attachments.get(key));
+    }
+
+    /**
+     * Attaches a payload, replacing the one under the same key if there is one. Payloads are usually
+     * produced later than the query is picked, possibly on another thread.
+     */
+    public <T> void attach(AttachmentKey<T> key, T value) {
+        attachments.put(key, value);
+    }
+
     @Nullable
     public GroundTruth groundTruth() {
-        return groundTruth;
+        return attachment(GroundTruth.KEY);
     }
 
     public void groundTruth(GroundTruth groundTruth) {
-        this.groundTruth = groundTruth;
+        attach(GroundTruth.KEY, groundTruth);
     }
 }

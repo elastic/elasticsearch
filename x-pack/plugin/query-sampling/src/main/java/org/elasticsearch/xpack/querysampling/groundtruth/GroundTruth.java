@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.querysampling.groundtruth;
 
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.storage.AttachmentKey;
 
 import java.util.List;
 
@@ -17,4 +18,7 @@ import java.util.List;
  *
  * @param neighbors the exact top-k, best first
  */
-public record GroundTruth(List<CapturedSearch.Hit> neighbors) {}
+public record GroundTruth(List<CapturedSearch.Hit> neighbors) {
+
+    public static final AttachmentKey<GroundTruth> KEY = new AttachmentKey<>("ground_truth", GroundTruth.class);
+}

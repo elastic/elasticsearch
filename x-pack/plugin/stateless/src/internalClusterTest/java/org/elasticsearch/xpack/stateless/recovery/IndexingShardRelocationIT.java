@@ -532,7 +532,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureStableCluster(4);
 
         try {
-            logger.info("--> relocating {} from {} to {}", shardId, indexNode, newIndexNode);
             ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
             safeAwait(enteredRelocationStarting);
             assertThat(
@@ -541,7 +540,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 equalTo(Long.MAX_VALUE)
             );
 
-            logger.info("--> failing the source shard before markRelocating");
             indexShard.failShard("test", new ElasticsearchException("simulated failure"));
             assertBusy(() -> assertThat(indexShard.getEngineOrNull(), nullValue()));
         } finally {
@@ -549,7 +547,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             resumeRelocation.countDown();
         }
 
-        logger.info("--> waiting for the failed relocation to unwind the source shard");
         safeAwait(relocationDone);
         assertThat(unwindException.get(), instanceOf(AlreadyClosedException.class));
         assertThat(unwindException.get().getMessage(), containsString("source shard closed before recovery started"));
@@ -565,7 +562,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final String primaryNode = findIndexShard(indexName).routingEntry().currentNodeId();
         final String sourceNode = primaryNode.equals(getNodeId(indexNode)) ? indexNode : newIndexNode;
         final String targetNode = sourceNode.equals(indexNode) ? newIndexNode : indexNode;
-        logger.info("--> relocating {} from {} to {}", shardId, sourceNode, targetNode);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         ensureGreen(indexName);
         assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(targetNode)));

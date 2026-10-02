@@ -1225,7 +1225,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.getMaxPendingOrUploadedGeneration();
     }
 
-    // Visible for testing
+    // visible for testing
     public long getMaxGenerationToUpload(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.maxGenerationToUpload;
@@ -1456,9 +1456,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong uploadedGenerationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
         /// The upload bound listener of the relocation handoff in progress, or `null` if there is none.
-        /// It is installed by [StatelessCommitService#markRelocationStarting] before the final flush. Then either
-        /// [#markRelocating] completes it with the `maxGenerationToUpload` it pins, or the relocation source fails it
-        /// because the handoff stopped before reaching [#markRelocating].
+        /// It is installed by [StatelessCommitService#markRelocationStarting] before the final flush. [#markRelocating]
+        /// completes it with the `maxGenerationToUpload` it pins.
         ///
         /// It is cleared when the relocation source fails it, or when [#markRelocationFailed] moves the shard back to
         /// [State#RUNNING]. A successful relocation leaves it in place, since the shard is closed.
@@ -3013,9 +3012,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             synchronized (this) {
                 if (state != State.CLOSED) {
                     assert state == State.RELOCATING;
+                    relocationUploadBoundListener = null;
                     maxGenerationToUpload = Long.MAX_VALUE;
                     state = State.RUNNING;
-                    relocationUploadBoundListener = null;
                 }
                 // If the index is concurrently deleted, the state will be CLOSED. We always want to reprocess the deferred deletions.
                 final var deferred = deferredStaleBlobDeletions.getAndSet(null);

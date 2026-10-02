@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -29,7 +31,12 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -70,8 +77,10 @@ import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider.GOOGLE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1228,6 +1237,119 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         taskSettings.put(GoogleVertexAiRerankTaskSettings.TOP_N, topN);
 
         return taskSettings;
+    }
+
+    public void testUnifiedCompletionInfer_RejectsReasoningForNonGoogleProviders() throws Exception {
+        var nonGoogleProvider = randomValueOtherThan(GOOGLE, () -> randomFrom(GoogleModelGardenProvider.values()));
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            nonGoogleProvider,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, reasoningCompletionRequest(), TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testUnifiedCompletionInfer_RejectsMessageLevelReasoningForNonGoogleProviders() throws Exception {
+        var nonGoogleProvider = randomValueOtherThan(GOOGLE, () -> randomFrom(GoogleModelGardenProvider.values()));
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            nonGoogleProvider,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+        // message-level reasoning only — no request-level reasoning field
+        var assistantMessage = new Message(new ContentString("I thought about it"), "assistant", null, null, "some reasoning", null);
+        var request = new UnifiedCompletionRequest(
+            List.of(new Message(new ContentString("Hello"), "user", null, null), assistantMessage),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, request, TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testUnifiedCompletionInfer_RejectsMessageLevelReasoningDetailsForNonGoogleProviders() throws Exception {
+        var nonGoogleProvider = randomValueOtherThan(GOOGLE, () -> randomFrom(GoogleModelGardenProvider.values()));
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            nonGoogleProvider,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+        // message-level reasoning_details only — no request-level reasoning field
+        var detail = new ReasoningDetail.TextReasoningDetail("google-vertex-ai-v1", null, 0L, "some reasoning", null);
+        var assistantMessage = new Message(new ContentString("Here"), "assistant", null, null, null, List.of(detail));
+        var request = new UnifiedCompletionRequest(
+            List.of(new Message(new ContentString("Hello"), "user", null, null), assistantMessage),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, request, TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testSupportsChatCompletionReasoning() throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            assertTrue(((GoogleVertexAiService) inferenceService).supportsChatCompletionReasoning());
+        }
+    }
+
+    private static UnifiedCompletionRequest reasoningCompletionRequest() {
+        return new UnifiedCompletionRequest(
+            List.of(new Message(new ContentString("Hello"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Reasoning(Reasoning.ReasoningEffort.HIGH, null, null, null)
+        );
     }
 
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {

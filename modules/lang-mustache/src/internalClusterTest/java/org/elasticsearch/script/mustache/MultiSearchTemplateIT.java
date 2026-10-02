@@ -15,7 +15,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -212,6 +214,15 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
      * subsequent slot is filled via the {@code renderCbe} fast-path without issuing any searches.
      */
     public void testLargeMsearchTemplateDoesNotOom() throws Exception {
+        // The request breaker type is randomized per node (~10% noop), and a noop breaker never trips. Run the request through a
+        // dedicated coordinating-only node so the node that charges the breaker is known, and skip if it happens to be noop.
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse(
+            "coordinator uses a noop request breaker, skipping test",
+            internalCluster().getInstance(CircuitBreakerService.class, coordinatorNode)
+                .getBreaker(CircuitBreaker.REQUEST) instanceof NoopCircuitBreaker
+        );
+
         createIndex("large-msearch");
 
         // Build a ~16 KB rendered source (2 000 stored_fields entries, no template variables).
@@ -247,7 +258,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
                 multiRequest.add(req);
             }
 
-            assertResponse(client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
+            assertResponse(client(coordinatorNode).execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
                 assertThat(response.getResponses().length, equalTo(numRequests));
                 // Once the first render trips the breaker, fillRemainingWithCbe fills every
                 // subsequent slot via the renderCbe fast-path. All slots must be CBE failures —

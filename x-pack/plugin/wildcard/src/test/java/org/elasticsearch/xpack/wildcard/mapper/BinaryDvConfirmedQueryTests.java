@@ -23,12 +23,18 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
 
@@ -45,6 +51,58 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                     for (LeafReaderContext ctx : reader.leaves()) {
                         weight.scorerSupplier(ctx);
                     }
+                }
+            }
+        }
+    }
+
+    private static final String TOO_COMPLEX_WILDCARD = "*a????????????*";
+
+    private static final String TOO_COMPLEX_REGEXP = "[ac]*a[ac]{200,500}";
+
+    public void testTooComplexWildcardPatternThrowsBadRequest() throws IOException {
+        for (boolean caseInsensitive : new boolean[] { false, true }) {
+            Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
+                Queries.ALL_DOCS_INSTANCE,
+                "field",
+                TOO_COMPLEX_WILDCARD,
+                caseInsensitive,
+                false
+            );
+            IllegalArgumentException e = expectTooComplex(query);
+            assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+        }
+    }
+
+    public void testTooComplexRegexpPatternThrowsBadRequest() throws IOException {
+        Query query = BinaryDvConfirmedQuery.fromRegexpQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            TOO_COMPLEX_REGEXP,
+            RegExp.ALL,
+            0,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            false
+        );
+        IllegalArgumentException e = expectTooComplex(query);
+        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+    }
+
+    private IllegalArgumentException expectTooComplex(Query query) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                final Document document = new Document();
+                document.add(new BinaryDocValuesField("field", new BytesRef("hello")));
+                writer.addDocument(document);
+                try (DirectoryReader reader = writer.getReader()) {
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f)
+                    );
+                    assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
+                    assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+                    return e;
                 }
             }
         }

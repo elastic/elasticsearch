@@ -27,6 +27,9 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -408,8 +411,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
         @Override
         public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
-            Term term = new Term(field, matchPattern);
-            return AutomatonQueries.toWildcardByteRunAutomaton(term, caseInsensitive, breaker);
+            try {
+                Term term = new Term(field, matchPattern);
+                return AutomatonQueries.toWildcardByteRunAutomaton(term, caseInsensitive, breaker);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
         }
     }
 
@@ -418,7 +425,11 @@ abstract class BinaryDvConfirmedQuery extends Query {
             AutomatonProvider {
         @Override
         public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
-            return AutomatonQueries.toRegexpByteRunAutomaton(field, value, syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
+            try {
+                return AutomatonQueries.toRegexpByteRunAutomaton(field, value, syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
         }
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -1031,12 +1032,19 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             final int pieces = Math.min(ESTestCase.between(2, 8), buf.readableBytes());
             final ByteBuf[] chunks = new ByteBuf[pieces];
             for (int i = 0; i < pieces - 1; i++) {
-                chunks[i] = buf.readRetainedSlice(ESTestCase.between(1, buf.readableBytes() - (pieces - 1 - i)));
+                chunks[i] = chunk(buf, ESTestCase.between(1, buf.readableBytes() - (pieces - 1 - i)));
             }
-            chunks[pieces - 1] = buf.readRetainedSlice(buf.readableBytes());
+            chunks[pieces - 1] = chunk(buf, buf.readableBytes());
             buf.release();
             ctx.fireChannelRead(chunks[0]);
             scheduleChunks(ctx, chunks, 1);
+        }
+
+        // Each piece is copied into its own exactly-sized contiguous buffer, like a socket read that filled the receive
+        // buffer. Slices of the (composite) test-allocator buffer would take a different ByteToMessageDecoder cumulator
+        // path in which re-delivered fragments are already drained, masking the pre-fix issue.
+        private static ByteBuf chunk(ByteBuf buf, int n) {
+            return Unpooled.buffer(n).writeBytes(buf, n);
         }
 
         private void scheduleChunks(ChannelHandlerContext ctx, ByteBuf[] chunks, int index) {
@@ -1060,10 +1068,10 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
     }
 
     /**
-     * Verifies that a TLS ClientHello fragmented across two channelRead calls is handled correctly.
-     * The {@link PacketSplitter} handler splits the first inbound buffer in two and delivers the halves as
-     * separate channelRead events to HandshakeThrottleHandler, simulating a ClientHello that arrives across
-     * two TCP segments.
+     * Verifies that a TLS ClientHello fragmented across multiple channelRead calls is handled correctly.
+     * The {@link PacketSplitter} handler splits the first inbound buffer into several contiguous pieces and
+     * delivers them as separate channelRead events to HandshakeThrottleHandler, simulating a ClientHello that
+     * arrives across multiple TCP segments.
      */
     public void testThrottleWithFragmentedClientHello() {
         final List<Releasable> releasables = new ArrayList<>();

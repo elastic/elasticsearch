@@ -40,18 +40,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -248,125 +244,5 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
                 is(false)
             );
         }
-    }
-
-    /**
-     * Time series data streams without a configured lifecycle are managed by the default lifecycle only when the default lifecycle for
-     * time series is enabled. Their indices are then reported as managed, with the lifecycle enabled by default and without a configured
-     * lifecycle. Data streams with a configured lifecycle and non time series data streams are not affected.
-     */
-    public void testDefaultLifecycleForTimeSeries() throws Exception {
-        long now = System.currentTimeMillis();
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
-
-        String tsdsName = "tsds-without-lifecycle";
-        IndexMetadata tsdsRolledOverIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(tsdsName, 1))
-            .settings(timeSeriesSettings(now - 7200_000L, now - 3600_000L))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .creationDate(now - 7200_000L)
-            .putRolloverInfo(new RolloverInfo(tsdsName, List.of(), now - 3600_000L))
-            .build();
-        builder.put(tsdsRolledOverIndex, false);
-        IndexMetadata tsdsWriteIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(tsdsName, 2))
-            .settings(timeSeriesSettings(now - 3600_000L, now + 3600_000L))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .creationDate(now - 3600_000L)
-            .build();
-        builder.put(tsdsWriteIndex, false);
-        builder.put(
-            newInstance(tsdsName, List.of(tsdsRolledOverIndex.getIndex(), tsdsWriteIndex.getIndex()), 2, Map.of(), false, null).copy()
-                .setIndexMode(IndexMode.TIME_SERIES)
-                .build()
-        );
-
-        String tsdsWithLifecycleName = "tsds-with-lifecycle";
-        DataStreamLifecycle configuredLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .dataRetention(TimeValue.timeValueDays(30))
-            .build();
-        IndexMetadata tsdsWithLifecycleIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(tsdsWithLifecycleName, 1))
-            .settings(timeSeriesSettings(now - 3600_000L, now + 3600_000L))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .creationDate(now - 3600_000L)
-            .build();
-        builder.put(tsdsWithLifecycleIndex, false);
-        builder.put(
-            newInstance(tsdsWithLifecycleName, List.of(tsdsWithLifecycleIndex.getIndex()), 1, Map.of(), false, configuredLifecycle).copy()
-                .setIndexMode(IndexMode.TIME_SERIES)
-                .build()
-        );
-
-        String standardName = "standard-without-lifecycle";
-        IndexMetadata standardIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(standardName, 1))
-            .settings(settings(IndexVersion.current()))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .creationDate(now - 3600_000L)
-            .build();
-        builder.put(standardIndex, false);
-        builder.put(newInstance(standardName, List.of(standardIndex.getIndex()), 1, Map.of(), false, null));
-
-        ProjectMetadata projectMetadata = builder.build();
-        ProjectState projectState = ClusterState.builder(new ClusterName("_name"))
-            .putProjectMetadata(projectMetadata)
-            .build()
-            .projectState(projectMetadata.id());
-
-        for (boolean defaultLifecycleForTimeSeriesEnabled : new boolean[] { false, true }) {
-            // The default lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
-            // only this method. This should be replaced with the cluster setting once it is available.
-            dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(defaultLifecycleForTimeSeriesEnabled);
-
-            ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { tsdsName, tsdsWithLifecycleName, standardName }
-            );
-            AtomicReference<ExplainDataStreamLifecycleAction.Response> responseRef = new AtomicReference<>();
-            testAction.masterOperation(
-                mock(Task.class),
-                request,
-                projectState,
-                ActionListener.wrap(responseRef::set, e -> fail(e.getMessage()))
-            );
-
-            ExplainDataStreamLifecycleAction.Response response = responseRef.get();
-            assertNotNull(response);
-            Map<String, ExplainIndexDataStreamLifecycle> explainByIndex = response.getIndices()
-                .stream()
-                .collect(Collectors.toMap(ExplainIndexDataStreamLifecycle::getIndex, Function.identity()));
-            assertThat(explainByIndex.size(), equalTo(4));
-
-            for (IndexMetadata tsdsIndex : List.of(tsdsRolledOverIndex, tsdsWriteIndex)) {
-                ExplainIndexDataStreamLifecycle explain = explainByIndex.get(tsdsIndex.getIndex().getName());
-                assertThat(explain.isManagedByLifecycle(), is(defaultLifecycleForTimeSeriesEnabled));
-                assertThat(explain.isLifecycleEnabledByDefault(), is(defaultLifecycleForTimeSeriesEnabled));
-                // the default lifecycle is not reported as a configured lifecycle
-                assertThat(explain.getLifecycle(), is(nullValue()));
-            }
-            if (defaultLifecycleForTimeSeriesEnabled) {
-                ExplainIndexDataStreamLifecycle explain = explainByIndex.get(tsdsRolledOverIndex.getIndex().getName());
-                assertThat(explain.getIndexCreationDate(), is(tsdsRolledOverIndex.getCreationDate()));
-                assertThat(explain.getRolloverDate(), is(now - 3600_000L));
-            }
-
-            ExplainIndexDataStreamLifecycle withLifecycle = explainByIndex.get(tsdsWithLifecycleIndex.getIndex().getName());
-            assertThat(withLifecycle.isManagedByLifecycle(), is(true));
-            assertThat(withLifecycle.isLifecycleEnabledByDefault(), is(false));
-            assertThat(withLifecycle.getLifecycle(), equalTo(configuredLifecycle));
-
-            ExplainIndexDataStreamLifecycle standard = explainByIndex.get(standardIndex.getIndex().getName());
-            assertThat(standard.isManagedByLifecycle(), is(false));
-            assertThat(standard.isLifecycleEnabledByDefault(), is(false));
-        }
-    }
-
-    private static Settings timeSeriesSettings(long startTimeMillis, long endTimeMillis) {
-        return settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTimeMillis).toString())
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(endTimeMillis).toString())
-            .build();
     }
 }

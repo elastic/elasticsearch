@@ -227,9 +227,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                         System.currentTimeMillis(),
                         randomIntBetween(0, 30)
                     )
-                    : null,
-                null,
-                false
+                    : null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null, null);
 
@@ -300,9 +298,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     randomIntBetween(0, 30)
                 )
                 : null,
-            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null,
-            // the lifecycle can be enabled by default only when there is no configured lifecycle
-            lifecycle == null && randomBoolean()
+            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null
         );
     }
 

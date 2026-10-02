@@ -65,13 +65,14 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     /**
      * Stops rotation and drains any in-flight cluster-state tasks before the framework's post-test
      * consistency check runs. {@link KeyRotationCoordinator#close()} prevents new ticks from firing
-     * but cannot atomically abort a tick that is already executing on the generic thread pool. The
-     * {@code assertBusy} wait ensures any task that slipped into the master-service queue after
-     * {@code close()} has been executed and its cluster-state publication committed before we hand
-     * off to the framework's own consistency check. Publishing a retire/re-encrypt task can take
-     * several seconds on loaded CI (especially right after the master failover exercised by
-     * {@code testRotationContinuesAfterMasterFailover}), so this waits generously rather than racing
-     * a tight budget — every second spent draining here is a second the framework's check won't need.
+     * but cannot atomically abort a tick that is already executing on the generic thread pool; since
+     * {@code close()} and task submission synchronize on the coordinator, no task is submitted once it returns.
+     * {@link #waitNoPendingTasksOnAll()} then waits (with {@code TEST_REQUEST_TIMEOUT}) until any task
+     * that slipped into the master-service queue before {@code close()} has been executed and its
+     * cluster-state publication committed on every node. This matters because the framework's
+     * post-test {@code ensureClusterStateConsistency} only has a {@code SAFE_AWAIT_TIMEOUT} (10s)
+     * budget, which publishing a retire/re-encrypt task right after the master failover exercised by
+     * {@code testRotationContinuesAfterMasterFailover} could otherwise exhaust on loaded CI.
      */
     @After
     public void stopKeyRotationCoordinators() throws Exception {

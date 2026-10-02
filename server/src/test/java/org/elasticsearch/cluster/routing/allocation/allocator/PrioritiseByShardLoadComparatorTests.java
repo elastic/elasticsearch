@@ -50,9 +50,9 @@ import static org.hamcrest.Matchers.not;
 public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
 
     /**
-     * Test for {@link PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator}.
+     * Test for {@link PrioritiseByShardLoadComparator}
      */
-    public void testPrioritiseByShardWriteLoadComparator() {
+    public void testPrioritiseByShardLoadComparator() {
         final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
         final double writeLoadThreshold = maxWriteLoad * THRESHOLD_RATIO;
         final int numberOfShardsWithMaxWriteLoad = between(1, 5);
@@ -101,10 +101,7 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
             allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), RoutingChangesObserver.NOOP);
         }
 
-        final var comparator = new PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator(
-            clusterInfo,
-            allocatedRoutingNodes.node(nodeId)
-        );
+        final var comparator = new PrioritiseByShardLoadComparator(clusterInfo, allocatedRoutingNodes.node(nodeId));
 
         logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, writeLoadThreshold);
         var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();
@@ -230,14 +227,8 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
         assertThat(comparator.compare(right, left), equalTo(0));
     }
 
-    private static PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator writeLoadComparator(
-        RoutingNode node,
-        Map<ShardId, Double> shardWriteLoads
-    ) {
-        return new PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator(
-            ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
-            node
-        );
+    private static PrioritiseByShardLoadComparator writeLoadComparator(RoutingNode node, Map<ShardId, Double> shardWriteLoads) {
+        return new PrioritiseByShardLoadComparator(ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(), node);
     }
 
     private RoutingNode startedShardsOnSingleNode(int shardCount) {

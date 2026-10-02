@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.PrioritiseByShardLoadComparator;
-import org.elasticsearch.cluster.routing.allocation.allocator.PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -598,7 +597,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
     /**
      * Determine which shard was moved and check that it's the "best" according to
-     * {@link org.elasticsearch.cluster.routing.allocation.allocator.PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator}
+     * {@link PrioritiseByShardLoadComparator}
      */
     private void assertThatTheBestShardWasMoved(
         TestHarness harness,
@@ -611,7 +610,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 || desiredNodeIds.contains(harness.thirdDiscoveryNode.getId());
         }).findFirst().map(Map.Entry::getKey).orElseThrow(() -> new AssertionError("No shard was moved to a non-hot-spotting node"));
 
-        final PrioritiseByShardWriteLoadComparator comparator = new PrioritiseByShardWriteLoadComparator(
+        final PrioritiseByShardLoadComparator comparator = new PrioritiseByShardLoadComparator(
             desiredBalanceResponse.getClusterInfo(),
             originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
         );

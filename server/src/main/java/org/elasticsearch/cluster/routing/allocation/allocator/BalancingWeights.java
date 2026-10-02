@@ -61,6 +61,6 @@ public interface BalancingWeights {
      * @return A node-specific comparator
      */
     default Comparator<ShardRouting> movePrioritisationForNode(RoutingNode node, ClusterInfo clusterInfo) {
-        return new PrioritiseByShardLoadComparator.PrioritiseByShardWriteLoadComparator(clusterInfo, node);
+        return new PrioritiseByShardLoadComparator(clusterInfo, node);
     }
 }

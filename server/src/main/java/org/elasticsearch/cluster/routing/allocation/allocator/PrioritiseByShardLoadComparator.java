@@ -61,6 +61,13 @@ public class PrioritiseByShardLoadComparator implements Comparator<ShardRouting>
         nodeId = routingNode.nodeId();
     }
 
+    /**
+     * Ranks shards on {@code routingNode} by write load from {@code clusterInfo}.
+     */
+    public PrioritiseByShardLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
+        this(clusterInfo.getShardWriteLoads(), routingNode);
+    }
+
     @Override
     public int compare(ShardRouting lhs, ShardRouting rhs) {
         assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
@@ -109,15 +116,5 @@ public class PrioritiseByShardLoadComparator implements Comparator<ShardRouting>
 
         // prefer the non-max load if there is one
         return Double.compare(lhsLoad, rhsLoad);
-    }
-
-    /**
-     * Ranks shards by write load.
-     */
-    public static class PrioritiseByShardWriteLoadComparator extends PrioritiseByShardLoadComparator {
-
-        public PrioritiseByShardWriteLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
-            super(clusterInfo.getShardWriteLoads(), routingNode);
-        }
     }
 }

@@ -1186,10 +1186,9 @@ public class SharedBlobCacheWarmingService {
                 return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
-                return SearchRecoveryTimeout.extendable(
+                return SearchRecoveryTimeout.fixed(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    "relocation source not shutting down, cluster shutdown metadata present",
-                    searchRecoveryWarmingGracePeriodCap
+                    "relocation source not shutting down, cluster shutdown metadata present"
                 );
             }
             return SearchRecoveryTimeout.extendable(

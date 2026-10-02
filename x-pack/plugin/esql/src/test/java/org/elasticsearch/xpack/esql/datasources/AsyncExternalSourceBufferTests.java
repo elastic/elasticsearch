@@ -22,10 +22,12 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -293,15 +295,39 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     public void testOnFailurePreservesFirstFailureAndSuppressesLaterFailures() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
-        CircuitBreakingException first = new CircuitBreakingException("breaker", CircuitBreaker.Durability.TRANSIENT);
-        IllegalStateException late = new IllegalStateException("late");
+        // Use ElasticsearchException subtypes: classify() returns them as-is, so identity assertions hold.
+        CircuitBreakingException first = new CircuitBreakingException("first", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException late = new CircuitBreakingException("late", CircuitBreaker.Durability.TRANSIENT);
 
         buffer.onFailure(first);
         buffer.onFailure(late);
-        buffer.onFailure(first);
+        buffer.onFailure(first);  // same instance as winner — must be ignored, not double-suppressed
 
         assertSame(first, buffer.failure());
         assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
+    }
+
+    /**
+     * Losers arriving at {@link AsyncExternalSourceBuffer#onFailure} after the winner is stored must
+     * be classified before being added to the suppressed list. Storage-URI messages in raw SDK
+     * exceptions (e.g. {@link IOException} from an S3 read) must not surface through the
+     * {@code suppressed[]} array that {@code innerToXContent} serialises into the API response.
+     */
+    public void testOnFailureClassifiesLosersBeforeSuppressing() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException first = new CircuitBreakingException("first", CircuitBreaker.Durability.TRANSIENT);
+        // A raw IOException with a storage URI in the message: classify() must strip it before the
+        // exception enters the suppressed[] array that innerToXContent serialises into the API response.
+        IOException rawIo = new IOException("s3://my-bucket/path/file.parquet: read failed");
+
+        buffer.onFailure(first);
+        buffer.onFailure(rawIo);
+
+        Throwable[] suppressed = first.getSuppressed();
+        assertEquals(1, suppressed.length);
+        Throwable classifiedIo = suppressed[0];
+        assertNotSame("loser IOException must be classified, not stored raw", rawIo, classifiedIo);
+        assertTrue("classified suppressed message must be safe for users", ExternalFailures.safeForUserMessage(classifiedIo.getMessage()));
     }
 
     public void testConcurrentOnFailureSelectsExactlyOneFirstFailure() throws Exception {
@@ -313,7 +339,9 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         Thread[] reporters = new Thread[failureCount];
 
         for (int i = 0; i < failureCount; i++) {
-            RuntimeException failure = new RuntimeException("failure-" + i);
+            // CircuitBreakingException is an ElasticsearchException; classify() returns it as-is,
+            // so identity assertions below remain valid after the classify-once change in onFailure.
+            RuntimeException failure = new CircuitBreakingException("failure-" + i, CircuitBreaker.Durability.TRANSIENT);
             reported.add(failure);
             reporters[i] = new Thread(() -> {
                 try {

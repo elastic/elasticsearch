@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
-- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
-  method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
-  issue: https://github.com/elastic/elasticsearch/issues/156435
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/156465
@@ -651,9 +648,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testTrackOldSearchNodesWhenIndexingShardRelocates
   issue: https://github.com/elastic/elasticsearch/issues/160699
-- class: org.elasticsearch.xpack.shutdown.DesiredBalanceShutdownIT
-  method: testDesiredBalanceWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/160708
 - class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
   method: testRandomValueIndexing
   issue: https://github.com/elastic/elasticsearch/issues/160716
@@ -672,3 +666,15 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
+  method: testProfileFailureStore
+  issue: https://github.com/elastic/elasticsearch/issues/160877
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/160885
+- class: org.elasticsearch.compute.operator.BreakingBytesRefBuilderTests
+  method: testCloseAllBatchesReleaseIntoOneCallAndReleasesTheArray
+  issue: https://github.com/elastic/elasticsearch/issues/160890
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupParquet
+  issue: https://github.com/elastic/elasticsearch/issues/160899

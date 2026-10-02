@@ -18,6 +18,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -192,39 +193,56 @@ final class CoalescedRangeReader {
         // charge the I/O watermark or consume admit-hold GET budget.
         DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
 
+        List<MergedRange> gets = new ArrayList<>();
+        List<MergedRange> hitRanges = new ArrayList<>();
+        List<FooterCacheHit> hits = new ArrayList<>();
         for (MergedRange mr : merged) {
             FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
             if (hit != null) {
-                inflight.add(() -> {});
-                try {
-                    executor.execute(() -> {
-                        try {
-                            DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
-                            try {
-                                synchronized (results) {
-                                    buffers.add(copied);
-                                    DirectReadBuffer owned = copied;
-                                    copied = null;
-                                    sliceConstituents(owned.buffer(), mr, results);
-                                }
-                            } finally {
-                                if (copied != null) {
-                                    copied.close();
-                                }
-                            }
-                        } catch (Throwable t) {
-                            Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
-                            recordFailure(firstFailure, e, inflight);
-                        } finally {
-                            complete(remaining, firstFailure, buffers, results, listener);
-                        }
-                    });
-                } catch (Exception e) {
-                    recordFailure(firstFailure, e, inflight);
-                    complete(remaining, firstFailure, buffers, results, listener);
-                }
-                continue;
+                hitRanges.add(mr);
+                hits.add(hit);
+            } else {
+                gets.add(mr);
             }
+        }
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        if (scope != null && scope.countGets) {
+            scope.lease().addUnissued(gets.size());
+        }
+
+        for (int i = 0; i < hitRanges.size(); i++) {
+            MergedRange mr = hitRanges.get(i);
+            FooterCacheHit hit = hits.get(i);
+            inflight.add(() -> {});
+            try {
+                executor.execute(() -> {
+                    try {
+                        DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
+                        try {
+                            synchronized (results) {
+                                buffers.add(copied);
+                                DirectReadBuffer owned = copied;
+                                copied = null;
+                                sliceConstituents(owned.buffer(), mr, results);
+                            }
+                        } finally {
+                            if (copied != null) {
+                                copied.close();
+                            }
+                        }
+                    } catch (Throwable t) {
+                        Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
+                        recordFailure(firstFailure, e, inflight);
+                    } finally {
+                        complete(remaining, firstFailure, buffers, results, listener);
+                    }
+                });
+            } catch (Exception e) {
+                recordFailure(firstFailure, e, inflight);
+                complete(remaining, firstFailure, buffers, results, listener);
+            }
+        }
+        for (MergedRange mr : gets) {
             Releasable handle = storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {

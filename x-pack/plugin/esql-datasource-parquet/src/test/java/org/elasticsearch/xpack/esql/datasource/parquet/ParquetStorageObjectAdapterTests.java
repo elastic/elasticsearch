@@ -478,6 +478,36 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertEquals(0, limited.getUsed());
     }
 
+    /**
+     * A breaker trip on a cold footer tail must happen in {@code getOrAllocateWindow} before
+     * {@code getOrLoad} / {@code newStream}. {@link #testChargeTripDoesNotTouchTheWatermark}
+     * is a whole-file fill ({@code isTailRead} false) and does not count GETs, so a GET-then-charge
+     * reorder would still throw with watermark 0.
+     */
+    public void testColdTailChargeTripDoesNotIssueARangeGet() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE - 1L));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, limited, watermark);
+        long tailStart = data.length - 1024;
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            expectThrows(CircuitBreakingException.class, () -> {
+                stream.seek(tailStart);
+                stream.readFully(new byte[1024]);
+            });
+            assertEquals(0, rangeReadCount.get());
+            assertEquals(0, watermark.used());
+            assertEquals(0, limited.getUsed());
+        }
+        assertEquals(0, rangeReadCount.get());
+        assertEquals(0, watermark.used());
+        assertEquals(0, limited.getUsed());
+    }
+
     public void testSeekableInputStreamRead() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         StorageObject storageObject = createRangeReadStorageObject(data);

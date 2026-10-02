@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
 /**
@@ -46,6 +47,8 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     private final Consumer<CapturedSearch> consumer;
     private volatile boolean enabled;
     private volatile double captureRate;
+    private final LongAdder knnSearches = new LongAdder();
+    private final LongAdder captured = new LongAdder();
 
     public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer) {
         this.consumer = consumer;
@@ -69,7 +72,11 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         ActionListener<Response> searchListener = listener;
         if (enabled && request instanceof SearchRequest searchRequest && task.getParentTaskId().isSet() == false) {
             KnnSearchBuilder knn = eligibleKnn(searchRequest);
+            if (knn != null) {
+                knnSearches.increment();
+            }
             if (knn != null && Randomness.get().nextDouble() < captureRate) {
+                captured.increment();
                 try {
                     searchListener = withResults(listener, capture(task, searchRequest, knn));
                 } catch (Exception e) {
@@ -108,6 +115,20 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             hits.add(new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()));
         }
         return new CapturedSearch(query, hits, response.getTookInMillis());
+    }
+
+    /**
+     * kNN searches the gate looked at while sampling was enabled, whether or not they were captured.
+     */
+    public long knnSearches() {
+        return knnSearches.sum();
+    }
+
+    /**
+     * Searches the gate picked for capture.
+     */
+    public long captured() {
+        return captured.sum();
     }
 
     private static KnnSearchBuilder eligibleKnn(SearchRequest request) {

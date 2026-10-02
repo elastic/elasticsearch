@@ -67,14 +67,17 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES);
+        Tier1Buffer buffer = new Tier1Buffer(TIER1_CAPACITY);
         SamplingPipeline pipeline = new SamplingPipeline(
-            new MultiplicityTracker(MAX_DISTINCT_QUERIES),
+            tracker,
             new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),
-            new Tier1Buffer(TIER1_CAPACITY)
+            buffer
         );
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
-        captureFilter.set(new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff));
-        return List.of();
+        QueryCaptureFilter filter = new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff);
+        captureFilter.set(filter);
+        return List.of(new QuerySamplingService(filter, handoff, tracker, buffer));
     }
 
     @Override

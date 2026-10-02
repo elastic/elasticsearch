@@ -9,11 +9,14 @@
 package org.elasticsearch.lucene.grouping;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -35,7 +38,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -127,6 +134,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             collapsingCollector = SinglePassGroupingCollector.createKeyword(
                 collapseField.getField(),
                 fieldType,
+                null,
                 sort,
                 expectedNumGroups,
                 null
@@ -200,7 +208,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             if (numeric) {
                 c = SinglePassGroupingCollector.createNumeric(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
             } else {
-                c = SinglePassGroupingCollector.createKeyword(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+                c = SinglePassGroupingCollector.createKeyword(collapseField.getField(), fieldType, null, sort, expectedNumGroups, null);
             }
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopGroups(0);
@@ -431,6 +439,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
             "group",
             fieldType,
+            null,
             sort,
             10,
             null
@@ -446,5 +455,165 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         w.close();
         reader.close();
         dir.close();
+    }
+
+    public void testCollapseColumnarPayloadKeyword() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        final String[] groups = { "a", "b", "a", "c" };
+        for (int i = 0; i < groups.length; i++) {
+            final Document doc = new Document();
+            doc.add(new Field("group", columnarPayload(groups[i]), binaryDocValuesType()));
+            doc.add(new SortedNumericDocValuesField("sort", i));
+            w.addDocument(doc);
+        }
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
+
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+            "group",
+            fieldType,
+            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            sort,
+            10,
+            null
+        );
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
+        assertEquals(3, collapseTopFieldDocs.groupValues.length);
+        assertEquals(new BytesRef("a"), collapseTopFieldDocs.groupValues[0]);
+        assertEquals(new BytesRef("b"), collapseTopFieldDocs.groupValues[1]);
+        assertEquals(new BytesRef("c"), collapseTopFieldDocs.groupValues[2]);
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testCollapseColumnarPayloadKeywordRejectsMultipleValues() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        final Document doc = new Document();
+        doc.add(new Field("group", columnarPayload("a", "b"), binaryDocValuesType()));
+        doc.add(new SortedNumericDocValuesField("sort", 0));
+        w.addDocument(doc);
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
+
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+            "group",
+            fieldType,
+            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            sort,
+            10,
+            null
+        );
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector)
+        );
+        assertEquals("failed to extract doc:0, the grouping field must be single valued", e.getMessage());
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testCollapsePlainBinaryKeyword() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        final String[] groups = { "a", "b", "a", "c" };
+        for (int i = 0; i < groups.length; i++) {
+            final Document doc = new Document();
+            doc.add(new Field("group", new BytesRef(groups[i]), binaryDocValuesType()));
+            doc.add(new SortedNumericDocValuesField("sort", i));
+            w.addDocument(doc);
+        }
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
+
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+            "group",
+            fieldType,
+            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.PLAIN),
+            sort,
+            10,
+            null
+        );
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
+        assertEquals(3, collapseTopFieldDocs.groupValues.length);
+        assertEquals(new BytesRef("a"), collapseTopFieldDocs.groupValues[0]);
+        assertEquals(new BytesRef("b"), collapseTopFieldDocs.groupValues[1]);
+        assertEquals(new BytesRef("c"), collapseTopFieldDocs.groupValues[2]);
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testCollapseColumnarPayloadKeywordWithSegmentMissingTheField() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        Document doc = new Document();
+        doc.add(new Field("group", columnarPayload("host-a"), binaryDocValuesType()));
+        doc.add(new SortedNumericDocValuesField("sort", 0));
+        w.addDocument(doc);
+        doc = new Document();
+        doc.add(new Field("group", columnarPayload("host-b"), binaryDocValuesType()));
+        doc.add(new SortedNumericDocValuesField("sort", 1));
+        w.addDocument(doc);
+        w.commit();
+
+        doc = new Document();
+        doc.add(new SortedNumericDocValuesField("sort", 2));
+        w.addDocument(doc);
+        w.commit();
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
+
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+            "group",
+            fieldType,
+            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            sort,
+            10,
+            null
+        );
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
+        assertEquals(3, collapseTopFieldDocs.groupValues.length);
+        assertEquals(new BytesRef("host-a"), collapseTopFieldDocs.groupValues[0]);
+        assertEquals(new BytesRef("host-b"), collapseTopFieldDocs.groupValues[1]);
+        assertNull(collapseTopFieldDocs.groupValues[2]);
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    private static BytesRef columnarPayload(String... slots) {
+        final List<BytesRef> refs = new ArrayList<>(slots.length);
+        for (String slot : slots) {
+            refs.add(slot == null ? null : new BytesRef(slot));
+        }
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(refs));
+    }
+
+    private static FieldType binaryDocValuesType() {
+        final FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.freeze();
+        return type;
     }
 }

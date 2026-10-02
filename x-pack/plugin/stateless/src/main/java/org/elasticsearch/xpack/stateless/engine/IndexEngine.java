@@ -109,7 +109,6 @@ public class IndexEngine extends InternalEngine {
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
     public static final String DOC_STATS = "doc_stats";
     public static final String SHARD_FIELD_STATS = "shard_field_stats";
-    static final int ID_LOOKUP_PREWARM_MAX_LEAVES = 5;
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
     // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
@@ -244,19 +243,20 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Prefetches the min/max {@code _id} .tim blocks in the last {@link #ID_LOOKUP_PREWARM_MAX_LEAVES} segments so the first id
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
      * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
-     * the most recent segments are prefetched; other lookups will still cold-read on first access.
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
      */
-    public void prewarmIdLookups() {
+    public void prewarmIdLookups(int maxSegments) {
         performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-            prewarmIdLookups(reader.leaves());
+            prewarmIdLookups(reader.leaves(), maxSegments);
             return null;
         });
     }
 
-    static void prewarmIdLookups(List<LeafReaderContext> leaves) throws IOException {
-        final int lowestLeaf = Math.max(0, leaves.size() - ID_LOOKUP_PREWARM_MAX_LEAVES);
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
         for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
             var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
             if (terms == null) {

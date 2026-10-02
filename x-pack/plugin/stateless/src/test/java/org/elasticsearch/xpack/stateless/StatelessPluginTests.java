@@ -175,7 +175,7 @@ public class StatelessPluginTests extends ESTestCase {
 
     public void testIdLookupPrewarmEnabledSettingIsRegistered() {
         final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
-        assertThat(plugin.getSettings(), hasItem(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_ENABLED_SETTING));
+        assertThat(plugin.getSettings(), hasItem(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING));
     }
 
 }

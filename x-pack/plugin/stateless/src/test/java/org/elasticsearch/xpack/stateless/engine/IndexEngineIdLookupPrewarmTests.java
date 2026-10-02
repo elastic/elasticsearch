@@ -38,35 +38,46 @@ public class IndexEngineIdLookupPrewarmTests extends ESTestCase {
     private final List<Integer> preparedLeafOrdinals = new ArrayList<>();
 
     public void testOnlyLastLeavesArePrewarmed() throws IOException {
-        final int segments = IndexEngine.ID_LOOKUP_PREWARM_MAX_LEAVES + randomIntBetween(1, 10);
+        final int maxSegments = randomIntBetween(1, 8);
+        final int segments = maxSegments + randomIntBetween(1, 10);
         final boolean[] hasId = new boolean[segments];
         Arrays.fill(hasId, true);
-        prewarm(hasId);
+        prewarm(hasId, maxSegments);
 
-        assertPreparedLeaves(segments - IndexEngine.ID_LOOKUP_PREWARM_MAX_LEAVES, segments);
+        assertPreparedLeaves(segments - maxSegments, segments);
     }
 
     public void testAllLeavesPrewarmedWhenNotMoreThanBound() throws IOException {
-        final int segments = randomIntBetween(1, IndexEngine.ID_LOOKUP_PREWARM_MAX_LEAVES);
+        final int maxSegments = randomIntBetween(1, 8);
+        final int segments = randomIntBetween(1, maxSegments);
         final boolean[] hasId = new boolean[segments];
         Arrays.fill(hasId, true);
-        prewarm(hasId);
+        prewarm(hasId, maxSegments);
 
         assertPreparedLeaves(0, segments);
     }
 
+    public void testNoLeavesArePrewarmedWithAZeroBound() throws IOException {
+        final boolean[] hasId = new boolean[randomIntBetween(1, 10)];
+        Arrays.fill(hasId, true);
+        prewarm(hasId, 0);
+
+        assertThat(preparedLeafOrdinals, equalTo(List.of()));
+    }
+
     public void testLeavesWithoutIdAreSkippedButCountTowardsTheBound() throws IOException {
-        final int segments = IndexEngine.ID_LOOKUP_PREWARM_MAX_LEAVES + 3;
+        final int maxSegments = randomIntBetween(3, 8);
+        final int segments = maxSegments + 3;
         final boolean[] hasId = new boolean[segments];
         Arrays.fill(hasId, true);
         final int lastWithoutId = segments - 1;
         final int otherWithoutId = segments - 3;
         hasId[lastWithoutId] = false;
         hasId[otherWithoutId] = false;
-        prewarm(hasId);
+        prewarm(hasId, maxSegments);
 
         final var expected = new ArrayList<Integer>();
-        for (int i = segments - 1; i >= segments - IndexEngine.ID_LOOKUP_PREWARM_MAX_LEAVES; i--) {
+        for (int i = segments - 1; i >= segments - maxSegments; i--) {
             if (hasId[i]) {
                 expected.add(i);
                 expected.add(i);
@@ -85,25 +96,23 @@ public class IndexEngineIdLookupPrewarmTests extends ESTestCase {
     }
 
     /** Builds one segment per entry, with or without an {@code _id} field, and prewarms through a reader that records the seeks. */
-    private void prewarm(boolean[] segmentHasId) throws IOException {
+    private void prewarm(boolean[] segmentHasId, int maxSegments) throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
                 for (int i = 0; i < segmentHasId.length; i++) {
-                    for (int d = 0; d < 2; d++) {
-                        Document doc = new Document();
-                        if (segmentHasId[i]) {
-                            doc.add(new StringField(IdFieldMapper.NAME, new BytesRef("id-" + i + "-" + d), Field.Store.NO));
-                        } else {
-                            doc.add(new StringField("other", "value", Field.Store.NO));
-                        }
-                        writer.addDocument(doc);
+                    Document doc = new Document();
+                    if (segmentHasId[i]) {
+                        doc.add(new StringField(IdFieldMapper.NAME, new BytesRef("id-" + i), Field.Store.NO));
+                    } else {
+                        doc.add(new StringField("other", "value", Field.Store.NO));
                     }
+                    writer.addDocument(doc);
                     writer.commit();
                 }
             }
             try (DirectoryReader reader = new RecordingDirectoryReader(DirectoryReader.open(directory))) {
                 assertThat(reader.leaves().size(), equalTo(segmentHasId.length));
-                IndexEngine.prewarmIdLookups(reader.leaves());
+                IndexEngine.prewarmIdLookups(reader.leaves(), maxSegments);
             }
         }
     }
@@ -156,7 +165,7 @@ public class IndexEngineIdLookupPrewarmTests extends ESTestCase {
         }
 
         private int leafPosition() {
-            // The leaf's position is encoded in its id values, "id-<segment>-<doc>"
+            // The leaf's position is encoded in its id values, "id-<segment>"
             try {
                 final Terms terms = in.terms(IdFieldMapper.NAME);
                 final String min = terms.getMin().utf8ToString();

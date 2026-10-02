@@ -137,6 +137,6 @@ public class QuerySamplingServiceTests extends ESTestCase {
 
     private static CapturedSearch search(float value) {
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { value }, 10, 100, null, null, List.of(), null);
-        return new CapturedSearch(query, List.of(), 1);
+        return new CapturedSearch(query, List.of(), 1, 1.0);
     }
 }

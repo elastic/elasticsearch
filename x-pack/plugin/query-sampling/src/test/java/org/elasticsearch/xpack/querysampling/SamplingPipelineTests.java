@@ -117,6 +117,6 @@ public class SamplingPipelineTests extends ESTestCase {
 
     private static CapturedSearch search(float[] vector) {
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", vector, 10, 100, null, null, List.of(), null);
-        return new CapturedSearch(query, List.of(), 1);
+        return new CapturedSearch(query, List.of(), 1, 1.0);
     }
 }

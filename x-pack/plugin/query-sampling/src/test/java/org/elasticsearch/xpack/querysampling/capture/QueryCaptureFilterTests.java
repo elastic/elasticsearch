@@ -171,6 +171,30 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertThat(captured.size(), equalTo(1));
     }
 
+    public void testCapturedSearchRemembersTheRateItWasDrawnAt() {
+        ClusterSettings clusterSettings = clusterSettings(true, 1.0);
+        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, captured::add);
+        apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.ENABLED.getKey(), true)
+                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.5)
+                .build()
+        );
+        // a search that passes the lowered gate says so, so the rate cannot be taken from the current setting
+        int searches = 100;
+        for (int i = 0; i < searches; i++) {
+            apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        }
+
+        assertThat(captured.get(0).captureRate(), equalTo(1.0));
+        assertThat(captured.size(), greaterThan(1));
+        for (CapturedSearch search : captured.subList(1, captured.size())) {
+            assertThat(search.captureRate(), equalTo(0.5));
+        }
+    }
+
     private static QueryCaptureFilter filter(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {
         return new QueryCaptureFilter(clusterSettings(enabled, rate), consumer);
     }

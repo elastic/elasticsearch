@@ -62,6 +62,6 @@ public class SampledQueryTests extends ESTestCase {
 
     private static SampledQuery sampled() {
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
-        return new SampledQuery(new QueryFingerprint(1, 1), new CapturedSearch(query, List.of(), 1), new TrackedQuery());
+        return new SampledQuery(new QueryFingerprint(1, 1), new CapturedSearch(query, List.of(), 1, 1.0), new TrackedQuery());
     }
 }

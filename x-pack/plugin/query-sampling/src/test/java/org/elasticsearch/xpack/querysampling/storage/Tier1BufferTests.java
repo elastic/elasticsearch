@@ -59,6 +59,6 @@ public class Tier1BufferTests extends ESTestCase {
 
     private static SampledQuery sampled(long id) {
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { id }, 10, 100, null, null, List.of(), null);
-        return new SampledQuery(new QueryFingerprint(id, id), new CapturedSearch(query, List.of(), 1), new TrackedQuery());
+        return new SampledQuery(new QueryFingerprint(id, id), new CapturedSearch(query, List.of(), 1, 1.0), new TrackedQuery());
     }
 }

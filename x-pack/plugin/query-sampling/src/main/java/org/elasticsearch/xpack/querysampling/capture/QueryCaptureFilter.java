@@ -75,10 +75,12 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             if (knn != null) {
                 knnSearches.increment();
             }
-            if (knn != null && Randomness.get().nextDouble() < captureRate) {
+            // read once: the draw and the rate recorded with the search must be the same value
+            double rate = captureRate;
+            if (knn != null && Randomness.get().nextDouble() < rate) {
                 captured.increment();
                 try {
-                    searchListener = withResults(listener, capture(task, searchRequest, knn));
+                    searchListener = withResults(listener, capture(task, searchRequest, knn), rate);
                 } catch (Exception e) {
                     // capturing must never fail the search
                     logger.debug("failed to capture kNN search", e);
@@ -92,11 +94,15 @@ public final class QueryCaptureFilter implements MappedActionFilter {
      * Wraps the listener so the response is copied before it goes back to the user. Failed searches have
      * nothing to learn from and are not captured.
      */
-    private <Response extends ActionResponse> ActionListener<Response> withResults(ActionListener<Response> listener, CapturedQuery query) {
+    private <Response extends ActionResponse> ActionListener<Response> withResults(
+        ActionListener<Response> listener,
+        CapturedQuery query,
+        double rate
+    ) {
         return listener.delegateFailure((l, response) -> {
             if (response instanceof SearchResponse searchResponse) {
                 try {
-                    consumer.accept(captureResults(query, searchResponse));
+                    consumer.accept(captureResults(query, searchResponse, rate));
                 } catch (Exception e) {
                     logger.debug("failed to capture kNN search results", e);
                 }
@@ -108,13 +114,13 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     /**
      * Copies what is needed out of the response: it is ref-counted, so it cannot be kept past this call.
      */
-    private static CapturedSearch captureResults(CapturedQuery query, SearchResponse response) {
+    private static CapturedSearch captureResults(CapturedQuery query, SearchResponse response, double rate) {
         SearchHit[] searchHits = response.getHits().getHits();
         List<CapturedSearch.Hit> hits = new ArrayList<>(searchHits.length);
         for (SearchHit hit : searchHits) {
             hits.add(new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()));
         }
-        return new CapturedSearch(query, hits, response.getTookInMillis());
+        return new CapturedSearch(query, hits, response.getTookInMillis(), rate);
     }
 
     /**

@@ -16,8 +16,11 @@ import java.util.List;
  * @param query      the search as it was received
  * @param hits       the hits returned to the user
  * @param tookMillis time the search took on the coordinating node
+ * @param captureRate probability this search had of being captured, which is the {@code capture_rate} in
+ *                    force when it arrived. It is dynamic, so it has to travel with each search for the
+ *                    traffic to be estimated from what was captured
  */
-public record CapturedSearch(CapturedQuery query, List<Hit> hits, long tookMillis) {
+public record CapturedSearch(CapturedQuery query, List<Hit> hits, long tookMillis, double captureRate) {
 
     /**
      * A returned document. The id alone is not enough because the same id can exist in several indices.

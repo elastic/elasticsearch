@@ -141,6 +141,6 @@ public class GroundTruthRunnerTests extends ESTestCase {
     private static SampledQuery sampled(float value) {
         int k = (int) value;
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { value }, k, 10, null, null, List.of(), null);
-        return new SampledQuery(new QueryFingerprint(k, 0), new CapturedSearch(query, List.of(), 1), new TrackedQuery());
+        return new SampledQuery(new QueryFingerprint(k, 0), new CapturedSearch(query, List.of(), 1, 1.0), new TrackedQuery());
     }
 }

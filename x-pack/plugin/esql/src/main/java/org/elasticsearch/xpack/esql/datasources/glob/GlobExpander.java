@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -971,8 +970,6 @@ public final class GlobExpander {
         return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
     }
 
-    private static final String EXCLUSION_NOTICE = "[{}] of [{}] files under [{}] skipped by [{}], e.g. [{}] (matched [{}])";
-
     /**
      * The one line a listing reports for everything {@code file_exclusions} dropped from it, however many objects that
      * is, counted against everything the resource pattern selected (kept plus dropped). Callers log it at DEBUG, since
@@ -986,15 +983,24 @@ public final class GlobExpander {
         String excludedExample,
         String excludedExampleEntry
     ) {
-        return LoggerMessageFormat.format(
-            EXCLUSION_NOTICE,
-            excludedCount,
-            matchedCount + excludedCount,
-            prefix,
-            ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
-            excludedExample,
-            excludedExampleEntry
-        );
+        // Use only the last non-empty path segment of the prefix so warnings remain distinct across
+        // segments of a comma list (needed for exact-text dedup in NoticeBuffer) without leaking the
+        // full storage URI.
+        String trimmed = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+        String prefixName = StoragePath.objectName(trimmed);
+        String under = prefixName.isEmpty() ? "" : " under [" + prefixName + "]";
+        return excludedCount
+            + " of "
+            + (matchedCount + excludedCount)
+            + " objects matching the resource"
+            + under
+            + (excludedCount == 1 ? " was excluded by the [" : " were excluded by the [")
+            + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
+            + "] dataset setting, for example ["
+            + excludedExample.substring(excludedExample.lastIndexOf('/') + 1)
+            + "] which matched entry ["
+            + excludedExampleEntry
+            + "]";
     }
 
     /**

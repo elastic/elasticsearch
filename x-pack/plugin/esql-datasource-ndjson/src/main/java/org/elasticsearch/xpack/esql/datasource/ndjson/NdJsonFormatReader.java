@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -101,6 +100,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         CONFIG_SCHEMA_MAX_FIELDS
     );
 
+    /**
+     * Consumed, but changes nothing a read produces: the segment size divides a file's bytes into parse units
+     * and moves no row and no value. Two reads differing only in it measured the same thing, so they share a
+     * record rather than each paying a scan.
+     */
+    static final Set<String> IDENTITY_INERT_KEYS = Set.of(CONFIG_SEGMENT_SIZE);
+
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
@@ -116,7 +122,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final Map<String, String> declaredDateFormats;
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config, per
-     * {@link SchemaCacheKey#buildFormatConfig} — the external-stats cache fingerprint. Derived from
+     * {@link Configured#identityOf} — the external-stats cache fingerprint. Derived from
      * the canonical config rather than the projected/resolved schema so a data node's shipped-back
      * contribution matches the coordinator's cache entry across JVMs. Empty until {@link #withConfig}.
      */
@@ -237,8 +243,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
         DateFormatter newDatetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), datetimeFormatter);
 
-        // Pin the node-stable config identity from THIS query's WITH config (see CsvFormatReader).
-        String canon = SchemaCacheKey.buildFormatConfig(config);
+        // Pin the node-stable config identity from THIS query's WITH config (see CsvFormatReader), with the resolved
+        // error policy folded in for the reason given there: it decides which rows survive, so a lenient scan's
+        // statistics must not enrich a strict entry.
+        String canon = Configured.fold(
+            Configured.identityOf(config, RECOGNIZED_KEYS, IDENTITY_INERT_KEYS),
+            ErrorPolicy.fromConfig(config, defaultErrorPolicy()).readIdentity()
+        );
 
         FormatReader result = new NdJsonFormatReader(
             settings,
@@ -252,7 +263,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             readConfig
         );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
+        // Same string the harvest stamps — see CsvFormatReader and Configured.fromKnownSubsetWithIdentity.
+        return Configured.fromKnownSubsetWithIdentity(result, config, RECOGNIZED_KEYS, canon);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
@@ -473,7 +485,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
-     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * canonical string this reader derives from its own recognised keys, so a data
      * node's contribution and the coordinator's entry compare equal across JVMs. Derived from the
      * canonical config rather than the resolved schema (which is projection-dependent and would
      * differ between a coordinator's full-schema resolution and a data node's projected read).

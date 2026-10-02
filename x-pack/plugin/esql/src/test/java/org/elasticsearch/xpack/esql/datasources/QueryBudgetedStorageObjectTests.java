@@ -13,6 +13,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -251,5 +253,61 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         expectThrows(IOException.class, () -> obj.abortStream(wrapper));
         assertEquals("permit must be released even if delegate.abortStream throws", 0, budget.inFlight());
         verify(delegate, times(1)).abortStream(any(InputStream.class));
+    }
+
+    public void testAdmissionTimeoutFollowsBudgetConstructor() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 50L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        assertEquals(50L, obj.admissionWaitTimeoutMs());
+        RangeStorageObject range = new RangeStorageObject(obj, 0, 10);
+        assertEquals(50L, range.admissionWaitTimeoutMs());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCallbackReleaseGrantsCloserLease() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo farther = new RowGroupIo();
+        farther.addUnissued(6);
+        RowGroupIo closer = new RowGroupIo();
+        closer.addUnissued(2);
+        budget.bind(farther);
+        budget.bind(closer);
+
+        AtomicReference<ActionListener<DirectReadBuffer>> held = new AtomicReference<>();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        StorageObject delegate = mock(StorageObject.class);
+        doAnswer(inv -> {
+            held.set(inv.getArgument(4));
+            firstStarted.countDown();
+            return (Releasable) () -> {};
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(farther, true)) {
+            obj.startReadBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.noop());
+        }
+        assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+        assertEquals(1, budget.inFlight());
+
+        CountDownLatch closerIssued = new CountDownLatch(1);
+        Thread closerThread = new Thread(() -> {
+            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(closer, true)) {
+                obj.startReadBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.noop());
+                closerIssued.countDown();
+            }
+        });
+        closerThread.start();
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+
+        DirectReadBuffer firstResult = new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {});
+        Thread helper = new Thread(() -> held.get().onResponse(firstResult));
+        helper.start();
+        helper.join(5_000);
+        assertTrue("SDK callback on another thread must grant the closer lease", closerIssued.await(5, TimeUnit.SECONDS));
+        closerThread.join(5_000);
+        assertSame(closer, budget.favoured());
+        held.get().onResponse(new DirectReadBuffer(ByteBuffer.wrap("more".getBytes(StandardCharsets.UTF_8)), () -> {}));
+        assertEquals(0, budget.inFlight());
     }
 }

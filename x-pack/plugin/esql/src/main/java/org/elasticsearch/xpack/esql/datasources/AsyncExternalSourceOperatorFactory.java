@@ -1113,6 +1113,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * Survivor maps omit {@code _file.path}, {@code _file.name}, and {@code _file.directory}.
+     * Fill any of those that this read materialises from {@code filePath}. The shared map is not
+     * mutated, and size / modified stay as the map already stores them.
+     */
+    private Map<String, Object> overlayFileLocation(Map<String, Object> partitionValues, StoragePath filePath) {
+        return FileMetadataColumns.overlayLocation(mergeStandardMetadata(partitionValues), filePath, partitionColumnNames);
+    }
+
+    /**
      * Wraps {@code pages} in a {@link VirtualColumnIterator} when this factory has any virtual
      * partition / {@code _file.*} columns. The iterator allocates the constant blocks against
      * {@link #producerBlockFactory} when set (production: the node-level root factory) and
@@ -2224,7 +2233,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(fileSplit.partitionValues()), state.driverContext);
+            state.pages = wrapWithVirtualColumns(
+                withEncoder,
+                overlayFileLocation(fileSplit.partitionValues(), fileSplit.path()),
+                state.driverContext
+            );
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -2576,7 +2589,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = applyRowPositionStrategy(reader, pages, projectedColumns);
                 pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
                 CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-                finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
+                finalPages = wrapWithVirtualColumns(withEncoder, overlayFileLocation(partitionValues, path), driverContext);
             } catch (Exception e) {
                 closeQuietly(pages);
                 throw e;
@@ -2633,7 +2646,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(capturing, projectedColumns, driverContext);
-            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
+            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(
+                withEncoder,
+                overlayFileLocation(partitionValues, path),
+                driverContext
+            );
             drainPagesAsync(
                 wrapped,
                 buffer,

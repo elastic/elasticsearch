@@ -2316,9 +2316,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 totalRows += page.getPositionCount();
             }
             assertEquals(5, totalRows);
-            // After open, only the parquet I/O window buffer / footer parsing may have been charged
-            // — the count-only path must not grow the breaker further per row group / page. (Iterating
-            // pages allocates no column readers, no decode buffers, no value blocks.)
+            // A standing window is not expected, because this path is not expected to read the
+            // long-lived stream. The count-only path must not grow the breaker further per row
+            // group / page. (Iterating pages allocates no column readers, no decode buffers, no
+            // value blocks.)
             assertEquals("count-only iteration must not allocate per-page; breaker must not grow", afterOpen, trackingBreaker.getUsed());
         }
         // After close everything allocated during open is released and the breaker returns to its initial level.
@@ -2358,8 +2359,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            // The window is clamped to the file length, so the limit must cover that window and leave
-            // only enough leftover to trip on page allocation — not the historical 4 MiB floor.
+            // File length plus 1000 bytes. metadata() stays within the limit. The read below throws
+            // CircuitBreakingException. The limit is not sized around the sliding window; confirm which
+            // charge trips when this assertion is next changed.
             var limitedFactory = new BlockFactory(
                 new LimitedBreaker("test", ByteSizeValue.ofBytes(parquetData.length + 1000)),
                 this.blockFactory.bigArrays()
@@ -2441,7 +2443,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(0, tinyBreaker.getUsed());
         }
 
-        // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
+        // 2. Extra room is for the footer read and the prefetch buffers, not a reserved window.
         // These small row groups fit whether they arrive through prefetch or the breaker-accounted
         // synchronous fallback. The iteration must produce every row and release every byte.
         {

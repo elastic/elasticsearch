@@ -239,6 +239,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -721,7 +722,10 @@ public class LocalExecutionPlanner {
                 Math.min(EsExecutors.allocatedProcessors(settings), ParallelHashAggregationOperator.MAX_WORKERS),
                 ParallelHashAggregationOperator.PAGE_PER_WORKER,
                 context.queryPragmas()
-                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold())
+                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold()),
+                context.queryPragmas()
+                    .aggregationPartitioningMemoryThreshold(context.plannerSettings().aggregationPartitioningMemoryThreshold())
+                    .getBytes()
             );
         }
         return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);
@@ -1500,20 +1504,42 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
-
+        if (eval.fields().isEmpty()) {
+            return source;
+        }
+        Layout layout = source.layout;
+        Layout.Builder outputLayout = layout.builder();
+        Set<NameId> pendingAliases = new HashSet<>();
+        List<OperatorFactory> operatorFactories = new ArrayList<>(eval.fields().size());
         for (Alias field : eval.fields()) {
+            // don't rebuild the layout for every Alias (which comes with a memory baggage and additional operations), but only when
+            // an Alias references a previous one (in the same EVAL), for example EVAL x = salary + 1, y = coalesce(x, 0), or after
+            // all Aliases of the EVAL have been iterated over
+            if (pendingAliases.isEmpty() == false && refersToPendingAlias(field.child(), pendingAliases)) {
+                layout = outputLayout.build();
+                pendingAliases.clear();
+            }
             var evaluatorSupplier = EvalMapper.toEvaluator(
                 context.foldCtx(),
                 field.child(),
-                source.layout,
+                layout,
                 context.shardContexts,
                 context.analysisRegistry()
             );
-            Layout.Builder layout = source.layout.builder();
-            layout.append(field.toAttribute());
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+            outputLayout.append(field.toAttribute());
+            pendingAliases.add(field.id());
+            operatorFactories.add(new EvalOperatorFactory(evaluatorSupplier));
         }
-        return source;
+        return source.with(operatorFactories, outputLayout.build());
+    }
+
+    private static boolean refersToPendingAlias(Expression expression, Set<NameId> pendingAliases) {
+        for (Attribute attribute : expression.references()) {
+            if (pendingAliases.contains(attribute.id())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
@@ -2398,7 +2424,7 @@ public class LocalExecutionPlanner {
             Attribute scoreAttribute = null;
 
             for (Attribute attribute : filter.output()) {
-                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                if (MetadataAttribute.isScoreAttribute(attribute)) {
                     scoreAttribute = attribute;
                 }
             }
@@ -2634,21 +2660,28 @@ public class LocalExecutionPlanner {
          * Creates a new physical operation from this operation with the given layout.
          */
         public PhysicalOperation with(Layout layout) {
-            return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
+            return new PhysicalOperation(this, List.of(), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given intermediate operator and layout.
          */
         public PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
-            return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
+            return new PhysicalOperation(this, List.of(operatorFactory), Optional.empty(), layout);
+        }
+
+        /**
+         * Creates a new physical operation from this operation with the given intermediate operators, in order, and layout.
+         */
+        public PhysicalOperation with(List<OperatorFactory> operatorFactories, Layout layout) {
+            return new PhysicalOperation(this, operatorFactories, Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given sink and layout.
          */
         public PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
-            return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
+            return new PhysicalOperation(this, List.of(), Optional.of(sink), layout);
         }
 
         private PhysicalOperation(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
@@ -2660,14 +2693,16 @@ public class LocalExecutionPlanner {
 
         private PhysicalOperation(
             PhysicalOperation physicalOperation,
-            Optional<OperatorFactory> intermediateOperatorFactory,
+            List<OperatorFactory> intermediateOperatorFactories,
             Optional<SinkOperatorFactory> sinkOperatorFactory,
             Layout layout
         ) {
             sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
-            intermediateOperatorFactories = new ArrayList<>();
-            intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
-            intermediateOperatorFactory.ifPresent(intermediateOperatorFactories::add);
+            this.intermediateOperatorFactories = new ArrayList<>(
+                physicalOperation.intermediateOperatorFactories.size() + intermediateOperatorFactories.size()
+            );
+            this.intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
+            this.intermediateOperatorFactories.addAll(intermediateOperatorFactories);
             this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
             this.layout = layout;
         }

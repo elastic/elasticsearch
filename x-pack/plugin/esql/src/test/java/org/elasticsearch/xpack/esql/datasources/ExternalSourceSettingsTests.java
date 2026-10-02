@@ -28,6 +28,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+        assertEquals(25_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings));
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),

@@ -115,6 +115,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -2763,21 +2764,75 @@ public class StatelessCommitServiceTests extends ESTestCase {
             final var commit = uploadSingleCommit(testHarness);
 
             // markRelocationStarting was never called
-            expectThrows(
+            final var neverStarted = expectThrows(
                 IllegalStateException.class,
                 () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
+            assertThat(neverStarted.getMessage(), containsString("upload bound listener [absent]"));
             assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
 
-            // The upload bound listener was failed before markRelocating
+            // The upload bound listener was failed before markRelocating, which clears it
             final var uploadBoundListener = new SubscribableListener<Long>();
             commitService.markRelocationStarting(shardId, uploadBoundListener);
             uploadBoundListener.onFailure(new RuntimeException("simulated abandoned handoff"));
-            expectThrows(
+            final var abandoned = expectThrows(
                 IllegalStateException.class,
                 () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
+            assertThat(abandoned.getMessage(), containsString("upload bound listener [absent]"));
             assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+        }
+    }
+
+    public void testNewRelocationAfterUploadBoundListenerFailedBeforeMarkRelocating() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var uploadedCommit = uploadSingleCommit(testHarness);
+
+            // The first attempt is abandoned before markRelocating pins a bound.
+            final var abandonedListener = new SubscribableListener<Long>();
+            commitService.markRelocationStarting(shardId, abandonedListener);
+            final var newCommit = testHarness.generateIndexCommits(1).getFirst();
+            commitService.onCommitCreation(newCommit);
+            assertThat(newCommit.getGeneration(), greaterThan(uploadedCommit.getGeneration()));
+            abandonedListener.onFailure(new RuntimeException("simulated abandoned handoff"));
+
+            final var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+            commitService.registerCommitForUnpromotableRecovery(
+                null,
+                new PrimaryTermAndGeneration(uploadedCommit.getPrimaryTerm(), uploadedCommit.getGeneration()),
+                shardId,
+                nodeId,
+                stateWithSearchShards,
+                registerFuture
+            );
+            assertThat(
+                "once the abandoned listener is cleared, a recovering search shard gets the current VBCC again",
+                registerFuture.actionGet().getCompoundCommit().generation(),
+                equalTo(newCommit.getGeneration())
+            );
+
+            // A second attempt installs its own listener, which markRelocating completes with the pinned bound.
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            final var markedRelocating = new PlainActionFuture<Void>();
+            final var handoffListener = commitService.markRelocating(shardId, newCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+            assertThat(commitService.getMaxGenerationToUpload(shardId), greaterThanOrEqualTo(newCommit.getGeneration()));
+            assertThat(safeAwait(uploadBoundListener, TimeValue.ZERO), equalTo(commitService.getMaxGenerationToUpload(shardId)));
+
+            handoffListener.onResponse(null);
+            assertTrue(commitService.isShardClosed(shardId));
         }
     }
 

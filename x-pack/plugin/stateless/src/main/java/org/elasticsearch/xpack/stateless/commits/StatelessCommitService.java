@@ -3012,9 +3012,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             synchronized (this) {
                 if (state != State.CLOSED) {
                     assert state == State.RELOCATING;
-                    relocationUploadBoundListener = null;
                     maxGenerationToUpload = Long.MAX_VALUE;
                     state = State.RUNNING;
+                    // Cleared last, as getLatestVirtualBccForUnpromotableRecovery hands out the current VBCC once this is null
+                    relocationUploadBoundListener = null;
                 }
                 // If the index is concurrently deleted, the state will be CLOSED. We always want to reprocess the deferred deletions.
                 final var deferred = deferredStaleBlobDeletions.getAndSet(null);

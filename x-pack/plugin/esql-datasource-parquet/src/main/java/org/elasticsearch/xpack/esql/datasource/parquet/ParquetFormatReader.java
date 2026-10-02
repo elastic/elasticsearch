@@ -1046,14 +1046,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     @Override
     public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
-        loadFooterAsync(object, executor, listener.map(loaded -> buildFooterMetadata(object, loaded.footer())));
+        loadFooterAsync(object, executor, listener.map(footer -> buildFooterMetadata(object, footer)));
     }
-
-    /**
-     * Footer plus the cache key captured with {@link StorageObject#length()} on the calling thread,
-     * so completion listeners must not call {@code length()} again (it can throw).
-     */
-    private record LoadedFooter(FooterByteCache.Key cacheKey, ParquetMetadata footer) {}
 
     /**
      * Byte-pipe footer load for every {@code *Async} caller. {@link #parsedFooters} hit is CPU-only
@@ -1062,7 +1056,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * The parse listener is the flight listener so {@link #parseTailOnExecutor} drops breaker
      * charge before waiters run {@link #buildFooterMetadata} or {@link #rangesFromFooter}.
      */
-    private void loadFooterAsync(StorageObject object, Executor executor, ActionListener<LoadedFooter> listener) {
+    private void loadFooterAsync(StorageObject object, Executor executor, ActionListener<ParquetMetadata> listener) {
         final FooterByteCache.Key cacheKey;
         final long length;
         try {
@@ -1080,7 +1074,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
         ParquetMetadata parsed = parsedFooters.get(cacheKey);
         if (parsed != null) {
-            executor.execute(() -> listener.onResponse(new LoadedFooter(cacheKey, parsed)));
+            executor.execute(() -> listener.onResponse(parsed));
             return;
         }
 
@@ -1091,7 +1085,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 return;
             }
             prefetchAndParseFooterAsync(object, length, cacheKey, executor, flight);
-        }, listener.map(footer -> new LoadedFooter(cacheKey, footer)));
+        }, listener);
     }
 
     /**
@@ -1914,7 +1908,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     @Override
     public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
-        loadFooterAsync(object, executor, listener.map(loaded -> rangesFromFooter(loaded.footer())));
+        loadFooterAsync(object, executor, listener.map(ParquetFormatReader::rangesFromFooter));
     }
 
     private static List<SplitRange> rangesFromFooter(ParquetMetadata footer) {

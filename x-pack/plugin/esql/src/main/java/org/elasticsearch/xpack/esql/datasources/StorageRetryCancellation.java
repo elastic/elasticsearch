@@ -90,11 +90,8 @@ public final class StorageRetryCancellation {
     /**
      * Runs {@code body} with {@code isCancelled} installed as the ambient cancellation signal for the
      * current thread, restoring any previously installed supplier on exit (so nested scopes compose).
-     * Format readers that pass a {@code waiterExecutor} to {@code ParsedFooterCache#getOrLoadAsync}
-     * must wrap that executor with this method so a cancelled waiter observes {@link #isCancelled()}
-     * on the waiter thread and does not retry.
      */
-    public static <E extends Exception> void runWithCancellation(BooleanSupplier isCancelled, CheckedRunnable<E> body) throws E {
+    static <E extends Exception> void runWithCancellation(BooleanSupplier isCancelled, CheckedRunnable<E> body) throws E {
         BooleanSupplier previous = CURRENT.get();
         CURRENT.set(isCancelled);
         try {
@@ -108,7 +105,7 @@ public final class StorageRetryCancellation {
      * As {@link #runWithCancellation(BooleanSupplier, CheckedRunnable)} but returns the value produced
      * by {@code body}.
      */
-    public static <T, E extends Exception> T callWithCancellation(BooleanSupplier isCancelled, CheckedSupplier<T, E> body) throws E {
+    static <T, E extends Exception> T callWithCancellation(BooleanSupplier isCancelled, CheckedSupplier<T, E> body) throws E {
         BooleanSupplier previous = CURRENT.get();
         CURRENT.set(isCancelled);
         try {

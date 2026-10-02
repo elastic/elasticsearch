@@ -157,6 +157,42 @@ public class ExternalIoExecutorsTests extends ESTestCase {
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("no slots"));
     }
 
+    /**
+     * DIRECT {@code execute} runs the task inline. A throwing {@code onFailure} must not be
+     * treated as a pool rejection (that would call {@code onFailure} a second time).
+     */
+    public void testPreservingInlineExecutorDoesNotRejectAfterOnFailureThrows() {
+        AtomicInteger failures = new AtomicInteger();
+        AtomicInteger rejections = new AtomicInteger();
+        AtomicInteger afters = new AtomicInteger();
+        AbstractRunnable task = new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                throw new IllegalStateException("task failed");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failures.incrementAndGet();
+                throw new RuntimeException("onFailure throws", e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                rejections.incrementAndGet();
+            }
+
+            @Override
+            public void onAfter() {
+                afters.incrementAndGet();
+            }
+        };
+        ExternalIoExecutors.preserving(Runnable::run, Runnable::run).execute(task);
+        assertEquals(1, failures.get());
+        assertEquals(0, rejections.get());
+        assertEquals(1, afters.get());
+    }
+
     public void testNestedPreservingStillDeliversRejection() {
         AtomicInteger rejections = new AtomicInteger();
         AtomicInteger afters = new AtomicInteger();

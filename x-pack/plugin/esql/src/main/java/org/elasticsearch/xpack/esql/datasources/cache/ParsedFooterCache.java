@@ -85,14 +85,15 @@ import java.util.function.ToLongFunction;
  * derivative.</p>
  *
  * <h2>Async single-flight</h2>
-     * Concurrent ES|QL queries over the same file each used to issue their own footer GET.
-     * {@link #getOrLoadAsync} coalesces those loads: one in-flight {@link SubscribableListener} per
-     * {@link FooterByteCache.Key} lives in {@code asyncInFlight} only while the load is pending,
-     * is published into the LRU, then removed before anyone is notified. A loader that has
-     * completed (success, failure, or {@link Error}) always removes that entry so a later caller
-     * cannot attach to a dead flight. The map is not charged to the request breaker. Its footprint
-     * is bounded by concurrent unique keys — on the order of 75 KiB for a 14-panel dashboard over
-     * 36 files (one listener per file while those GETs run).
+ * <p>Without coalescing, N concurrent queries over the same file issue N footer GETs.
+ * {@link #getOrLoadAsync} coalesces those loads: one in-flight {@link SubscribableListener} per
+ * {@link FooterByteCache.Key} lives in {@code asyncInFlight} only while the load is pending,
+ * is published into the LRU, then removed before anyone is notified. A synchronous throw from
+ * {@code loader.accept} (including {@link Error}) removes that entry so a later caller cannot
+ * attach to a dead flight. An {@link Error} on an async continuation is fatal to the JVM and is
+ * not handled here. The map is not charged to the request breaker. Its footprint is bounded by
+ * concurrent unique keys — on the order of 75 KiB for a 14-panel dashboard over 36 files (one
+ * listener per file while those GETs run).</p>
  *
  * @param <T> the parsed metadata type held by this cache (e.g. {@code ParquetMetadata}).
  */
@@ -252,17 +253,20 @@ public final class ParsedFooterCache<T> {
      * {@code ThreadedActionListener}.
      *
      * <p>{@code waiterExecutor} must restore the caller's {@link org.elasticsearch.common.util.concurrent.ThreadContext}
-     * around each task it runs, and must install {@link StorageRetryCancellation} on those threads
-     * (see {@link StorageRetryCancellation#runWithCancellation}) so a cancelled waiter observes
-     * {@link StorageRetryCancellation#isCancelled()} and does not retry. If it rejects a waiter
-     * completion, only that waiter fails.
+     * around each task it runs, install the query's {@code StorageRetryCancellation} scope so a
+     * cancelled waiter observes {@link StorageRetryCancellation#isCancelled()} and does not retry,
+     * and preserve {@link AbstractRunnable} rejection (see
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors#preserving}). If it
+     * rejects a waiter completion, only that waiter fails.
      *
      * <p>Retry is per subscriber, not per flight. A waiter that observes leader failure re-enters
      * this method once, unless {@link StorageRetryCancellation#isCancelled()} is true on the waiter
-     * thread or the failure is classified ({@link EsRejectedExecutionException},
-     * {@link CircuitBreakingException}, {@link Error}). A fresh caller whose first attach is a
-     * retry flight still gets one retry. A cancelled waiter stays attached until the GET finishes
-     * and then fails without retrying.
+     * thread or the failure wraps an {@link Error}. Leader {@link CircuitBreakingException} and
+     * {@link EsRejectedExecutionException} are retried: they belong to the leader's query, and the
+     * retry coalesces into one extra GET. A fresh caller whose first attach is a retry flight still
+     * gets one retry. A cancelled waiter stays attached until the GET finishes and then fails
+     * without retrying. Waiters that already spent their retry fail with the second flight's
+     * exception, including a cancellation of that retry's leader.
      *
      * <p>The loader is invoked on the leader thread and must complete the supplied listener exactly
      * once ({@link ActionListener#assertOnce}). A synchronous throw is a failure. A loader
@@ -450,41 +454,11 @@ public final class ParsedFooterCache<T> {
                 getOrLoadAsync(key, waiterExecutor, loader, listener, true);
             }
         };
-        flight.addListener(waiter, rejectionSafe(waiterExecutor), null);
-    }
-
-    /**
-     * {@link org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor} converts a thrown
-     * rejection into {@link AbstractRunnable#onRejection} so only that waiter fails. A plain
-     * {@code execute} that throws would otherwise escape {@link SubscribableListener} completion
-     * (it swallows the throw) and hang that waiter. Catch here so a throwing test executor, and
-     * any non-ES executor, still fail just the rejected waiter.
-     */
-    private static Executor rejectionSafe(Executor executor) {
-        if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-            return executor;
-        }
-        return command -> {
-            try {
-                executor.execute(command);
-            } catch (Exception e) {
-                if (command instanceof AbstractRunnable abstractRunnable) {
-                    try {
-                        abstractRunnable.onRejection(e);
-                    } finally {
-                        abstractRunnable.onAfter();
-                    }
-                } else {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
-            }
-        };
+        flight.addListener(waiter, waiterExecutor, null);
     }
 
     private static boolean shouldNotRetry(Exception e) {
-        return e instanceof EsRejectedExecutionException
-            || e instanceof CircuitBreakingException
-            || ExceptionsHelper.maybeError(e).isPresent();
+        return ExceptionsHelper.maybeError(e).isPresent();
     }
 
     private static Exception asFailure(Throwable t) {

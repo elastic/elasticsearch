@@ -59,6 +59,12 @@ public final class ExternalIoExecutors {
             try {
                 executor.execute(wrapped);
             } catch (Exception e) {
+                // Inline executors (DIRECT) run the task inside execute(). If the inner onFailure
+                // throws, that exception leaves execute() and must not be treated as a rejection —
+                // AbstractRunnable.onRejection defaults to onFailure, which would fire twice.
+                if (wrapped instanceof PreservingAbstractRunnable preserving && preserving.ran) {
+                    return;
+                }
                 if (wrapped instanceof AbstractRunnable abstractRunnable) {
                     try {
                         abstractRunnable.onRejection(e);
@@ -74,45 +80,58 @@ public final class ExternalIoExecutors {
 
     private static Runnable wrap(Runnable command, Consumer<Runnable> around) {
         if (command instanceof AbstractRunnable inner) {
-            return new AbstractRunnable() {
-                private boolean ran;
-
-                @Override
-                public boolean isForceExecution() {
-                    return inner.isForceExecution();
-                }
-
-                @Override
-                protected void doRun() {
-                    around.accept(() -> {
-                        ran = true;
-                        inner.run();
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (ran == false) {
-                        inner.onFailure(e);
-                    } else {
-                        ExceptionsHelper.reThrowIfNotNull(e);
-                    }
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    inner.onRejection(e);
-                }
-
-                @Override
-                public void onAfter() {
-                    if (ran == false) {
-                        inner.onAfter();
-                    }
-                }
-            };
+            return new PreservingAbstractRunnable(inner, around);
         }
         return () -> around.accept(command);
+    }
+
+    /**
+     * Tracks whether {@code inner.run()} started so {@link #preserving} can tell a thrown
+     * {@code execute} (pool rejection) from an inline task whose {@code onFailure} rethrew.
+     */
+    private static final class PreservingAbstractRunnable extends AbstractRunnable {
+        private final AbstractRunnable inner;
+        private final Consumer<Runnable> around;
+        private boolean ran;
+
+        PreservingAbstractRunnable(AbstractRunnable inner, Consumer<Runnable> around) {
+            this.inner = inner;
+            this.around = around;
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return inner.isForceExecution();
+        }
+
+        @Override
+        protected void doRun() {
+            around.accept(() -> {
+                ran = true;
+                inner.run();
+            });
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (ran == false) {
+                inner.onFailure(e);
+            } else {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            inner.onRejection(e);
+        }
+
+        @Override
+        public void onAfter() {
+            if (ran == false) {
+                inner.onAfter();
+            }
+        }
     }
 
     private static void restoreAndRun(

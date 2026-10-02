@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
+import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.junit.Before;
 
@@ -585,9 +585,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
         }, leader);
 
         DeterministicTaskQueue queue = new DeterministicTaskQueue();
-        Executor cancelledWaiter = command -> queue.scheduleNow(
-            () -> StorageRetryCancellation.runWithCancellation(() -> true, command::run)
-        );
+        Executor cancelledWaiter = ExternalIoExecutors.restoring(queue::scheduleNow, null, () -> true);
         PlainActionFuture<String> waiter = new PlainActionFuture<>();
         cache.getOrLoadAsync(k, cancelledWaiter, l -> {
             loads.incrementAndGet();
@@ -661,8 +659,8 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertEquals(0, throwing.asyncInFlightCount());
     }
 
-    /** A tripped request breaker is classified: waiters must not retry and issue another GET. */
-    public void testAsyncCircuitBreakingExceptionDoesNotRetry() {
+    /** Leader CBE belongs to that query; waiters retry once as a coalesced extra GET. */
+    public void testAsyncCircuitBreakingExceptionWaitersRetryOnce() {
         FooterByteCache.Key k = key("cbe.parquet", 1000);
         CircuitBreakingException cbe = new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
         AtomicInteger loads = new AtomicInteger();
@@ -677,16 +675,16 @@ public class ParsedFooterCacheTests extends ESTestCase {
         PlainActionFuture<String> waiter = new PlainActionFuture<>();
         cache.getOrLoadAsync(k, queue::scheduleNow, l -> {
             loads.incrementAndGet();
-            l.onResponse("retry-should-not-run");
+            l.onResponse("retry-ok");
         }, waiter);
 
         held.get().onFailure(cbe);
         queue.runAllRunnableTasks();
-        assertEquals("CBE waiters must not retry", 1, loads.get());
+        assertEquals("waiters retry a leader CBE as one extra load", 2, loads.get());
         assertSame(cbe, expectThrows(CircuitBreakingException.class, () -> leader.actionGet(0, TimeUnit.SECONDS)));
-        assertSame(cbe, expectThrows(CircuitBreakingException.class, () -> waiter.actionGet(0, TimeUnit.SECONDS)));
+        assertEquals("retry-ok", waiter.actionGet(0, TimeUnit.SECONDS));
         assertEquals(0, cache.asyncInFlightCount());
-        assertNull(cache.get(k));
+        assertEquals("retry-ok", cache.get(k));
     }
 
     /**
@@ -753,7 +751,10 @@ public class ParsedFooterCacheTests extends ESTestCase {
         PlainActionFuture<String> leader = new PlainActionFuture<>();
         cache.getOrLoadAsync(k, EsExecutors.DIRECT_EXECUTOR_SERVICE, l -> held.set(l), leader);
 
-        Executor rejecting = command -> { throw new EsRejectedExecutionException("rejected"); };
+        Executor rejecting = ExternalIoExecutors.preserving(
+            command -> { throw new EsRejectedExecutionException("rejected"); },
+            Runnable::run
+        );
         PlainActionFuture<String> rejected = new PlainActionFuture<>();
         cache.getOrLoadAsync(k, rejecting, l -> { fail("rejecting waiter must not load"); }, rejected);
 

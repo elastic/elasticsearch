@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues: []
+pr: 160929
+summary: Letting restore in place succeed when resharding is occurring on a standard
+  index
+type: enhancement

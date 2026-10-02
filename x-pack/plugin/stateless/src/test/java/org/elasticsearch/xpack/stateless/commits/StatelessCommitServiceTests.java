@@ -2757,14 +2757,27 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testMarkRelocatingThrowsWithoutAnUndecidedUploadBoundListener() throws Exception {
-        // Never started
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
             final var commit = uploadSingleCommit(testHarness);
+
+            // markRelocationStarting was never called
             expectThrows(
                 IllegalStateException.class,
-                () -> testHarness.commitService.markRelocating(testHarness.shardId, commit.getGeneration(), new PlainActionFuture<>())
+                () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
-            assertThat(testHarness.commitService.getMaxGenerationToUpload(testHarness.shardId), equalTo(Long.MAX_VALUE));
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+
+            // The upload bound listener was failed before markRelocating
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            uploadBoundListener.onFailure(new RuntimeException("simulated abandoned handoff"));
+            expectThrows(
+                IllegalStateException.class,
+                () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
+            );
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
         }
     }
 

@@ -432,12 +432,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.setTrackedSearchNodesPerCommitOnRelocationTarget(searchNodesPerCommit);
     }
 
-    /// Marks the beginning of a primary relocation handoff, before the final flush. Installs the `uploadBoundListener`
-    /// which [#markRelocating] later completes it with the `maxGenerationToUpload` it pins.
+    /// Marks the beginning of a primary relocation handoff, before the final flush. Installs the `uploadBoundListener`,
+    /// which [#markRelocating] later completes with the `maxGenerationToUpload` it pins.
     ///
     /// Must be called from the relocation handoff consumer, while all primary operation permits are held. This serializes
-    /// relocation attempts on the shard: a later attempt cannot acquire the permits, and so cannot call this method,
-    /// until the previous attempt has resolved the provided `uploadBoundListener`.
+    /// relocation attempts on the shard: the permits are only released once the previous attempt's handoff outcome is
+    /// known, by which point its `uploadBoundListener` has been resolved and, on failure, cleared.
     ///
     /// The caller owns `uploadBoundListener` and must fail it if the handoff is abandoned before [#markRelocating]
     /// completes it.
@@ -1525,10 +1525,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.shardLocalCommitsTracker = new ShardLocalCommitsTracker(new ShardLocalReadersTracker(this), new ShardLocalCommitsRefs());
         }
 
-        /// Returns whether to skip uploading the commit file with the specified generation.
-        ///
-        /// When a shard is in the process of relocating, we change the state to [State#RELOCATING] and set a max
-        /// generation to attempt to upload: we won't do further writes/uploads beyond that max generation.
+        /**
+         * Returns whether to skip uploading the commit file with the specified generation.
+         *
+         * When a shard is in the process of relocating, we change the state to {@link State#RELOCATING} and set a max
+         * generation to attempt to upload: we won't do further writes/uploads beyond that max generation.
+         */
         private boolean pauseUpload(long uploadGeneration) {
             return state != StatelessCommitService.ShardCommitState.State.RUNNING && uploadGeneration > maxGenerationToUpload;
         }
@@ -2930,7 +2932,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
 
                 if (state != State.RUNNING || relocationUploadBoundListener == null || relocationUploadBoundListener.isDone()) {
-                    throw new IllegalStateException("shard [" + shardId + "] cannot be marked as relocating: state [" + state + "]");
+                    throw new IllegalStateException(
+                        "shard ["
+                            + shardId
+                            + "] cannot be marked as relocating: state ["
+                            + state
+                            + "], upload bound listener ["
+                            + (relocationUploadBoundListener == null ? "absent" : "already completed")
+                            + "]"
+                    );
                 }
                 // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
                 // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already

@@ -484,7 +484,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
     /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has installed the upload bound
     /// listener but before `markRelocating` pins the bound. Here the source shard fails while the handoff consumer
     /// is parked in `markRelocationStarting`, so the consumer then throws synchronously. The upload bound listener passed to
-    /// `markRelocationStarting` must be restored on that path too, before `IndexShard#relocated` releases the operation permits.
+    /// `markRelocationStarting` must be cleared on that path too, before `IndexShard#relocated` releases the operation permits.
     public void testRelocationFailureBeforeMarkRelocating() throws Exception {
         final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);

@@ -298,7 +298,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
     }
 
     /// A search shard that registers for recovery while the primary is mid-handoff must not be given a commit whose
-    /// generation is above `maxGenerationToUpload`. That commit will never be uploaded by the relocation source
+    /// generation is above `maxGenerationToUpload`. That commit will never be uploaded by the relocation source.
     ///
     /// The sequence forced here:
     /// - The old primary enters `RELOCATING`, pinning `maxGenerationToUpload = M`.

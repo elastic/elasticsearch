@@ -30,6 +30,31 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     private static final String EVAL_TIME = "2026-01-01T00:08:00Z";
     private static final double EVAL_TIMESTAMP = 1767226080.0; // = 2026-01-01T00:08:00Z
 
+    public void testMetricTimesPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " * Inf", "+Inf");
+    }
+
+    public void testMetricTimesNegativeInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " * -Inf", "-Inf");
+    }
+
+    public void testMetricTimesNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " * NaN", "NaN");
+    }
+
+    public void testDivisionByZeroIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " / 0", "+Inf");
+    }
+
+    public void testModuloByZeroIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " % 0", "NaN");
+    }
+
     public void testSqrtOfNegativeIsNaN() throws Exception {
         ingestTestData("test_gauge_nf");
         assertSingleValue("sqrt(" + METRIC + " * -1)", "NaN");
@@ -48,6 +73,55 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     public void testLog2OfNegativeIsNaN() throws Exception {
         ingestTestData("test_gauge_nf");
         assertSingleValue("log2(" + METRIC + " * -1)", "NaN");
+    }
+
+    /** {@code asin}/{@code acos} of an out-of-range input ({@code |x|>1}; the metric evaluates to 40) yields {@code NaN}. */
+    public void testAsinOutOfRangeIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("asin(" + METRIC + ")", "NaN");
+    }
+
+    public void testAcosOutOfRangeIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("acos(" + METRIC + ")", "NaN");
+    }
+
+    /** {@code acosh} of an input below 1 ({@code metric * 0 == 0}) yields {@code NaN}. */
+    public void testAcoshBelowOneIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("acosh(" + METRIC + " * 0)", "NaN");
+    }
+
+    /** {@code atanh(±1)} yields {@code ±Inf} and {@code atanh(|x|>1)} yields {@code NaN} (IEEE-754). */
+    public void testAtanhOfOneIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("atanh(" + METRIC + " / " + METRIC + ")", "+Inf");
+    }
+
+    public void testAtanhOfNegativeOneIsNegativeInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("atanh(" + METRIC + " / " + METRIC + " * -1)", "-Inf");
+    }
+
+    public void testAtanhOutOfRangeIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("atanh(" + METRIC + ")", "NaN");
+    }
+
+    /** {@code sinh}/{@code cosh} overflow to {@code ±Inf}/{@code +Inf} instead of being dropped (metric evaluates to 40). */
+    public void testSinhOverflowIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("sinh(" + METRIC + " * 20)", "+Inf");
+    }
+
+    public void testSinhOverflowNegativeIsNegativeInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("sinh(" + METRIC + " * -20)", "-Inf");
+    }
+
+    public void testCoshOverflowIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("cosh(" + METRIC + " * 20)", "+Inf");
     }
 
     private void assertSingleValue(String query, String expectedValue) throws Exception {

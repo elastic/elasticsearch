@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -13,11 +14,15 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,7 +36,13 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements Releasable {
+
+        /**
+         * Carries the caller's cloud credential from the coordinating node to the master for the embedded {@code datafeed_config}.
+         * Dedicated version: {@code datafeed_cloud_internal_credential} predates this field on {@link PutJobAction.Request}.
+         */
+        public static final TransportVersion ML_PUT_JOB_CLOUD_CREDENTIAL = TransportVersion.fromName("ml_put_job_cloud_credential");
 
         public static Request parseRequest(String jobId, XContentParser parser, IndicesOptions indicesOptions) {
             Job.Builder jobBuilder = Job.REST_REQUEST_PARSER.apply(parser, null);
@@ -49,6 +60,10 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
 
         private final Job.Builder jobBuilder;
 
+        // Caller's cloud credential for the embedded datafeed, carried on the request so it survives coordinator -> master transport.
+        @Nullable
+        private CloudCredential cloudCredential;
+
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -64,16 +79,38 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             jobBuilder = new Job.Builder(in);
+            if (in.getTransportVersion().supports(ML_PUT_JOB_CLOUD_CREDENTIAL)) {
+                cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                cloudCredential = null;
+            }
         }
 
         public Job.Builder getJobBuilder() {
             return jobBuilder;
         }
 
+        @Nullable
+        public CloudCredential getCloudCredential() {
+            return cloudCredential;
+        }
+
+        public void setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            this.cloudCredential = cloudCredential;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             jobBuilder.writeTo(out);
+            if (out.getTransportVersion().supports(ML_PUT_JOB_CLOUD_CREDENTIAL)) {
+                out.writeOptionalWriteable(cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
@@ -81,6 +118,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.equals(jobBuilder, request.jobBuilder);
         }
 

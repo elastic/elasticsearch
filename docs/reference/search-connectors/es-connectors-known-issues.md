@@ -291,7 +291,7 @@ The connector service has the following known issues:
 
     During an active sync, the connector service refreshed connector and sync-job system indices on every status poll. Under bulk-ingest load, refresh calls could time out, the ingestion heartbeat stopped updating, and the job was marked ERROR even though indexing was still in progress.
 
-    **Affected versions**: 8.9.0–8.19.20, 9.0.0–9.3.9, 9.4.0–9.4.5, and 9.5.0–9.5.1.
+    **Affected versions**: All versions through 8.19.20, 9.3.9, 9.4.5, and 9.5.1.
 
     **Fix**: [elastic/connectors#4345](https://github.com/elastic/connectors/pull/4345), shipped in 8.19.21, 9.4.6, 9.5.2, and 9.6.0.
 
@@ -300,7 +300,7 @@ The connector service has the following known issues:
 
     Elasticsearch `_bulk` responses such as `Client Closed Request` were not retried, and failures from concurrent bulk tasks could be dropped instead of failing the sync.
 
-    **Affected versions**: 8.9.0–8.19.20, 9.0.0–9.3.9, 9.4.0–9.4.5, and 9.5.0–9.5.2.
+    **Affected versions**: All versions through 8.19.20, 9.3.9, 9.4.5, and 9.5.2.
 
     **Fix**: [elastic/connectors#4384](https://github.com/elastic/connectors/pull/4384), shipped in 8.19.21, 9.4.6, 9.5.3, and 9.6.0.
 
@@ -327,31 +327,31 @@ The connector service has the following known issues:
 
     Document-level security expanded every site group member onto `_allow_access_control`, producing very large ACL arrays per document.
 
-    **Affected versions**: All versions with SharePoint Online DLS enabled, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4.
+    **Affected versions**: All versions with SharePoint Online DLS enabled that expand site group members, including after the mitigation below. Site group expansion is the default.
 
-    **Workaround**: On releases that ship [#4396](https://github.com/elastic/connectors/pull/4396), disable **Expand site group members** (`expand_site_group_members=false`), then run a **full content sync** and **access control sync**. Earlier connector releases do not expose this setting.
+    **Workaround**: On releases that include the mitigation, set **Expand site group members** (`expand_site_group_members`) to `false`, then run a **full content sync** and an **access control sync**. Earlier releases do not expose this setting and have no workaround.
 
-    **Fix**: [elastic/connectors#4396](https://github.com/elastic/connectors/pull/4396), shipped in 8.19.22, 9.4.8, 9.5.5, and 9.6.0. Changing the setting requires a full content sync and access control sync.
+    **Fix**: Opt-in mitigation added in [elastic/connectors#4396](https://github.com/elastic/connectors/pull/4396), shipped in 8.19.23, 9.4.8, 9.5.5, and 9.6.0. Upgrading alone does not change behavior; the setting must be disabled.
 
 
 * **ServiceNow DLS can exhaust Elasticsearch memory when role members are expanded on each document**
 
     Document-level security expanded every role member onto each content document (and attachment). Large roles, including `public`, could create hundreds of thousands of ACL entries per document. Advanced sync rules could also stamp an empty ACL on batched documents.
 
-    **Affected versions**: All versions with ServiceNow DLS enabled, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3.
+    **Affected versions**: All versions with ServiceNow DLS enabled that expand role members, including after the mitigation below. Role member expansion is the default.
 
-    **Workaround**: On releases that ship [#4392](https://github.com/elastic/connectors/pull/4392), disable **Expand role members** (`expand_role_members=false`), then run a **full content sync** and **access control sync**. Earlier connector releases do not expose this setting.
+    **Workaround**: On releases that include the mitigation, set **Expand role members** (`expand_role_members`) to `false`, then run a **full content sync** and an **access control sync**. Earlier releases do not expose this setting and have no workaround.
 
-    **Fix**: [elastic/connectors#4392](https://github.com/elastic/connectors/pull/4392), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+    **Fix**: Opt-in mitigation added in [elastic/connectors#4392](https://github.com/elastic/connectors/pull/4392), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0. Upgrading alone does not change behavior; the setting must be disabled.
 
 
 * **ServiceNow access control syncs stall when compact DLS preloads `sys_user_has_role`**
 
     With **Expand role members** disabled, offset pagination on `sys_user_has_role` could run for many hours with no documents indexed on large tenants.
 
-    **Affected versions**: ServiceNow DLS with compact mode enabled only, on 9.4.7 and 9.5.4 (releases that include [#4392](https://github.com/elastic/connectors/pull/4392) without [#4509](https://github.com/elastic/connectors/pull/4509)). The 8.19.22 release bundles both fixes.
+    **Affected versions**: 8.19.22, 9.4.7, and 9.5.4, with ServiceNow DLS and **Expand role members** disabled. Earlier releases do not offer compact mode.
 
-    **Fix**: [elastic/connectors#4509](https://github.com/elastic/connectors/pull/4509), shipped in 8.19.22, 9.4.8, 9.5.5, and 9.6.0.
+    **Fix**: [elastic/connectors#4509](https://github.com/elastic/connectors/pull/4509), shipped in 8.19.23, 9.4.8, 9.5.5, and 9.6.0.
 
 
 * **OneDrive connector fails with `KeyError: '_allow_access_control'` when advanced sync rules and DLS are both enabled**
@@ -412,16 +412,16 @@ The connector service has the following known issues:
 
     Connectors running under Elastic Agent always verified TLS certificates, even when the agent policy set `ssl.verification_mode` to `none` for self-signed clusters.
 
-    **Affected versions**: Agent-managed connectors through 8.19.20, 9.0.0–9.3.9, 9.4.0–9.4.5, and 9.5.0–9.5.2.
+    **Affected versions**: Agent-managed connectors through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.2.
 
-    **Fix**: [elastic/connectors#4391](https://github.com/elastic/connectors/pull/4391), shipped in 8.19.21, 9.4.6, 9.5.3, and 9.6.0.
+    **Fix**: [elastic/connectors#4391](https://github.com/elastic/connectors/pull/4391), shipped in 8.19.22, 9.4.7, 9.5.3, and 9.6.0.
 
 
 * **Elastic Agent-managed connectors crash on check-in when the output policy includes an `ssl` block**
 
     Reading agent SSL settings with dict access on protobuf `Struct` values raised `AttributeError` during check-in.
 
-    **Affected versions**: Agent-managed connectors 8.19.21, 9.4.6, and 9.5.3 only (regression after [#4391](https://github.com/elastic/connectors/pull/4391)).
+    **Affected versions**: Agent-managed connectors on 9.5.3 only. This is a regression from [#4391](https://github.com/elastic/connectors/pull/4391); the 8.19.22 and 9.4.7 releases contain both changes and are not affected.
 
     **Fix**: [elastic/connectors#4456](https://github.com/elastic/connectors/pull/4456), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
 
@@ -439,7 +439,7 @@ The connector service has the following known issues:
 
     Kibana soft-deleted connectors in Elasticsearch, so deleted connectors could still appear in the UI while `GET` by id returned an empty document.
 
-    **Affected versions**: Kibana Content Connectors through 8.19.22, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4.
+    **Affected versions**: All Kibana versions with the Content Connectors UI, through 8.19.22, 9.4.7, and 9.5.4. The 9.1 through 9.3 lines are also affected and do not receive this fix.
 
     **Fix**: [elastic/kibana#290859](https://github.com/elastic/kibana/pull/290859), shipped in Kibana 8.19.23, 9.4.8, 9.5.5, and 9.6.0.
 

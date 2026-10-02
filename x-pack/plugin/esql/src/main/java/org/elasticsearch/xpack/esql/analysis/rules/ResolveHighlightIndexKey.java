@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -179,7 +180,10 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                     }
                     branches.add(withKey);
                 }
-                yield merge.replaceSubPlans(branches).refreshOutput();
+                // Not refreshOutput: it would take each column from the first branch that has it, even one that only fills
+                // it with nulls, and so drop the analyzer another branch declares.
+                List<Attribute> key = toReferenceAttributesPreservingIds(List.of(indexKey(branches.getFirst())), merge.output());
+                yield merge.replaceSubPlansAndOutput(branches, CollectionUtils.combine(merge.output(), key));
             }
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };

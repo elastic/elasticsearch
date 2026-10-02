@@ -7407,6 +7407,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+     * Threading the key through a merge keeps the merge's other columns. A branch that lacks {@code t} has it filled with
+     * nulls, so re-deriving the output would take {@code t} from that branch and drop the analyzer TO_TEXT declares in the
+     * other, which FORK then rejects as a conflict.
+     */
+    public void testHighlightIndexKeyKeepsMergedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String t = "EVAL t = TO_TEXT(CONCAT(title, \"\"), {\"analyzer\": \"whitespace\"})";
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | FORK (KEEP book_no, title) (" + t + ") | HIGHLIGHT \"ring\" ON title, t"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(mergedValuesAnalyzer(plan.collect(Fork.class).getFirst(), "t"), equalTo("whitespace"));
+        assertWarnings();
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM (FROM books* | KEEP book_no, title), (FROM books* | " + t + ") | HIGHLIGHT \"ring\" ON title, t"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(mergedValuesAnalyzer(plan.collect(UnionAll.class).getFirst(), "t"), equalTo("whitespace"));
+        assertWarnings();
+    }
+
+    private static String mergedValuesAnalyzer(LogicalPlan merge, String name) {
+        Attribute column = merge.output().stream().filter(a -> a.name().equals(name)).findFirst().orElseThrow();
+        return as(column, ReferenceAttribute.class).valuesAnalyzer();
+    }
+
+    /**
      * A column every branch computes carries no mapping, so HIGHLIGHT analyzes it like any computed column, without a
      * warning. Branches that declare different TO_TEXT analyzers do disagree. FORK rejects them, but UNION ALL does not, so
      * HIGHLIGHT falls back and warns.

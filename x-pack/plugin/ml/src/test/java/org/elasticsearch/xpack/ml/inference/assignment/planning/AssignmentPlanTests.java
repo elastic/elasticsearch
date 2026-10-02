@@ -71,16 +71,17 @@ public class AssignmentPlanTests extends ESTestCase {
         long available = perDeployment + modelBytes + perAllocation * 3;
         assertThat(m.findOptimalAllocations(10, available), equalTo(3));
 
-        // Without subtracting the fixed cost, floor(1800 / 500) = 3 — same answer here by coincidence.
-        // Use a tighter budget to confirm the subtraction is actually happening:
-        // 1799 MB available -> floor((1799 - 300) / 500) = floor(2.998) = 2.
+        // Confirm the subtraction is actually happening by shaving one byte off the budget: without subtracting the
+        // fixed cost, floor((1800 MB - 1 byte) / 500 MB) = 3; subtracting it drops the answer to
+        // floor((1800 MB - 1 byte - 300 MB) / 500 MB) = floor((1500 MB - 1 byte) / 500 MB) = 2.
         assertThat(m.findOptimalAllocations(10, available - 1), equalTo(2));
 
         // Cap by maxAllocations.
         assertThat(m.findOptimalAllocations(1, available), equalTo(1));
 
-        // Below the minimum means 0. Note that in this linear-dominated case the zero comes from the division itself
-        // (floor((1799 MB - 1 - 300 MB) / 500 MB) = 0), not from the minimum-memory guard. See
+        // Below the minimum means 0. Note that in this linear-dominated case the zero comes from the division itself,
+        // not from the minimum-memory guard: minimumMemoryRequiredBytes() is 800 MB here, so one byte below it gives
+        // floor((800 MB - 1 byte - 300 MB) / 500 MB) = floor((500 MB - 1 byte) / 500 MB) = 0. See
         // testFindOptimalAllocations_MinimumMemoryGuard_WhenBaseSizeDominates for a case that isolates the guard.
         assertThat(m.findOptimalAllocations(10, m.minimumMemoryRequiredBytes() - 1), equalTo(0));
     }

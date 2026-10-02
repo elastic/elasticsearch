@@ -2315,8 +2315,8 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 ;
 
 
-# RENAME drops the mapping analyzer; Rings is not stemmed.
-highlightMappingAnalyzerRenamedFieldFallsBackToStandard
+# RENAME keeps the mapping analyzer, so t is analyzed exactly as title. english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerRenamedField
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
@@ -2327,13 +2327,13 @@ FROM books_english
 ;
 
 t:text | highlight_t:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
-# The borrowed MATCH follows the RENAME, but the mapping analyzer does not: t is analyzed with standard on both
-# sides, so the "Rings" that english matched in WHERE goes unhighlighted. Known limitation, see HighlightAnalyzers.
-highlightMappingAnalyzerLostByRenameUnderImplicitQuery
+# The borrowed MATCH and the mapping analyzer both follow the RENAME, so the "Rings" that english matched in WHERE is
+# highlighted.
+highlightMappingAnalyzerKeptByRenameUnderImplicitQuery
 required_capability: highlight_mapping_analyzer
 required_capability: highlight_implicit_query_and_fields
 
@@ -2345,7 +2345,64 @@ FROM books_english
 ;
 
 t:text | highlight_t:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# EVAL makes a new column, so a copy of title has no mapping analyzer. standard does not stem "Rings". No warning.
+highlightMappingAnalyzerEvalCopyUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL t = title
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+null
+;
+
+
+# A renamed field keeps each index's analyzer, exactly as title does. The books_english row matches "Rings", and the
+# books row does not. No warning.
+highlightPerIndexAnalyzerRenamedField
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english METADATA _index
+| WHERE book_no == "2714"
+| RENAME title AS t
+| HIGHLIGHT "ring" ON t
+| KEEP _index, highlight_t
+| SORT _index
+;
+
+_index:keyword | highlight_t:keyword
+books          | null
+books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# Each FORK branch renames title, and each row still uses its own index's analyzer. No warning.
+highlightPerIndexAnalyzerRenamedInForkBranches
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+
+FROM books,books_english METADATA _index
+| WHERE book_no == "2714"
+| FORK (RENAME title AS t)
+       (RENAME title AS t)
+| HIGHLIGHT "ring" ON t
+| KEEP _fork, _index, highlight_t
+| SORT _fork, _index
+;
+
+_fork:keyword | _index:keyword | highlight_t:keyword
+fork1         | books          | null
+fork1         | books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | books          | null
+fork2         | books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2426,7 +2483,7 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# RENAME keeps a TO_TEXT analyzer declaration; mapped-field RENAME does not (see highlightMappingAnalyzerRenamedFieldFallsBackToStandard).
+# RENAME keeps a TO_TEXT analyzer declaration, as it keeps a mapped field's analyzer (see highlightMappingAnalyzerRenamedField).
 highlightUnindexedDeclaredAnalyzerSurvivesRename
 required_capability: highlight_mapping_analyzer
 

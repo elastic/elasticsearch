@@ -7464,6 +7464,86 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * A RENAME of a mapped field is analyzed exactly as the field: it gets the field's mapping, and the index key when the
+     * indices disagree, through a chain of RENAMEs and across FORK. A renamed LOOKUP JOIN field keeps the field's fallback.
+     */
+    public void testHighlightRenamedFieldKeepsMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(
+            analyzer().addIndex("books_english", "mapping-books_english.json")
+                .minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                .query("FROM books_english | RENAME title AS t | HIGHLIGHT \"ring\" ON t")
+        );
+        assertThat(highlight.fieldMappings().get("t").analyzerName(), equalTo("english"));
+        assertWarnings(englishFallbackWarning("t"));
+
+        for (String query : List.of(
+            "FROM books* | RENAME title AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | RENAME title AS a | RENAME a AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | RENAME title AS t | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | RENAME title AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (RENAME title AS t) (RENAME title AS t) | HIGHLIGHT \"ring\" ON t"
+        )) {
+            highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            assertThat(query, highlight.fieldMappings().get("t").analyzerGroups(), hasSize(2));
+            assertNotNull(query, highlight.indexKey());
+        }
+        assertWarnings();
+
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
+            .query("FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS r | HIGHLIGHT \"ring\" ON r");
+        assertNull(soleHighlight(plan).indexKey());
+        assertWarnings(analyzerConflictFallbackWarning("r"));
+    }
+
+    /**
+     * UNION ALL branches that rename the field of differently analyzed indices still name each index's analyzer, also when
+     * the RENAME sits above a nested UNION ALL.
+     */
+    public void testHighlightRenamedFieldAcrossUnionAllBranches() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("requires nested subquery in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        for (String from : List.of(
+            "FROM (FROM books | RENAME title AS t), (FROM books_english | RENAME title AS t)",
+            "FROM (FROM (FROM books), (FROM books) | RENAME title AS t), (FROM books_english | RENAME title AS t)"
+        )) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
+                .addIndex(singleBooksIndex("books_english", "stop"))
+                .query(from + " | HIGHLIGHT \"ring\" ON t");
+            Highlight highlight = soleHighlight(plan);
+            assertThat(
+                from,
+                highlight.fieldMappings().get("t").analyzerGroups(),
+                containsInAnyOrder(
+                    new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                    new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+                )
+            );
+            assertNotNull(from, highlight.indexKey());
+            assertWarnings();
+        }
+    }
+
+    /**
+     * EVAL makes a new column, so a copy of a mapped field gets no mapping and no index key, even once RENAME renames the
+     * copy. HIGHLIGHT analyzes it like any computed column, without a warning.
+     */
+    public void testHighlightEvalCopyOfFieldGetsNoMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM books* | EVAL t = title | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | EVAL u = title | RENAME u AS t | HIGHLIGHT \"ring\" ON t"
+        )) {
+            Highlight highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            assertThat(query, highlight.fieldMappings(), equalTo(Map.of()));
+            assertNull(query, highlight.indexKey());
+        }
+        assertWarnings();
+    }
+
     private static String analyzerConflictFallbackWarning(String field) {
         return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
     }

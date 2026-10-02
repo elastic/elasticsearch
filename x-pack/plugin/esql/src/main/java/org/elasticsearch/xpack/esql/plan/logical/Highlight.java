@@ -314,6 +314,7 @@ public class Highlight extends UnaryPlan
         );
     }
 
+    /** Returns a copy with {@code newFieldMappings}, preserving the child and index key. */
     public Highlight withFieldMappings(Map<String, TextEsField> newFieldMappings) {
         return new Highlight(
             source(),

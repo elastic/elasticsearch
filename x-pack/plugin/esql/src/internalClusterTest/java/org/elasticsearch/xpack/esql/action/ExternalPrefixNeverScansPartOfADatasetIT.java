@@ -107,12 +107,14 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
     }
 
     /**
-     * A {@code first_file_wins} filter moves the schema pin to the first matching file.
+     * A {@code first_file_wins} filter moves the schema pin to the first matching file in listing
+     * order. On S3 that LIST is lexicographic by key; this test uses a local filesystem, whose
+     * listing order is the provider's, so it asserts the matching partition's extra column rather
+     * than comparing an unfiltered query (whose first file is whichever key the local store listed).
      * <p>
-     * Resolution now hands partition-filter hints to listing, so {@code WHERE year == 2024} keeps that
+     * Resolution hands partition-filter hints to listing, so {@code WHERE year == 2024} keeps that
      * folder's file and pins schema there. A column that exists only in that partition is therefore
-     * visible to the filtered query. Unfiltered listing order on a local filesystem is not stable, so
-     * this asserts the matching file's extra column rather than that the two queries agree.
+     * visible to the filtered query.
      * <p>
      * A cluster test because hint pruning runs in {@code GlobExpander}'s directory walk, which needs
      * {@code listChildren}; the stubs in {@code ExternalSourceResolverTests} return {@code null} for it.

@@ -2400,6 +2400,52 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * #160485 withheld hints from the declared-mapping rail. A partition hint must still
+     * narrow that listing: schema comes from the mapping, but the files charged and the
+     * coercibility file are the query's.
+     */
+    public void testAPartitionHintNarrowsTheDeclaredMappingListing() throws Exception {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 200)
+        );
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2025)
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 2);
+
+        String glob = PREFIX + "year=*/*.parquet";
+        ExternalSourceResolver resolver = createResolver(
+            schemas,
+            Map.of(PREFIX, listing, "s3://bucket/data/year=2025/", List.of(entry("s3://bucket/data/year=2025/b.parquet", 200)))
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(glob),
+            Map.of(glob, config),
+            Map.of(glob, List.of(hint)),
+            Map.of(glob, mapping),
+            Set.of(),
+            Set.of(),
+            future
+        );
+
+        ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
+        assertEquals("declared mapping must still list only the matching folder", 1, source.fileList().fileCount());
+        assertEquals("s3://bucket/data/year=2025/b.parquet", source.fileList().path(0).toString());
+    }
+
+    /**
      * Production VPC: default {@code first_file_wins} plus dashboard {@code DATE_EXTRACT} filters on
      * hive {@code year}/{@code month}/{@code day}. GlobExpander already keeps 24 hourly files; the
      * resolver must hand those hints to listing or the charge stays on the whole year.

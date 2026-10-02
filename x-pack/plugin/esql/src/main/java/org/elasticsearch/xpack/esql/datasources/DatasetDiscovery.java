@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
  * <p>
  * Resolution lists for the schema. How many files define the columns is still the mode's business — none
  * under a declared mapping, one under {@code first_file_wins}, every file under {@code union_by_name} and
- * {@code strict} — but inferred {@code first_file_wins} now lists the files this query's filters keep, then
- * takes a prefix of that set. {@link #schemaListing()} can therefore be a filtered subset. A declared mapping
- * still lists the unfiltered glob. Split discovery needs something else entirely: the files this query must
+ * {@code strict} — but inferred {@code first_file_wins} and a declared mapping now list the files this
+ * query's filters keep, then take a prefix of that set. {@link #schemaListing()} can therefore be a
+ * filtered subset. Split discovery needs something else entirely: the files this query must
  * read, with its filters applied and no more of them than its limit requires.
  * <p>
  * Those answers came out of one {@link FileList}, so every consumer read whichever one happened to be there, and

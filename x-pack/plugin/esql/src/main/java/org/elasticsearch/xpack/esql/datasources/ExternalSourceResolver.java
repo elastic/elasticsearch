@@ -1737,7 +1737,9 @@ public class ExternalSourceResolver {
         // Filters go to listing even when one file defines the schema. The files the query reads
         // are the ones that must be charged: a hive day filter is 24 hourly files, not the year,
         // when the listing is unbounded (eager stats) or the matching set fits the prefix bound.
-        // FIRST_FILE_WINS then pins schema to the first of those matching files.
+        // FIRST_FILE_WINS then pins schema to the first of those matching files, in listing order
+        // (S3/Azure/GCS LIST is lexicographic by key; otherwise the provider's order) unless the
+        // query set file_sort_by / file_order.
         FileList listing = cacheable && extents.boundsFileSet() == false
             ? cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath, extents);
@@ -4385,18 +4387,16 @@ public class ExternalSourceResolver {
         // where schema_resolution says first_file_wins. A dataset persisted without that setting does not:
         // DatasetRewriter hydrates union_by_name onto the query config for those, so it must be set to reach this.
         ListingExtents extents = listingExtentsFor(demand, null, config);
-        // A declared mapping is read from no file, so this listing answers the dataset's file count,
-        // partition columns, and which file the coercibility check opens. Query filters stay off it:
-        // those answers are properties of the dataset, not of who asked. The listing-charge soak is
-        // inferred FFW (no mapping); that rail passes hints through listAndRecord because that
-        // listing is also the files the query reads. A strict mapping still lists the unfiltered set.
-        // TODO: pass hints once declared-mapping listing is allowed to be the query's file set.
-        List<PartitionFilterHintExtractor.PartitionFilterHint> schemaHints = null;
+        // A declared mapping is read from no file, so this listing does not pin schema. It still
+        // counts files, derives partition columns, and opens one coercibility check — and those
+        // answers follow the query's filters, same as inferred FFW. #160485 withheld hints here;
+        // a hive day would list the year. A non-uniform tree can hide a partition key that only
+        // exists outside the filter.
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
                 path,
                 provider,
-                schemaHints,
+                hints,
                 config,
                 listingService.maxDiscoveredFiles(),
                 listingService.maxGlobExpansion(),
@@ -4406,13 +4406,11 @@ public class ExternalSourceResolver {
                 listingCancellation()
             );
         } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
-            listing = cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, schemaHints, config);
+            listing = cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config);
         } else {
-            listing = expandAndCompact(path, provider, schemaHints, config, storagePath, extents);
+            listing = expandAndCompact(path, provider, hints, config, storagePath, extents);
         }
-        // No file defines a declared schema, so this listing answers two narrower questions: how many files the
-        // dataset holds, and which paths partition detection folds over. It is not the query's file set - split
-        // discovery resolves that for itself when this one is bounded.
+        // Split discovery still lists the rest of the query's file set when this listing is bounded.
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         chargeListingPlanning(listing);

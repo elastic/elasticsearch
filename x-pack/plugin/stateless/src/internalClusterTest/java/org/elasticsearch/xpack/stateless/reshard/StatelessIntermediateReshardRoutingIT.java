@@ -74,7 +74,9 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         // Randomly the test framework sets this to 0, but we need retries in case the primary is not ready during target delegation.
         return super.nodeSettings().put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // The random delay of a shard that is waiting for a handoff slot only slows these tests down.
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO);
     }
 
     // Test forwarding of indexing requests (by the primary shard) when the coordinator is so stale that

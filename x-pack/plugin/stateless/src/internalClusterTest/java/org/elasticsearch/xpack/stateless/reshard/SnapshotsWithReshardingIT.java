@@ -491,7 +491,9 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     @Override
     protected Settings.Builder nodeSettings() {
         // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // The random delay of a shard that is waiting for a handoff slot only slows these tests down.
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO);
     }
 
     private void waitForReshardCompletion(Index index) {

@@ -435,6 +435,8 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
             .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // The random delay of a shard that is waiting for a handoff slot only slows these tests down.
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO)
             // Disable so that they don't randomly flush and break our asserts.
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }

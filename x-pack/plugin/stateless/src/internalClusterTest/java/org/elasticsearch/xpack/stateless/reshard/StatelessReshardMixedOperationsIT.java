@@ -98,6 +98,8 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100))
             // Reduce the delay between retries to speed up the test.
             .put(SplitSourceService.STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10))
+            // The random delay of a shard that is waiting for a handoff slot only slows the test down.
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO)
             .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5))
             // Reader contexts are only cleaned up (outside of search execution) if a shard is reassigned to a node
             // or when keepalive expires.

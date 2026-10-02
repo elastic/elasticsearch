@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -110,6 +111,19 @@ public class SplitSourceService {
         Setting.Property.NodeScope
     );
 
+    /// When a HANDOFF slot frees, every source shard waiting for one is woken by the same cluster state. Each of them waits a random
+    /// time of up to this time before checking again, so that the ones that check later see the slot has been taken.
+    public static final Setting<TimeValue> HANDOFF_THROTTLE_MAX_JITTER = Setting.timeSetting(
+        "reshard.split.handoff_throttle_max_jitter",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    // visible for testing
+    static final TimeValue HANDOFF_SLOT_TIMEOUT = TimeValue.timeValueMinutes(10);
+
     private final Client client;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -120,6 +134,7 @@ public class SplitSourceService {
 
     private final TimeValue deleteUnownedDelay;
     private volatile double maxConcurrentHandoffPercentage;
+    private volatile long handoffThrottleMaxJitterMillis;
 
     // Tracks active START_SPLIT requests received from target shards per source shard.
     // Target shard primary term is used to reject requests from stale shard instances or cancel ongoing request task.
@@ -162,6 +177,8 @@ public class SplitSourceService {
         this.deleteUnownedDelay = RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.get(settings);
         clusterService.getClusterSettings()
             .initializeAndWatch(RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE, value -> this.maxConcurrentHandoffPercentage = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(HANDOFF_THROTTLE_MAX_JITTER, value -> this.handoffThrottleMaxJitterMillis = value.millis());
     }
 
     /**
@@ -458,55 +475,95 @@ public class SplitSourceService {
     /**
      * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE}
      * of the split's target shards to be in state HANDOFF.
-     * This is best-effort, since if multiple shards are waiting a single cluster state could allow all of them to proceed.
-     * Timeout of 10 minutes and fails if the task is cancelled.
+     * This is best-effort. When a cluster state frees a slot it wakes every shard waiting for one, so each of them waits a random time
+     * of up to {@link #HANDOFF_THROTTLE_MAX_JITTER} before checking again.
+     * <p>
+     * Proceeds anyway after {@link #HANDOFF_SLOT_TIMEOUT}, and fails if the task is cancelled.
      */
     void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId targetShardId) {
         final var threadPool = clusterService.threadPool();
         final var waitDurationHistogram = reshardIndexService.getReshardMetrics().targetHandoffThrottleWaitDurationHistogram();
         final long startMillis = threadPool.relativeTimeInMillis();
-        // Task cancellation, the cluster state observer and its timeout can each complete this
-        final var beginHandoff = ActionListener.notifyOnce(ActionListener.<Void>wrap(ignored -> {
+        // Task cancellation, the cluster state observer and the timeout can each complete this, and only the first one counts
+        final var beginHandoff = new SubscribableListener<Void>();
+        beginHandoff.addListener(ActionListener.wrap(ignored -> {
             waitDurationHistogram.record((threadPool.relativeTimeInMillis() - startMillis) / 1000.0);
             listener.onResponse(null);
         }, listener::onFailure));
 
         task.addListener(() -> threadPool.generic().execute(() -> beginHandoff.onFailure(task.getTaskCancelledException())));
 
+        threadPool.scheduleUnlessShuttingDown(HANDOFF_SLOT_TIMEOUT, threadPool.generic(), () -> {
+            if (beginHandoff.isDone() == false) {
+                logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
+                beginHandoff.onResponse(null);
+            }
+        });
+
+        waitForSlotToOpen(task, beginHandoff, targetShardId);
+    }
+
+    /**
+     * Waits for a cluster state in which a handoff slot looks free, then waits for a random delay up to
+     * {@link #HANDOFF_THROTTLE_MAX_JITTER} before rechecking
+     */
+    private void waitForSlotToOpen(CancellableTask task, SubscribableListener<Void> beginHandoff, ShardId targetShardId) {
+        final var threadPool = clusterService.threadPool();
         ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                threadPool.generic().execute(() -> beginHandoff.onResponse(null));
+                final Runnable recheck = () -> {
+                    if (beginHandoff.isDone() || task.isCancelled()) {
+                        // Timed out, or cancelled, in which case the listener is already completed
+                        return;
+                    }
+                    // Recheck slot availability and wait again if slot is taken
+                    if (handoffSlotAvailable(clusterService.state(), targetShardId.getIndex())) {
+                        beginHandoff.onResponse(null);
+                    } else {
+                        waitForSlotToOpen(task, beginHandoff, targetShardId);
+                    }
+                };
+                final long maxJitterMillis = handoffThrottleMaxJitterMillis;
+                if (maxJitterMillis == 0) {
+                    threadPool.generic().execute(recheck);
+                } else {
+                    threadPool.scheduleUnlessShuttingDown(
+                        TimeValue.timeValueMillis(Randomness.get().nextLong(maxJitterMillis + 1)),
+                        threadPool.generic(),
+                        recheck
+                    );
+                }
             }
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
-                threadPool.generic().execute(() -> beginHandoff.onResponse(null));
+                // there is no timeout, the timer in awaitHandoffSlot bounds the wait
+                assert false;
             }
 
             @Override
             public void onClusterServiceClose() {
                 beginHandoff.onFailure(new NodeClosedException(clusterService.localNode()));
             }
-        }, state -> {
-            var indexMetadataOpt = state.metadata().findIndex(targetShardId.getIndex());
-            if (indexMetadataOpt.isEmpty()) {
-                return true;
-            }
-            var reshardingMetadata = indexMetadataOpt.get().getReshardingMetadata();
-            if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
-                return true;
-            }
-            var split = reshardingMetadata.getSplit();
-            long totalTargetShards = split.targetStates().count();
-            long preHandoffCount = shardsPreparingForHandoff.stream()
-                .filter(shardId -> shardId.getIndex().equals(targetShardId.getIndex()))
-                .count();
-            long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
-            long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
-            return preHandoffCount + handoffCount < maxConcurrentHandoffs;
-        }, TimeValue.timeValueMinutes(10), logger);
+        }, state -> handoffSlotAvailable(state, targetShardId.getIndex()), null, logger);
+    }
+
+    private boolean handoffSlotAvailable(ClusterState state, Index index) {
+        var indexMetadataOpt = state.metadata().findIndex(index);
+        if (indexMetadataOpt.isEmpty()) {
+            return true;
+        }
+        var reshardingMetadata = indexMetadataOpt.get().getReshardingMetadata();
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            return true;
+        }
+        var split = reshardingMetadata.getSplit();
+        long totalTargetShards = split.targetStates().count();
+        long preHandoffCount = shardsPreparingForHandoff.stream().filter(shardId -> shardId.getIndex().equals(index)).count();
+        long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
+        long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
+        return preHandoffCount + handoffCount < maxConcurrentHandoffs;
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {

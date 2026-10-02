@@ -5338,6 +5338,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
             .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5))
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO)
             // Disable reshard-target warming wait by default; testReshardTargetSearchShardTriggersWarming starts its own nodes.
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getKey(), TimeValue.ZERO);
     }

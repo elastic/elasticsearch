@@ -1432,6 +1432,7 @@ public class StatelessPlugin extends Plugin
             SplitTargetService.RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT,
             SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD,
             SplitSourceService.RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE,
+            SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER,
             ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
             ReshardUnownedBitsetCache.CACHE_SIZE_SETTING,
             StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,

@@ -45,6 +45,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -121,6 +123,13 @@ public class ExternalSourceResolver {
      */
     public static final String DATASOURCE_CONFIG_KEY = "_datasource";
 
+    /**
+     * Config key under which {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} stores the dataset
+     * context (dataset name, data source name, data source type). Stripped by {@link #storageConfig} so providers
+     * never see it; used at the operator level to annotate classified failures with dataset context.
+     */
+    public static final String DATASET_CONTEXT_KEY = "_dataset_context";
+
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
 
     /**
@@ -155,7 +164,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> result = new HashMap<>(datasource);
         config.forEach((k, v) -> {
-            if (DATASOURCE_CONFIG_KEY.equals(k) == false) {
+            if (DATASOURCE_CONFIG_KEY.equals(k) == false && DATASET_CONTEXT_KEY.equals(k) == false) {
                 result.put(k, v);
             }
         });
@@ -179,9 +188,12 @@ public class ExternalSourceResolver {
 
     /**
      * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
-     * Not a measured deep size.
+     * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
+     * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
+     * leaves a few megabytes of slack at the default discovered-files cap. A file with its own attribute list
+     * can exceed it.
      */
-    private static final long SCHEMA_MAP_BYTES_PER_FILE = 760L;
+    private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
@@ -369,6 +381,18 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Bytes held for this listing after resolve. The walk (or a cache hit) reserves
+     * {@link FileList#LISTING_BYTES_PER_ENTRY} per file; compact listings weigh less and keep that floor.
+     * {@link FileList#planningBytes()} is used when it is larger. The per-file schema-map allowance is then
+     * added. Visible for tests that pin the charge at the discovered-files cap.
+     */
+    public static long listingPlanningCharge(FileList listing) {
+        long files = listing.fileCount();
+        long listingHeld = Math.max(files * FileList.LISTING_BYTES_PER_ENTRY, listing.planningBytes());
+        return listingHeld + files * SCHEMA_MAP_BYTES_PER_FILE;
+    }
+
+    /**
      * Reserves the per-file schema map this listing will carry. The listing's own entries were reserved as they
      * were listed ({@link #planningMemory()}); this is the map built over them afterwards, whose size is known
      * only once the listing is complete.
@@ -378,15 +402,12 @@ public class ExternalSourceResolver {
         if (reservation == null) {
             return;
         }
-        // One LISTING_BYTES_PER_ENTRY per entry is already reserved: by the walk as it retained them, or - when the
-        // listing came from the cache and no walk ran - by DatasetListingService.cachedListing, which reserves that
-        // same figure for exactly this subtraction to stay valid. What is left is the listing's fixed overhead, its
-        // header and any notices it carries, plus the per-file schema map built over it, neither of which is known
-        // until the listing is complete. The two together come to exactly what this charged in one go before the walk
-        // started reserving.
+        // The walk (or cachedListing) already reserved LISTING_BYTES_PER_ENTRY per file. Compact listings weigh
+        // less than that floor; those bytes stay held. Charge any listing weight above the floor, then the schema
+        // map. The schema map is a separate add so a smaller allowance cannot be swallowed by max(0).
         long alreadyReserved = listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY;
-        long remainder = listing.planningBytes() - alreadyReserved + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
-        reservation.chargeQuery(Math.max(0L, remainder));
+        long listingRemainder = Math.max(0L, listing.planningBytes() - alreadyReserved);
+        reservation.chargeQuery(listingRemainder + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
     }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
@@ -556,11 +577,10 @@ public class ExternalSourceResolver {
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
         this.restorableContext = threadContext == null ? null : threadContext.newRestorableContext(true);
-        // Install the query cancellation signal as the ambient StorageRetryCancellation scope for every footer read
-        // dispatched to the executor, so an executor-backed synchronous read's backoff aborts promptly on cancel.
-        this.metadataReadExecutor = command -> executor.execute(
-            () -> StorageRetryCancellation.runWithCancellation(this::isCancelled, command::run)
-        );
+        // Restore the captured request ThreadContext and install cancellation on every metadata-read
+        // task so footer-load waiters and per-file continuations see the caller's headers, and so a
+        // pool rejection still reaches AbstractRunnable.onRejection.
+        this.metadataReadExecutor = ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled);
     }
 
     /**
@@ -799,7 +819,28 @@ public class ExternalSourceResolver {
                 resolved,
                 listener
             );
-        }, e -> listener.onFailure(mapResolveFailure(path, e))));
+        }, e -> {
+            @SuppressWarnings("unchecked")
+            Map<String, String> ctx = (Map<String, String>) config.get(DATASET_CONTEXT_KEY);
+            listener.onFailure(withDatasetContext(mapResolveFailure(path, e), ctx));
+        }));
+    }
+
+    // Package-private for testing.
+    static RuntimeException withDatasetContext(RuntimeException mapped, @Nullable Map<String, String> ctx) {
+        if (ctx == null) {
+            return mapped;
+        }
+        if (mapped instanceof ExternalException ee) {
+            ee.setDatasetContext(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+        } else if (mapped instanceof IllegalArgumentException iae) {
+            String label = ExternalException.buildDatasetLabel(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+            if (label != null) {
+                // A new instance: mapResolveFailure may return one shared by concurrent cache waiters.
+                return new IllegalArgumentException(iae.getMessage() + " " + label);
+            }
+        }
+        return mapped;
     }
 
     /**
@@ -865,8 +906,7 @@ public class ExternalSourceResolver {
             return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
         }
         // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
-        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped. Re-wrap so
-        // the client message keeps the path context while the 503 status and the throttling flag survive.
+        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped.
         ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
             e,
             ExternalUnavailableException.class
@@ -874,33 +914,23 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return new ExternalUnavailableException(
-                unavailable.throttling(),
-                unavailable,
-                "{}",
-                ExternalFailures.locate("Failed to resolve external source", path, unavailable.getMessage())
-            );
+            return unavailable.withoutCause();
         }
         // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.
-        // Recover from a cache ExecutionException the same way as the 503 arm: without this, a glob
-        // listing expiry becomes a 500 on the cacheable rail.
+        // Recover from a cache ExecutionException the same way as the 503 arm.
         ExternalCredentialsExpiredException expired = (ExternalCredentialsExpiredException) ExceptionsHelper.unwrap(
             e,
             ExternalCredentialsExpiredException.class
         );
         if (expired != null) {
             recordDiscoveryFailure();
-            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return new ExternalCredentialsExpiredException(
-                expired,
-                "{}",
-                ExternalFailures.locate("Failed to resolve external source", path, expired.getMessage())
-            );
+            logClientResolveFailure(path, expired.getMessage(), e);
+            return expired.withoutCause();
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
         // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
-        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error. Re-wrap
-        // so the client message keeps the path context while the 429 status survives (the type has no cause constructor).
+        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error.
+        // Return the original to preserve isExecutorShutdown() and all other fields.
         EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
             e,
             EsRejectedExecutionException.class
@@ -908,15 +938,9 @@ public class ExternalSourceResolver {
         if (rejected != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                ExternalFailures.locate("Failed to resolve external source", path, rejected.getMessage())
-            );
-            wrapped.initCause(rejected);
-            return wrapped;
+            return rejected;
         }
-        // A breaker trip carries its own 429 and must survive a wrapper for the same reason: ParsedFooterCache
-        // raises it during resolution, and the boundary already treats it as a status carrier alongside the two
-        // above (see ExternalFailures). Unwrapped rather than re-wrapped -- the type's byte counts are the payload.
+        // A breaker trip carries its own 429 and must survive a wrapper for the same reason.
         CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         if (breaking != null) {
             recordDiscoveryFailure();
@@ -929,41 +953,84 @@ public class ExternalSourceResolver {
         // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
         // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
         // reintroduce the same masking.
+        // Storage connectors throw ExternalClientException (400) directly for access-denied and object-not-found
+        // cases — it is an ElasticsearchException, not an IOException, so the IOException arm below would not catch
+        // it. It is checked before the IllegalArgumentException arm: the factory loop wraps every factory failure in
+        // an IllegalArgumentException, which would otherwise shadow the typed condition.
+        ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
+        if (clientException != null) {
+            recordDiscoveryFailure();
+            logClientResolveFailure(path, clientException.getMessage(), e);
+            return clientException.withoutCause();
+        }
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
-            return clientError;
+            logClientResolveFailure(path, clientError.getMessage(), e);
+            String iaeMsg = clientError.getMessage();
+            boolean safe = iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg);
+            if (safe && clientError.getCause() == null && clientError.getSuppressed().length == 0) {
+                return clientError;
+            }
+            // Causes and suppressed failures may name the location, and the REST layer renders both.
+            if (safe) {
+                return new IllegalArgumentException(iaeMsg);
+            }
+            String objectName = StoragePath.objectName(path);
+            return new IllegalArgumentException(
+                "Failed to resolve external source"
+                    + (objectName.isEmpty() ? "" : " [" + objectName + "]")
+                    + " ("
+                    + clientError.getClass().getSimpleName()
+                    + ")"
+            );
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
         // does. The file-metadata rail raises IOException (missing object, access denied) and it may arrive wrapped
         // in ExecutionException on the cacheable rail — so without this a missing bucket is a
         // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
         // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
-        // is non-retryable and is the caller's fault. rootDetail rather than getMessage so the ExecutionException
-        // wrapper's toString-derived message is skipped in favour of the IOException's own message.
+        // is non-retryable and is the caller's fault.
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
             recordDiscoveryFailure();
-            String detail = ExternalFailures.rootDetail(e);
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
-            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
-            return new ExternalClientException(ioError, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
+            // rootDetail reads through the cache's ExecutionException, whose own message is the cause's toString().
+            String ioDetail = ExternalFailures.rootDetail(ioError);
+            logClientResolveFailure(path, ioDetail, e);
+            // Use objectName(path) — the safe static that never throws and never returns the full URI —
+            // as the detailCode so the filename appears in the message while the directory stays hidden.
+            ExternalClientException ioEx = new ExternalClientException(
+                ExternalException.Condition.METADATA_UNAVAILABLE,
+                StoragePath.NONE,
+                StoragePath.objectName(path),
+                ""
+            );
+            if (ExternalFailures.safeForUserMessage(ioDetail)) {
+                ioEx.setDetail(ioDetail);
+            }
+            return ioEx;
         }
         recordDiscoveryFailure();
-        // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
+        // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the
         // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
-        // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
         return new ExternalServerException(
-            ExternalFailures.rootCause(e),
-            "{}",
-            ExternalFailures.locate("Failed to resolve external source", path, detail)
+            ExternalException.Condition.CLIENT_BUG,
+            StoragePath.NONE,
+            ExternalFailures.safeForUserMessage(detail) ? detail : ExternalFailures.rootCause(e).getClass().getSimpleName(),
+            ""
         );
+    }
+
+    /**
+     * The user's message omits the location, so the admin gets it here. One line at WARN: a client error's message is
+     * its diagnosis, and every query against a misconfigured dataset fails the same way. The stack trace is at DEBUG.
+     */
+    private static void logClientResolveFailure(String path, String detail, Exception e) {
+        LOGGER.warn("Failed to resolve external source [{}]: {}", path, detail);
+        LOGGER.debug("Failed to resolve external source [{}]", path, e);
     }
 
     private void resolveSource(
@@ -1646,7 +1713,8 @@ public class ExternalSourceResolver {
      * the message, along with the path's configure-time notices (see {@link #currentPathConfigWarnings}).
      */
     private IllegalArgumentException noFilesMatched(String path, FileList listing) {
-        StringBuilder message = new StringBuilder("Glob pattern matched no files: ").append(path);
+        // The path is intentionally omitted from the message.
+        StringBuilder message = new StringBuilder("Glob pattern matched no files");
         for (String notice : listing.listingWarnings()) {
             message.append(". ").append(notice);
         }
@@ -3361,10 +3429,13 @@ public class ExternalSourceResolver {
      * its message changes. It used to be the constant "Failed to resolve metadata for [path]", which reported a
      * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
      * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
-     * the diagnosis instead; see {@link ExternalFailures#resolutionFailureMessage}.
+     * the diagnosis instead.
      */
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
-        return new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(path, lastFailure), lastFailure);
+        String detail = ExternalFailures.rootDetail(lastFailure);
+        // Preserve the full cause chain so mapResolveFailure's unwrap arms can still find any
+        // status carrier (503, 429, etc.) buried inside it.
+        return new IllegalArgumentException(detail, lastFailure);
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
@@ -3427,9 +3498,8 @@ public class ExternalSourceResolver {
         } catch (IllegalArgumentException e) {
             objectName = "";
         }
-        // The full location is the display path: the caller asked for a glob or a dataset resource, and
-        // quoting back only the object name would lose what they wrote.
-        return dataSourceModule.formatReaderRegistry().unreadableObject(path, objectName);
+        // Only the object name is quoted back: the message reaches users who may not know the storage location.
+        return dataSourceModule.formatReaderRegistry().unreadableObject(objectName, objectName);
     }
 
     /**

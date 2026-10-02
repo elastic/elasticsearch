@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -225,6 +226,16 @@ class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject 
     @Override
     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
         delegate.attachMetrics(metrics, scheme);
+    }
+
+    @Override
+    public void bindRowGroup(RowGroupIo io) {
+        delegate.bindRowGroup(io);
+    }
+
+    @Override
+    public long admissionWaitTimeoutMs() {
+        return delegate.admissionWaitTimeoutMs();
     }
 
     StorageObject rawDelegate() {

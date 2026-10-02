@@ -312,6 +312,14 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
     }
 
     @Override
+    public long estimatedBytesForPartitioning() {
+        if (packedKeysHash != null) {
+            return estimatedKeyBytes(packedKeysHash.getBytesRefs());
+        }
+        return estimatedKeyBytes(bytesHash.getBytesRefs()) + longIntHash.estimatedBytesForPartitioning();
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         if (packedKeysHash != null) {
             return new SeenGroupIds.Range(0, Math.toIntExact(packedKeysHash.size())).seenGroupIds(bigArrays);

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
@@ -699,8 +700,20 @@ public class FileSplitProvider implements SplitProvider {
         String pattern = context.metadata() == null ? null : context.metadata().location();
         Map<String, Object> config = context.config();
         StorageProvider provider = null;
+        // Take the identities the registry reports when it makes the provider, rather than letting the listing key
+        // default them: resolution's listing is cached under what its provider reported, and a scan that listed the
+        // same pattern under a different identity would cache a second copy and never be served the first.
+        String storageIdentity = "";
+        String secretIdentity = "";
         if (pattern != null && storageRegistry != null) {
-            provider = storageRegistry.createProvider(StoragePath.of(pattern).scheme(), settings, config);
+            Configured<StorageProvider> resolved = storageRegistry.createProviderTrackingConsumedKeys(
+                StoragePath.of(pattern).scheme(),
+                settings,
+                config
+            );
+            provider = resolved.value();
+            storageIdentity = resolved.identity();
+            secretIdentity = resolved.secretIdentity();
         }
         if (provider == null) {
             // Returning what we were handed would turn a prefix of the dataset into the query's file set, and the
@@ -743,6 +756,8 @@ public class FileSplitProvider implements SplitProvider {
                     pattern,
                     storagePath,
                     provider,
+                    storageIdentity,
+                    secretIdentity,
                     narrowing,
                     config,
                     scanMemory(context),

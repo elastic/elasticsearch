@@ -1,5 +1,0 @@
-area: Recovery
-issues: []
-pr: 160621
-summary: Reconcile offline warming timeout during recovery
-type: enhancement

@@ -73,6 +73,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -971,24 +973,39 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         String explanationMessage
     ) {
         final var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
-        allocation.debugDecision(true);
-
         final var routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);
-        {
-            final var decision = DataTierAllocationDecider.INSTANCE.canAllocate(shard, routingNode, allocation);
-            assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
-            assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
+        final var indexMetadata = allocation.metadata().getProject(projectId).getIndexSafe(shard.index());
+
+        if (decisionType == Decision.Type.NO) {
+            // Without debug there is no explanation, but the decision must still carry the decider's label
+            final var noExplanation = isNoDecisionWithNoExplanation(DataTierAllocationDecider.NAME);
+            assertThat(
+                routingNode.toString(),
+                DataTierAllocationDecider.INSTANCE.canAllocate(shard, routingNode, allocation),
+                noExplanation
+            );
+            assertThat(
+                routingNode.toString(),
+                DataTierAllocationDecider.INSTANCE.canRemain(indexMetadata, shard, routingNode, allocation),
+                noExplanation
+            );
         }
 
-        {
-            final var decision = DataTierAllocationDecider.INSTANCE.canRemain(
-                allocation.metadata().getProject(projectId).getIndexSafe(shard.index()),
-                shard,
-                routingNode,
-                allocation
+        allocation.debugDecision(true);
+        final var canAllocate = DataTierAllocationDecider.INSTANCE.canAllocate(shard, routingNode, allocation);
+        final var canRemain = DataTierAllocationDecider.INSTANCE.canRemain(indexMetadata, shard, routingNode, allocation);
+        if (decisionType == Decision.Type.NO) {
+            final var withExplanation = isNoDecisionWithExplanationMatching(
+                DataTierAllocationDecider.NAME,
+                containsString(explanationMessage)
             );
-            assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
-            assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
+            assertThat(routingNode.toString(), canAllocate, withExplanation);
+            assertThat(routingNode.toString(), canRemain, withExplanation);
+        } else {
+            for (var decision : List.of(canAllocate, canRemain)) {
+                assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
+                assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
+            }
         }
     }
 

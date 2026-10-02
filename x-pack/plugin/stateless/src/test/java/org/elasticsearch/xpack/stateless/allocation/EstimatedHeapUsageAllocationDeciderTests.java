@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -57,6 +58,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -132,10 +135,14 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                     "insufficient estimated heap available on node *exceeds high watermark*"
                 )
             );
-            assertThat(decider.canAllocate(shard, node, allocation).type(), equalTo(Decision.Type.NO));
+            // without debug the label is retained but there is no explanation
             assertThat(
-                decider.canRemain(allocation.metadata().getProject(ProjectId.DEFAULT).index(shard.index()), shard, node, allocation).type(),
-                equalTo(Decision.Type.NO)
+                decider.canAllocate(shard, node, allocation),
+                isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
+            );
+            assertThat(
+                decider.canRemain(allocation.metadata().getProject(ProjectId.DEFAULT).index(shard.index()), shard, node, allocation),
+                isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
             );
             mockLog.assertAllExpectationsMatched();
         }
@@ -179,11 +186,20 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         );
 
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
-        final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(NODE_ID), routingAllocation);
-        assertThat(decision.toString(), decision.type(), equalTo(Decision.Type.NO));
+        final RoutingNode node = routingAllocation.routingNodes().node(NODE_ID);
         assertThat(
-            decision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+            decider.canAllocate(shardRouting, node, routingAllocation),
+            isNoDecisionWithExplanationMatching(
+                EstimatedHeapUsageAllocationDecider.NAME,
+                containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+            )
+        );
+
+        // without debug the label is retained but there is no explanation
+        routingAllocation.debugDecision(false);
+        assertThat(
+            decider.canAllocate(shardRouting, node, routingAllocation),
+            isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
         );
     }
 

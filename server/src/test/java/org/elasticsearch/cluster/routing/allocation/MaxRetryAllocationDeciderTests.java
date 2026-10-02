@@ -38,6 +38,7 @@ import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Objects;
@@ -48,6 +49,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -58,6 +61,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
+
+    private static final Matcher<String> EXCEEDED_RETRIES_EXPLANATION = allOf(
+        containsString("shard has exceeded the maximum number of retries"),
+        containsString("POST /_cluster/reroute?retry_failed")
+    );
 
     private final MaxRetryAllocationDecider decider = new MaxRetryAllocationDecider();
     private final AllocationService strategy = new AllocationService(
@@ -187,15 +195,14 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(unassignedPrimary.unassignedInfo().message(), containsString("boom"));
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return a NO decision because canAllocate returns NO here
             final var allocation = newRoutingAllocation(clusterState);
-            allocation.debugDecision(true);
-            final var decision = decider.canForceAllocatePrimary(unassignedPrimary, null, allocation);
-            assertEquals(Decision.Type.NO, decision.type());
             assertThat(
-                decision.getExplanation(),
-                allOf(
-                    containsString("shard has exceeded the maximum number of retries"),
-                    containsString("POST /_cluster/reroute?retry_failed")
-                )
+                decider.canForceAllocatePrimary(unassignedPrimary, null, allocation),
+                isNoDecisionWithNoExplanation(MaxRetryAllocationDecider.NAME)
+            );
+            allocation.debugDecision(true);
+            assertThat(
+                decider.canForceAllocatePrimary(unassignedPrimary, null, allocation),
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
             );
         }
 
@@ -301,18 +308,12 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
         // shard could not be relocated when retries are exhausted
         withRoutingAllocation(clusterState, allocation -> {
+            final var source = allocation.globalRoutingTable().routingTable(projectId).index("idx").shard(0).shard(0);
+            assertThat(decider.canAllocate(source, allocation), isNoDecisionWithNoExplanation(MaxRetryAllocationDecider.NAME));
             allocation.debugDecision(true);
-            final var decision = decider.canAllocate(
-                allocation.globalRoutingTable().routingTable(projectId).index("idx").shard(0).shard(0),
-                allocation
-            );
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
             assertThat(
-                decision.getExplanation(),
-                allOf(
-                    containsString("shard has exceeded the maximum number of retries"),
-                    containsString("POST /_cluster/reroute?retry_failed")
-                )
+                decider.canAllocate(source, allocation),
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
             );
         });
 
@@ -488,11 +489,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         final var afterFinalFailure = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
         assertThat(afterFinalFailure.relocationFailureInfo().failedRelocations(), equalTo(maxRetries));
         withRoutingAllocation(clusterState, allocation -> {
-            allocation.debugDecision(true);
             var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
-            final var decision = decider.canAllocate(source, allocation);
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
-            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+            assertThat(decider.canAllocate(source, allocation), isNoDecisionWithNoExplanation(MaxRetryAllocationDecider.NAME));
+            allocation.debugDecision(true);
+            assertThat(
+                decider.canAllocate(source, allocation),
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
+            );
         });
     }
 
@@ -615,10 +618,12 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(exhaustedReplica.state(), equalTo(STARTED));
         assertThat(exhaustedReplica.relocationFailureInfo().failedRelocations(), equalTo(maxRetries));
         withRoutingAllocation(clusterState, alloc -> {
+            assertThat(decider.canAllocate(exhaustedReplica, alloc), isNoDecisionWithNoExplanation(MaxRetryAllocationDecider.NAME));
             alloc.debugDecision(true);
-            final var decision = decider.canAllocate(exhaustedReplica, alloc);
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
-            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+            assertThat(
+                decider.canAllocate(exhaustedReplica, alloc),
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
+            );
         });
     }
 

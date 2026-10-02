@@ -672,3 +672,6 @@ tests:
 - class: org.elasticsearch.columnar.string.StringMatchTests
   method: testWindowedCollectionOnAMultiValuedDictionary
   issue: https://github.com/elastic/elasticsearch/issues/160837
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
+  method: testWatermarkEmptyQueueOverrunIsNodeWide
+  issue: https://github.com/elastic/elasticsearch/issues/160849

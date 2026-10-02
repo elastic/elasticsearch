@@ -396,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitIfPrimaryRelocates
   issue: https://github.com/elastic/elasticsearch/issues/158593
-- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
-  method: testLargeMsearchTemplateDoesNotOom
-  issue: https://github.com/elastic/elasticsearch/issues/158428
 - class: org.elasticsearch.common.logging.DeprecationLoggerTests
   method: testMultipleSlowLoggersUseSingleLog4jLogger
   issue: https://github.com/elastic/elasticsearch/issues/158695
@@ -466,9 +463,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160380
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStaticMappingChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/160381
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/160408

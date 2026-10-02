@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -44,6 +45,13 @@ public final class Tier1Buffer {
         }
         queries.put(query.fingerprint(), query);
         return true;
+    }
+
+    /**
+     * Picked queries that are still waiting for their ground truth, at most {@code limit} of them.
+     */
+    public List<SampledQuery> pendingGroundTruth(int limit) {
+        return queries.values().stream().filter(query -> query.groundTruth() == null).limit(limit).toList();
     }
 
     public int size() {

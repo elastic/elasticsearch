@@ -1,5 +1,5 @@
 area: Security
 issues: []
 pr: 160525
-summary: Verify enrollment TLS leaf chains to pinned CA
+summary: Reject node enrollment unless the HTTP leaf chains to the pinned CA and is within its validity period
 type: bug

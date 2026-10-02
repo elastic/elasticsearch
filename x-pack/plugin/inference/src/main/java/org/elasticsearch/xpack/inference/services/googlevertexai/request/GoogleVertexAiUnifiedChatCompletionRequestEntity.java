@@ -55,6 +55,23 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String FUNCTION_CALL_NAME = "name";
     private static final String FUNCTION_CALL_ARGS = "args";
 
+    /**
+     * The opaque, encrypted representation of the model's reasoning for a part. Gemini 3 rejects a request whose
+     * function call parts are missing the signature it previously issued for them.
+     */
+    private static final String THOUGHT_SIGNATURE = "thoughtSignature";
+
+    /**
+     * Google's documented placeholder that tells Gemini to skip thought signature validation. Used when a client
+     * replays a function call without the signature Gemini issued for it, which Gemini 3 would otherwise reject with
+     * a 400. Unified chat completion requests on this version cannot carry the signatures, so it is always used.
+     * <p>
+     * The equivalent sentinel {@code context_engineering_is_the_way_to_go} is also accepted. Both are documented by
+     * Google for this use case; this one is used by gemini-cli, LiteLLM, and pydantic-ai.
+     * See <a href="https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures">thought signatures</a>.
+     */
+    static final String SKIP_THOUGHT_SIGNATURE_VALIDATOR = "skip_thought_signature_validator";
+
     private final UnifiedChatInput unifiedChatInput;
 
     private static final String USER_ROLE = "user";
@@ -79,8 +96,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             // Gemini VertexAI API does not use "assistant". Instead, it uses "model"
             return MODEL_ROLE;
         } else if (messageRole.equals(TOOL_ROLE)) {
-            // Gemini VertexAI does not have the tool role, so we map it to "model"
-            return MODEL_ROLE;
+            // Gemini VertexAI has no tool role; Content.role is only ever "user" or "model". A tool result is
+            // produced by the client, so it is a user turn.
+            return USER_ROLE;
         }
 
         var errorMessage = format(
@@ -197,6 +215,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
                 if (message.toolCalls() != null && message.toolCalls().isEmpty() == false) {
                     var toolCalls = message.toolCalls();
+                    // Gemini 3 only validates the first functionCall of a step, so only that one needs the placeholder.
+                    var firstFunctionCall = true;
                     for (var toolCall : toolCalls) {
                         builder.startObject();
                         {
@@ -204,6 +224,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                             builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
                             builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
                             builder.endObject();
+                            if (firstFunctionCall) {
+                                builder.field(THOUGHT_SIGNATURE, SKIP_THOUGHT_SIGNATURE_VALIDATOR);
+                                firstFunctionCall = false;
+                            }
                         }
                         builder.endObject();
                     }

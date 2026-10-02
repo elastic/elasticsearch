@@ -75,10 +75,6 @@ Functions that convert between scalars and instant vectors.
 ::::
 
 ### Metadata functions
-```{applies_to}
-stack: ga 9.6
-serverless: ga
-```
 
 Functions that derive new labels from existing label values.
 

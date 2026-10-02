@@ -894,7 +894,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
                         if (config == null || config.isEmpty()) {
                             return Configured.empty(storage);
                         }
-                        return new Configured<>(storage, Set.copyOf(config.keySet()));
+                        // A storage provider identifies itself by the settings naming the store it reads, so a
+                        // stub that models none reports none.
+                        return new Configured<>(storage, Set.copyOf(config.keySet()), "", "");
                     }
                 });
             }

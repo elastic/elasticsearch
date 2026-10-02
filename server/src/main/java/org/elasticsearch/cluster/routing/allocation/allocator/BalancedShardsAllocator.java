@@ -1252,7 +1252,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Keeps track of the single "best" shard movement we could make from each node, as scored by
-         * {@link BalancingWeights#movePrioritisationForNode}. Provides a utility for checking if
+         * {@link BalancingWeights#createMoveComparatorForNode}. Provides a utility for checking if
          * a proposed movement is "better" than the current best for that node.
          */
         private class BestShardMovementsTracker {
@@ -1277,7 +1277,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 int comparison = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
-                    nodeId -> balancingWeights.movePrioritisationForNode(
+                    nodeId -> balancingWeights.createMoveComparatorForNode(
                         allocation.routingNodes().node(nodeId),
                         allocation.clusterInfo()
                     )

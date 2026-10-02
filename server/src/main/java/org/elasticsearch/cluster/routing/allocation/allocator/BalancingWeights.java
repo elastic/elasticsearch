@@ -60,7 +60,7 @@ public interface BalancingWeights {
      * @param clusterInfo Cluster info supplying the load maps
      * @return A node-specific comparator
      */
-    default Comparator<ShardRouting> movePrioritisationForNode(RoutingNode node, ClusterInfo clusterInfo) {
+    default Comparator<ShardRouting> createMoveComparatorForNode(RoutingNode node, ClusterInfo clusterInfo) {
         return new PrioritiseByShardLoadComparator(clusterInfo, node);
     }
 }

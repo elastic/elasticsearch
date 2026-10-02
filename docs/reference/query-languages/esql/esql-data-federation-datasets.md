@@ -449,7 +449,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 |---|---|---|
 | `segment_size` | `4mb` | The unit a file is divided into for parallel reading. Minimum 64 KiB. |
 | `datetime_format` | `strict_date_optional_time` | The pattern used to infer and parse date and time values. |
-| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of fields schema inference can create, counting objects as well as leaf fields. Each segment of a dotted key counts as a field. A file that needs more fails the query. The default comes from the `esql.external.ndjson.schema_max_fields` node setting. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of fields schema inference can create, counting objects as well as leaf fields. Each segment of a dotted key counts as a field. A file whose schema is inferred and needs more fails the query. The default comes from the `esql.external.ndjson.schema_max_fields` node setting. |
 
 ### Parquet
 

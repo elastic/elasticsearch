@@ -760,6 +760,41 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 4, new LimitedBreaker("test", ByteSizeValue.ofMb(16))));
     }
 
+    /**
+     * A malformed line is deferred to the slice read, so the fields it created before its error are discarded: they
+     * neither become columns nor count toward the cap, even when that line alone crosses it.
+     */
+    public void testMalformedLineFieldsAreDiscarded() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        String duplicateKey = "{\"k0\":1,\"k1\":1,\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1,\"k0\":2}\n";
+        String ndjson = "{\"a\":1}\n" + duplicateKey + "{\"a\":2}\n";
+        for (int maxFields : List.of(Integer.MAX_VALUE, 5)) {
+            List<Attribute> schema = infer(ndjson, maxFields, breaker);
+            assertThat(schema.stream().map(Attribute::name).toList(), equalTo(List.of("a")));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+        // A nested object created by the malformed line goes too, leaving its pre-existing parent a leaf.
+        assertThat(
+            infer("{\"a\":1}\n{\"a\":{\"b\":1,\"b\":2}}\n", 5, breaker).stream().map(Attribute::name).toList(),
+            equalTo(List.of("a"))
+        );
+        // A record cut short by the end of the stream is malformed too.
+        assertThat(
+            infer("{\"a\":1}\n{\"k0\":1,\"k1\":1,\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1", 5, breaker).stream().map(Attribute::name).toList(),
+            equalTo(List.of("a"))
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A well-formed line that crosses the cap still fails inference, however much of it follows the crossing. */
+    public void testWellFormedLineCrossingTheCapMidRecordFails() {
+        String ndjson = "{\"a\":1}\n{\"k0\":1,\"k1\":{\"x\":[1,{\"y\":2}]},\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1}\n";
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 3, breaker));
+        assertThat(e.getMessage(), containsString("more than [3] fields"));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(

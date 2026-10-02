@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -108,7 +108,9 @@ public class NdJsonSchemaInferrer {
      * line, so it must never be caught as one.
      * <p>
      * More than {@code maxFields} fields, objects and leaves alike, fails inference with a client error naming
-     * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once.
+     * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once. Fields are
+     * counted as a line is parsed, so the line that crosses the cap is read to its end first, and if it turns out to be
+     * malformed it is skipped like any other and its fields are discarded.
      */
     public static List<Attribute> inferSchema(
         InputStream inputStream,
@@ -131,7 +133,7 @@ public class NdJsonSchemaInferrer {
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
-        FieldInfo root = new FieldInfo(null);
+        FieldInfo root = new FieldInfo(null, null);
         NdJsonUtils.LineTerminatorTrackingStream tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
         JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
         try {
@@ -151,20 +153,40 @@ public class NdJsonSchemaInferrer {
                     // failing inference on it would deny the read's error_mode a say. A record that
                     // names one field twice (NdJsonUtils.JSON_FACTORY enables Jackson's duplicate
                     // detection) arrives here as a JsonParseException and defers for the same reason:
-                    // it contributes no columns to the sample, and the slice read is where it either
-                    // fails the query or drops with a warning.
+                    // the fields it introduced are discarded, so it contributes no columns to the sample,
+                    // and the slice read is where it either fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
                 }
 
+                int lineStart = fields.size();
                 try {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException | StreamConstraintsException e) {
                     // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
+                    discardFieldsFrom(lineStart);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+                } catch (FieldCapExceeded e) {
+                    // Fields are created while the line is still being parsed, so the line that crossed the cap may
+                    // yet turn out to be malformed. Only a well-formed line fails inference; a malformed one is
+                    // skipped like any other, without its fields counting toward the cap.
+                    if (restOfRecordParses(parser)) {
+                        throw new IllegalArgumentException(
+                            LoggerMessageFormat.format(
+                                "NDJSON schema inference found more than [{}] fields; raise [{}] in the dataset settings or the "
+                                    + "WITH clause to infer a wider schema",
+                                maxFields,
+                                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+                            )
+                        );
+                    }
+                    logger.debug("Malformed NDJSON at line {} past the field cap", lineCount);
+                    discardFieldsFrom(lineStart);
                     inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
@@ -186,6 +208,45 @@ public class NdJsonSchemaInferrer {
         List<Attribute> attributes = new ArrayList<>();
         buildSchema(root, attributes);
         return attributes;
+    }
+
+    /**
+     * Removes the fields created since {@code start}, children before their parents, and releases their charges. A
+     * malformed line's partial record must not leave columns behind.
+     */
+    private void discardFieldsFrom(int start) {
+        for (int i = fields.size() - 1; i >= start; i--) {
+            FieldInfo field = fields.remove(i);
+            field.parent.children.remove(field.name);
+            if (field.parent.children.isEmpty()) {
+                // getChild only creates the map to add a child, so an empty one was created by this line.
+                field.parent.children = null;
+            }
+            long bytes = fieldBytes(field.name);
+            breaker.addWithoutBreaking(-bytes);
+            reservedBytes -= bytes;
+        }
+    }
+
+    /**
+     * Reads the rest of the current record without building fields, to tell whether the line that crossed the field cap
+     * is well formed. A record cut short at the end of the stream counts as malformed.
+     */
+    private static boolean restOfRecordParses(JsonParser parser) throws IOException {
+        try {
+            while (parser.getParsingContext().inRoot() == false) {
+                if (parser.nextToken() == null) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (JsonParseException | StreamConstraintsException e) {
+            return false;
+        }
+    }
+
+    private static long fieldBytes(String name) {
+        return FIELD_INFO_BYTES + HeapEstimates.stringBytes(name);
     }
 
     private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
@@ -324,6 +385,17 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
+     * Thrown when a line would create more than {@code maxFields} fields. Not a client error yet: {@link #doInferSchema}
+     * first checks whether the line is malformed, which defers to the slice read instead. Carries no stack trace, since
+     * it never leaves this class.
+     */
+    private static final class FieldCapExceeded extends RuntimeException {
+        FieldCapExceeded() {
+            super(null, null, false, false);
+        }
+    }
+
+    /**
      * Field type information collected during schema inference.
      */
     private class FieldInfo {
@@ -332,17 +404,16 @@ public class NdJsonSchemaInferrer {
         boolean nullable = false;
         Map<String, FieldInfo> children = null;
         final int idx;
+        final FieldInfo parent;
         final String name;
 
-        FieldInfo(String name) {
+        FieldInfo(FieldInfo parent, String name) {
             // fields holds the root too, so this admits exactly maxFields fields below it.
-            Check.clientError(
-                fields.size() <= maxFields,
-                "NDJSON schema inference found more than [{}] fields; raise [{}] on the dataset to infer a wider schema",
-                maxFields,
-                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
-            );
-            charge(FIELD_INFO_BYTES + HeapEstimates.stringBytes(name));
+            if (fields.size() > maxFields) {
+                throw new FieldCapExceeded();
+            }
+            charge(fieldBytes(name));
+            this.parent = parent;
             this.name = name;
             this.idx = fields.size();
             fields.add(this);
@@ -356,7 +427,7 @@ public class NdJsonSchemaInferrer {
             if (children == null) {
                 children = new LinkedHashMap<>();
             }
-            return children.computeIfAbsent(name, (n) -> new FieldInfo(n));
+            return children.computeIfAbsent(name, (n) -> new FieldInfo(this, n));
         }
 
         void addType(DataType type) {

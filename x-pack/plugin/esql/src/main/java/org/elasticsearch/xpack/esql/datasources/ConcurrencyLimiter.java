@@ -11,7 +11,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
@@ -80,7 +82,17 @@ class ConcurrencyLimiter {
         try {
             acquire();
         } catch (TimeoutException e) {
-            throw new ExternalUnavailableException(e.getMessage(), e);
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L,
+                e
+            );
+            ex.setDetail(e.getMessage());
+            throw ex;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring a concurrency permit");

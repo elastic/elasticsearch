@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 160859
+summary: "ES|QL datafeeds: runtime checkpoint, resume and delayed-data check"
+type: enhancement

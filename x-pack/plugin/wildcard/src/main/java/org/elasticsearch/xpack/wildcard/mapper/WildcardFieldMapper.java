@@ -114,7 +114,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
@@ -247,7 +246,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private Builder(String name, MappingParserContext mappingParserContext) {
             this(
                 name,
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIgnoreAbove(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.indexVersionCreated(),
                 mappingParserContext.getIndexSettings()

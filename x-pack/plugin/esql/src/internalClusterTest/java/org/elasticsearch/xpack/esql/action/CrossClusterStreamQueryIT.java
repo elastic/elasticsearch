@@ -132,10 +132,7 @@ public class CrossClusterStreamQueryIT extends AbstractCrossClusterTestCase {
         assertThat(footer.status(), equalTo(200));
         assertThat("clusters payload must be non-null with include_ccs_metadata=true", footer.clusters(), notNullValue());
 
-        String clustersJson = Strings.toString((builder, params) -> {
-            footer.clusters().toXContent(builder, params);
-            return builder;
-        });
+        String clustersJson = Strings.toString(footer.clusters());
         Map<String, Object> clusters;
         try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, clustersJson)) {
             clusters = parser.map();
@@ -148,9 +145,9 @@ public class CrossClusterStreamQueryIT extends AbstractCrossClusterTestCase {
         assertThat("local cluster must appear in details", details, hasKey("(local)"));
         assertThat("remote cluster must appear in details", details, hasKey(REMOTE_CLUSTER_1));
         Map<String, Object> localDetails = (Map<String, Object>) details.get("(local)");
-        assertThat(localDetails, hasKey("shards"));
+        assertThat(localDetails, hasKey("_shards"));
         Map<String, Object> remoteDetails = (Map<String, Object>) details.get(REMOTE_CLUSTER_1);
-        assertThat(remoteDetails, hasKey("shards"));
+        assertThat(remoteDetails, hasKey("_shards"));
     }
 
     private static int indexOfColumn(EsqlStreamQueryAction.ResultStream resultStream, String name) {

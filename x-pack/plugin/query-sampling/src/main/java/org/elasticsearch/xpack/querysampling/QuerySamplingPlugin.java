@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -47,6 +48,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
     private static final int MAX_DISTINCT_QUERIES = 100_000;
+    private static final TimeValue MULTIPLICITY_WINDOW = TimeValue.timeValueHours(1);
     private static final int TIER1_CAPACITY = 10_000;
     private static final double ACCEPTANCE_SCALE = 1.0;
     private static final long HEAD_THRESHOLD = 100;
@@ -78,7 +80,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES);
+        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, MULTIPLICITY_WINDOW, System::nanoTime);
         Tier1Buffer buffer = new Tier1Buffer(TIER1_CAPACITY);
         SamplingPipeline pipeline = new SamplingPipeline(
             tracker,

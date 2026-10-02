@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -43,5 +46,47 @@ public class MultiplicityTrackerTests extends ESTestCase {
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(2L));
+    }
+
+    public void testForgetsQueriesNotSeenForAWindow() {
+        AtomicLong now = new AtomicLong();
+        MultiplicityTracker tracker = new MultiplicityTracker(10, TimeValue.timeValueMinutes(1), now::get);
+        QueryFingerprint gone = new QueryFingerprint(1, 1);
+        tracker.record(gone);
+
+        now.addAndGet(TimeValue.timeValueMinutes(1).nanos());
+        assertThat("still known one window after its arrival", tracker.record(new QueryFingerprint(2, 2)).multiplicity(), equalTo(1L));
+        assertThat(tracker.distinct(), equalTo(2));
+
+        now.addAndGet(TimeValue.timeValueMinutes(1).nanos());
+        assertThat(tracker.record(new QueryFingerprint(3, 3)).multiplicity(), equalTo(1L));
+        assertThat("the first query is gone", tracker.distinct(), equalTo(2));
+        assertThat("and starts from scratch if it comes back", tracker.record(gone).multiplicity(), equalTo(1L));
+    }
+
+    public void testQueriesKeepTheirCountAsLongAsTheyKeepArriving() {
+        AtomicLong now = new AtomicLong();
+        MultiplicityTracker tracker = new MultiplicityTracker(10, TimeValue.timeValueMinutes(1), now::get);
+        QueryFingerprint frequent = new QueryFingerprint(1, 1);
+
+        int windows = between(3, 6);
+        for (int i = 0; i < windows; i++) {
+            assertThat(tracker.record(frequent).multiplicity(), equalTo((long) i + 1));
+            now.addAndGet(TimeValue.timeValueSeconds(61).nanos());
+        }
+        assertThat(tracker.distinct(), equalTo(1));
+    }
+
+    public void testRotationMakesRoomWhenFull() {
+        AtomicLong now = new AtomicLong();
+        MultiplicityTracker tracker = new MultiplicityTracker(2, TimeValue.timeValueMinutes(1), now::get);
+        tracker.record(new QueryFingerprint(1, 1));
+        tracker.record(new QueryFingerprint(2, 2));
+        assertThat(tracker.record(new QueryFingerprint(3, 3)), nullValue());
+
+        now.addAndGet(TimeValue.timeValueMinutes(2).nanos());
+
+        assertThat(tracker.record(new QueryFingerprint(3, 3)).multiplicity(), equalTo(1L));
+        assertThat(tracker.distinct(), equalTo(1));
     }
 }

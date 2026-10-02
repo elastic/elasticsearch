@@ -128,6 +128,15 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertTrue(captured.isEmpty());
     }
 
+    public void testIgnoresHybridSearches() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        SearchRequest request = knnSearch(randomVector(8));
+        request.source().query(QueryBuilders.matchQuery("title", "phone"));
+        assertTrue(apply(filter, request, TaskId.EMPTY_TASK_ID));
+        assertTrue(captured.isEmpty());
+        assertThat(filter.knnSearches(), equalTo(0L));
+    }
+
     public void testIgnoresChildSearches() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
         assertTrue(apply(filter, knnSearch(randomVector(8)), new TaskId("remote-node", randomNonNegativeLong())));

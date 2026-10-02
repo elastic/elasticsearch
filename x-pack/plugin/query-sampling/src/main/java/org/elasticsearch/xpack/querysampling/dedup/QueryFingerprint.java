@@ -18,8 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Identity of a query for the purpose of counting repeats: the same vector, searched on the same field,
- * with the same filters. Runtime parameters such as k or num_candidates are deliberately left out, they
+ * Identity of a query for the purpose of counting repeats: the same vector, searched on the same field of
+ * the same indices, with the same filters. Runtime parameters such as k or num_candidates are deliberately left out, they
  * describe how the query was run and not which query it is.
  * <p>
  * The identity is a 128-bit hash, wide enough that a collision among the queries seen in a day is not a
@@ -30,15 +30,24 @@ public record QueryFingerprint(long high, long low) {
     private static final long SEED = 0;
 
     public static QueryFingerprint of(CapturedQuery query) {
+        // the same vector searched in other indices has other results and other ground truth
+        List<byte[]> indices = Arrays.stream(query.indices()).sorted().map(index -> index.getBytes(StandardCharsets.UTF_8)).toList();
         byte[] field = query.field().getBytes(StandardCharsets.UTF_8);
         // This is considering that filters are combined with AND, so their order is not part of the query's identity
         List<byte[]> filters = query.filters().stream().map(QueryFingerprint::canonical).sorted(Arrays::compareUnsigned).toList();
 
-        int size = Integer.BYTES + field.length + Integer.BYTES + Float.BYTES * query.queryVector().length;
+        int size = Integer.BYTES + Integer.BYTES + field.length + Integer.BYTES + Float.BYTES * query.queryVector().length;
+        for (byte[] index : indices) {
+            size += Integer.BYTES + index.length;
+        }
         for (byte[] filter : filters) {
             size += Integer.BYTES + filter.length;
         }
         ByteBuffer buffer = ByteBuffer.allocate(size);
+        buffer.putInt(indices.size());
+        for (byte[] index : indices) {
+            buffer.putInt(index.length).put(index);
+        }
         buffer.putInt(field.length).put(field);
         buffer.putInt(query.queryVector().length);
         for (float value : query.queryVector()) {

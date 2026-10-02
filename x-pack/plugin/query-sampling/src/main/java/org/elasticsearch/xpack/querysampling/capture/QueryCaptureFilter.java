@@ -36,8 +36,8 @@ import java.util.function.Consumer;
  * rest of the pipeline. The search itself always proceeds unchanged, and the work done for a search
  * that is not captured is a couple of field reads and one random draw.
  * <p>
- * For now only searches with a single top-level {@code knn} section and a literal float query vector
- * are eligible. Searches with a parent task are skipped: those are the remote side of a cross-cluster
+ * For now only searches with a single top-level {@code knn} section, a literal float query vector and no
+ * additional {@code query} are eligible. Searches with a parent task are skipped: those are the remote side of a cross-cluster
  * search or searches issued internally by other features, not user traffic arriving at this node.
  */
 public final class QueryCaptureFilter implements MappedActionFilter {
@@ -133,7 +133,8 @@ public final class QueryCaptureFilter implements MappedActionFilter {
 
     private static KnnSearchBuilder eligibleKnn(SearchRequest request) {
         SearchSourceBuilder source = request.source();
-        if (source == null || source.knnSearch().size() != 1) {
+        // a search that also has a query returns a mix of both, which the captured kNN section alone cannot replay
+        if (source == null || source.knnSearch().size() != 1 || source.query() != null) {
             return null;
         }
         KnnSearchBuilder knn = source.knnSearch().get(0);

@@ -47,6 +47,18 @@ public class QueryFingerprintTests extends ESTestCase {
         );
     }
 
+    public void testIndicesArePartOfTheIdentityButTheirOrderIsNot() {
+        float[] vector = randomVector(16);
+        CapturedQuery a = new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        CapturedQuery b = new CapturedQuery(new String[] { "b" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        CapturedQuery ab = new CapturedQuery(new String[] { "a", "b" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        CapturedQuery ba = new CapturedQuery(new String[] { "b", "a" }, "vec", vector, 10, 100, null, null, List.of(), null);
+
+        assertThat(QueryFingerprint.of(a), not(equalTo(QueryFingerprint.of(b))));
+        assertThat(QueryFingerprint.of(a), not(equalTo(QueryFingerprint.of(ab))));
+        assertThat(QueryFingerprint.of(ab), equalTo(QueryFingerprint.of(ba)));
+    }
+
     public void testDifferentQueriesHaveDifferentFingerprints() {
         float[] vector = randomVector(16);
         QueryFingerprint base = QueryFingerprint.of(query("vec", vector, List.of(BRAND)));

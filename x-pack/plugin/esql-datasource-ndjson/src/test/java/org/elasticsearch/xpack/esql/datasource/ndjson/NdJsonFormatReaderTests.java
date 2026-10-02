@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
@@ -30,6 +32,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -75,6 +78,52 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
         assertEquals(2, new NdJsonFormatReader(null, limited).metadata(new BytesObject(bytes)).schema().size());
         assertEquals(0L, breaker.getUsed());
+    }
+
+    /** The default cap follows {@code index.mapping.total_fields.limit}: 1000 fields infer, the next one is refused. */
+    public void testMetadataAppliesTheDefaultFieldCap() throws IOException {
+        int limit = NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS;
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        assertEquals(limit, reader.metadata(new BytesObject(flatRecord(limit))).schema().size());
+        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
+    }
+
+    /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses a non-positive one. */
+    public void testSchemaMaxFieldsConfiguresTheCap() throws IOException {
+        int limit = NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS;
+        FormatReader raised = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, limit + 1)
+        ).value();
+        assertEquals(limit + 1, raised.metadata(new BytesObject(flatRecord(limit + 1))).schema().size());
+
+        FormatReader lowered = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
+        ).value();
+        expectThrows(IllegalArgumentException.class, () -> lowered.metadata(new BytesObject(flatRecord(3))));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 0))
+        );
+    }
+
+    /** The node setting replaces the default, and a dataset's {@code schema_max_fields} still overrides it. */
+    public void testNodeSettingSetsTheDefaultFieldCap() throws IOException {
+        Settings settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_MAX_FIELDS_SETTING.getKey(), 2).build();
+        NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
+        assertEquals(2, reader.metadata(new BytesObject(flatRecord(2))).schema().size());
+        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));
+
+        FormatReader overridden = reader.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
+        assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
+    }
+
+    private static byte[] flatRecord(int columns) {
+        StringBuilder record = new StringBuilder("{");
+        for (int i = 0; i < columns; i++) {
+            record.append(i == 0 ? "" : ",").append("\"c").append(i).append("\":1");
+        }
+        return (record + "}\n").getBytes(StandardCharsets.UTF_8);
     }
 
     public void testSkipFirstLineFalseReturnsStreamUnchanged() throws IOException {

@@ -27,6 +27,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -344,7 +345,13 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             {"ts": "2023-10-23 12:15:03.360103847"}
             """;
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, custom, new NoopCircuitBreaker("test"));
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(
+                inputStream,
+                100,
+                NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS,
+                custom,
+                new NoopCircuitBreaker("test")
+            );
             assertEquals(1, result.size());
             assertEquals(DataType.DATETIME, result.get(0).dataType());
         }
@@ -551,9 +558,14 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         return sb.append("}\n").toString();
     }
 
+    /** No field cap, so only the breaker can refuse: these records are deliberately far wider than the default cap. */
     private static List<Attribute> infer(String ndjson, LimitedBreaker breaker) throws IOException {
+        return infer(ndjson, Integer.MAX_VALUE, breaker);
+    }
+
+    private static List<Attribute> infer(String ndjson, int maxFields, LimitedBreaker breaker) throws IOException {
         try (ByteArrayInputStream in = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            return NdJsonSchemaInferrer.inferSchema(in, 100, null, breaker);
+            return NdJsonSchemaInferrer.inferSchema(in, 100, maxFields, null, breaker);
         }
     }
 
@@ -705,9 +717,58 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         assertThat(breaker.peak - treeAndColumn, equalTo((long) key.length() * Character.BYTES));
     }
 
+    /** The cap admits exactly {@code maxFields} fields and refuses the next one as a client error, releasing everything. */
+    public void testFieldCapAdmitsExactlyTheLimit() throws IOException {
+        int maxFields = between(1, 50);
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        assertThat(infer(wideFlatRecord(maxFields), maxFields, breaker).size(), equalTo(maxFields));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> infer(wideFlatRecord(maxFields + 1), maxFields, breaker)
+        );
+        assertThat(e.getMessage(), containsString("more than [" + maxFields + "] fields"));
+        assertThat(e.getMessage(), containsString(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Objects count like leaves, as in {@code index.mapping.total_fields.limit}, and so does every segment of a dotted
+     * key: {@code {"a":{"b":1}}} and {@code {"a.b":1}} are both two fields.
+     */
+    public void testFieldCapCountsObjectsAndDottedSegments() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        for (String record : List.of("{\"a\":{\"b\":1}}\n", "{\"a.b\":1}\n")) {
+            assertThat(infer(record, 2, breaker).size(), equalTo(1));
+            expectThrows(IllegalArgumentException.class, () -> infer(record, 1, breaker));
+        }
+        // The esql-planning#2143 shape (36,000 leaves under deep nesting) is refused by the default cap at its 101st
+        // leaf, long before the dotted names are built.
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> infer(deeplyNestedRecord(900, 36_000), NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS, breaker)
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The cap is not a malformed line: a later record that pushes the schema over it fails inference rather than
+     * being skipped, so the earlier records' narrower schema is never returned as if it were complete.
+     */
+    public void testFieldCapIsNotSkippedAsAMalformedLine() {
+        String ndjson = "not_json\n" + wideFlatRecord(3) + wideFlatRecord(5);
+        expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 4, new LimitedBreaker("test", ByteSizeValue.ofMb(16))));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null, new NoopCircuitBreaker("test"));
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(
+                inputStream,
+                100,
+                NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS,
+                null,
+                new NoopCircuitBreaker("test")
+            );
 
             assertEquals(expected.length, result.size());
             for (int i = 0; i < expected.length; i++) {

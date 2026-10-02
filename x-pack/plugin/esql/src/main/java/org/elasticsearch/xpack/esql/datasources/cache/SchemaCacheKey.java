@@ -82,6 +82,8 @@ public record SchemaCacheKey(
         "comment",
         "max_field_size",
         "schema_sample_size",
+        // schema_max_fields: like max_field_size, flips inference between success and failure on the same bytes.
+        "schema_max_fields",
         "skip_rows",
         // trim_spaces changes stored string values and the null-ness of whitespace-only cells on the
         // same bytes, so neither captured stats nor schemas may cross it.

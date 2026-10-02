@@ -43,6 +43,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("schema_sample_size");
         expected.add("segment_size");
         expected.add("datetime_format");
+        expected.add("schema_max_fields");
         assertEquals(expected, new TreeSet<>(NdJsonFormatReader.RECOGNIZED_KEYS));
     }
 
@@ -216,6 +217,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             case "schema_sample_size" -> 10;
             case "segment_size" -> "2mb";
             case "datetime_format" -> "dd/MM/yyyy HH:mm:ss";
+            case "schema_max_fields" -> 500;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
     }

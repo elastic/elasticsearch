@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -83,11 +84,13 @@ public class NdJsonSchemaInferrer {
     /** Label the inference charges are made under, so a trip names the work that was refused. */
     static final String BREAKER_LABEL = "ndjson_schema_inference";
 
+    private final int maxFields;
     private final DateFormatter dateFormatter;
     private final CircuitBreaker breaker;
     private long reservedBytes = 0;
 
-    private NdJsonSchemaInferrer(DateFormatter dateFormatter, CircuitBreaker breaker) {
+    private NdJsonSchemaInferrer(int maxFields, DateFormatter dateFormatter, CircuitBreaker breaker) {
+        this.maxFields = maxFields;
         this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
         this.breaker = breaker;
     }
@@ -103,14 +106,18 @@ public class NdJsonSchemaInferrer {
      * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
      * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
      * line, so it must never be caught as one.
+     * <p>
+     * More than {@code maxFields} fields, objects and leaves alike, fails inference with a client error naming
+     * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once.
      */
     public static List<Attribute> inferSchema(
         InputStream inputStream,
         int maxLines,
+        int maxFields,
         DateFormatter datetimeFormatter,
         CircuitBreaker breaker
     ) throws IOException {
-        NdJsonSchemaInferrer inferrer = new NdJsonSchemaInferrer(datetimeFormatter, breaker);
+        NdJsonSchemaInferrer inferrer = new NdJsonSchemaInferrer(maxFields, datetimeFormatter, breaker);
         try {
             return inferrer.doInferSchema(inputStream, maxLines);
         } finally {
@@ -328,6 +335,13 @@ public class NdJsonSchemaInferrer {
         final String name;
 
         FieldInfo(String name) {
+            // fields holds the root too, so this admits exactly maxFields fields below it.
+            Check.clientError(
+                fields.size() <= maxFields,
+                "NDJSON schema inference found more than [{}] fields; raise [{}] on the dataset to infer a wider schema",
+                maxFields,
+                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+            );
             charge(FIELD_INFO_BYTES + HeapEstimates.stringBytes(name));
             this.name = name;
             this.idx = fields.size();
@@ -339,7 +353,6 @@ public class NdJsonSchemaInferrer {
         }
 
         FieldInfo getChild(String name) {
-            // TODO: limit depth
             if (children == null) {
                 children = new LinkedHashMap<>();
             }

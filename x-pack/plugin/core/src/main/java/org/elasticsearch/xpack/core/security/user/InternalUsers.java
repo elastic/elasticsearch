@@ -296,6 +296,25 @@ public class InternalUsers {
         )
     );
 
+    /**
+     * Internal user for enrich policy execution, maintenance, and enrich-processor/ES|QL lookups.
+     * Operates exclusively on the {@code .enrich-*} system indices.
+     */
+    public static final InternalUser ENRICH_USER = new InternalUser(
+        UsernamesField.ENRICH_NAME,
+        new RoleDescriptor(
+            UsernamesField.ENRICH_ROLE,
+            new String[] { "monitor", "manage_ingest_pipelines" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("all").allowRestrictedIndices(true).build() },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
 
     private static final Map<String, InternalUser> INTERNAL_USERS;
@@ -311,7 +330,8 @@ public class InternalUsers {
             DATA_STREAM_LIFECYCLE_USER,
             REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
-            LAZY_ROLLOVER_USER
+            LAZY_ROLLOVER_USER,
+            ENRICH_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -671,8 +672,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 equalTo(secondCommit.getGeneration())
             );
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            ActionListener<Void> relocationListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
-            testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
             assertThat(
                 testHarness.commitService.getMaxPendingOrUploadedGeneration(testHarness.shardId),
                 equalTo(secondCommit.getGeneration())
@@ -740,8 +741,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.onCommitCreation(secondCommit);
 
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            ActionListener<Void> relocationListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
-            testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             // Third commit is created after relocation started, so its generation > maxGenerationToUpload
             testHarness.commitService.onCommitCreation(thirdCommit);
@@ -831,8 +832,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            ActionListener<Void> handoffListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
-            testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            ActionListener<Void> handoffListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             testHarness.commitService.onCommitCreation(thirdCommit);
             testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, thirdCommit.getGeneration());
@@ -897,8 +898,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             flushThreadPoolExecutor(testHarness.threadPool, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
 
             final var future = new PlainActionFuture<Void>();
-            ActionListener<Void> relocationListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
-            testHarness.commitService.markRelocating(testHarness.shardId, mergedCommit.getGeneration(), future);
+            testHarness.commitService.markRelocationStarting(testHarness.shardId, new SubscribableListener<>());
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(
+                testHarness.shardId,
+                mergedCommit.getGeneration(),
+                future
+            );
             safeGet(future);
 
             final Set<String> mergedCommitFiles = new HashSet<>(mergedCommit.getCommitFiles());
@@ -2463,8 +2468,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Start the relocation handoff
             final var markedRelocating = new PlainActionFuture<Void>();
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            commitService.markRelocationStarting(shardId, new SubscribableListener<>());
+            final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
             markedRelocating.actionGet();
 
             // A background merge creates a commit above maxGenerationToUpload that will never be uploaded.
@@ -2515,7 +2520,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
 
             // Relocation has begun, but the final flush has not happened and no bound is pinned yet.
-            final var handoffListener = commitService.markRelocationStarting(shardId);
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            commitService.markRelocationStarting(shardId, uploadBoundListener);
             assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
 
             // A merge commits in that window, opening a VBCC that markRelocating will leave above the bound.
@@ -2542,9 +2548,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // The bound pinned afterwards excludes the merged commit.
             final var markedRelocating = new PlainActionFuture<Void>();
-            commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
             markedRelocating.actionGet();
             assertThat(commitService.getMaxGenerationToUpload(shardId), lessThan(mergedCommit.getGeneration()));
+            assertThat(safeAwait(uploadBoundListener, TimeValue.ZERO), equalTo(commitService.getMaxGenerationToUpload(shardId)));
 
             handoffListener.onResponse(null);
         }
@@ -2591,8 +2598,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
                 // maxGenerationToUpload becomes the pending commit's generation
                 final var markedRelocating = new PlainActionFuture<Void>();
-                final var handoffListener = commitService.markRelocationStarting(shardId);
-                commitService.markRelocating(shardId, pendingCommit.getGeneration(), markedRelocating);
+                commitService.markRelocationStarting(shardId, new SubscribableListener<>());
+                final var handoffListener = commitService.markRelocating(shardId, pendingCommit.getGeneration(), markedRelocating);
                 assertFalse("the handoff waits for the pending upload", markedRelocating.isDone());
 
                 // A background merge completes during the handoff, above maxGenerationToUpload.
@@ -2725,180 +2732,48 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    /// A relocation can fail before it ever reaches [StatelessCommitService#markRelocating], leaving the upload bound
-    /// undecided. The listener returned by [StatelessCommitService#markRelocationStarting] must then unwind the shard.
-    public void testRelocationAbortedBeforeMarkRelocatingRestoresTheUploadBound() throws Exception {
-        runTestRelocationAbortedRestoresTheUploadBound(false);
-    }
-
-    /// Counterpart to [#testRelocationAbortedBeforeMarkRelocatingRestoresTheUploadBound]
-    public void testRelocationAbortedAfterMarkRelocatingRestoresTheUploadBound() throws Exception {
-        runTestRelocationAbortedRestoresTheUploadBound(true);
-    }
-
-    private void runTestRelocationAbortedRestoresTheUploadBound(boolean pinUploadBound) throws Exception {
+    public void testMarkRelocatingCompletesTheUploadBoundListener() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
             final var shardId = testHarness.shardId;
             final var commitService = testHarness.commitService;
-            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
-            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
-            final var nodeId = stateWithSearchShards.getRoutingTable()
-                .shardRoutingTable(shardId)
-                .replicaShards()
-                .getFirst()
-                .currentNodeId();
-            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+            final var commit = uploadSingleCommit(testHarness);
 
-            final var initialCommits = testHarness.generateIndexCommits(3);
-            for (var initialCommit : initialCommits) {
-                commitService.onCommitCreation(initialCommit);
-            }
-            final var lastUploadedCommit = initialCommits.getLast();
-            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
-            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
-
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            if (pinUploadBound) {
-                commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), new PlainActionFuture<>());
-                // Nothing is pending upload, so the bound lands on the last uploaded commit.
-                assertThat(
-                    "markRelocating pinned a real bound",
-                    commitService.getMaxGenerationToUpload(shardId),
-                    equalTo(lastUploadedCommit.getGeneration())
-                );
-            } else {
-                assertThat("the bound is still undecided", commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
-            }
-
-            // A commit lands during the handoff, which is withheld from recovering search shards while the shard relocates.
-            final var handoffCommit = testHarness.generateIndexCommits(1, true).getFirst();
-            commitService.onCommitCreation(handoffCommit);
-            assertThat(handoffCommit.getGeneration(), greaterThan(lastUploadedCommit.getGeneration()));
-
-            handoffListener.onFailure(new RuntimeException("relocation aborted"));
-
-            assertThat("the bound is lifted", commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
-            assertThat(
-                "the handoff commit is eligible again once the shard is no longer relocating",
-                registerForRecovery(commitService, shardId, nodeId, stateWithSearchShards, lastUploadedCommit).getCompoundCommit()
-                    .generation(),
-                equalTo(handoffCommit.getGeneration())
-            );
-
-            // Starting a second relocation should not throw
-            commitService.markRelocationStarting(shardId).onFailure(new RuntimeException("aborted again"));
-            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
-        }
-    }
-
-    private RegisterCommitResponse registerForRecovery(
-        StatelessCommitService commitService,
-        ShardId shardId,
-        String nodeId,
-        ClusterState state,
-        StatelessCommitRef knownCommit
-    ) {
-        final var future = new PlainActionFuture<RegisterCommitResponse>();
-        commitService.registerCommitForUnpromotableRecovery(
-            null,
-            new PrimaryTermAndGeneration(knownCommit.getPrimaryTerm(), knownCommit.getGeneration()),
-            shardId,
-            nodeId,
-            state,
-            future
-        );
-        return future.actionGet();
-    }
-
-    public void testRelocationUploadBoundIsAlwaysResolved() throws Exception {
-        // Pinned by markRelocating.
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
-            final var shardId = testHarness.shardId;
-            final var commitService = testHarness.commitService;
-            final var commit = testHarness.generateIndexCommits(1).getFirst();
-            commitService.onCommitCreation(commit);
-            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
-            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
-
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            final var boundFuture = new PlainActionFuture<Long>();
-            commitService.addRelocationUploadBoundListener(shardId, boundFuture);
-            assertFalse("the bound is undecided until markRelocating runs", boundFuture.isDone());
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            commitService.markRelocationStarting(shardId, uploadBoundListener);
+            assertFalse("the bound is undecided until markRelocating runs", uploadBoundListener.isDone());
 
             final var markedRelocating = new PlainActionFuture<Void>();
-            commitService.markRelocating(shardId, commit.getGeneration(), markedRelocating);
+            final var handoffListener = commitService.markRelocating(shardId, commit.getGeneration(), markedRelocating);
             markedRelocating.actionGet();
-            assertThat(boundFuture.actionGet(), equalTo(commitService.getMaxGenerationToUpload(shardId)));
+            assertThat(safeAwait(uploadBoundListener, TimeValue.ZERO), equalTo(commitService.getMaxGenerationToUpload(shardId)));
+
+            // Failing the listener once markRelocating has completed it is a no-op, the returned listener owns the outcome
+            uploadBoundListener.onFailure(new RuntimeException("ignored"));
+            assertThat(safeAwait(uploadBoundListener, TimeValue.ZERO), equalTo(commitService.getMaxGenerationToUpload(shardId)));
 
             handoffListener.onResponse(null);
+            assertTrue(commitService.isShardClosed(shardId));
         }
+    }
 
-        // Lifted when the relocation is abandoned before markRelocating.
+    public void testMarkRelocatingThrowsWithoutAnUndecidedUploadBoundListener() throws Exception {
+        // Never started
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
-            final var shardId = testHarness.shardId;
-            final var commitService = testHarness.commitService;
-            final var commit = testHarness.generateIndexCommits(1).getFirst();
-            commitService.onCommitCreation(commit);
-            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
-            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
-
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            final var boundFuture = new PlainActionFuture<Long>();
-            commitService.addRelocationUploadBoundListener(shardId, boundFuture);
-            assertFalse(boundFuture.isDone());
-
-            handoffListener.onFailure(new RuntimeException("relocation aborted before the handoff"));
-            assertThat("uploads are unrestricted again", boundFuture.actionGet(), equalTo(Long.MAX_VALUE));
-        }
-
-        // Failed when the shard closes after the handoff installed an undecided bound.
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
-            final var shardId = testHarness.shardId;
-            final var commitService = testHarness.commitService;
-            final var commit = testHarness.generateIndexCommits(1).getFirst();
-            commitService.onCommitCreation(commit);
-            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
-            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
-
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            final var boundFuture = new PlainActionFuture<Long>();
-            commitService.addRelocationUploadBoundListener(shardId, boundFuture);
-            assertFalse(boundFuture.isDone());
-
-            // Handoff listener owns unwinding the bound
-            commitService.closeShard(shardId);
-            assertFalse(boundFuture.isDone());
-
+            final var commit = uploadSingleCommit(testHarness);
             expectThrows(
-                AlreadyClosedException.class,
-                () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
+                IllegalStateException.class,
+                () -> testHarness.commitService.markRelocating(testHarness.shardId, commit.getGeneration(), new PlainActionFuture<>())
             );
-            assertFalse(boundFuture.isDone());
-
-            handoffListener.onFailure(new RuntimeException("relocation aborted on a shard closed mid-handoff"));
-            expectThrows(AlreadyClosedException.class, boundFuture::actionGet);
-            assertTrue(commitService.isShardClosed(shardId));
+            assertThat(testHarness.commitService.getMaxGenerationToUpload(testHarness.shardId), equalTo(Long.MAX_VALUE));
         }
+    }
 
-        // Never installed when the shard was already closed before the handoff started.
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
-            final var shardId = testHarness.shardId;
-            final var commitService = testHarness.commitService;
-            final var commit = testHarness.generateIndexCommits(1).getFirst();
-            commitService.onCommitCreation(commit);
-            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
-            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
-
-            commitService.closeShard(shardId);
-            final var handoffListener = commitService.markRelocationStarting(shardId);
-            final var boundFuture = new PlainActionFuture<Long>();
-            commitService.addRelocationUploadBoundListener(shardId, boundFuture);
-            assertThat("no bound leaked onto a closed shard", boundFuture.actionGet(), equalTo(Long.MAX_VALUE));
-
-            handoffListener.onFailure(new RuntimeException("relocation aborted on an already closed shard"));
-            assertTrue(commitService.isShardClosed(shardId));
-            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
-        }
+    private StatelessCommitRef uploadSingleCommit(FakeStatelessNode testHarness) throws Exception {
+        final var commit = testHarness.generateIndexCommits(1).getFirst();
+        testHarness.commitService.onCommitCreation(commit);
+        testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
+        waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit.getGeneration());
+        return commit;
     }
 
     public void testScheduledCommitUpload() throws Exception {

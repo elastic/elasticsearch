@@ -432,28 +432,37 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.setTrackedSearchNodesPerCommitOnRelocationTarget(searchNodesPerCommit);
     }
 
-    /// Marks the beginning of a primary relocation handoff, before the final flush.
-    ///
-    /// [#markRelocating] pins `maxGenerationToUpload` to the generation the engine has reached once the final flush completes.
-    /// A merge committing after that flush opens a new VBCC above that bound, which the relocation source will never upload.
-    /// As a result, from here on the current VBCC is no longer eligible for unpromotable recovery (see
-    /// `ShardCommitState#getLatestVirtualBccForUnpromotableRecovery`). A registration that reads the current
-    /// VBCC before this transition is safe, because the generation sampled afterwards is necessarily at or above what it saw,
-    /// so the bound covers it.
-    ///
-    /// The returned listener signals the outcome of the whole relocation and must be resolved on every exit path,
-    /// including those that never reach [#markRelocating]. Resolving it successfully marks the shard relocated, and
-    /// resolving it exceptionally restores the shard to its pre-relocation state.
+    /// Marks the beginning of a primary relocation handoff, before the final flush. Installs the `uploadBoundListener`
+    /// which [#markRelocating] later completes it with the `maxGenerationToUpload` it pins.
     ///
     /// Must be called from the relocation handoff consumer, while all primary operation permits are held. This serializes
-    /// relocation attempts on the shard: a later attempt cannot acquire the permits, and so cannot call this method, until
-    /// the previous attempt has resolved the returned listener.
+    /// relocation attempts on the shard: a later attempt cannot acquire the permits, and so cannot call this method,
+    /// until the previous attempt has resolved the provided `uploadBoundListener`.
     ///
-    /// See also [#markRelocating]
-    public ActionListener<Void> markRelocationStarting(ShardId shardId) {
-        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.markRelocationStarting();
-        return ActionListener.notifyOnce(new ActionListener<>() {
+    /// The caller owns `uploadBoundListener` and must fail it if the handoff is abandoned before [#markRelocating]
+    /// completes it.
+    ///
+    public void markRelocationStarting(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+        getSafe(shardsCommitsStates, shardId).markRelocationStarting(uploadBoundListener);
+    }
+
+    /// This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads, max
+    /// uploaded generation) and wait for that generation to be uploaded after which it will trigger the provided listener.
+    /// Additionally, this method will then block the upload of any generations greater than that calculated generation.
+    ///
+    /// We have implemented this mechanism opposed to using operation permits as we must push a flush after blocking all operations. If we
+    /// used operation permits, the final flush would not be able to proceed.
+    ///
+    /// [#markRelocationStarting] must have been invoked before this method is called. This method resolves the upload bound
+    /// listener provided to [#markRelocationStarting] with the calculated generation. If it throws, the listener is left
+    /// unresolved and the caller must fail it.
+    ///
+    /// This method returns an ActionListener which must be triggered when the relocation either fails or succeeds.
+    public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.markRelocating(minRelocatedGeneration, listener);
+
+        return new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 commitState.markRelocated();
@@ -463,19 +472,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onFailure(Exception e) {
                 commitState.markRelocationFailed();
             }
-        });
-    }
-
-    /// This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads) and wait
-    /// for that generation to be uploaded after which it will trigger the provided listener. Additionally, this method will then block
-    /// the upload of any generations greater than the calculated max(minRelocatedGeneration, all pending uploads).
-    ///
-    /// We have implemented this mechanism opposed to using operation permits as we must push a flush after blocking all operations. If we
-    /// used operation permits, the final flush would not be able to proceed.
-    ///
-    /// [#markRelocationStarting] must have been invoked before this method is called.
-    public void markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
-        getSafe(shardsCommitsStates, shardId).markRelocating(minRelocatedGeneration, listener);
+        };
     }
 
     /**
@@ -743,9 +740,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         .map(shardRouting -> shardRouting.currentNodeId())
                         .toList()
                 );
-                // TODO: the commit should wait on the `maxGenerationToUpload` bound to close the PRE_RELOCATING race window.
-                commitAfterRelocationStarted = commitState.isRelocating()
-                    && reference.getGeneration() > commitState.maxGenerationToUpload.generation();
+                // TODO: the commit should wait on `relocationUploadBoundListener` to close the race window between
+                // `markRelocationStarting` and `markRelocating`.
+                commitAfterRelocationStarted = commitState.isRelocating() && reference.getGeneration() > commitState.maxGenerationToUpload;
             }
             success = true;
 
@@ -1231,15 +1228,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     // Visible for testing
     public long getMaxGenerationToUpload(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        return commitState.maxGenerationToUpload.generation();
-    }
-
-    /// Subscribes to the relocation upload bound currently installed on the shard, see [ShardCommitState#maxGenerationToUpload].
-    /// The listener is notified with the pinned generation once the handoff decides it, with [Long#MAX_VALUE] if the
-    /// relocation is abandoned before it ever gets decided, or fails if the shard was closed before the handoff unwound.
-    // visible for testing
-    void addRelocationUploadBoundListener(ShardId shardId, ActionListener<Long> listener) {
-        getSafe(shardsCommitsStates, shardId).maxGenerationToUpload.addListener(listener);
+        return commitState.maxGenerationToUpload;
     }
 
     /**
@@ -1390,12 +1379,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private enum State {
             RUNNING,
-            /// A primary relocation handoff has begun but [#markRelocating] has not yet pinned `maxGenerationToUpload`.
-            /// Uploads continue to flow freely in this state.
-            PRE_RELOCATING,
-            /// The handoff is in progress and `maxGenerationToUpload` is pinned, so anything above it is paused for upload.
-            /// On a successful handoff the shard closes and those commits are discarded, on failure the bound is lifted and
-            /// uploads resume.
             RELOCATING,
             CLOSED
         }
@@ -1471,43 +1454,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * The highest generation number that we have received from an uploaded commit notification response from search shards.
          */
         private final AtomicLong uploadedGenerationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
-        /// The generation bound a relocation handoff imposes on uploads, and the means to wait for it to be decided.
+        private volatile long maxGenerationToUpload = Long.MAX_VALUE;
+        /// The upload bound listener of the relocation handoff in progress, or `null` if there is none.
+        /// It is installed by [StatelessCommitService#markRelocationStarting] before the final flush. Then either
+        /// [#markRelocating] completes it with the `maxGenerationToUpload` it pins, or the relocation source fails it
+        /// because the handoff stopped before reaching [#markRelocating].
         ///
-        /// [RelocationUploadBound#UNBOUNDED] is used when the shard is not relocating. It is the steady state and means
-        /// uploads are unrestricted. A relocation installs an undecided instance before the final flush, and
-        /// [#markRelocating] then pins the max generation that will be uploaded. Undecided means "a bound is coming but
-        /// is not known yet".
-        private volatile RelocationUploadBound maxGenerationToUpload = RelocationUploadBound.UNBOUNDED;
-
-        /// See [ShardCommitState#maxGenerationToUpload].
-        private static final class RelocationUploadBound extends SubscribableListener<Long> {
-
-            /// Already decided, unrestricted bound, the steady state of a shard that is not relocating.
-            static final RelocationUploadBound UNBOUNDED = createUnbounded();
-
-            private final AtomicLong maxGeneration = new AtomicLong(Long.MAX_VALUE);
-
-            private static RelocationUploadBound createUnbounded() {
-                final var unbounded = new RelocationUploadBound();
-                unbounded.onResponse(Long.MAX_VALUE);
-                return unbounded;
-            }
-
-            long generation() {
-                return maxGeneration.get();
-            }
-
-            /// Publishes the bound, which may only be done once. The caller completes this listener.
-            void pin(long generation) {
-                assert this != UNBOUNDED : "cannot pin unbounded static instance";
-                assert isDone() == false : "An upload bound cannot be pinned after completion";
-                assert generation != Long.MAX_VALUE : "Unbounded uploads should use the UNBOUNDED instance";
-
-                final boolean pinned = maxGeneration.compareAndSet(Long.MAX_VALUE, generation);
-                assert pinned : "RelocationUploadBound#pin cannot be called twice, current value " + maxGeneration.get();
-            }
-        }
-
+        /// It is cleared when the relocation source fails it, or when [#markRelocationFailed] moves the shard back to
+        /// [State#RUNNING]. A successful relocation leaves it in place, since the shard is closed.
+        @Nullable
+        private volatile SubscribableListener<Long> relocationUploadBoundListener;
         // Does not need to be volatile because it uses reads/writes of state for visibility
         private boolean relocated = false;
         private volatile State state = State.RUNNING;
@@ -1573,12 +1529,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ///
         /// When a shard is in the process of relocating, we change the state to [State#RELOCATING] and set a max
         /// generation to attempt to upload: we won't do further writes/uploads beyond that max generation.
-        ///
-        /// Note this always returns `false` in [State#PRE_RELOCATING], where the bound is installed but not yet decided:
-        /// it is only known once [#markRelocating] has run. Callers that cannot tolerate that must wait on
-        /// [#maxGenerationToUpload] instead.
         private boolean pauseUpload(long uploadGeneration) {
-            return state != StatelessCommitService.ShardCommitState.State.RUNNING && uploadGeneration > maxGenerationToUpload.generation();
+            return state != StatelessCommitService.ShardCommitState.State.RUNNING && uploadGeneration > maxGenerationToUpload;
         }
 
         private boolean isClosed() {
@@ -2484,11 +2436,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             long batchedCompoundCommitGeneration,
             PrimaryTermAndGeneration maxUploadedBccTermAndGen
         ) {
-            assert isRelocating() == false || lastCompoundCommit.generation() <= maxGenerationToUpload.generation()
+            assert isRelocating() == false || lastCompoundCommit.generation() <= maxGenerationToUpload
                 : "Request generation="
                     + lastCompoundCommit.generation()
                     + " maxGenerationToUpload="
-                    + maxGenerationToUpload.generation()
+                    + maxGenerationToUpload
                     + " state="
                     + state;
 
@@ -2946,6 +2898,66 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        /// Installs `uploadBoundListener` as [#relocationUploadBoundListener]. See [StatelessCommitService#markRelocationStarting].
+        private void markRelocationStarting(SubscribableListener<Long> uploadBoundListener) {
+            synchronized (this) {
+                if (state == State.CLOSED) {
+                    // shard was closed, markRelocating will throw and the relocation source fails the listener.
+                    return;
+                }
+                assert state == State.RUNNING : "unexpected state during markRelocationStarting: " + state;
+                assert relocationUploadBoundListener == null : "existing relocation upload bound listener during markRelocationStarting";
+                relocationUploadBoundListener = uploadBoundListener;
+            }
+            // Clear the relocationUploadBoundListener if the relocation source abandons the handoff before markRelocating.
+            // If markRelocating completed it first, markRelocationFailed clears it instead on failure.
+            uploadBoundListener.addListener(ActionListener.wrap(ignored -> {}, e -> {
+                synchronized (this) {
+                    if (relocationUploadBoundListener == uploadBoundListener) {
+                        relocationUploadBoundListener = null;
+                    }
+                }
+            }));
+        }
+
+        private void markRelocating(long minRelocatedGeneration, ActionListener<Void> listener) {
+            long toWaitFor;
+            SubscribableListener<Long> boundListener;
+            synchronized (this) {
+                if (state == State.CLOSED) {
+                    // Shard was concurrently closed. Throw and let the relocation source fail the upload bound listener.
+                    throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
+                }
+
+                if (state != State.RUNNING || relocationUploadBoundListener == null || relocationUploadBoundListener.isDone()) {
+                    throw new IllegalStateException("shard [" + shardId + "] cannot be marked as relocating: state [" + state + "]");
+                }
+                // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
+                // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already
+                // been uploaded which would make the listener be triggered immediately.
+                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
+                // Also include the max uploaded generation, so that a merge uploaded after the final flush but before this lock is
+                // taken cannot leave the bound below an already-uploaded generation.
+                toWaitFor = Math.max(
+                    getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration),
+                    getMaxUploadedGeneration()
+                );
+                assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
+                assert assertGenerationIsUploadedOrPending(toWaitFor);
+
+                maxGenerationToUpload = toWaitFor;
+                assert state == State.RUNNING;
+                state = State.RELOCATING;
+                final var old = deferredStaleBlobDeletions.getAndSet(List.of());
+                assert old == null : "found non-null deferred stale blob deletions before relocating " + old;
+                boundListener = relocationUploadBoundListener;
+            }
+
+            // Completed outside the lock so that subscribers do not run under it
+            boundListener.onResponse(toWaitFor);
+            addListenerForUploadedGeneration(toWaitFor, listener);
+        }
+
         private void markSplitting(ShardId targetShardId) {
             logger.debug("marking split starting for {}", targetShardId);
             var absent = copyTargets.add(targetShardId);
@@ -2962,56 +2974,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return Collections.unmodifiableSet(copyTargets);
         }
 
-        /// Moves the shard to [State#PRE_RELOCATING] and installs an undecided bound.
-        /// See [StatelessCommitService#markRelocationStarting].
-        private void markRelocationStarting() {
-            synchronized (this) {
-                if (state == State.CLOSED) {
-                    // shard was closed, relocation will fail on its own.
-                    return;
-                }
-                assert state == State.RUNNING : "unexpected state during markRelocationStarting: " + state;
-                assert maxGenerationToUpload == RelocationUploadBound.UNBOUNDED : "unexpected bound: " + maxGenerationToUpload.generation();
-                state = State.PRE_RELOCATING;
-                maxGenerationToUpload = new RelocationUploadBound();
-
-                final var old = deferredStaleBlobDeletions.getAndSet(List.of());
-                assert old == null : "found non-null deferred stale blob deletions before relocating " + old;
-            }
-        }
-
-        private void markRelocating(long minRelocatedGeneration, ActionListener<Void> listener) {
-            final long toWaitFor;
-            final RelocationUploadBound uploadBound;
-            synchronized (this) {
-                if (state == State.CLOSED) {
-                    // Shard was concurrently closed. Throw and let `markRelocationFailed` unwind the upload bound.
-                    throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
-                }
-                assert state == State.PRE_RELOCATING : "unexpected state: " + state;
-                // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so
-                // this logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it
-                // has already been uploaded which would make the listener be triggered immediately. Also include the max uploaded
-                // generation so that a merge that finished uploading after the final flush but before this lock is taken cannot
-                // leave the bound below an already-uploaded generation.
-                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
-                toWaitFor = Math.max(
-                    getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration),
-                    getMaxUploadedGeneration()
-                );
-                assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
-                assert assertGenerationIsUploadedOrPending(toWaitFor);
-
-                uploadBound = maxGenerationToUpload;
-                uploadBound.pin(toWaitFor);
-                state = State.RELOCATING;
-            }
-            uploadBound.onResponse(toWaitFor);
-            addListenerForUploadedGeneration(toWaitFor, listener);
-        }
-
-        /// This method will mark a shard as fully relocated. At this point, no more commits can ever be uploaded for
-        /// this instance of shard commit state.
+        /**
+         * This method will mark a shard as fully relocated. At this point, no more commits can ever be uploaded for this instance of shard
+         * commit state.
+         */
         private void markRelocated() {
             List<ActionListener<Void>> listenersToFail;
             synchronized (this) {
@@ -3022,7 +2988,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     listenersToFail = Collections.emptyList();
                 }
                 assert state == State.CLOSED : "unexpected state: " + state;
-                assert maxGenerationToUpload.isDone() : "relocated with an undecided upload bound";
                 final var deferred = deferredStaleBlobDeletions.getAndSet(null);
                 assert deferred != null : "deferred stale blob deletions should have been initialized";
                 // Discard deferred deletions since the new primary will take over
@@ -3035,29 +3000,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * This method will transition the shard back to RUNNING and allow new generations to be uploaded.
          */
         private void markRelocationFailed() {
-            final RelocationUploadBound uploadBound;
-            final boolean closed;
             synchronized (this) {
-                closed = isClosed();
-                uploadBound = maxGenerationToUpload.isDone() ? null : maxGenerationToUpload;
-                if (closed == false) {
-                    assert state == State.PRE_RELOCATING || state == State.RELOCATING : "unexpected state: " + state;
-                    maxGenerationToUpload = RelocationUploadBound.UNBOUNDED;
+                if (state != State.CLOSED) {
+                    assert state == State.RELOCATING;
+                    maxGenerationToUpload = Long.MAX_VALUE;
                     state = State.RUNNING;
+                    relocationUploadBoundListener = null;
                 }
                 // If the index is concurrently deleted, the state will be CLOSED. We always want to reprocess the deferred deletions.
                 final var deferred = deferredStaleBlobDeletions.getAndSet(null);
-                assert deferred != null || closed : "deferred stale blob deletions should have been initialized";
-                if (deferred != null) {
-                    deferred.forEach(BlobReference::clearResources);
-                }
-            }
-            if (uploadBound != null) {
-                if (closed) {
-                    uploadBound.onFailure(new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
-                } else {
-                    uploadBound.onResponse(Long.MAX_VALUE);
-                }
+                assert deferred != null : "deferred stale blob deletions should have been initialized";
+                deferred.forEach(BlobReference::clearResources);
             }
         }
 
@@ -3192,17 +3145,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// A VBCC that is past the [#maxGenerationToUpload] during relocation must not be handed to a search shard,
         /// which would otherwise read offsets into a blob that is never written.
         ///
-        /// When an upload bound is pending or set (maxGenerationToUpload is not [RelocationUploadBound#UNBOUNDED]), this
-        /// falls back to [#getMaxPendingUploadBccWithUnpausedUpload]. A recovering search shard then gets a slightly
-        /// older commit and catches up through the normal notification path.
+        /// While the shard has a pending or pinned upload bound this falls back to [#getMaxPendingUploadBccWithUnpausedUpload].
+        /// A recovering search shard then gets a slightly older commit and catches up through the normal notification path.
         ///
-        /// [#maxGenerationToUpload] is deliberately read after the VBCC, so finding it unbounded means the read
-        /// preceded any handoff. The generation sampled by `markRelocating` afterwards is then at or above whatever was
+        /// The bound is deliberately checked after reading the VBCC, so finding none means no bound applied when the VBCC
+        /// was read. The generation sampled by the `markRelocating` of any later handoff is then at or above whatever was
         /// seen, so the bound it pins covers it, including anything appended to that VBCC in the meantime.
         @Nullable
         private VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
             final var virtualBcc = getCurrentVirtualBcc();
-            if (virtualBcc != null && maxGenerationToUpload == RelocationUploadBound.UNBOUNDED) {
+            if (virtualBcc != null && relocationUploadBoundListener == null) {
                 return virtualBcc;
             }
             return getMaxPendingUploadBccWithUnpausedUpload().orElse(null);
@@ -3310,7 +3262,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         + " provided unpromotable recovery registration vbcc "
                         + virtualPendingCompoundCommit.getGeneration()
                         + " greater than maxGenerationToUpload="
-                        + maxGenerationToUpload.generation();
+                        + maxGenerationToUpload;
 
                 var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(virtualCompoundCommit)
                     .stream()

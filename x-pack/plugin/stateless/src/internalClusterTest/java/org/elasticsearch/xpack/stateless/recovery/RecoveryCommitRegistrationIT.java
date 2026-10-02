@@ -384,7 +384,12 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
         final var markRelocatedLatch = new CountDownLatch(1);
         statelessCommitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
-            public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId shardId) {
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
                 return originalSupplier.get().delegateFailure((l, ignore) -> {
                     l.onResponse(null); // mark relocated
                     markRelocatedLatch.countDown();

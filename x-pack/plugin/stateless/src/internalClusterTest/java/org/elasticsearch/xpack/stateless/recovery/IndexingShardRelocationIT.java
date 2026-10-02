@@ -122,7 +122,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
@@ -482,11 +481,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
     }
 
-    /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has moved the shard into
-    /// `PRE_RELOCATING` but before `markRelocating` pins an upload bound. Here the source shard fails while the handoff consumer
-    /// is parked in `markRelocationStarting`, so the consumer then throws synchronously. The listener returned by
-    /// `markRelocationStarting` must be resolved on that path too, before `IndexShard#relocated` releases the operation permits.
-    public void testRelocationFailureWhilePreRelocating() throws Exception {
+    /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has installed the upload bound
+    /// listener but before `markRelocating` pins the bound. Here the source shard fails while the handoff consumer
+    /// is parked in `markRelocationStarting`, so the consumer then throws synchronously. The upload bound listener passed to
+    /// `markRelocationStarting` must be restored on that path too, before `IndexShard#relocated` releases the operation permits.
+    public void testRelocationFailureBeforeMarkRelocating() throws Exception {
         final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);
         final String indexNode = startIndexNode(nodeSettings);
@@ -505,26 +504,27 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final ShardId shardId = indexShard.shardId();
         final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
 
-        // Park inside the handoff consumer at markRelocationStarting so the shard sits in PRE_RELOCATING, and record how
-        // the relocation outcome listener is resolved.
-        final var enteredPreRelocating = new CountDownLatch(1);
+        // Park inside the handoff consumer at markRelocationStarting, before markRelocating pins the bound, and record how
+        // the upload bound listener is resolved.
+        final var enteredRelocationStarting = new CountDownLatch(1);
         final var resumeRelocation = new CountDownLatch(1);
         final var relocationDone = new CountDownLatch(1);
         final var unwindException = new AtomicReference<Exception>();
         final var firstAttempt = new AtomicBoolean(true);
         commitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
-            public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId sid) {
+            public void markRelocationStarting(Runnable originalRunnable, ShardId sid, SubscribableListener<Long> uploadBoundListener) {
+                originalRunnable.run();
                 if (firstAttempt.compareAndSet(true, false)) {
-                    final var listener = ActionListener.runAfter(originalSupplier.get().delegateResponse((l, e) -> {
-                        unwindException.set(e);
-                        l.onFailure(e);
-                    }), relocationDone::countDown);
-                    enteredPreRelocating.countDown();
+                    uploadBoundListener.addListener(
+                        ActionListener.runAfter(
+                            ActionListener.wrap(bound -> fail("unexpected bound [" + bound + "]"), unwindException::set),
+                            relocationDone::countDown
+                        )
+                    );
+                    enteredRelocationStarting.countDown();
                     safeAwait(resumeRelocation);
-                    return listener;
                 }
-                return originalSupplier.get();
             }
         });
 
@@ -534,14 +534,14 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         try {
             logger.info("--> relocating {} from {} to {}", shardId, indexNode, newIndexNode);
             ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
-            safeAwait(enteredPreRelocating);
+            safeAwait(enteredRelocationStarting);
             assertThat(
                 "markRelocating has not run, so no bound is pinned yet",
                 commitService.getMaxGenerationToUpload(shardId),
                 equalTo(Long.MAX_VALUE)
             );
 
-            logger.info("--> failing the source shard while PRE_RELOCATING");
+            logger.info("--> failing the source shard before markRelocating");
             indexShard.failShard("test", new ElasticsearchException("simulated failure"));
             assertBusy(() -> assertThat(indexShard.getEngineOrNull(), nullValue()));
         } finally {

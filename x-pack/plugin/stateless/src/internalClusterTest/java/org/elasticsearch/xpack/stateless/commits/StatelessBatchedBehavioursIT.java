@@ -179,7 +179,12 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
         final CyclicBarrier afterRelocatedBarrier = new CyclicBarrier(2);
         statelessCommitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
-            public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId shardId) {
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
                 return originalSupplier.get().delegateFailure((l, ignore) -> {
                     l.onResponse(null); // mark relocated
                     safeAwait(afterRelocatedBarrier);

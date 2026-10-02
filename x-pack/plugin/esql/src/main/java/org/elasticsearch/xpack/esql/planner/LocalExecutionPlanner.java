@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
@@ -721,7 +722,10 @@ public class LocalExecutionPlanner {
                 Math.min(EsExecutors.allocatedProcessors(settings), ParallelHashAggregationOperator.MAX_WORKERS),
                 ParallelHashAggregationOperator.PAGE_PER_WORKER,
                 context.queryPragmas()
-                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold())
+                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold()),
+                context.queryPragmas()
+                    .aggregationPartitioningMemoryThreshold(context.plannerSettings().aggregationPartitioningMemoryThreshold())
+                    .getBytes()
             );
         }
         return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);
@@ -870,7 +874,8 @@ public class LocalExecutionPlanner {
             passThroughChannels,
             deferredColumnNames,
             deferredColumnTypes,
-            capable::sourceExtractorsFor
+            capable::sourceExtractorsFor,
+            capable.datasetLabel()
         );
         return source.with(factory, newLayout);
     }
@@ -2346,8 +2351,26 @@ public class LocalExecutionPlanner {
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
+        annotateDatasetLabel(externalSource, factory);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {
+        if (!(factory instanceof AsyncExternalSourceOperatorFactory asyncFactory)) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ctx = externalSource.config() == null
+            ? null
+            : (Map<String, Object>) externalSource.config().get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
+        String datasetName = externalSource.datasetName();
+        String datasourceName = ctx == null ? null : (String) ctx.get("datasource");
+        String datasourceType = ctx == null ? null : (String) ctx.get("type");
+        if (datasetName == null && datasourceName == null) {
+            return;
+        }
+        asyncFactory.setDatasetContext(datasetName, datasourceName, datasourceType);
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {
@@ -2401,7 +2424,7 @@ public class LocalExecutionPlanner {
             Attribute scoreAttribute = null;
 
             for (Attribute attribute : filter.output()) {
-                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                if (MetadataAttribute.isScoreAttribute(attribute)) {
                     scoreAttribute = attribute;
                 }
             }

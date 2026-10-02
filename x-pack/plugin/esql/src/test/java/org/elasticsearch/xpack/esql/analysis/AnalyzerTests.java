@@ -7465,30 +7465,33 @@ public class AnalyzerTests extends AnalyzerTestCase {
      * UNION ALL branches over differently analyzed indices disagree on the column's mapping, but each row still comes from
      * one index, so HIGHLIGHT gets each index's analyzer and each row's index, and emits no warning. A nested UNION ALL whose
      * own branches agree, or whose other branch has no values of the column, still names the indices its rows come from.
+     * So do branches that rename the field, also when the RENAME sits above a nested UNION ALL.
      */
     public void testHighlightPerIndexAnalyzerAcrossUnionAllBranches() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("requires nested subquery in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
-        for (String from : List.of(
-            "FROM (FROM books), (FROM books_english)",
-            "FROM (FROM (FROM books), (FROM books)), (FROM books_english)",
-            "FROM (FROM (FROM books | EVAL x = 1 | KEEP x), (FROM books)), (FROM books_english)"
+        for (String query : List.of(
+            "FROM (FROM books), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM (FROM books), (FROM books)), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM (FROM books | EVAL x = 1 | KEEP x), (FROM books)), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM books | RENAME title AS t), (FROM books_english | RENAME title AS t) | HIGHLIGHT \"ring\" ON t",
+            "FROM (FROM (FROM books), (FROM books) | RENAME title AS t), (FROM books_english | RENAME title AS t) | HIGHLIGHT \"ring\" ON t"
         )) {
             LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
                 .addIndex(singleBooksIndex("books_english", "stop"))
-                .query(from + " | HIGHLIGHT \"ring\" ON title");
+                .query(query);
             Highlight highlight = soleHighlight(plan);
             assertThat(
-                from,
-                highlight.fieldMappings().get("title").analyzerGroups(),
+                query,
+                highlight.fieldMappings().get(highlight.fields().getFirst().name()).analyzerGroups(),
                 containsInAnyOrder(
                     new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
                     new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
                 )
             );
-            assertNotNull(from, highlight.indexKey());
+            assertNotNull(query, highlight.indexKey());
             assertWarnings();
         }
     }
@@ -7524,36 +7527,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .query("FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS r | HIGHLIGHT \"ring\" ON r");
         assertNull(soleHighlight(plan).indexKey());
         assertWarnings(analyzerConflictFallbackWarning("r"));
-    }
-
-    /**
-     * UNION ALL branches that rename the field of differently analyzed indices still name each index's analyzer, also when
-     * the RENAME sits above a nested UNION ALL.
-     */
-    public void testHighlightRenamedFieldAcrossUnionAllBranches() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("requires nested subquery in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
-        for (String from : List.of(
-            "FROM (FROM books | RENAME title AS t), (FROM books_english | RENAME title AS t)",
-            "FROM (FROM (FROM books), (FROM books) | RENAME title AS t), (FROM books_english | RENAME title AS t)"
-        )) {
-            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
-                .addIndex(singleBooksIndex("books_english", "stop"))
-                .query(from + " | HIGHLIGHT \"ring\" ON t");
-            Highlight highlight = soleHighlight(plan);
-            assertThat(
-                from,
-                highlight.fieldMappings().get("t").analyzerGroups(),
-                containsInAnyOrder(
-                    new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
-                    new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
-                )
-            );
-            assertNotNull(from, highlight.indexKey());
-            assertWarnings();
-        }
     }
 
     /**

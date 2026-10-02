@@ -146,19 +146,17 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         if (computedAnalyzers.isEmpty() == false) {
             return conflict;
         }
-        List<TextEsField> mappings = mapped.stream().map(m -> mapping(name, m.found())).toList();
-        TextEsField agreed = mappings.stream().allMatch(mappings.getFirst()::equals) ? mappings.getFirst() : null;
-        if (agreed != null && agreed.analyzerGroups() == null) {
-            return agreed;
+        List<TextEsField> distinct = mapped.stream().map(m -> mapping(name, m.found())).distinct().toList();
+        boolean agreed = distinct.size() == 1;
+        if (agreed && distinct.getFirst().analyzerGroups() == null) {
+            return distinct.getFirst();
         }
         // Each row comes from one branch, so it can still use the analyzer of the index it was read from.
         List<IndexAnalyzerGroup> perIndex = indexGroups(mapped, outputs);
-        int gap = mappings.getFirst().positionIncrementGap();
-        if (perIndex != null) {
-            return mapping(name, null, gap, UnknownAnalyzer.CONFLICT, perIndex);
-        }
         // Agreed groups the key cannot route, like a LOOKUP JOIN field's, keep the warning that the indices disagree.
-        return agreed == null ? conflict : mapping(name, agreed.analyzerName(), gap, agreed.unknownAnalyzer(), null);
+        return perIndex == null && agreed == false
+            ? conflict
+            : mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.CONFLICT, perIndex);
     }
 
     /** A branch's column of a given name. {@code found} is its mapping, or {@code null} when the branch computes the column. */
@@ -207,7 +205,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     private static @Nullable List<IndexAnalyzerGroup> indexGroups(List<BranchColumn> branches, BranchOutputs outputs) {
         List<IndexAnalyzerGroup> groups = new ArrayList<>();
         for (BranchColumn b : branches) {
-            List<IndexAnalyzerGroup> branchGroups = b.found() == null ? null : indexGroups(b.branch(), b.column(), b.found(), outputs);
+            List<IndexAnalyzerGroup> branchGroups = indexGroups(b, outputs);
             if (branchGroups == null) {
                 return null;
             }
@@ -217,17 +215,13 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * The analyzer each index of {@code branch} uses for {@code column}, whose mapping is {@code found}. {@code null} when
+     * The analyzer each index of the branch uses for its column. {@code null} when the branch computes the column, when
      * the column does not come from the plan that produces the branch's rows, like a LOOKUP JOIN field, or when the
      * mapping is a conflict that names no indices.
      */
-    private static @Nullable List<IndexAnalyzerGroup> indexGroups(
-        LogicalPlan branch,
-        Attribute column,
-        TextEsField found,
-        BranchOutputs outputs
-    ) {
-        LogicalPlan source = rowSourceOf(branch, column);
+    private static @Nullable List<IndexAnalyzerGroup> indexGroups(BranchColumn b, BranchOutputs outputs) {
+        TextEsField found = b.found();
+        LogicalPlan source = found == null ? null : rowSourceOf(b.branch(), b.column());
         if (source == null) {
             return null;
         }
@@ -236,7 +230,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         }
         if (source instanceof MergePlan nested) {
             // A nested merge's branches may agree on the mapping, which then names no indices.
-            return indexGroups(branchColumns(nested, beforeRenames(branch, column).name(), outputs), outputs);
+            return indexGroups(branchColumns(nested, beforeRenames(b.branch(), b.column()).name(), outputs), outputs);
         }
         return switch (found.unknownAnalyzer()) {
             case NONE, INDEX_LOCAL, NOT_REPORTED -> List.of(

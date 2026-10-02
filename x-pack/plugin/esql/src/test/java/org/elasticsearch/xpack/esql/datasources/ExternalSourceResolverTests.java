@@ -36,9 +36,12 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -78,11 +81,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -108,6 +119,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -2303,13 +2315,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A {@code _file.*} filter prunes no folder, so it is not a partition-pruning hint - but it decides which entry
-     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. So a
-     * schema answered from one file must be answered from a listing the filter never touched, or the dataset's
-     * columns become a function of the query that asked for them. The bound stands; the filters are withheld.
+     * A {@code _file.*} filter decides which files the query reads, so it also decides which file
+     * {@code first_file_wins} pins the schema to — the first of the files that remain.
      */
-
-    public void testAFileMetadataHintDoesNotDecideWhichFileDefinesTheSchema() throws Exception {
+    public void testAFileMetadataHintNarrowsTheFfwListingAndItsSchemaAnchor() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/a.parquet", 100),
             entry("s3://bucket/data/b.parquet", 200),
@@ -2324,9 +2333,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PartitionFilterHintExtractor.Operator.EQUALS,
             List.of("c.parquet")
         );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
         // Large enough to hold all three files. At one key the listing stops before c.parquet exists to be
         // chosen, so the anchor is a.parquet whether the hint was withheld or not and the test proves nothing.
-        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
         config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 3);
 
         ExternalSourceResolver resolver = createResolver(schemas, Map.of("s3://bucket/data/", listing));
@@ -2335,19 +2344,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolved = future.actionGet();
 
         ExternalSourceResolution.ResolvedSource source = resolved.resolvedSource(GLOB);
+        assertEquals(1, source.fileList().fileCount());
+        assertEquals("s3://bucket/data/c.parquet", source.fileList().path(0).toString());
         assertEquals(
-            "the schema comes from the dataset's first file, whatever the query filters on",
-            List.of("from_a"),
+            "FFW schema follows the files the query reads",
+            List.of("from_c"),
             source.metadata().schema().stream().map(Attribute::name).toList()
         );
     }
 
     /**
-     * A partition-pruning hint would narrow the listing to the folders it admits, while an unhinted listing keeps
-     * the first keys of the whole dataset. Under FIRST_FILE_WINS that is a different first file and so a different
-     * schema, which is why the filters are withheld from this listing rather than the bound being declined.
+     * A partition hint narrows the listing even under {@code first_file_wins}: the files the query
+     * reads are the ones discovery must charge, and the schema pin is the first of those files.
      */
-    public void testAPartitionHintDoesNotPruneTheSchemasListing() throws Exception {
+    public void testAPartitionHintNarrowsTheFfwListingAndItsSchemaAnchor() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/year=2024/a.parquet", 100),
             entry("s3://bucket/data/year=2025/b.parquet", 200)
@@ -2364,20 +2374,116 @@ public class ExternalSourceResolverTests extends ESTestCase {
         config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1);
 
         String glob = PREFIX + "year=*/*.parquet";
-        ExternalSourceResolver resolver = createResolver(schemas, Map.of(PREFIX, listing));
+        ExternalSourceResolver resolver = createResolver(
+            schemas,
+            Map.of(PREFIX, listing, "s3://bucket/data/year=2025/", List.of(entry("s3://bucket/data/year=2025/b.parquet", 200)))
+        );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, config), Map.of(glob, List.of(hint)), null, Set.of(), Set.of(glob), future);
 
         ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
-        // partition_sample_size is 1 here, and the schema's listing is bounded by the dataset's mode whatever the
-        // query asked for - so one key, and it is the dataset's first, not the hinted subtree's.
-        assertEquals("the schema's listing is bounded by the mode", 1, source.fileList().fileCount());
-        assertTrue(source.fileList().isTruncated());
-        assertEquals(
-            "and it is the front of the dataset, not the folder the hint selects",
-            "s3://bucket/data/year=2024/a.parquet",
-            source.fileList().path(0).toString()
+        assertEquals(1, source.fileList().fileCount());
+        assertEquals("s3://bucket/data/year=2025/b.parquet", source.fileList().path(0).toString());
+        assertThat(source.metadata().schema().stream().map(Attribute::name).toList(), hasItem("from_2025"));
+        assertThat(source.metadata().schema().stream().map(Attribute::name).toList(), not(hasItem("from_2024")));
+    }
+
+    /**
+     * Production VPC: default {@code first_file_wins} plus dashboard {@code DATE_EXTRACT} filters on
+     * hive {@code year}/{@code month}/{@code day}. GlobExpander already keeps 24 hourly files; the
+     * resolver must hand those hints to listing or the charge stays on the whole year.
+     */
+    public void testVpcHourlyHiveFoldedHintsListTwentyFourFilesOnDefaultFfw() throws Exception {
+        String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
+        List<StorageEntry> files = vpcHourlyYearParquet(2026);
+        assertEquals(365 * 24, files.size());
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>(files.size());
+        for (StorageEntry file : files) {
+            schemas.put(file.path().toString(), schema);
+        }
+
+        LogicalPlan plan = vpcDashboardFilterPlan(glob);
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(plan, TEST_CFG, new EsqlFunctionRegistry())
         );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = hints.get(glob);
+        assertNotNull("folded DATE_EXTRACT filters must become listing hints", pathHints);
+        assertEquals(3, pathHints.size());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertEquals(List.of(7L), pathHints.get(1).values());
+        assertEquals(List.of(13L), pathHints.get(2).values());
+
+        CircuitBreaker wide = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, Map.of("s3://bucket/data/", files), wide, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, null, future);
+        FileList listing = future.actionGet().resolvedSource(glob).fileList();
+        assertEquals("default FFW must list the hinted day, not the year", 24, listing.fileCount());
+        for (int i = 0; i < listing.fileCount(); i++) {
+            assertTrue(listing.path(i).toString().startsWith("s3://bucket/data/year=2026/month=07/day=13/"));
+        }
+
+        long charge = listing.planningBytes() + listing.fileCount() * 760L;
+        assertThat("24-file listing charge must drop off the 14.3 MB plateau", charge, lessThan(2_000_000L));
+        assertThat(reservation.queryHeld(), greaterThan(0L));
+        assertThat(metadataReads.get(), greaterThan(0));
+    }
+
+    private static List<StorageEntry> vpcHourlyYearParquet(int year) {
+        List<StorageEntry> entries = new ArrayList<>(366 * 24);
+        LocalDate end = LocalDate.of(year, 12, 31);
+        for (LocalDate day = LocalDate.of(year, 1, 1); day.isAfter(end) == false; day = day.plusDays(1)) {
+            String month = String.format(Locale.ROOT, "%02d", day.getMonthValue());
+            String dayOfMonth = String.format(Locale.ROOT, "%02d", day.getDayOfMonth());
+            for (int hour = 0; hour < 24; hour++) {
+                entries.add(
+                    entry(
+                        String.format(
+                            Locale.ROOT,
+                            "s3://bucket/data/year=%d/month=%s/day=%s/hour=%02d/f.parquet",
+                            year,
+                            month,
+                            dayOfMonth,
+                            hour
+                        ),
+                        100
+                    )
+                );
+            }
+        }
+        return entries;
+    }
+
+    private static LogicalPlan vpcDashboardFilterPlan(String path) {
+        Source src = Source.EMPTY;
+        Literal ts = new Literal(src, Instant.parse("2026-07-13T00:00:00Z").toEpochMilli(), DataType.DATETIME);
+        Expression condition = new And(
+            src,
+            new And(
+                src,
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "year"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "YEAR"), ts))
+                ),
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "month"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "MONTH_OF_YEAR"), ts))
+                )
+            ),
+            new Equals(
+                src,
+                new UnresolvedAttribute(src, "day"),
+                new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "DAY_OF_MONTH"), ts))
+            )
+        );
+        return new Filter(src, new UnresolvedExternalRelation(src, Literal.keyword(src, path), Map.of()), condition);
     }
 
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
@@ -4808,7 +4914,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Loops {@link #MULTI_FILE_STRATEGIES}: file-count is the assertion the IT cannot make, and default
      * UNION_BY_NAME is the product rail.
      */
-    public void testAHintNarrowsTheSchemasListingOnlyWhereTheSchemaFoldsOverIt() throws Exception {
+    public void testAHintNarrowsTheListingWithoutPoisoningTheUnfilteredCache() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
         Map<String, List<Attribute>> schemas = new HashMap<>();
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -4831,22 +4937,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-                // Whether a hint may narrow the schema's listing turns on where the schema comes from. Under
-                // FIRST_FILE_WINS one file defines it, so a hint that chose that file would make the dataset's
-                // columns a function of the query: the listing stays whole and split discovery finds what the
-                // query reads. Under UNION_BY_NAME the schema is a fold over the files listed, which are the files
-                // this query reads, so narrowing it changes no answer and saves a footer read per excluded file.
-                int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 3 : 1;
+                // Hints narrow the listing in every inferred mode: the files the query reads are what
+                // discovery charges. Cache keys still include the hints, so the unfiltered follow-up
+                // is not served the filtered subset.
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
                 assertEquals(
-                    "[" + strategy + "] the schema's listing is narrowed only where the schema folds over it",
-                    expected,
+                    "[" + strategy + "] a file-name hint keeps only the matching file",
+                    1,
                     filtered.resolvedSource(glob).fileList().fileCount()
                 );
 
                 ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
                 assertEquals(
-                    "[" + strategy + "] and the unfiltered query sees the same",
+                    "[" + strategy + "] the unfiltered query must see every file, not the filtered query's cached subset",
                     3,
                     unfiltered.resolvedSource(glob).fileList().fileCount()
                 );
@@ -4859,7 +4962,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * folder, so the cached listing enumerates only that folder. An unfiltered follow-up must not be served that
      * narrowed listing.
      */
-    public void testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt() throws Exception {
+    public void testAPartitionHintPrunesTheListingWithoutPoisoningTheUnfilteredCache() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -4882,14 +4985,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-                // Same rule as the file-metadata hint above: a partition hint prunes the schema's listing only
-                // where the schema is a fold over what it lists. Under FIRST_FILE_WINS it must not, or the folder
-                // the query filtered to would decide the dataset's columns.
-                int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 2 : 1;
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
                 assertEquals(
-                    "[" + strategy + "] the schema's listing is pruned only where the schema folds over it",
-                    expected,
+                    "[" + strategy + "] a partition hint keeps only the matching folder",
+                    1,
                     filtered.resolvedSource(glob).fileList().fileCount()
                 );
 

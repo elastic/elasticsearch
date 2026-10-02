@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -3504,6 +3505,102 @@ public class GlobExpanderTests extends ESTestCase {
             }
         }
         return new TreeStubProvider(entries);
+    }
+
+    /**
+     * One file per hour of {@code year}, Hive-padded {@code month=MM/day=DD/hour=HH}. 2026 is not a leap
+     * year, so this is 365 × 24 files — the production VPC shape whose listing billed ~14 MB/query.
+     */
+    private static List<StorageEntry> vpcHourlyYear(int year) {
+        List<StorageEntry> entries = new ArrayList<>(366 * 24);
+        LocalDate end = LocalDate.of(year, 12, 31);
+        for (LocalDate day = LocalDate.of(year, 1, 1); day.isAfter(end) == false; day = day.plusDays(1)) {
+            String month = String.format(Locale.ROOT, "%02d", day.getMonthValue());
+            String dayOfMonth = String.format(Locale.ROOT, "%02d", day.getDayOfMonth());
+            for (int hour = 0; hour < 24; hour++) {
+                entries.add(
+                    entry(
+                        String.format(
+                            Locale.ROOT,
+                            "s3://bucket/data/year=%d/month=%s/day=%s/hour=%02d/f.ext",
+                            year,
+                            month,
+                            dayOfMonth,
+                            hour
+                        ),
+                        100
+                    )
+                );
+            }
+        }
+        return entries;
+    }
+
+    private static List<PartitionFilterHintExtractor.PartitionFilterHint> vpcYearMonthDayHints(int year, int month, int day) {
+        return List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, (long) year),
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, (long) month),
+            hint("day", PartitionFilterHintExtractor.Operator.EQUALS, (long) day)
+        );
+    }
+
+    private static long listingPlanningCharge(FileList listing) {
+        return listing.planningBytes() + listing.fileCount() * 760L;
+    }
+
+    /**
+     * Production VPC: a full-year hourly hive tree and foldable {@code year}/{@code month}/{@code day}
+     * longs (the DATE_EXTRACT dashboard shape) must list the 24 files of that day, not the whole year.
+     * Shallow padding fixtures already pass; this is the depth that used to bill ~14.3 MB/query.
+     */
+    public void testVpcHourlyHiveYearMonthDayHintsListTwentyFourFiles() throws IOException {
+        List<StorageEntry> files = vpcHourlyYear(2026);
+        assertEquals("2026 is not a leap year", 365 * 24, files.size());
+        var hints = vpcYearMonthDayHints(2026, 7, 13);
+        String globstar = "s3://bucket/data/**";
+        String keyed = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.ext";
+        String dayPrefix = "s3://bucket/data/year=2026/month=07/day=13/";
+        Set<String> expected = new LinkedHashSet<>();
+        for (StorageEntry file : files) {
+            String path = file.path().toString();
+            if (path.startsWith(dayPrefix)) {
+                expected.add(path);
+            }
+        }
+        assertEquals(24, expected.size());
+
+        TreeStubProvider walkProvider = new TreeStubProvider(files);
+        FileList walked = GlobExpander.expand(globstar, walkProvider, hints, HIVE_ON, MAX, MAX);
+        assertEquals("walked ** glob must keep one day's hours", 24, walked.fileCount());
+        assertEquals(expected, new LinkedHashSet<>(paths(walked)));
+        for (String enumerated : walkProvider.enumeratedFiles) {
+            assertTrue("walk enumerated a file the filter excludes: " + enumerated, enumerated.startsWith(dayPrefix));
+        }
+        assertFalse("the root prefix must not be flat-listed", walkProvider.listedPrefixes.contains("s3://bucket/data/"));
+
+        FileList keyedWalked = GlobExpander.expand(keyed, new TreeStubProvider(files), hints, HIVE_ON, MAX, MAX);
+        assertEquals("keyed hive glob must keep one day's hours", 24, keyedWalked.fileCount());
+        assertEquals(expected, new LinkedHashSet<>(paths(keyedWalked)));
+
+        TreeStubProvider flatProvider = new TreeStubProvider(files);
+        flatProvider.childrenUnsupported = true;
+        FileList flat = GlobExpander.expand(globstar, flatProvider, hints, HIVE_ON, MAX, MAX);
+        assertEquals("flat listing (no listChildren) must still keep one day's hours", 24, flat.fileCount());
+        assertEquals(expected, new LinkedHashSet<>(paths(flat)));
+
+        FileList unnarrowed = GlobExpander.expand(globstar, new TreeStubProvider(files), null, HIVE_ON, MAX, MAX);
+        assertEquals("unnarrowed listing is the whole year", 365 * 24, unnarrowed.fileCount());
+        Set<String> unnarrowedDay = new LinkedHashSet<>();
+        for (String path : paths(unnarrowed)) {
+            if (path.startsWith(dayPrefix)) {
+                unnarrowedDay.add(path);
+            }
+        }
+        assertEquals("narrowing must match post-filter of the unnarrowed listing", expected, unnarrowedDay);
+
+        assertThat(listingPlanningCharge(unnarrowed), greaterThan(5_000_000L));
+        assertThat(listingPlanningCharge(walked), lessThan(2_000_000L));
+        assertThat(listingPlanningCharge(walked) * 50, lessThan(listingPlanningCharge(unnarrowed)));
     }
 
     /** The paths a listing returned, for asserting what was — and was not — enumerated. */

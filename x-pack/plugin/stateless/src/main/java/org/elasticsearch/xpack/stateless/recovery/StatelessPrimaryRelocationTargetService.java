@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Set;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Target-side stateless primary relocation: prewarm and primary-context handoff.
@@ -46,6 +47,7 @@ public class StatelessPrimaryRelocationTargetService {
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowRelocationWarningThreshold;
+    private volatile boolean idLookupPrewarmEnabled;
 
     public StatelessPrimaryRelocationTargetService(
         ClusterService clusterService,
@@ -64,6 +66,8 @@ public class StatelessPrimaryRelocationTargetService {
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(ID_LOOKUP_PREWARM_ENABLED_SETTING, value -> this.idLookupPrewarmEnabled = value);
     }
 
     void handlePrewarmRelocation(TransportStatelessPrimaryRelocationPrewarmAction.Request request, ActionListener<Void> listener) {
@@ -138,7 +142,9 @@ public class StatelessPrimaryRelocationTargetService {
                 indexShard.openEngineAndSkipTranslogRecovery();
 
                 // Synthetic id's do not use inverted indices and prewarming them is not necessary
-                if (request.hasRecentIdLookup() && indexShard.indexSettings().useTimeSeriesSyntheticId() == false) {
+                if (idLookupPrewarmEnabled
+                    && request.hasRecentIdLookup()
+                    && indexShard.indexSettings().useTimeSeriesSyntheticId() == false) {
                     try {
                         indexShard.withEngine(engine -> {
                             if (engine instanceof IndexEngine indexEngine) {

@@ -58,6 +58,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> ID_LOOKUP_PREWARM_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cluster.primary_relocation.id_lookup_prewarm_enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;

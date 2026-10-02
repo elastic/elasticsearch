@@ -109,6 +109,7 @@ public class IndexEngine extends InternalEngine {
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
     public static final String DOC_STATS = "doc_stats";
     public static final String SHARD_FIELD_STATS = "shard_field_stats";
+    static final int ID_LOOKUP_PREWARM_MAX_LEAVES = 5;
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
     // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
@@ -243,28 +244,33 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
-     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
-     * cold-read on first access.
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@link #ID_LOOKUP_PREWARM_MAX_LEAVES} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access.
      */
     public void prewarmIdLookups() {
         performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-            for (LeafReaderContext leaf : reader.leaves()) {
-                var terms = leaf.reader().terms(IdFieldMapper.NAME);
-                if (terms == null) {
-                    continue; // no-op segment
-                }
-                BytesRef min = terms.getMin();
-                if (min != null) {
-                    terms.iterator().prepareSeekExact(min);
-                }
-                BytesRef max = terms.getMax();
-                if (max != null) {
-                    terms.iterator().prepareSeekExact(max);
-                }
-            }
+            prewarmIdLookups(reader.leaves());
             return null;
         });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - ID_LOOKUP_PREWARM_MAX_LEAVES);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**

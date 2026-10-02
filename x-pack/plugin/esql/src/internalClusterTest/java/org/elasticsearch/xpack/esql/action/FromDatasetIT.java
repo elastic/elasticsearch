@@ -6856,8 +6856,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(2L));
             EsqlExecutionInfo.Cluster localCluster = response.getExecutionInfo().getCluster("");
-            assertThat(localCluster.getTotalShards(), equalTo(indexShards));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(indexShards));
+            assertThat(localCluster.getTotalShards(), equalTo(indexShards * 2));
+            assertThat(localCluster.getSuccessfulShards(), equalTo(indexShards * 2));
         }
     }
 

@@ -1385,7 +1385,7 @@ public class ComputeService {
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
-                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
             }))) {
                 runCompute(
@@ -1456,10 +1456,12 @@ public class ComputeService {
         });
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
-            if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
-                failIfAllShardsFailed(execInfo, collectedPages);
+            // A non-null sink means this executePlan is one FORK / UNION ALL / FROM-subquery branch. Skip the query-wide all-targets check
+            // and markEndQuery; the root merge listener runs both after every branch has reported.
+            if (exchangeSinkSupplier == null) {
+                failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
+                execInfo.markEndQuery();
             }
-            execInfo.markEndQuery();
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
@@ -1473,16 +1475,13 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                                        final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
-                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
-                                        // or encountered resolution or execution failures.
-                                        var status = localClusterWasInterrupted.get()
-                                            || (failedShards != null && failedShards > 0)
-                                            || v.getFailures().isEmpty() == false
-                                                ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                                : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                                        builder.setStatus(status);
+                                    if (execInfo.isMainPlan()) {
+                                        // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
+                                        // and never demote PARTIAL.
+                                        boolean failed = localClusterWasInterrupted.get()
+                                            || (v.getFailedShards() != null && v.getFailedShards() > 0)
+                                            || v.getFailures().isEmpty() == false;
+                                        applyClusterStatusAfterBranch(builder, v, failed);
                                     }
                                     return builder.build();
                                 });
@@ -1530,15 +1529,19 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
-                                execInfo.swapCluster(
-                                    LOCAL_CLUSTER,
-                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
-                                        .setSuccessfulShards(r.getSuccessfulShards())
-                                        .setSkippedShards(r.getSkippedShards())
-                                        .setFailedShards(r.getFailedShards())
-                                        .addFailures(r.failures)
-                                        .build()
-                                );
+                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+                                    applyShardCounts(
+                                        builder,
+                                        v,
+                                        r.getTotalShards(),
+                                        r.getSuccessfulShards(),
+                                        r.getSkippedShards(),
+                                        r.getFailedShards(),
+                                        exchangeSinkSupplier != null
+                                    );
+                                    return builder.addFailures(r.failures).build();
+                                });
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
                                 if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
@@ -1584,6 +1587,7 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
+                        exchangeSinkSupplier != null,
                         computeListener.acquireCompute().delegateResponse((l, ex) -> {
                             /*
                              * At various points, when collecting failures before sending a response, we manually check
@@ -1629,7 +1633,9 @@ public class ComputeService {
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
-            execInfo.markEndQuery();
+            if (exchangeSinkSupplier == null) {
+                execInfo.markEndQuery();
+            }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
             // Run the coordinator plan
@@ -1690,21 +1696,98 @@ public class ComputeService {
         }
     }
 
-    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        execInfo.markEndQuery();
+    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).
+    // Merge leaves share one EsqlExecutionInfo; only the root (or a standalone plan) should stop query timers.
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
+        if (finalizeQuery) {
+            execInfo.markEndQuery();
+        }
         if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
             assert execInfo.queryProfile().planning().timeTook() != null
                 : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+                    if (finalizeQuery) {
+                        builder.setTook(execInfo.overallTook());
+                    } else if (v.getTook() == null) {
+                        builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
+                    }
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                     }
                     return builder.build();
                 });
             }
+        }
+    }
+
+    /**
+     * Adds {@code incoming} shard counts onto {@code existing} when {@code accumulate} is true (FORK / UNION ALL / FROM-subquery branches
+     * sharing one {@link EsqlExecutionInfo}); otherwise replaces them. Merge branches must add so the query-wide
+     * {@link #failIfAllShardsFailed} sees every branch's targets, not the last writer.
+     */
+    static void applyShardCounts(
+        EsqlExecutionInfo.Cluster.Builder builder,
+        EsqlExecutionInfo.Cluster existing,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        boolean accumulate
+    ) {
+        if (accumulate) {
+            builder.setTotalShards(zeroIfNull(existing.getTotalShards()) + totalShards)
+                .setSuccessfulShards(zeroIfNull(existing.getSuccessfulShards()) + successfulShards)
+                .setSkippedShards(zeroIfNull(existing.getSkippedShards()) + skippedShards)
+                .setFailedShards(zeroIfNull(existing.getFailedShards()) + failedShards);
+        } else {
+            builder.setTotalShards(totalShards)
+                .setSuccessfulShards(successfulShards)
+                .setSkippedShards(skippedShards)
+                .setFailedShards(failedShards);
+        }
+    }
+
+    private static int zeroIfNull(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    /**
+     * Updates cluster status after one merge branch reports. A later failing branch can promote {@code SUCCESSFUL} to {@code PARTIAL};
+     * {@code PARTIAL} is never demoted back to {@code SUCCESSFUL}.
+     */
+    static void applyClusterStatusAfterBranch(
+        EsqlExecutionInfo.Cluster.Builder builder,
+        EsqlExecutionInfo.Cluster existing,
+        boolean failed
+    ) {
+        switch (existing.getStatus()) {
+            case RUNNING -> builder.setStatus(
+                failed ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL
+            );
+            case SUCCESSFUL -> {
+                if (failed) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                }
+            }
+            case PARTIAL, SKIPPED, FAILED -> {
+                // already terminal or partial; later branches must not demote
+            }
+        }
+    }
+
+    /**
+     * Runs {@link #failIfAllShardsFailed} unless this query already streamed rows to the client. Streaming roots never fill
+     * {@code collectedPages}; an empty list would otherwise look like "no results" and fail a query that already published rows.
+     */
+    static void failIfAllShardsFailedUnlessStreamed(
+        EsqlExecutionInfo execInfo,
+        List<Page> collectedPages,
+        @Nullable PageStreamPublisher streamPublisher
+    ) {
+        if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
+            failIfAllShardsFailed(execInfo, collectedPages);
         }
     }
 

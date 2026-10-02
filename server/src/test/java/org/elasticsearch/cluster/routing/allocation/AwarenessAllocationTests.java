@@ -1156,7 +1156,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
 
         final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
-        assertThat(decision, isNoDecisionWithExplanationMatching("awareness", equalTo(expectedMessage)));
+        assertThat(decision, isNoDecisionWithExplanationMatching(AwarenessAllocationDecider.NAME, equalTo(expectedMessage)));
     }
 
 }

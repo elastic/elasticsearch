@@ -28,6 +28,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
@@ -75,6 +77,8 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         private final List<String> deferredColumnNames;
         private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
+        @org.elasticsearch.core.Nullable
+        private final String datasetLabel;
         private final Executor executor;
 
         /**
@@ -88,6 +92,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
          *                                 ({@code DeclaredTypeCoercions})
          * @param sourceExtractorsLookup   per-driver registry resolver; must never return
          *                                 {@code null}
+         * @param datasetLabel             dataset context label for annotating failures, or {@code null}
          * @param executor                 executor for non-empty materialization
          */
         public Factory(
@@ -96,6 +101,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             List<String> deferredColumnNames,
             List<DataType> deferredColumnTypes,
             Function<DriverContext, SourceExtractors> sourceExtractorsLookup,
+            @org.elasticsearch.core.Nullable String datasetLabel,
             Executor executor
         ) {
             if (rowPositionChannel < 0) {
@@ -127,6 +133,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             this.deferredColumnNames = List.copyOf(deferredColumnNames);
             this.deferredColumnTypes = List.copyOf(deferredColumnTypes);
             this.sourceExtractorsLookup = sourceExtractorsLookup;
+            this.datasetLabel = datasetLabel;
             this.executor = executor;
         }
 
@@ -145,6 +152,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
                 deferredColumnTypes,
                 registry,
                 driverContext,
+                datasetLabel,
                 executor
             );
         }
@@ -168,6 +176,8 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
     private final SourceExtractors registry;
     private final RefCountingRunnable registryRefs;
     private final BlockFactory blockFactory;
+    @org.elasticsearch.core.Nullable
+    private final String datasetLabel;
     private final Executor executor;
     private final LongAdder rowsExtracted = new LongAdder();
     private final LongAdder extractNanos = new LongAdder();
@@ -219,7 +229,8 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         List<String> deferredColumnNames,
         List<DataType> deferredColumnTypes,
         SourceExtractors registry,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        @org.elasticsearch.core.Nullable String datasetLabel
     ) {
         this(
             rowPositionChannel,
@@ -228,6 +239,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             deferredColumnTypes,
             registry,
             new DriverContext(blockFactory.bigArrays(), blockFactory, null),
+            datasetLabel,
             Runnable::run
         );
     }
@@ -239,6 +251,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         List<DataType> deferredColumnTypes,
         SourceExtractors registry,
         DriverContext driverContext,
+        @org.elasticsearch.core.Nullable String datasetLabel,
         Executor executor
     ) {
         // Materialization does not produce response headers; AsyncOperator still requires a ThreadContext.
@@ -250,6 +263,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         this.registry = registry;
         this.registryRefs = new RefCountingRunnable(registry::close);
         this.blockFactory = driverContext.blockFactory();
+        this.datasetLabel = datasetLabel;
         this.executor = executor;
     }
 
@@ -313,7 +327,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
                 completion.onResponse(result);
             });
         } catch (RuntimeException e) {
-            completion.onFailure(ExternalFailures.classify(e));
+            completion.onFailure(classifyFailure(e));
         } catch (Error e) {
             registryRef.close();
             ready.onResponse(null);
@@ -333,7 +347,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         }
         if (result.failure != null) {
             try {
-                throw ExternalFailures.classify(result.failure);
+                throw classifyFailure(result.failure);
             } finally {
                 if (result.inputPage != null) {
                     Releasables.closeExpectNoException(result.inputPage::releaseBlocks);
@@ -358,6 +372,14 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
     public IsBlockedResult isBlocked() {
         IsBlockedResult blocked = materializationBlocked;
         return blocked.listener().isDone() ? super.isBlocked() : blocked;
+    }
+
+    private RuntimeException classifyFailure(Throwable failure) {
+        RuntimeException classified = ExternalFailures.classify(failure);
+        if (datasetLabel != null && classified instanceof ExternalException externalException) {
+            externalException.setDatasetLabel(datasetLabel);
+        }
+        return classified;
     }
 
     /**

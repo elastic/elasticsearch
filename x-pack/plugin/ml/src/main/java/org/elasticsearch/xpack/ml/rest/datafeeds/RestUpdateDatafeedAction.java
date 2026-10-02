@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,10 +32,10 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
-    private final Set<String> supportedCapabilities;
+    private final boolean mlCrossProjectSearchEnabled;
 
     public RestUpdateDatafeedAction(boolean mlCrossProjectSearchEnabled) {
-        this.supportedCapabilities = MlDatafeedRestCapabilities.supportedCapabilities(mlCrossProjectSearchEnabled);
+        this.mlCrossProjectSearchEnabled = mlCrossProjectSearchEnabled;
     }
 
     @Override
@@ -69,7 +70,10 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return supportedCapabilities;
+        return MlDatafeedRestCapabilities.supportedCapabilities(
+            mlCrossProjectSearchEnabled,
+            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
+        );
     }
 
 }

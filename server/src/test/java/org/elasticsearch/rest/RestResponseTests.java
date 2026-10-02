@@ -725,6 +725,11 @@ public class RestResponseTests extends ESTestCase {
             assertEquals(awkward, fields.get("elasticsearch.error.root_cause.message"));
             assertEquals(3, fields.get("elasticsearch.error.shard"));
             assertFalse(fields.containsKey("elasticsearch.rest.handler"));
+
+            final String stackTrace = (String) fields.get("error.stack_trace");
+            assertThat(stackTrace, containsString("Caused by: "));
+            assertThat(stackTrace, containsString(ShardNotFoundException.class.getName()));
+            assertThat(stackTrace, containsString(awkward));
         }
     }
 
@@ -862,6 +867,18 @@ public class RestResponseTests extends ESTestCase {
             assertEquals("path: /my-index/_search, params: {}, status: 500", fields.get("message"));
             assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
         }
+    }
+
+    public void testSuppressedLoggingRecordsRootCauseWithErrorTrace() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        request.params().put("error_trace", "true");
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("inner", fields.get("elasticsearch.error.root_cause.message"));
     }
 
     private Map<String, ?> lastLoggedFields() {

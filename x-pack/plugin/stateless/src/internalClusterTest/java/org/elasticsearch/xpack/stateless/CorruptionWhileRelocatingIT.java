@@ -38,7 +38,6 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
@@ -336,8 +335,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         // maxGenerationToUpload, then capture the generation the old node hands back.
         final var pauseRegistration = new CountDownLatch(1);
         final var resumeRegistration = new CountDownLatch(1);
-        final var firstRegistration = new SubscribableListener<RegisterCommitResponse>();
-        final var firstRegistrationCaptured = new AtomicBoolean();
+        final var registrationResponse = new SubscribableListener<RegisterCommitResponse>();
         MockTransportService.getInstance(oldIndexNode)
             .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
                 pauseRegistration.countDown();
@@ -346,11 +344,8 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                     @Override
                     public void sendResponse(TransportResponse response) {
                         if (response instanceof RegisterCommitResponse rcr && rcr.getCompoundCommit() != null) {
-                            logger.info("--> old primary handed back generation [{}]", rcr.getCompoundCommit().generation());
-                            // Record the first registration
-                            if (firstRegistrationCaptured.compareAndSet(false, true)) {
-                                firstRegistration.onResponse(rcr);
-                            }
+                            // Record the first registration, later completions are ignored by the SubscribableListener
+                            registrationResponse.onResponse(rcr);
                         }
                         channel.sendResponse(response);
                     }
@@ -423,27 +418,13 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 )
             );
 
-            logger.info(
-                "--> before resuming registration: maxGenerationToUpload=[{}], maxPendingOrUploaded=[{}], latestUploadedBcc=[{}], "
-                    + "engine=[{}]",
-                maxGenerationToUpload,
-                sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
-                sourceCommitService.getLatestUploadedBcc(sourceShard.shardId()).primaryTermAndGeneration(),
-                sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
-            );
             logger.info("--> resuming the search shard registration");
             resumeRegistration.countDown();
 
-            final var registrationResponse = safeAwait(firstRegistration);
-            logger.info(
-                "--> registration returned [{}], maxGenerationToUpload=[{}], source engine is at [{}]",
-                registrationResponse.getCompoundCommit().primaryTermAndGeneration(),
-                maxGenerationToUpload,
-                sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
-            );
+            final var response = safeAwait(registrationResponse);
             assertThat(
                 "a commit above maxGenerationToUpload must never be handed to a recovering search shard",
-                registrationResponse.getCompoundCommit().generation(),
+                response.getCompoundCommit().generation(),
                 lessThanOrEqualTo(maxGenerationToUpload)
             );
 

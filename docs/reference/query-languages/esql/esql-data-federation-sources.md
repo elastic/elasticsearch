@@ -48,7 +48,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
-- **Description**: an optional description.
+- **Description**: an optional description (up to 1,000 characters).
 - **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
@@ -71,18 +71,21 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
+| [Test connection](#test-a-connection) | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
 
 ### Create or update a data source
 
 `PUT` creates a new data source or replaces an existing one entirely with one exception. Secrets you omit from the request are carried forward from the existing definition rather than cleared, so you can update non-secret settings without re-sending credentials.
 
-The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct, create a dataset that references the data source and query it.
+The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
 
 :::{important}
 Data source names follow the same naming rules as index names: lowercase only, at most 255 bytes, and they cannot begin with `-`, `_`, or `+`, contain spaces, or contain the characters `\ / * ? " < > |`.
 :::
 
 A cluster holds at most 100 data sources by default. In {{stack}} deployments, if you need more than 100 data sources, then you can raise the limit using the [`esql.data_sources.max_count`](esql-data-federation-cluster-settings.md#object-limits) cluster setting.
+
+The optional `description` can be at most 1,000 characters long.
 
 ::::{tab-set}
 :group: api-ref
@@ -201,6 +204,78 @@ curl -X DELETE "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 
 :::{important}
 A data source cannot be deleted while datasets still reference it. Delete the dependent datasets first, or the request returns a `409 Conflict` error.
+:::
+
+### Test a connection
+```{applies_to}
+stack: experimental 9.6+
+```
+
+Use `POST /_query/data_source/_test` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
+
+The response contains a `status` field with one of three values:
+
+| Status | Meaning |
+|---|---|
+| `success` | The probe ran on every eligible node and the backend is reachable with the given credentials. |
+| `failure` | The probe ran but the backend was unreachable or rejected the credentials. An `error` field contains a human-readable reason. |
+| `untestable` | The configuration cannot be verified at the data source level. An optional `message` field, when present, explains why. Common reasons: the backend type has no connectivity probe; credentials are scoped to a container or bucket rather than the account; authentication uses anonymous or managed-identity access that requires a dataset path to resolve the endpoint; or no eligible node could complete the probe. The configuration may still be correct — create a dataset and run a query to validate access. |
+
+The probe runs on every eligible node in parallel, with a 30-second timeout per node. If any node cannot complete the probe, the result is `untestable` rather than `success`.
+
+::::{tab-set}
+:group: api-ref
+
+:::{tab-item} Console
+:sync: console
+```console
+POST /_query/data_source/_test
+{
+  "type": "s3",
+  "settings": {
+    "auth": "static_credentials",
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}
+```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_query/data_source/_test" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "type": "s3",
+  "settings": {
+    "auth": "static_credentials",
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
+  }
+}'
+```
+:::
+
+::::
+
+Example responses:
+
+```json
+{ "status": "success" }
+```
+
+```json
+{ "status": "failure", "error": "The AWS Access Key Id you provided does not exist in our records." }
+```
+
+```json
+{ "status": "untestable", "message": "Anonymous access targets public buckets; create a dataset to validate read access." }
+```
+
+:::{note}
+An unknown `type` value returns a `400 Bad Request` rather than a `failure` status, because the type is not registered — it is a client error, not a connectivity problem.
 :::
 
 ## Data source settings

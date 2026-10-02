@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -52,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -1252,6 +1256,58 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(fileList, factory.fileList());
         assertTrue(factory.fileList().isResolved());
         assertEquals(2, factory.fileList().fileCount());
+    }
+
+    /**
+     * Each slice-queue page takes {@code _file.path} from that split. The factory path is the glob, so a
+     * page that showed it would mean the overlay used the source path instead of {@code fileSplit.path()}.
+     */
+    public void testSliceQueueFilePathComesFromEachSplit() throws Exception {
+        StoragePath factoryPath = StoragePath.of("s3://bucket/*.parquet");
+        StoragePath first = StoragePath.of("s3://bucket/f1.parquet");
+        StoragePath second = StoragePath.of("s3://bucket/f2.parquet");
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", first, 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", second, 0, 200, "parquet", Map.of(), Map.of())
+        );
+        FormatReader formatReader = new SinglePageReader(() -> new Page(1));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            factoryPath,
+            List.of(new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<String> paths = new ArrayList<>();
+        List<Page> pages = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page == null) {
+                    continue;
+                }
+                pages.add(page);
+                BytesRefBlock pathBlock = page.getBlock(0);
+                paths.add(pathBlock.getBytesRef(0, scratch).utf8ToString());
+            }
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
+            operator.close();
+        }
+        assertEquals(List.of(first.toString(), second.toString()), paths);
     }
 
     // ===== Slice Queue tests =====
@@ -3317,7 +3373,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
     }
@@ -3347,7 +3404,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3390,7 +3448,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             try {
@@ -3408,6 +3467,74 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             assertFalse("abortStream must receive the Abortable raw GET, not a decompressed wrapper", object.sawNonAbortable.get());
             assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
             assertTrue(object.abortCalled.get());
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    /**
+     * Parallel gzip rail, full read: the JDK gzip decoder reports end-of-stream without reading the raw body to
+     * {@code -1}, so the coordinator's {@code closeStream} abort used to arrive while HttpClient still held the
+     * connection and discard it. The raw body must reach end-of-body before the abort so S3 pools the connection.
+     */
+    public void testOpenWithParallelismGzipFullReadReachesEndOfBodyBeforeAbort() throws Exception {
+        ExecutorService exec = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+                dummyFormatReaderForOpenParallelismTests(),
+                exec
+            );
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER));
+            CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(
+                new NdJsonFormatReader(Settings.EMPTY, TEST_BLOCK_FACTORY, schema),
+                new GzipDecompressionCodec()
+            );
+            int rows = between(1, 50_000);
+            StringBuilder ndjson = new StringBuilder();
+            for (int i = 0; i < rows; i++) {
+                ndjson.append("{\"a\":").append(i).append("}\n");
+            }
+            byte[] gzipped = gzipCompress(ndjson.toString().getBytes(StandardCharsets.UTF_8));
+
+            S3ShapedAbortableStorageObject object = new S3ShapedAbortableStorageObject(gzipped);
+            CloseableIterator<Page> iterator = factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                ExternalReadCounters.NOOP,
+                null
+            );
+            assertNotNull(iterator);
+            long seen = 0;
+            try {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    try {
+                        seen += page.getPositionCount();
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }
+            } finally {
+                iterator.close();
+            }
+
+            assertEquals(rows, seen);
+            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
+            assertTrue(
+                "a fully read gzip body must reach end-of-body before the abort, or the connection is discarded",
+                object.endOfBodyReadBeforeAbort.get()
+            );
+            assertEquals("the full body is read exactly once", gzipped.length, object.bytesConsumed.get());
         } finally {
             exec.shutdownNow();
         }
@@ -3446,7 +3573,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertEquals("decompress failed", thrown.getMessage());
@@ -3528,7 +3656,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
@@ -3560,7 +3689,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3613,7 +3743,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertTrue(
@@ -3749,6 +3880,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static StorageObject bytesStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
             }
@@ -3785,7 +3921,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * argument implements {@link Abortable}. Wrappers such as {@code DecompressedStream} miss
      * that cast and fall back to a draining {@code close()}.
      */
-    private static final class S3ShapedAbortableStorageObject implements StorageObject {
+    private static final class S3ShapedAbortableStorageObject extends AbstractTestStorageObject {
         interface Abortable {
             void abort();
         }
@@ -3795,6 +3931,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         final AtomicBoolean sawAbortable = new AtomicBoolean();
         final AtomicBoolean sawNonAbortable = new AtomicBoolean();
         final AtomicLong bytesConsumed = new AtomicLong();
+        /** Set when a read of the raw body returns {@code -1}, where Apache HttpClient pools the connection. */
+        final AtomicBoolean endOfBodyRead = new AtomicBoolean();
+        /** {@link #endOfBodyRead} as of the first abort: {@code false} means the abort discarded the connection. */
+        final AtomicBoolean endOfBodyReadBeforeAbort = new AtomicBoolean();
 
         S3ShapedAbortableStorageObject(byte[] bytes) {
             this.bytes = bytes;
@@ -3802,7 +3942,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public InputStream newStream() {
-            return new AbortableDrainStream(bytes, abortCalled, bytesConsumed);
+            return new AbortableDrainStream(bytes, abortCalled, bytesConsumed, endOfBodyRead, endOfBodyReadBeforeAbort);
         }
 
         @Override
@@ -3846,12 +3986,22 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         private final ByteArrayInputStream inner;
         private final AtomicBoolean abortCalled;
         private final AtomicLong bytesConsumed;
+        private final AtomicBoolean endOfBodyRead;
+        private final AtomicBoolean endOfBodyReadBeforeAbort;
         private boolean closed;
 
-        AbortableDrainStream(byte[] bytes, AtomicBoolean abortCalled, AtomicLong bytesConsumed) {
+        AbortableDrainStream(
+            byte[] bytes,
+            AtomicBoolean abortCalled,
+            AtomicLong bytesConsumed,
+            AtomicBoolean endOfBodyRead,
+            AtomicBoolean endOfBodyReadBeforeAbort
+        ) {
             this.inner = new ByteArrayInputStream(bytes);
             this.abortCalled = abortCalled;
             this.bytesConsumed = bytesConsumed;
+            this.endOfBodyRead = endOfBodyRead;
+            this.endOfBodyReadBeforeAbort = endOfBodyReadBeforeAbort;
         }
 
         @Override
@@ -3859,6 +4009,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             int b = inner.read();
             if (b >= 0) {
                 bytesConsumed.incrementAndGet();
+            } else {
+                endOfBodyRead.set(true);
             }
             return b;
         }
@@ -3868,13 +4020,17 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             int n = inner.read(buf, off, len);
             if (n > 0) {
                 bytesConsumed.addAndGet(n);
+            } else if (n < 0) {
+                endOfBodyRead.set(true);
             }
             return n;
         }
 
         @Override
         public void abort() {
-            abortCalled.set(true);
+            if (abortCalled.getAndSet(true) == false) {
+                endOfBodyReadBeforeAbort.set(endOfBodyRead.get());
+            }
         }
 
         @Override
@@ -4390,7 +4546,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class ByteArrayStorageObject implements StorageObject {
+    private static class ByteArrayStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final byte[] bytes;
 
@@ -4518,7 +4674,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubMultiFileStorageObject implements StorageObject {
+    private static class StubMultiFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubMultiFileStorageObject(StoragePath path) {
@@ -4799,7 +4955,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class LargeStorageObject implements StorageObject {
+    private static class LargeStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long size;
 

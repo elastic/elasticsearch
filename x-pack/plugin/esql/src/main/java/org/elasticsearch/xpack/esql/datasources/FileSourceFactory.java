@@ -152,6 +152,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
      */
     private final StreamingSegmentatorAdmission segmentatorAdmission;
+    /**
+     * Handed to every split provider this factory makes, so a query whose schema's listing was a prefix lists the
+     * rest under the cluster's live caps and through the listing cache resolution uses. {@code null} gives each
+     * provider one over this factory's own settings with no cache, which is what the test-only constructors want.
+     */
+    @Nullable
+    private final DatasetListingService listingService;
+    /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
+    private final NodeWarningThrottle warnings = new NodeWarningThrottle();
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -220,6 +229,30 @@ final class FileSourceFactory implements ExternalSourceFactory {
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            splitDiscoveryExecutor,
+            blockFactory,
+            localFileAccess,
+            externalSourceMetrics,
+            null
+        );
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        LocalFileAccess localFileAccess,
+        ExternalSourceMetrics externalSourceMetrics,
+        @Nullable DatasetListingService listingService
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -231,6 +264,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
+        this.listingService = listingService;
     }
 
     @Override
@@ -300,7 +334,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
-        // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
+        // This check runs before the empty-config early-return so bare file:// reads (no config)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
         if (config != null) {
@@ -327,17 +361,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // Warn when a budget is present without an explicit mode: the query path infers skip_row, which
         // may surprise the caller. Routes through the sink so the message reaches the client response
         // regardless of which thread validateConfig runs on (request or metadata-read executor).
-        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null
-            && (config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null || config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null)) {
-            warningSink.accept(
-                "["
-                    + ErrorPolicy.CONFIG_MAX_ERRORS
-                    + "] or ["
-                    + ErrorPolicy.CONFIG_MAX_ERROR_RATIO
-                    + "] was set without ["
-                    + ErrorPolicy.CONFIG_ERROR_MODE
-                    + "]; [skip_row] is in effect -- [fail_fast] is not"
-            );
+        boolean hasMaxErrors = config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null;
+        boolean hasMaxErrorRatio = config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null;
+        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null && (hasMaxErrors || hasMaxErrorRatio)) {
+            String keys = hasMaxErrors && hasMaxErrorRatio
+                ? "[" + ErrorPolicy.CONFIG_MAX_ERRORS + "] and [" + ErrorPolicy.CONFIG_MAX_ERROR_RATIO + "]"
+                : "[" + (hasMaxErrors ? ErrorPolicy.CONFIG_MAX_ERRORS : ErrorPolicy.CONFIG_MAX_ERROR_RATIO) + "]";
+            warningSink.accept(keys + " set without [" + ErrorPolicy.CONFIG_ERROR_MODE + "]; skipping rows with errors");
         }
         StoragePath storagePath = StoragePath.of(location);
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
@@ -492,7 +522,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             storageRegistry,
             formatRegistry,
             settings,
-            splitDiscoveryExecutor
+            splitDiscoveryExecutor,
+            listingService,
+            warnings
         );
     }
 
@@ -503,7 +535,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             Map<String, Object> config = context.config();
 
             // Enforce the file:// allowlist confinement at execution time on the data node, before either branch.
-            // The bare-read branch (provider(path)) checks this internally, but the WITH-config branch goes through
+            // The bare-read branch (provider(path)) checks this internally, but the config-bearing branch goes through
             // createProvider, which only enforces the scheme-level on/off gate; checking here keeps both paths uniform.
             localFileAccess.check(path);
 
@@ -565,7 +597,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
                 // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
                 // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
-                // WITH-config storage is a deferred pool lease: first operator get() borrows, onClose returns it.
+                // Config-bearing storage is a deferred pool lease: first operator get() borrows, onClose returns it.
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
@@ -715,7 +747,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     /**
-     * WITH-config pool borrow that does not call {@code createProvider} until the first storage
+     * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
     private static final class DeferredPoolLease implements StorageProvider {

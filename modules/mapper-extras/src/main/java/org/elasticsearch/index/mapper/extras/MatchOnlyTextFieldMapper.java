@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
@@ -37,8 +36,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
@@ -435,6 +435,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
 
+        @Override
+        protected boolean keepsArrayOrderWithSeparateCounts() {
+            return binaryFormat() == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+        }
+
         /**
          * Returns whether this field can use its delegate keyword field for synthetic source.
          *
@@ -629,6 +634,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                             case COLUMNAR_PAYLOAD -> ColumnarPayloadSortableBinaryDocValues.from(context.reader(), fieldName);
                             case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
                             case SEPARATE_COUNT -> MultiValuedSortableBinaryDocValues.from(context.reader(), fieldName);
+                            case PLAIN -> throw new AssertionError("match_only_text never uses PLAIN encoding");
                         };
                     }
                     return getValuesFromDocValues(binaryDocValues, docId);
@@ -791,8 +797,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
-                    Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return docValuesWildcardQuery(term, context);
                 }
                 return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
@@ -823,15 +828,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return binaryQueries().regexp(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates, context.getCircuitBreaker());
             }
             if (context.getCircuitBreaker() != null) {
-                Term term = new Term(name(), value);
-                Automaton dfa = AutomatonQueries.toRegexpAutomaton(
-                    term,
-                    syntaxFlags,
-                    matchFlags,
-                    maxDeterminizedStates,
-                    context.getCircuitBreaker()
-                );
-                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                return docValuesRegexpQuery(new Term(name(), value), syntaxFlags, matchFlags, maxDeterminizedStates, context);
             }
             return new RegexpQuery(
                 new Term(name(), value),
@@ -986,7 +983,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // Check if we can load from doc values
             if (hasDocValues()) {
                 if (usesBinaryDocValues) {
-                    if (docValuesParams.multiValue() == false) {
+                    // A columnar field carries its count in the blob even when single-valued, so it never takes the bare-value reader.
+                    if (useColumnarPayload == false && docValuesParams.multiValue() == false) {
                         // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
                         return new BytesRefsFromBinaryBlockLoader(name());
                     }
@@ -1139,6 +1137,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
+    // The type the doc-values payload reports for a document that holds no value; see ColumnarBinaryDocValuesField#fieldType.
+    private final FieldType payloadTypeWhenValueless;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -1164,6 +1164,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.get();
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = builder.offsetsFieldName;
+        this.payloadTypeWhenValueless = this.indexed ? ColumnarBinaryDocValuesField.typeWhenValueless(this.fieldType) : null;
     }
 
     @Override
@@ -1179,7 +1180,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     @Override
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
         if (fieldType().usesColumnarPayload()) {
-            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
+            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name(), payloadTypeWhenValueless);
         } else {
             super.recordEmptyArrayInOrder(doc);
         }
@@ -1292,6 +1293,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
+            // The documents that carry the field but indexed nothing under it, whose payload therefore states its index options.
+            final FixedBitSet valuelessDocs = columnar && payloadTypeWhenValueless != null ? new FixedBitSet(docCount) : null;
+            final boolean strictColumnar = indexSettings.getMode().isStrictColumnar();
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
@@ -1299,13 +1303,23 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     // Flush the completed doc's elements. All-null docs write counts (matching
                     // ArrayOrderInlineNull.recordNull) but no blob.
                     if (binaryDvs != null && docSlotCount > 0) {
+                        // A bare null is the field being absent, matching the row path, and whichever layout is writing: the
+                        // document keeps no slot for it. Only a null written inside the field's own array keeps its place.
+                        final boolean bareNull = strictColumnar && hasNonNull == false && source.isNull(currentDoc);
                         if (columnar) {
-                            // An all-null document is a payload like any other, which is why no companion count
-                            // column is emitted alongside.
-                            final BytesRef blob = payload.build();
-                            binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                            if (bareNull == false) {
+                                // An all-null document is a payload like any other, which is why no companion count
+                                // column is emitted alongside.
+                                final BytesRef blob = payload.build();
+                                binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                                // A document that indexed nothing states the field's index options through its payload, the same
+                                // way the row path has ColumnarBinaryDocValuesField report them.
+                                if (hasNonNull == false && valuelessDocs != null) {
+                                    valuelessDocs.set(currentDoc);
+                                }
+                            }
                             payload.reset();
-                        } else {
+                        } else if (bareNull == false) {
                             dvCounts.setLong(currentDoc, docSlotCount);
                             if (hasNonNull) {
                                 final int length = docSlotCount == 1 ? lastValueLength : pos;
@@ -1363,7 +1377,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
-                ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
+                ctx.addColumn(
+                    valuelessDocs == null
+                        ? LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE)
+                        : ColumnarPayloadColumn.of(
+                            binaryDvData,
+                            fieldType().name(),
+                            CustomDocValuesField.TYPE,
+                            valuelessDocs,
+                            payloadTypeWhenValueless
+                        ),
+                    binaryDvData
+                );
             }
             if (dvCounts != null && dvCounts.isEmpty() == false) {
                 final EscfColumnData dvCountData = dvCounts.finish(docCount);
@@ -1434,10 +1459,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
+            final boolean keepsNullSlot = MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexSettings.getMode());
             if (fieldType().usesColumnarPayload()) {
-                ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                if (keepsNullSlot) {
+                    ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name(), payloadTypeWhenValueless);
+                }
             } else if (fieldType().usesArrayOrderBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                if (keepsNullSlot) {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                }
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }

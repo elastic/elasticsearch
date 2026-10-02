@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -25,12 +27,16 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -44,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -70,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -84,6 +92,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -352,7 +362,24 @@ public class FileSplitProvider implements SplitProvider {
     private final Settings settings;
     @Nullable
     private final Executor executor;
+    /**
+     * How this provider lists a dataset when the schema's listing was a prefix of it: the node's live caps, and the
+     * shared listing cache in front of them. A constructor that supplies none gets one over its own {@code settings}
+     * with no cache, which is what a unit test wants and what every caller had before the cache reached here.
+     */
+    private final DatasetListingService listingService;
+    /**
+     * Keeps a warning about a dataset's layout to once per window per node rather than once per query. Shared through
+     * {@link FileSourceFactory} in production; a constructor that supplies none gets its own.
+     */
+    private final NodeWarningThrottle warnings;
     private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
+    /**
+     * What this discovery has to tell the query's author. Held per discovery, like
+     * {@link #splitDiscoveryCpuNanos}: one discovery runs on a provider at a time, and the result is built after
+     * the listing that produces these.
+     */
+    private final AtomicReference<List<String>> discoveryWarnings = new AtomicReference<>(List.of());
 
     public FileSplitProvider() {
         this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY, null);
@@ -389,20 +416,402 @@ public class FileSplitProvider implements SplitProvider {
         Settings settings,
         @Nullable Executor executor
     ) {
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, formatRegistry, settings, executor, null, null);
+    }
+
+    public FileSplitProvider(
+        long targetSplitSizeBytes,
+        DecompressionCodecRegistry codecRegistry,
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        Settings settings,
+        @Nullable Executor executor,
+        @Nullable DatasetListingService listingService,
+        @Nullable NodeWarningThrottle warnings
+    ) {
         this.targetSplitSizeBytes = targetSplitSizeBytes;
         this.codecRegistry = codecRegistry;
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.executor = executor;
+        this.listingService = listingService != null ? listingService : new DatasetListingService(this.settings, null, null, null, null);
+        this.warnings = warnings != null ? warnings : new NodeWarningThrottle();
+    }
+
+    /**
+     * A result that names the file set it was planned over.
+     * <p>
+     * When this provider discovered its own files, the plan is still holding the listing resolution had - a prefix
+     * of the dataset. Anything downstream that reads the plan's file list rather than the splits would then read
+     * part of the dataset: the zero-split fall-through does exactly that, and the scanned counts are folded over
+     * it. Carrying the set back is what keeps those honest.
+     */
+    private static SplitDiscoveryResult resultOver(
+        SplitDiscoveryContext context,
+        List<ExternalSplit> splits,
+        boolean exhaustivelyPruned,
+        long cpuNanos,
+        List<String> warnings
+    ) {
+        return new SplitDiscoveryResult(
+            splits,
+            filesContributingASplit(splits),
+            exhaustivelyPruned,
+            cpuNanos,
+            context.fileList(),
+            context.schemaMap(),
+            warnings
+        );
+    }
+
+    /**
+     * Distinct files that produced at least one split, which is what {@link SplitDiscoveryResult#filesScanned()}
+     * promises and what the query profile shows an operator.
+     * <p>
+     * Counted from the splits rather than from the survivors, because the row budget stops planning once the
+     * demand is covered and every file past that point survives pruning without being opened. Reporting those
+     * would say the scan touched the whole dataset on exactly the queries this change exists to stop touching it -
+     * the number an operator would look at to see whether the limit worked, saying it did not.
+     */
+    private static int filesContributingASplit(List<ExternalSplit> splits) {
+        if (splits.isEmpty()) {
+            return 0;
+        }
+        Set<StoragePath> files = Sets.newHashSetWithExpectedSize(splits.size());
+        for (ExternalSplit split : splits) {
+            if (split instanceof FileSplit fileSplit) {
+                files.add(fileSplit.path());
+            }
+        }
+        return files.size();
+    }
+
+    /**
+     * The files this query must read. Resolution lists a dataset for the schema, which under some modes is a prefix
+     * of it and under others the whole of it; when what it established does not cover the query's needs, this
+     * discovers the rest for itself, with the query's own filters applied.
+     * <p>
+     * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. A
+     * complete one — {@code union_by_name}, {@code strict}, whose schemas span every file — is the query's file set
+     * already and is returned unchanged. A prefix — {@code first_file_wins}, whose schema needed one file — is not,
+     * so this lists the dataset with the query's own filters. Continuing from the prefix rather than listing again
+     * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
+     * the full listing's many.
+     */
+    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
+        DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
+        if (discovery.schemaListingIsComplete()) {
+            // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
+            return handed;
+        }
+        FileList listed = listForQuery(handed, extents);
+        rejectConflictingFormatsPastTheSchemasListing(handed, listed);
+        // Everything phase 2 sizes per file is sized from this count, and the coordinator could not charge for it:
+        // it ran before this listing existed and stood down because the list it had was a prefix. So this is the one
+        // charge for those structures, and it is taken here because the first of them is allocated on the next line -
+        // withScanFileSet builds the columnar partition values and the per-file schema map over every discovered
+        // path, before any survivor or split shell exists.
+        scanMemory(handed).reserve(
+            Phase2Reservation.bytesForDiscovered(handed.querySchema(), handed.metadataColumnNames(), listed, listed.fileCount())
+        );
+        LOGGER.debug(
+            () -> Strings.format(
+                "the schema's listing held %d files of [%s]; discovered %d for the query",
+                discovery.schemaListing().fileCount(),
+                handed.metadata() == null ? "?" : handed.metadata().location(),
+                listed.fileCount()
+            )
+        );
+        SplitDiscoveryContext rebound = handed.withScanFileSet(listed);
+        discoveryWarnings.set(warnIfPartitionValuesDoNotFit(handed, listed, rebound));
+        return rebound;
+    }
+
+    /**
+     * Refuses a file whose own name implies a format the dataset does not read.
+     * <p>
+     * Resolution asks this of the listing it holds, and under a bounded listing that is a prefix of the dataset: a
+     * file past it carrying a {@code .json} name under a dataset read as {@code csv} would reach the reader
+     * unchallenged and be parsed as csv, which is wrong data rather than an error. The question belongs to whichever
+     * listing names the files being read, so it is asked again over this one.
+     * <p>
+     * The format is the one resolution settled on and stamped as the source type - the same value that chose this
+     * provider - so this cannot disagree with the reader that will scan. An unrecognized extension is still allowed:
+     * a declared format over names the registry does not claim is a dataset, not a conflict.
+     */
+    private void rejectConflictingFormatsPastTheSchemasListing(SplitDiscoveryContext handed, FileList listed) {
+        if (handed.metadata() == null) {
+            return;
+        }
+        FormatNameResolver.rejectConflictingListedFormats(listed, handed.metadata().sourceType(), formatRegistry);
+    }
+
+    /**
+     * Warns about a partition value the dataset's own type cannot hold.
+     * <p>
+     * A partition column's type is inferred at resolution from the paths that listing saw, which under a bounded
+     * listing is a sample of the dataset. A value outside that sample need not fit the type it produced -
+     * {@code year} sampled as a number, and a {@code year=unknown} folder beyond it - and the plan's attributes are
+     * already built from that type, so the value cannot be widened by the time we are here: it has no
+     * representation under the column's type and the rows of that file read null for it.
+     * <p>
+     * That much is the sampling's own consequence, and raising {@code partition_sample_size} is the answer to it.
+     * What must not happen is it happening quietly. This goes to the node log rather than the query's response
+     * because nothing at this point can reach the response, which is worth fixing separately; a null column nobody
+     * can account for is the failure this exists to prevent.
+     * <p>
+     * It describes the dataset rather than the query, so it is written once per dataset and column set per
+     * {@link NodeWarningThrottle} window, not on every query that reads the dataset.
+     */
+    private List<String> warnIfPartitionValuesDoNotFit(SplitDiscoveryContext handed, FileList listed, SplitDiscoveryContext rebound) {
+        PartitionMetadata conformed = rebound.partitionInfo();
+        if (conformed == null || conformed.isEmpty()) {
+            return List.of();
+        }
+        PartitionMetadata scanned = listed.partitionMetadata();
+        String location = handed.metadata() == null ? "?" : handed.metadata().location();
+        if (scanned == null || scanned.isEmpty()) {
+            String response = Strings.format(
+                "the dataset's partition columns %s were detected over a sample of its paths and the full listing "
+                    + "agrees with none of them, so every row reads null for them. Raise [%s], or the dataset has no "
+                    + "partition columns to report.",
+                conformed.partitionColumns().keySet(),
+                PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+            );
+            // The node log is throttled; the response is not. Which rows a query answers with is the query's own
+            // business, so it is told every time even when the operator has heard it already this hour.
+            if (warnings.firstInWindow(location + "|shares-no-partition-key|" + conformed.partitionColumns().keySet()) == false) {
+                return List.of(response);
+            }
+            // The dataset declares partition columns and the scan's listing detected none, which happens when the
+            // paths past the sample do not agree with it on the key set - a detector answers all or nothing. Every
+            // file then reads null for every partition column, so this is the loudest case rather than a quiet one.
+            LOGGER.warn(
+                "[{}]: the dataset's partition columns {} were detected over a sample of its paths, and the full "
+                    + "listing agrees with none of them, so every file reads null for them. Either those paths do not "
+                    + "share one key set, in which case the dataset has no partition columns to report, or [{}] is too "
+                    + "small to have reached the ones they do share.",
+                location,
+                conformed.partitionColumns().keySet(),
+                PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+            );
+            return List.of(response);
+        }
+        // One example per column is what a reader needs to find the folder; the walk stops once every column has
+        // one, so a dataset whose values all fit pays one pass and a dataset whose values do not pays less.
+        Map<String, Object> examples = new LinkedHashMap<>();
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(handed.config());
+        // Read from the paths, like the values themselves: a bounded listing carries no parsed values to compare
+        // against, but it still names its files. A column is reported when the path says something and the
+        // declared type could not hold it - which is exactly the case that reads null without saying so.
+        for (int file = 0; file < listed.fileCount() && examples.size() < conformed.partitionColumns().size(); file++) {
+            StoragePath path = listed.path(file);
+            for (String column : conformed.partitionColumns().keySet()) {
+                if (conformed.getValue(file, path, column) != null) {
+                    continue;
+                }
+                String token = PartitionMetadata.tokenFor(path, column, partitionConfig);
+                if (token != null) {
+                    examples.putIfAbsent(column, token);
+                }
+            }
+        }
+        // Keyed on the columns rather than the example values: a dataset with many folders that do not fit would
+        // otherwise pick a different example on each query and defeat the throttle.
+        if (examples.isEmpty()) {
+            return List.of();
+        }
+        String response = Strings.format(
+            "partition values outside the sampled paths do not fit the type the sample produced, so those rows read "
+                + "null for them: %s. Raise [%s] so the type is decided over them.",
+            examples,
+            PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+        );
+        if (warnings.firstInWindow(location + "|does-not-fit|" + examples.keySet())) {
+            LOGGER.warn(
+                "[{}]: partition values outside the sampled paths do not fit the type the sample produced, so those "
+                    + "files read null for them: {}. Raise [{}] so the type is decided over them.",
+                location,
+                examples,
+                PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE
+            );
+        }
+        return List.of(response);
+    }
+
+    /**
+     * How far this query's own listing has to run.
+     * <p>
+     * A demand the budget can use is covered by some prefix of the dataset, because rows come from whichever files the
+     * listing returns and no command between the limit and the relation changes how many come out. So the listing can
+     * stop early, and {@link ExternalSourceSettings#FIRST_ATTEMPT_LISTING_FILES} is the guess at how early.
+     * <p>
+     * It is only a guess: how many rows a file holds is read from its footer, after the listing. A prefix that turns
+     * out to hold too few rows is not a slow answer but a wrong one, so {@link #discoverSplits} plans over the prefix,
+     * asks the budget whether it was covered, and lists the whole dataset if it was not. That retry is what makes the
+     * guess safe to make.
+     * <p>
+     * It declines wherever the budget is known before any footer is read to be unable to stop the scan, because a
+     * prefix could then never cover the demand and a bounded attempt would only be a listing thrown away before the
+     * real one:
+     * <ul>
+     *   <li>no usable demand, or an error policy that may drop rows - {@link RowBudget#of}'s own first two guards;</li>
+     *   <li>a format that plans without record counts. Only a {@link RangeAwareFormatReader} plans from a footer that
+     *       says how many rows each unit holds; text formats plan whole files or probe record boundaries, and the
+     *       budget gives up on the first such unit. Declining on the reader's kind is conservative in one direction
+     *       only - a range-aware reader whose units turn out uncountable still gets the retry, which keeps it correct;
+     *       it just costs a listing;</li>
+     *   <li>a list with no file to learn the format from.</li>
+     * </ul>
+     */
+    private ListingExtents listingExtentsForTheDemand(SplitDiscoveryContext context) {
+        FileList handed = context.fileList();
+        if (handed.fileCount() == 0) {
+            return ListingExtents.UNBOUNDED;
+        }
+        FormatReader reader = resolveConfiguredReader(handed.path(0), context.config());
+        if (reader instanceof RangeAwareFormatReader == false) {
+            return ListingExtents.UNBOUNDED;
+        }
+        if (RowBudget.of(context, reader).usableForABoundedListing() == false) {
+            return ListingExtents.UNBOUNDED;
+        }
+        return new ListingExtents(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES.get(settings));
+    }
+
+    /**
+     * Reserves this query's own listing. The context carries the reservation when the query has one; a provider
+     * reached outside a query (tests) reserves nothing.
+     */
+    private static PlanningMemory scanMemory(SplitDiscoveryContext context) {
+        return context.listingMemory() == null ? PlanningMemory.NONE : context.listingMemory();
+    }
+
+    /**
+     * Lists the dataset this query reads, narrowing by the filters bound to this relation occurrence. Those filters
+     * are this occurrence's alone, so unlike the pre-analysis extraction — which serves every occurrence of a path
+     * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
+     */
+
+    private FileList listForQuery(SplitDiscoveryContext context, ListingExtents extents) throws Exception {
+        String pattern = context.metadata() == null ? null : context.metadata().location();
+        Map<String, Object> config = context.config();
+        StorageProvider provider = null;
+        if (pattern != null && storageRegistry != null) {
+            provider = storageRegistry.createProvider(StoragePath.of(pattern).scheme(), settings, config);
+        }
+        if (provider == null) {
+            // Returning what we were handed would turn a prefix of the dataset into the query's file set, and the
+            // query would answer from part of it without saying so. A schema's listing is not a scan's: if the scan
+            // cannot discover its own files, it must not pretend the schema's listing will do.
+            throw new IllegalStateException(
+                "cannot discover the files for ["
+                    + pattern
+                    + "]: the schema's listing covers part of the dataset and no storage provider is available to "
+                    + "list the rest"
+            );
+        }
+        StoragePath storagePath = StoragePath.of(pattern);
+        try {
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+                context.filterHints(),
+                context.metadataColumnNames()
+            );
+            List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
+            if (extents.boundsFileSet()) {
+                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
+                // other queries are served whole. This query may read a prefix because its own demand is covered by
+                // one; the next query's demand is not this one's.
+                return listingService.expand(
+                    pattern,
+                    provider,
+                    narrowing,
+                    config,
+                    storagePath,
+                    extents,
+                    scanMemory(context),
+                    context.isCancelled()
+                );
+            }
+            // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
+            // filters the cache key already distinguishes. Without this a warm second query over the same dataset
+            // pays the listing again, where resolution's own listing would have been served from the cache.
+            return listingService.isCacheable(provider)
+                ? listingService.cachedListing(
+                    pattern,
+                    storagePath,
+                    provider,
+                    narrowing,
+                    config,
+                    scanMemory(context),
+                    context.isCancelled()
+                )
+                : listingService.expand(
+                    pattern,
+                    provider,
+                    narrowing,
+                    config,
+                    storagePath,
+                    ListingExtents.UNBOUNDED,
+                    scanMemory(context),
+                    context.isCancelled()
+                );
+        } finally {
+            StorageProviderCache.closeLease(provider);
+        }
     }
 
     @Override
-    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
-        FileList fileList = context.fileList();
-        if (fileList == null || fileList.isResolved() == false) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext handedContext) {
+        if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             return SplitDiscoveryResult.EMPTY;
         }
+        ListingExtents extents = listingExtentsForTheDemand(handedContext);
+        Attempt attempt = discoverSplitsOver(handedContext, extents);
+        // Only a listing that actually stopped short can have missed rows. Asking for a bound and getting the whole
+        // dataset back - a dataset smaller than the bound - leaves nothing to list again, and retrying there would
+        // plan every file a second time for no reason.
+        if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
+            return attempt.result();
+        }
+        // The prefix held fewer rows than the query asked for, so it is not this query's file set after all: reading it
+        // would answer LIMIT n with fewer than n rows and say nothing. Everything the first attempt planned is
+        // discarded and the dataset is listed in full. The cost of guessing wrong is one extra listing request; the
+        // cost of not retrying would be a short answer.
+        // Checked here because the retry is a second listing of the whole dataset, and the walk itself takes no
+        // cancellation - so this is the last point before committing to it. That the walk cannot be interrupted is
+        // older than the bounded attempt and unchanged by it; what is new is that there can be two of them.
+        throwIfCancelled(handedContext);
+        LOGGER.debug(
+            () -> Strings.format(
+                "a prefix of [%s] did not cover the query's demand of %d rows; listing the whole dataset",
+                handedContext.metadata() == null ? "?" : handedContext.metadata().location(),
+                handedContext.rowLimit()
+            )
+        );
+        return discoverSplitsOver(handedContext, ListingExtents.UNBOUNDED).result();
+    }
+
+    /**
+     * One pass of discovery: whether the listing it ran over stopped short of the dataset, and whether the rows it
+     * planned reached what the query asked for. Together they decide whether the prefix was this query's file set
+     * after all - short and covered is an answer, short and uncovered has to be thrown away.
+     */
+    private record Attempt(SplitDiscoveryResult result, boolean listingStoppedShort, boolean coveredTheDemand) {}
+
+    private Attempt discoverSplitsOver(SplitDiscoveryContext handedContext, ListingExtents extents) {
+        final SplitDiscoveryContext context;
+        try {
+            context = overTheQuerysFileSet(handedContext, extents);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            // The listing cache reports a loader failure as a checked ExecutionException, and nothing above this
+            // takes one.
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
+        final FileList fileList = context.fileList();
 
         Map<String, Object> config = context.config();
         long requestedStrideBytes = resolveTargetSplitSize(config);
@@ -424,7 +833,13 @@ public class FileSplitProvider implements SplitProvider {
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && certifiedSkips == fileList.fileCount();
-                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L);
+                // No rows were planned, so a demand above zero was not covered. Over a prefix that sends the caller
+                // back for the whole dataset; over a complete listing the flag is never read.
+                return new Attempt(
+                    resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                    fileList.isTruncated(),
+                    false
+                );
             }
 
             // Phase 2: I/O-bound split planning, parallelized across files when an executor is available. Files
@@ -433,30 +848,25 @@ public class FileSplitProvider implements SplitProvider {
             final StorageProvider hoistedProvider = sharedProvider;
             final BooleanSupplier isCancelled = context.isCancelled();
             final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, probedFileBytes, maxSplitProbes);
-            if (strideBytes > requestedStrideBytes) {
-                // The setting being overridden is the query's, not the cluster's, so this goes to the query's
-                // response rather than the node log.
-                HeaderWarning.addWarning(
-                    "[{}] of [{}] would probe more than {} record boundaries across [{}] of files; using [{}] instead. "
-                        + "A larger [{}] allows the requested size",
-                    CONFIG_TARGET_SPLIT_SIZE,
-                    ByteSizeValue.ofBytes(requestedStrideBytes),
-                    maxSplitProbes,
-                    ByteSizeValue.ofBytes(probedFileBytes),
-                    ByteSizeValue.ofBytes(strideBytes),
-                    CONFIG_MAX_SPLIT_PROBES
-                );
-            }
+            warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, probedFileBytes);
             // Only single split discovery is performed on each FileSplitProvider at a time
             splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
             int survivorCount = batch.size();
+            // A file is planned only while the rows already covered fall short of what the query asked for; see
+            // RowBudget for the three ways that arithmetic fails closed.
+            RowBudget budget = RowBudget.of(context, resolveConfiguredReader(fileList.path(0), config));
             try {
                 if (executor != null && survivorCount > 1) {
                     planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
                         long cpuStart = ThreadCpuTimer.currentNanos();
                         try {
-                            return planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
+                            if (budget.satisfied()) {
+                                return new PlanResult.Splits(List.of());
+                            }
+                            PlanResult planned = planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
+                            budget.account(planned);
+                            return planned;
                         } finally {
                             if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
                         }
@@ -464,7 +874,13 @@ public class FileSplitProvider implements SplitProvider {
                 } else {
                     planResults = new ArrayList<>(survivorCount);
                     for (int slot = 0; slot < survivorCount; slot++) {
-                        planResults.add(planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled));
+                        if (budget.satisfied()) {
+                            planResults.add(new PlanResult.Splits(List.of()));
+                            continue;
+                        }
+                        PlanResult planned = planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
+                        budget.account(planned);
+                        planResults.add(planned);
                     }
                 }
             } catch (Exception e) {
@@ -483,11 +899,15 @@ public class FileSplitProvider implements SplitProvider {
 
             // Phase 4: turn the plan results into splits, now that every boundary either was known at planning time
             // or has been probed.
-            List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
+            List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, survivorCount, false, splitDiscoveryCpuNanos.get());
+            return new Attempt(
+                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                fileList.isTruncated(),
+                budget.satisfied()
+            );
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -497,18 +917,86 @@ public class FileSplitProvider implements SplitProvider {
      * Non-joining Phase-2 discovery. Phase-1 filtering stays on the calling thread (no object-store IO).
      * Per-file planning and probes fan out through {@link ThrottledIterator}; the caller must not await.
      * Production wires {@code esql_external_io} as {@code requestedExecutor}.
+     * <p>
+     * When the listing we were handed answered the schema rather than the scan, discovering the query's own file
+     * set is object-store IO, so that and everything after it move to {@code requestedExecutor} — the calling
+     * thread still does none.
      */
     @Override
     public void discoverSplitsAsync(
-        SplitDiscoveryContext context,
+        SplitDiscoveryContext handedContext,
         Executor requestedExecutor,
         ActionListener<SplitDiscoveryResult> listener
     ) {
-        FileList fileList = context.fileList();
-        if (fileList == null || fileList.isResolved() == false) {
+        if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             listener.onResponse(SplitDiscoveryResult.EMPTY);
             return;
         }
+        if (DatasetDiscovery.shared(handedContext.fileList()).schemaListingIsComplete()) {
+            // The listing is the query's file set already: nothing to discover, so nothing leaves this thread that
+            // did not leave it before. Taking the same decision as the sync path through the same helper below is
+            // what keeps the two entry points on one rule; this branch only decides which thread asks.
+            planSplitsAsync(handedContext, requestedExecutor, listener.map(Attempt::result));
+            return;
+        }
+        // Otherwise the file set is a walk of the object store, and this method's contract is that the calling thread
+        // waits for no such thing. The same bounded first attempt and the same retry as discoverSplits: this is the
+        // path production takes, so a rule that only the sync path applied would be a rule production never runs.
+        ListingExtents extents = listingExtentsForTheDemand(handedContext);
+        attemptAsync(handedContext, extents, requestedExecutor, listener.delegateFailureAndWrap((l, attempt) -> {
+            if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
+                l.onResponse(attempt.result());
+                return;
+            }
+            // See discoverSplits, including why cancellation is checked before committing to a second listing.
+            throwIfCancelled(handedContext);
+            LOGGER.debug(
+                () -> Strings.format(
+                    "a prefix of [%s] did not cover the query's demand of %d rows; listing the whole dataset",
+                    handedContext.metadata() == null ? "?" : handedContext.metadata().location(),
+                    handedContext.rowLimit()
+                )
+            );
+            attemptAsync(handedContext, ListingExtents.UNBOUNDED, requestedExecutor, l.map(Attempt::result));
+        }));
+    }
+
+    /** One async pass: list under {@code extents} off the calling thread, then plan over what was listed. */
+    private void attemptAsync(
+        SplitDiscoveryContext handedContext,
+        ListingExtents extents,
+        Executor requestedExecutor,
+        ActionListener<Attempt> listener
+    ) {
+        discoveryFanOutExecutor(requestedExecutor).execute(
+            ActionRunnable.wrap(
+                listener,
+                attempted -> planSplitsAsync(overTheQuerysFileSet(handedContext, extents), requestedExecutor, attempted)
+            )
+        );
+    }
+
+    /**
+     * Whether the planned files hold at least the rows the query asked for, by the budget's own arithmetic replayed
+     * over what was planned. Replayed rather than read off the budget that stopped the scan, because on the async path
+     * that budget lives inside the gather and never reaches here; the same {@link RowBudget} rules - including every
+     * way it fails closed - decide both, so the two cannot disagree about what counts.
+     */
+    private boolean coversTheDemand(SplitDiscoveryContext context, List<PlanResult> planResults) {
+        FileList fileList = context.fileList();
+        RowBudget replay = RowBudget.of(
+            context,
+            fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), context.config()) : null
+        );
+        for (PlanResult planned : planResults) {
+            replay.account(planned);
+        }
+        return replay.satisfied();
+    }
+
+    /** Phase-1 filtering and the Phase-2 fan-out, over a context whose file set is the query's own. */
+    private void planSplitsAsync(SplitDiscoveryContext context, Executor requestedExecutor, ActionListener<Attempt> listener) {
+        final FileList fileList = context.fileList();
 
         Map<String, Object> config = context.config();
         final long requestedStrideBytes;
@@ -532,7 +1020,14 @@ public class FileSplitProvider implements SplitProvider {
             SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
-                listener.onResponse(new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L));
+                // No rows were planned, so a demand above zero was not covered; see the sync path's same exit.
+                listener.onResponse(
+                    new Attempt(
+                        resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                        fileList.isTruncated(),
+                        false
+                    )
+                );
                 return;
             }
 
@@ -542,10 +1037,7 @@ public class FileSplitProvider implements SplitProvider {
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
             splitDiscoveryCpuNanos.set(0L);
             Executor fanOut = recordingDiscoveryCpu(withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled));
-            ActionListener<SplitDiscoveryResult> completion = ActionListener.runAfter(
-                listener,
-                () -> StorageProviderCache.closeLease(hoistedProvider)
-            );
+            ActionListener<Attempt> completion = ActionListener.runAfter(listener, () -> StorageProviderCache.closeLease(hoistedProvider));
             gatherSkippingCachedFooters(
                 batch,
                 hoistedProvider,
@@ -564,8 +1056,14 @@ public class FileSplitProvider implements SplitProvider {
                                     completion.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
                                     return;
                                 }
-                                List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
-                                completion.onResponse(new SplitDiscoveryResult(splits, batch.size(), false, splitDiscoveryCpuNanos.get()));
+                                List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
+                                completion.onResponse(
+                                    new Attempt(
+                                        resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                                        fileList.isTruncated(),
+                                        coversTheDemand(context, planResults)
+                                    )
+                                );
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
@@ -651,8 +1149,12 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Phase 1: sequential in-memory filter. No object-store IO. Each survivor keeps one unmodifiable
-     * partition map (hive values copied by reference, {@code _file.*} written in place). No {@link FileTask}.
+     * Phase 1: sequential in-memory filter. No object-store IO. The filter loop reuses one scratch map
+     * (hive values copied by reference, {@code _file.*} written in place) so a bound filter can see the
+     * listing keys it names. Path, name, and directory are written only when such a filter reads them.
+     * The map stored on the survivor is never that scratch and never keeps those three keys: files in one
+     * directory share one unmodifiable tuple of directory-constant keys, and per-file keys sit on a
+     * {@link LayeredPartitionMap}. No {@link FileTask}.
      */
     private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
@@ -669,23 +1171,31 @@ public class FileSplitProvider implements SplitProvider {
             context.declaredReadSpec()
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
+        Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
+        PartitionValueLayout layout = PartitionValueLayout.of(retainedPartitionKeys, partitionInfo);
 
         int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         int[] fileIndices = new int[fileCount];
         ArrayList<Map<String, Object>> partitionValues = new ArrayList<>(fileCount);
-        // One directory BytesRef per distinct parent for this query. Discarded with the batch builder;
-        // the refs stay reachable from the frozen maps. Full path URIs are not interned.
-        Map<String, BytesRef> directoryIntern = new HashMap<>();
+        // Survivor maps never store path, name, or directory. A bound filter still reads them from the
+        // scratch. Directory BytesRefs are interned for that scan only, one per parent, and die with this
+        // method. Full path URIs are never interned.
+        boolean knownProjectionWithoutFilter = retainedPartitionKeys != null && filterHints.isEmpty();
+        Map<String, Integer> hiveColumnIndex = hiveColumnIndex(partitionInfo);
+        Map<String, Map<String, Object>> directoryTuples = new HashMap<>();
+        LinkedHashMap<String, Object> scratch = new LinkedHashMap<>();
         int survivors = 0;
         // Unified schema is query-wide. One unmodifiable map is shared by every file; the
         // concurrent split path only reads it.
         Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
-        // Hive / _file.* listing values already live in the frozen partition map. Copy and strip
+        // Hive / _file.* listing values live in the temporary map the filter reads. Copy and strip
         // unbound _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
-        boolean overlayPerFileConstants = filterHints.isEmpty() == false
-            && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
+        boolean overlayPerFileConstants = referencedNames(
+            filterHints,
+            namesInBoth(metadataColumnNames, ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES)
+        ).isEmpty() == false;
         Set<String> unboundFileMetadataNames = Set.of();
         if (filterHints.isEmpty() == false) {
             unboundFileMetadataNames = new LinkedHashSet<>();
@@ -695,45 +1205,57 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
         }
-        boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
+        boolean copyFilterValues = overlayPerFileConstants || referencedNames(filterHints, unboundFileMetadataNames).isEmpty() == false;
+        // Only the location names a bound filter actually reads. A hive-only filter, or a name-only
+        // filter, does not allocate the other location strings.
+        Set<String> locationToWrite = referencedNames(filterHints, namesInBoth(metadataColumnNames, FileMetadataColumns.LOCATION_NAMES));
+        Map<String, BytesRef> filterDirectoryIntern = locationToWrite.contains(FileMetadataColumns.DIRECTORY) ? new HashMap<>() : null;
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
-
-            Map<String, Object> values = new LinkedHashMap<>();
-            if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                if (filePartitions != null) {
-                    // Copy references only. Do not mutate the listing map.
-                    values.putAll(filePartitions);
+            Map<String, Object> frozen;
+            if (knownProjectionWithoutFilter) {
+                // No hint reads the listing map, so only the retained keys are built. An empty set is Map.of().
+                frozen = layout.isEmpty()
+                    ? Map.of()
+                    : composeSurvivorPartitionMap(filePath, fileList, i, partitionInfo, layout, hiveColumnIndex, directoryTuples);
+            } else {
+                scratch.clear();
+                if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+                    // Copy references only. Do not mutate the listing arrays.
+                    partitionInfo.putValues(i, filePath, scratch);
                 }
-            }
-            long modifiedMillis = fileList.lastModifiedMillis(i);
-            Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
-            FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
-            Map<String, Object> frozen = Collections.unmodifiableMap(values);
-            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
+                long modifiedMillis = fileList.lastModifiedMillis(i);
+                Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
+                FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, filterDirectoryIntern, locationToWrite);
+                // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
+                Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
+                SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
-            if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = copyFilterValues
-                    ? discoveryFilterValues(frozen, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
-                    : frozen;
-                if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
-                    certifiedSkips++;
-                    continue;
-                }
-                if (fileSchemaInfo != null) {
-                    Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
-                    fileColumnNames.addAll(filterValues.keySet());
-                    fileColumnNames.addAll(metadataColumnNames);
-                    // _file.record_ref is composed per row, so it is present on every file whatever the
-                    // file schema lists. The standard names are per-file constants and reach
-                    // fileColumnNames through filterValues above, when bound as metadata.
-                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
-                    if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                if (filterHints.isEmpty() == false) {
+                    Map<String, Object> filterValues = copyFilterValues
+                        ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
+                        : listingValues;
+                    if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                         certifiedSkips++;
                         continue;
                     }
+                    if (fileSchemaInfo != null) {
+                        Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
+                        fileColumnNames.addAll(filterValues.keySet());
+                        fileColumnNames.addAll(metadataColumnNames);
+                        // _file.record_ref is composed per row, so it is present on every file whatever the
+                        // file schema lists. The standard names are per-file constants and reach
+                        // fileColumnNames through filterValues above, when bound as metadata.
+                        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
+                        if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                            certifiedSkips++;
+                            continue;
+                        }
+                    }
                 }
+                frozen = layout.isEmpty()
+                    ? Map.of()
+                    : composeSurvivorPartitionMap(filePath, fileList, i, partitionInfo, layout, hiveColumnIndex, directoryTuples);
             }
 
             long fileLength = fileList.size(i);
@@ -759,6 +1281,182 @@ public class FileSplitProvider implements SplitProvider {
             anchorPinnedFirstFileWins,
             fileBackedQuerySchema
         );
+    }
+
+    /** Not a partition value. Marks a directory key this file does not include. */
+    private static final Object ABSENT = new Object();
+
+    /**
+     * Directory-constant keys are interned per parent directory. Hive values are directory-bound; a file whose
+     * tuple disagrees keeps a private map, and later files that match the first tuple still share it. A later
+     * file compares against that tuple before allocating another map. Per-file keys sit on a sized overlay.
+     * An empty overlay returns the shared tuple itself so siblings stay {@code ==}.
+     */
+    private static Map<String, Object> composeSurvivorPartitionMap(
+        StoragePath filePath,
+        FileList fileList,
+        int index,
+        @Nullable PartitionMetadata partitionInfo,
+        PartitionValueLayout layout,
+        Map<String, Integer> hiveColumnIndex,
+        Map<String, Map<String, Object>> directoryTuples
+    ) {
+        boolean keepNulls = layout.keepNulls();
+        int resolved = -1;
+        if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+            resolved = partitionInfo.resolveFileIndex(index, filePath);
+        }
+        StoragePath parent = filePath.parentDirectory();
+        String parentKey = parent == null ? null : parent.toString();
+        Map<String, Object> existing = directoryTuples.get(parentKey);
+        Map<String, Object> shared = existing != null
+            && sameDirectoryTuple(existing, resolved, partitionInfo, layout, hiveColumnIndex, keepNulls)
+                ? existing
+                : publishDirectoryTuple(filePath, resolved, partitionInfo, layout, hiveColumnIndex, keepNulls, directoryTuples);
+        Map<String, Object> overlay = perFileOverlay(fileList, index, layout, keepNulls);
+        if (shared.isEmpty() && overlay.isEmpty()) {
+            return Map.of();
+        }
+        if (shared.isEmpty()) {
+            return overlay;
+        }
+        if (overlay.isEmpty()) {
+            return shared;
+        }
+        return new LayeredPartitionMap(shared, overlay);
+    }
+
+    private static boolean sameDirectoryTuple(
+        Map<String, Object> existing,
+        int resolved,
+        @Nullable PartitionMetadata partitionInfo,
+        PartitionValueLayout layout,
+        Map<String, Integer> hiveColumnIndex,
+        boolean keepNulls
+    ) {
+        int included = 0;
+        for (String key : layout.directoryKeys()) {
+            Object value = directoryKeyValue(key, resolved, partitionInfo, hiveColumnIndex, keepNulls);
+            if (value == ABSENT) {
+                if (existing.containsKey(key)) {
+                    return false;
+                }
+                continue;
+            }
+            included++;
+            if (existing.containsKey(key) == false || Objects.equals(existing.get(key), value) == false) {
+                return false;
+            }
+        }
+        return included == existing.size();
+    }
+
+    private static Map<String, Object> publishDirectoryTuple(
+        StoragePath filePath,
+        int resolved,
+        @Nullable PartitionMetadata partitionInfo,
+        PartitionValueLayout layout,
+        Map<String, Integer> hiveColumnIndex,
+        boolean keepNulls,
+        Map<String, Map<String, Object>> directoryTuples
+    ) {
+        List<String> keys = layout.directoryKeys();
+        if (keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> directory = Maps.newLinkedHashMapWithExpectedSize(keys.size());
+        for (String key : keys) {
+            Object value = directoryKeyValue(key, resolved, partitionInfo, hiveColumnIndex, keepNulls);
+            if (value != ABSENT) {
+                directory.put(key, value);
+            }
+        }
+        if (directory.isEmpty()) {
+            return Map.of();
+        }
+        return internDirectoryTuple(filePath, directory, directoryTuples);
+    }
+
+    /** The hive value {@code key} would take on this file, or {@link #ABSENT} when the key is not stored. */
+    private static Object directoryKeyValue(
+        String key,
+        int resolved,
+        @Nullable PartitionMetadata partitionInfo,
+        Map<String, Integer> hiveColumnIndex,
+        boolean keepNulls
+    ) {
+        if (resolved < 0) {
+            return ABSENT;
+        }
+        Integer column = hiveColumnIndex.get(key);
+        if (column == null) {
+            return ABSENT;
+        }
+        Object value = partitionInfo.getValueAt(resolved, column);
+        if (value == null && keepNulls == false) {
+            return ABSENT;
+        }
+        return value;
+    }
+
+    private static Map<String, Object> perFileOverlay(FileList fileList, int index, PartitionValueLayout layout, boolean keepNulls) {
+        List<String> keys = layout.perFileKeys();
+        if (keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> overlay = Maps.newLinkedHashMapWithExpectedSize(keys.size());
+        for (String key : keys) {
+            switch (key) {
+                case FileMetadataColumns.SIZE -> overlay.put(key, fileList.size(index));
+                case FileMetadataColumns.MODIFIED -> {
+                    long modifiedMillis = fileList.lastModifiedMillis(index);
+                    if (modifiedMillis != 0L) {
+                        overlay.put(key, modifiedMillis);
+                    } else if (keepNulls) {
+                        overlay.put(key, null);
+                    }
+                }
+                default -> throw new IllegalStateException("unexpected per-file partition key [" + key + "]");
+            }
+        }
+        if (overlay.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(overlay);
+    }
+
+    private static Map<String, Integer> hiveColumnIndex(@Nullable PartitionMetadata partitionInfo) {
+        if (partitionInfo == null || partitionInfo.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> index = new HashMap<>();
+        int column = 0;
+        for (String key : partitionInfo.partitionColumns().keySet()) {
+            index.put(key, column++);
+        }
+        return index;
+    }
+
+    /**
+     * One unmodifiable tuple per parent directory. The first file publishes it. A later file with the same
+     * values reuses it; a disagreement keeps a private map for that file only.
+     */
+    private static Map<String, Object> internDirectoryTuple(
+        StoragePath filePath,
+        LinkedHashMap<String, Object> directory,
+        Map<String, Map<String, Object>> directoryTuples
+    ) {
+        StoragePath parent = filePath.parentDirectory();
+        String parentKey = parent == null ? null : parent.toString();
+        Map<String, Object> existing = directoryTuples.get(parentKey);
+        if (existing != null && existing.equals(directory)) {
+            return existing;
+        }
+        Map<String, Object> frozen = Collections.unmodifiableMap(directory);
+        if (existing == null && directoryTuples.containsKey(parentKey) == false) {
+            directoryTuples.put(parentKey, frozen);
+        }
+        return frozen;
     }
 
     @Nullable
@@ -863,19 +1561,22 @@ public class FileSplitProvider implements SplitProvider {
         );
     }
 
+    /**
+     * Logs a stride the probe budget widened. It goes to the node log rather than the query's response: results
+     * are unaffected, and the split size in use is the operator's concern rather than the query author's.
+     */
     private static void warnIfStrideWidened(long requestedStrideBytes, long strideBytes, int maxSplitProbes, long probedFileBytes) {
         if (strideBytes <= requestedStrideBytes) {
             return;
         }
-        HeaderWarning.addWarning(
-            "[{}] of [{}] would probe more than {} record boundaries across [{}] of files; using [{}] instead. "
-                + "A larger [{}] allows the requested size",
+        LOGGER.warn(
+            "[{}] of [{}] raised to [{}] to stay within [{}] of [{}] over [{}] of files",
             CONFIG_TARGET_SPLIT_SIZE,
             ByteSizeValue.ofBytes(requestedStrideBytes),
-            maxSplitProbes,
-            ByteSizeValue.ofBytes(probedFileBytes),
             ByteSizeValue.ofBytes(strideBytes),
-            CONFIG_MAX_SPLIT_PROBES
+            CONFIG_MAX_SPLIT_PROBES,
+            maxSplitProbes,
+            ByteSizeValue.ofBytes(probedFileBytes)
         );
     }
 
@@ -1024,6 +1725,16 @@ public class FileSplitProvider implements SplitProvider {
                     }
                 }
             });
+            // Cached ranges cost nothing to plan, so they count towards the demand before any file is opened.
+            RowBudget budget = RowBudget.of(
+                batch.context(),
+                fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), config) : null
+            );
+            for (int i = 0; i < n; i++) {
+                if (slots[i] != null) {
+                    budget.account(slots[i]);
+                }
+            }
             int misses = missCount[0];
             if (misses == 0) {
                 listener.onResponse(List.of(slots));
@@ -1035,6 +1746,13 @@ public class FileSplitProvider implements SplitProvider {
             gatherAsync(slotList(misses), (Integer ordinal, ActionListener<PlanResult> itemListener) -> {
                 if (isCancelled.getAsBoolean()) {
                     itemListener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+                    return;
+                }
+                // The rows already planned cover what the query asked for, so this file is not opened and produces
+                // no splits. Work already in flight finishes, which is why the overshoot is one gather window rather
+                // than the rest of the dataset.
+                if (budget.satisfied()) {
+                    itemListener.onResponse(new PlanResult.Splits(List.of()));
                     return;
                 }
                 FileTask task = openFileTask(batch, missed[ordinal]);
@@ -1052,6 +1770,7 @@ public class FileSplitProvider implements SplitProvider {
 
                     @Override
                     public void onResponse(PlanResult result) {
+                        budget.account(result);
                         finish(() -> itemListener.onResponse(result));
                     }
 
@@ -1156,18 +1875,13 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * Splits come out in file order: walking the plan results keeps a probed file's macro-splits in the position
      * its file occupied in the file list.
-     *
-     * @param probeWindowBytes the configured probe window, which the shortfall report needs because it is one of
-     *                         the bounds a probe read may have stopped at and the only one not reachable from a
-     *                         plan result
      */
     private static List<ExternalSplit> splitsFromPlanResults(
         List<PlanResult> planResults,
-        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes,
-        long probeWindowBytes
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes
     ) {
         List<ExternalSplit> splits = new ArrayList<>();
-        SplitShortfall shortfall = new SplitShortfall(probeWindowBytes);
+        SplitShortfall shortfall = new SplitShortfall();
         for (PlanResult planResult : planResults) {
             switch (planResult) {
                 case PlanResult.Splits planned -> splits.addAll(planned.splits());
@@ -1227,30 +1941,11 @@ public class FileSplitProvider implements SplitProvider {
          */
         private static final double SIGNIFICANT_SHORTFALL_FRACTION = 0.1;
 
-        /**
-         * Name of the query pragma that bounds one record, which is what a stopped walk ran into. Held as a
-         * literal because this package does not depend on the one declaring the pragma;
-         * {@code QueryPragmas.MAX_RECORD_SIZE} is its definition.
-         */
-        private static final String MAX_RECORD_SIZE_PRAGMA = "external_max_record_size";
-
-        /**
-         * The configured probe window, one of the three bounds a probe's read is the smallest of. The other two
-         * are read off the example file; this one is resolved per query and never reaches a plan result.
-         */
-        private final long probeWindowBytes;
-
         private long offsetsProbed;
         private long offsetsWithoutBoundary;
         private int filesAffected;
         private int filesReadWhole;
-        private int filesProbed;
-        private int filesWalked;
         private DeferredNewlineSplits firstAffected;
-
-        SplitShortfall(long probeWindowBytes) {
-            this.probeWindowBytes = probeWindowBytes;
-        }
 
         /** Tallies a strided file, whose every offset that found nothing is one split the query did not get. */
         void recordProbed(DeferredNewlineSplits deferred, List<RecordBoundaryProbe.Outcome> outcomes, List<Long> starts) {
@@ -1269,7 +1964,7 @@ public class FileSplitProvider implements SplitProvider {
             // query that lost only walked files would report none missing of many.
             offsetsProbed += outcomes.size();
             offsetsWithoutBoundary += missing;
-            note(deferred, readWhole, true);
+            note(deferred, readWhole);
         }
 
         /**
@@ -1288,22 +1983,13 @@ public class FileSplitProvider implements SplitProvider {
             if (readWhole == false && uncut < fileLength * SIGNIFICANT_SHORTFALL_FRACTION) {
                 return;
             }
-            note(walked.deferred(), readWhole, false);
+            note(walked.deferred(), readWhole);
         }
 
-        /**
-         * @param probed whether the file's boundaries were probed at fixed offsets or walked, which decides
-         *               which setting can recover them
-         */
-        private void note(DeferredNewlineSplits deferred, boolean readWhole, boolean probed) {
+        private void note(DeferredNewlineSplits deferred, boolean readWhole) {
             filesAffected++;
             if (readWhole) {
                 filesReadWhole++;
-            }
-            if (probed) {
-                filesProbed++;
-            } else {
-                filesWalked++;
             }
             if (firstAffected == null) {
                 firstAffected = deferred;
@@ -1311,9 +1997,8 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         /**
-         * Reports the shortfall to the query's response rather than the node log: the remedies are dataset
-         * settings and a query pragma, all of which belong to whoever ran the query rather than to the operator
-         * of the node that would see the log.
+         * Logs the shortfall rather than adding it to the query's response: results are unaffected, and the only
+         * consequence, fewer splits to run in parallel, is the operator's to act on.
          */
         void warnIfAny() {
             if (firstAffected == null) {
@@ -1322,95 +2007,16 @@ public class FileSplitProvider implements SplitProvider {
             // Every file of a query is cut at the same stride, so the one named here is the stride of all of
             // them. It is the stride they were cut at rather than the one the query asked for, which differ when
             // the probe count widened it.
-            HeaderWarning.addWarning(
-                "{} file(s) were cut into fewer splits than [{}] of [{}] would give, because no record boundary could be found "
-                    + "where they were to be cut{}; {} of them are read as a single whole-file split; e.g., [{}] ({}). {}",
+            LOGGER.warn(
+                "[{}] file(s) were cut into fewer splits than a [{}] split size gives, [{}] of them into a single split{}; "
+                    + "e.g. [{}] ({}); the query may run slower",
                 filesAffected,
-                CONFIG_TARGET_SPLIT_SIZE,
                 ByteSizeValue.ofBytes(firstAffected.strideBytes()),
-                probedOffsetDetail(),
                 filesReadWhole,
+                probedOffsetDetail(),
                 firstAffected.task().filePath(),
-                ByteSizeValue.ofBytes(firstAffected.task().fileLength()),
-                remedy()
+                ByteSizeValue.ofBytes(firstAffected.task().fileLength())
             );
-        }
-
-        /**
-         * What to change, which differs by how the affected files were cut. A probed file's boundaries come from
-         * a bounded read, so what recovers them is whichever bound stopped that read; see {@link #probeBound()}.
-         * A walked file reads none of those bounds: quoted and escaped records cannot be probed at a fixed
-         * offset, so they are walked instead, and the walk stops at a record the reader will not span. Naming a
-         * probe's bound to that user sends them to a setting that cannot move their outcome, which is why the two
-         * get different sentences and a query that lost both kinds gets both.
-         */
-        private String remedy() {
-            if (filesWalked == 0) {
-                return Strings.format(
-                    "Records longer than the bytes a probe reads are the usual cause: a probe reads at most %s, and a "
-                        + "value above the longest record may recover the splits",
-                    probeBound()
-                );
-            }
-            if (filesProbed == 0) {
-                return Strings.format(
-                    "Quoted or escaped records are walked rather than probed at a fixed offset, and the walk stops "
-                        + "at a record longer than [%s] of [%s]: raising it above the longest record may recover "
-                        + "the splits",
-                    MAX_RECORD_SIZE_PRAGMA,
-                    maxRecordSize()
-                );
-            }
-            return Strings.format(
-                "%d of them were probed, where records longer than the bytes a probe reads are the usual cause: a probe "
-                    + "reads at most %s, and a value above the longest record may recover their splits. The other %d hold "
-                    + "quoted or escaped records, which are walked rather than probed, and the walk stops at a record "
-                    + "longer than [%s] of [%s]: raising it above the longest record may recover theirs",
-                filesProbed,
-                probeBound(),
-                filesWalked,
-                MAX_RECORD_SIZE_PRAGMA,
-                maxRecordSize()
-            );
-        }
-
-        /**
-         * The record bound the walk ran into. Read off the example file, which is any affected file, because the
-         * pragma applies to the whole query and so every file of it carries the same value.
-         */
-        private ByteSizeValue maxRecordSize() {
-            return ByteSizeValue.ofBytes(firstAffected.task().maxRecordBytes());
-        }
-
-        /**
-         * How far a probe read, and which setting stopped it there. A probe's window is the smallest of the query's
-         * record cap, its stride and its configured probe window, so only the smallest of the three can recover a
-         * boundary: raising either of the others leaves the read where it was. Naming the bound rather than the
-         * settings a probe generally reads is what keeps the advice actionable for a query that has already raised
-         * one of them past the one that binds.
-         * <p>
-         * Every one of the three is a property of the query rather than of a file, so they are read off the example
-         * file for the same reason the stride in the warning is.
-         * <p>
-         * Two of them can tie, and then both are named, because moving either alone leaves the minimum where it
-         * was. What is left out is the fourth term of the window, the bytes remaining before end-of-file, which is
-         * a property of the offset rather than something a query can set.
-         */
-        private String probeBound() {
-            long maxRecordBytes = firstAffected.task().maxRecordBytes();
-            long strideBytes = firstAffected.strideBytes();
-            long bound = Math.min(maxRecordBytes, RecordBoundaryProbe.gridWindow(strideBytes, probeWindowBytes));
-            List<String> keys = new ArrayList<>(3);
-            if (probeWindowBytes == bound) {
-                keys.add("[" + CONFIG_SPLIT_PROBE_WINDOW + "]");
-            }
-            if (strideBytes == bound) {
-                keys.add("[" + CONFIG_TARGET_SPLIT_SIZE + "]");
-            }
-            if (maxRecordBytes == bound) {
-                keys.add("[" + MAX_RECORD_SIZE_PRAGMA + "]");
-            }
-            return Strings.format("[%s], bounded by %s", ByteSizeValue.ofBytes(bound), String.join(" and ", keys));
         }
 
         /**
@@ -1712,8 +2318,9 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes,
         // File-level statistics: a live harvest from this query's schema resolution, or the same
         // harvest reconstructed from the schema cache's flat _stats.* map. Null when this file was
-        // never harvested (no cache entry). A harvest whose readableUnitCount is 1 lets
-        // tryRangeAwareSplits emit a whole-file split without opening the footer again.
+        // never harvested (no cache entry). tryRangeAwareSplits emits a whole-file split without
+        // opening the footer again only when readableUnitCount is 1 and the harvest has column
+        // statistics. A slim record still reports a unit count of 1 and must not skip.
         @Nullable SourceStatistics statistics,
         // Coordinator fold (sourceMetadata on the relation). Copied onto each harvest or
         // footer range so split merge cannot serve a column the fold already dropped.
@@ -1774,6 +2381,88 @@ public class FileSplitProvider implements SplitProvider {
          * a quoted file that under-split is reported alongside the strided ones that did.
          */
         record Walked(DeferredNewlineSplits deferred, List<Long> starts, boolean stoppedBeforeEndOfFile) implements PlanResult {}
+    }
+
+    /**
+     * How many rows are still wanted, and whether the count can be trusted.
+     * <p>
+     * A file's planned units say how many records they hold, so producing splits in listing order can stop once the
+     * rows already covered reach what the query asked for: every file past that point is one nobody has to open.
+     * The arithmetic only holds while three things are true, and each of them fails the budget closed rather than
+     * narrowing it — an unusable budget produces every split, exactly as before a limit reached here.
+     * <ul>
+     *   <li>Nothing between the limit and the relation changes how many rows come out. The walk that recovered the
+     *       demand carries it only through commands that promise that, so a filtered or sorted limit never arrives.</li>
+     *   <li>The dataset's error policy does not drop rows: under it a unit's record count is what will be decoded,
+     *       not what will be emitted.</li>
+     *   <li>Every unit planned so far said how many records it holds. One that does not makes the running total a
+     *       floor rather than a count, so the budget gives up.</li>
+     * </ul>
+     */
+    private static final class RowBudget {
+        private static final RowBudget UNUSABLE = new RowBudget(FormatReader.NO_LIMIT);
+
+        private final long demand;
+        private long covered;
+        private boolean usable;
+
+        private RowBudget(int demand) {
+            // A demand of zero is satisfied before any file is accounted, so the whole planning loop is skipped and
+            // the empty result falls through to reading every file in the list. Nothing here would be wrong, but
+            // nothing here would be right either: the safety comes from SkipQueryOnLimitZero folding a zero limit
+            // away before physical planning, two layers above and with nothing stating the dependency. This says it.
+            assert demand == FormatReader.NO_LIMIT || demand > 0
+                : "a demand of [" + demand + "] should have been folded away before split discovery";
+            this.demand = demand;
+            this.usable = demand != FormatReader.NO_LIMIT;
+        }
+
+        static RowBudget of(SplitDiscoveryContext context, @Nullable FormatReader reader) {
+            if (context.rowLimit() == FormatReader.NO_LIMIT) {
+                return UNUSABLE;
+            }
+            // forReader never returns null: FormatReader#defaultErrorPolicy defaults to STRICT and a null reader
+            // resolves to STRICT too, so there is no absent-policy case to guard here. A mock that returns one is
+            // a fixture that is not shaped like a reader.
+            if (ErrorPolicy.forReader(context.config(), reader).mode() != ErrorPolicy.Mode.FAIL_FAST) {
+                return UNUSABLE;
+            }
+            return new RowBudget(context.rowLimit());
+        }
+
+        synchronized boolean satisfied() {
+            return usable && covered >= demand;
+        }
+
+        /**
+         * Whether this budget could ever stop the scan, known without reading a footer. True does not promise the
+         * budget will be satisfied - the per-file record counts decide that - only that a prefix of the dataset is
+         * worth listing first.
+         */
+        boolean usableForABoundedListing() {
+            return demand != FormatReader.NO_LIMIT;
+        }
+
+        /** Folds one planned file in, and gives up if it could not say how many records it holds. */
+        synchronized void account(PlanResult result) {
+            if (usable == false) {
+                return;
+            }
+            if (result instanceof PlanResult.Splits planned) {
+                for (ExternalSplit split : planned.splits()) {
+                    SplitStats stats = split.splitStats();
+                    long rows = stats == null ? -1 : stats.rowCount();
+                    if (rows < 0) {
+                        usable = false;
+                        return;
+                    }
+                    covered += rows;
+                }
+            } else {
+                // A file whose splits are settled later cannot be counted now.
+                usable = false;
+            }
+        }
     }
 
     /** One stride offset to probe, tied back to the file whose boundaries it contributes to. */
@@ -2036,7 +2725,7 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Resolves the config-aware {@link FormatReader} for a file, or {@code null} when it cannot be resolved
-     * (no {@code formatRegistry}, no object name, or an unknown extension). Config-aware so a {@code WITH}
+     * (no {@code formatRegistry}, no object name, or an unknown extension). Config-aware so a config
      * override (e.g. {@code mode=plain}, {@code quote=none}) selects the same reader/splitter the read path
      * will actually use: {@code byExtension} alone yields the extension default (quoted for {@code .csv}),
      * whose non-strided splitter would send a plain-mode file down the sequential proven walk instead of the
@@ -2094,7 +2783,7 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with listing length (and mtime
+     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with the file length (and mtime
      * when known) so {@code length()} / {@code lastModified()} do not probe the object store. Size
      * {@code 0} is a real empty object; missing length falls back to the path-only constructor.
      * <p>
@@ -2122,18 +2811,28 @@ public class FileSplitProvider implements SplitProvider {
      * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
      * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
      * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
-     * The inner object is the full file, seeded from listing metadata when present — never from
-     * {@link FileSplit#length()}, which is the view span.
+     * The inner object is the full file. A span split carries that length in {@code _file_length};
+     * {@link FileSplit#length()} is the view span there. A whole-file split (first and last) is not
+     * stamped, and its {@link FileSplit#length()} is the file.
      */
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
         return new RangeStorageObject(newObjectForFile(storageProvider, fileSplit), fileSplit.offset(), fileSplit.length());
     }
 
+    /**
+     * Full-file length. Span splits stamp {@code _file_length} because {@link FileSplit#length()} is
+     * only the view. A split that is both first and last is the whole file, so its length is the file
+     * even when {@code _file.size} was not retained. Any other split falls back to a retained
+     * {@code _file.size}, then {@code null}.
+     */
     @Nullable
     private static Long fileLengthHint(FileSplit fileSplit) {
         Object configured = fileSplit.config().get(FILE_LENGTH_KEY);
         if (configured instanceof String s) {
             return Long.parseLong(s);
+        }
+        if (isFirstInFile(fileSplit) && isLastInFile(fileSplit)) {
+            return fileSplit.length();
         }
         Object listed = fileSplit.partitionValues().get(FileMetadataColumns.SIZE);
         return listed instanceof Number n ? n.longValue() : null;
@@ -2251,6 +2950,7 @@ public class FileSplitProvider implements SplitProvider {
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
                 splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
+                splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
                 if (m == 0) {
                     splitConfig.put(FIRST_SPLIT_KEY, "true");
                 }
@@ -2318,8 +3018,10 @@ public class FileSplitProvider implements SplitProvider {
 
         // One independently readable unit (one Parquet row group / ORC stripe): discovery would
         // reopen the same footer only to emit a single range. The file-level harvest is that
-        // unit's extrema, so emit the whole-file split and skip the open.
-        if (fileStatistics != null && fileStatistics.readableUnitCount().orElse(-1) == 1) {
+        // unit's extrema only when it carries column statistics. A slim record still reports
+        // readableUnitCount == 1 but has no per-column map; skipping would stamp an empty harvest
+        // and filtered MIN/MAX would scan. Those files fall through to discoverSplitRanges.
+        if (singleUnitHarvest(fileStatistics)) {
             Map<String, Object> stats = normalizeSplitStats(
                 SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
                 readSchema,
@@ -2377,6 +3079,15 @@ public class FileSplitProvider implements SplitProvider {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
         }
+    }
+
+    /** A one-unit harvest can skip a second footer open only when it still carries column stats. */
+    private static boolean singleUnitHarvest(@Nullable SourceStatistics fileStatistics) {
+        if (fileStatistics == null || fileStatistics.readableUnitCount().orElse(-1) != 1) {
+            return false;
+        }
+        Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = fileStatistics.columnStatistics();
+        return columns.isPresent() && columns.get().isEmpty() == false;
     }
 
     private void tryRangeAwareSplitsAsync(
@@ -2687,9 +3398,8 @@ public class FileSplitProvider implements SplitProvider {
      * strides; resolving a reader per file to sharpen it would cost more than the coarser cut does.
      * <p>
      * Widening rather than failing keeps a {@code target_split_size} that suits most of a scan from being
-     * rejected because the scan as a whole is large. Telling the user that the size they asked for is not the
-     * size they got is the caller's to do, so that this stays arithmetic the caller can evaluate without
-     * emitting anything.
+     * rejected because the scan as a whole is large. Logging that the size asked for is not the size in use is
+     * the caller's to do, so that this stays arithmetic the caller can evaluate without emitting anything.
      *
      * @param maxSplitProbes the probes this query may issue, from {@link #CONFIG_MAX_SPLIT_PROBES}
      */
@@ -2731,6 +3441,7 @@ public class FileSplitProvider implements SplitProvider {
             long length = Math.subtractExact(end, start);
             Map<String, Object> splitConfig = new HashMap<>(config);
             splitConfig.put(RECORD_ALIGNED_MACRO_SPLIT_KEY, "true");
+            splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
             if (i == 0) {
                 splitConfig.put(FIRST_SPLIT_KEY, "true");
             }
@@ -2853,6 +3564,7 @@ public class FileSplitProvider implements SplitProvider {
                     long groupEnd = frame.compressedOffset() + frame.compressedSize();
                     Map<String, Object> splitConfig = new HashMap<>(config);
                     splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
+                    splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
                     if (splitCount == 0) {
                         splitConfig.put(FIRST_SPLIT_KEY, "true");
                     }
@@ -2888,7 +3600,7 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Resolves the {@link StorageProvider} to use for a single-file operation.
-     * Returns the hoisted WITH-config lease when present; empty-config reads use the
+     * Returns the hoisted inline-config lease when present; empty-config reads use the
      * registry default. A missing hoist with non-empty config is a programming error
      * (creating a provider here would leak a pool lease). Unreachable when the hoist
      * in {@code discoverSplits} ran; fails as {@link AssertionError}, not a user ISE.
@@ -2898,7 +3610,7 @@ public class FileSplitProvider implements SplitProvider {
             return hoistedProvider;
         }
         if (config != null && config.isEmpty() == false) {
-            throw new AssertionError("WITH-config split discovery requires a hoisted storage provider");
+            throw new AssertionError("inline-config split discovery requires a hoisted storage provider");
         }
         return storageRegistry.provider(filePath);
     }
@@ -3079,13 +3791,13 @@ public class FileSplitProvider implements SplitProvider {
         long widestWindow = MAX_PROBE_BUDGET_BYTES / maxSplitProbes;
         Check.clientError(
             splitProbeWindowBytes <= widestWindow,
-            "Invalid combination of [{}] of [{}] and [{}] of [{}]: a query may read at most [{}] while probing, "
-                + "which at that many probes leaves a window of [{}]; lower either value",
+            "[{}] of [{}] times [{}] of [{}] exceeds [{}]; lower either (at [{}] probes the window can be at most [{}])",
             CONFIG_SPLIT_PROBE_WINDOW,
             ByteSizeValue.ofBytes(splitProbeWindowBytes),
             CONFIG_MAX_SPLIT_PROBES,
             maxSplitProbes,
             ByteSizeValue.ofBytes(MAX_PROBE_BUDGET_BYTES),
+            maxSplitProbes,
             ByteSizeValue.ofBytes(widestWindow)
         );
     }
@@ -3119,10 +3831,10 @@ public class FileSplitProvider implements SplitProvider {
      * partition map (hive partitions and {@code _file.*} listing values). Unbound {@code _file.*}
      * keys are dropped, because those names are ordinary data columns and must not prune the
      * listing by storage stat or block a missing-column skip. Bound per-file constants (the
-     * all-null standard names) are overlaid only when a hint names one of them, and only for
-     * names bound as metadata in the relation's output, matching the reader. Data columns retain
-     * their physical values or missing-column null-fill. The frozen map itself carries hive and
-     * {@code _file.*} only.
+     * standard names, all but {@code _score} null) are overlaid only when a hint names one of
+     * them, and only for names bound as metadata in the relation's output, matching the reader.
+     * Data columns retain their physical values or missing-column null-fill. The frozen map
+     * itself carries hive and {@code _file.*} only.
      */
     private static Map<String, Object> discoveryFilterValues(
         Map<String, Object> partitionValues,
@@ -3145,29 +3857,44 @@ public class FileSplitProvider implements SplitProvider {
         return filterValues;
     }
 
-    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints, Set<String> metadataColumnNames) {
+    /**
+     * Names from {@code candidates} that a filter references. Empty when nothing matches. Callers pass a
+     * set that is already limited to the names this scan should treat as bound.
+     */
+    private static Set<String> referencedNames(List<Expression> filterHints, Set<String> candidates) {
+        if (filterHints.isEmpty() || candidates.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> matched = null;
         for (Expression hint : filterHints) {
-            if (hint.references()
-                .stream()
-                .anyMatch(
-                    a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
-                )) {
-                return true;
+            for (Attribute attribute : hint.references()) {
+                String name = attribute.name();
+                if (candidates.contains(name)) {
+                    if (matched == null) {
+                        matched = new LinkedHashSet<>();
+                    }
+                    matched.add(name);
+                }
             }
         }
-        return false;
+        return matched == null ? Set.of() : matched;
     }
 
-    private static boolean hintsReferenceUnboundFileMetadata(List<Expression> filterHints, Set<String> unboundFileMetadataNames) {
-        if (unboundFileMetadataNames.isEmpty()) {
-            return false;
+    /** Members of {@code candidates} that are also in {@code bound}. */
+    private static Set<String> namesInBoth(Set<String> bound, Set<String> candidates) {
+        if (bound.isEmpty() || candidates.isEmpty()) {
+            return Set.of();
         }
-        for (Expression hint : filterHints) {
-            if (hint.references().stream().anyMatch(a -> unboundFileMetadataNames.contains(a.name()))) {
-                return true;
+        Set<String> both = null;
+        for (String name : candidates) {
+            if (bound.contains(name)) {
+                if (both == null) {
+                    both = new LinkedHashSet<>();
+                }
+                both.add(name);
             }
         }
-        return false;
+        return both == null ? Set.of() : both;
     }
 
     /**
@@ -3309,7 +4036,9 @@ public class FileSplitProvider implements SplitProvider {
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
-                        if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
+                        if (zerosOfOppositeSign(partitionValue, lit.value())) {
+                            found = null;
+                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
                             found = true;
                             break;
                         }
@@ -3367,6 +4096,20 @@ public class FileSplitProvider implements SplitProvider {
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
             default -> null;
         };
+    }
+
+    /**
+     * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells {@code -0.0}
+     * from {@code 0.0}, and the matcher does not. For such a pair {@code IN} is left unknown. The matcher's "equal"
+     * prunes matching files under {@code NOT IN}; copying the engine's current "not equal" is right only while
+     * {@code IN} disagrees with {@code ==}, and would prune matching files under plain {@code IN} once the two agree.
+     */
+    private static boolean zerosOfOppositeSign(Object a, Object b) {
+        return a instanceof Number na
+            && b instanceof Number nb
+            && na.doubleValue() == 0.0
+            && nb.doubleValue() == 0.0
+            && Double.compare(na.doubleValue(), nb.doubleValue()) != 0;
     }
 
     private static Boolean nullableAnd(Boolean a, Boolean b) {
@@ -3510,6 +4253,8 @@ public class FileSplitProvider implements SplitProvider {
     private static String extractColumnName(Expression expr) {
         return switch (expr) {
             case FieldAttribute fa -> fa.name();
+            // Metadata _score is per-row, not per-file; type-checked so a physical column named _score still prunes.
+            case NamedExpression ne when MetadataAttribute.isScoreAttribute(ne) -> null;
             case NamedExpression ne -> ne.name();
             default -> null;
         };

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -31,6 +32,11 @@ import java.time.Instant;
  * - File metadata (size, last modified)
  */
 public final class LocalStorageObject extends AbstractMeteredStorageObject {
+
+    private record LocalFileIdentity() implements StorageIdentity {}
+
+    private static final LocalFileIdentity LOCAL_FILE_IDENTITY = new LocalFileIdentity();
+
     private final Path filePath;
     private final StoragePath storagePath;
 
@@ -165,6 +171,11 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return storagePath;
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return LOCAL_FILE_IDENTITY;
     }
 
     private void checkFileExists() throws NoSuchFileException {

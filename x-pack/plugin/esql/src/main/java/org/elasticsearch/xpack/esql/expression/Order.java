@@ -71,7 +71,7 @@ public class Order extends Expression {
 
     @Override
     public DataType dataType() {
-        return DataType.UNSUPPORTED;
+        return child.dataType();
     }
 
     @Override

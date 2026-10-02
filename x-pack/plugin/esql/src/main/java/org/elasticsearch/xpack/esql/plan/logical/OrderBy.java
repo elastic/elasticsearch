@@ -118,8 +118,8 @@ public class OrderBy extends UnaryPlan
          * Some datatypes are not sortable
          */
         order.forEach(order -> {
-            if (DataType.isSortable(order.child().dataType()) == false) {
-                failures.add(fail(order, "cannot sort on " + order.child().dataType().typeName()));
+            if (DataType.isSortable(order.dataType()) == false) {
+                failures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
             }
         });
     }

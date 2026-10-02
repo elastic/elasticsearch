@@ -672,3 +672,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
+- class: org.elasticsearch.columnar.string.StringMatchTests
+  method: testWindowedCollectionOnAMultiValuedDictionary
+  issue: https://github.com/elastic/elasticsearch/issues/160837

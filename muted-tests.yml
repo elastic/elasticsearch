@@ -206,6 +206,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/preview_data_frame_analytics/Test feature preview given job}
   issue: https://github.com/elastic/elasticsearch/issues/160713
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/160920
 
 # Examples:
 #

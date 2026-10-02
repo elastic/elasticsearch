@@ -271,28 +271,22 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
         try {
             final String newIndexNode = startIndexNode(nodeSettings);
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
-            final long refreshedGeneration;
-            try {
-                safeAwait(beforeMarkRelocating);
-                // Explicit refresh creates a commit without requesting its upload, even while indexing permits are held by relocation.
-                safeAwait(
-                    (ActionListener<Engine.RefreshResult> listener) -> indexEngine.externalRefresh("refresh during relocation", listener)
-                );
-                refreshedGeneration = indexEngine.getLastCommittedSegmentInfos().getGeneration();
-                assertThat(refreshedGeneration, greaterThan(lastFlushedGeneration.get()));
-                assertThat(
-                    refreshedGeneration,
-                    greaterThan(commitService.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().generation())
-                );
-                assertBusy(
-                    () -> assertThat(
-                        findSearchShard(indexName).getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(),
-                        equalTo(refreshedGeneration)
-                    )
-                );
-            } finally {
-                continueRelocation.countDown();
-            }
+            safeAwait(beforeMarkRelocating);
+            // Explicit refresh creates a commit without requesting its upload, even while indexing permits are held by relocation.
+            safeAwait(
+                (ActionListener<Engine.RefreshResult> listener) -> indexEngine.externalRefresh("refresh during relocation", listener)
+            );
+            // Search shard already sees the new commit, but it is not queued for upload on the indexing node
+            final long refreshedGeneration = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat(refreshedGeneration, greaterThan(lastFlushedGeneration.get()));
+            assertThat(refreshedGeneration, greaterThan(commitService.getMaxPendingOrUploadedGeneration(indexShard.shardId())));
+            assertBusy(
+                () -> assertThat(
+                    findSearchShard(indexName).getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(),
+                    equalTo(refreshedGeneration)
+                )
+            );
+            continueRelocation.countDown();
 
             ensureGreen(indexName);
             assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));

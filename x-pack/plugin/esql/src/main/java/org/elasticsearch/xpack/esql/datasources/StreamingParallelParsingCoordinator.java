@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -110,6 +111,18 @@ public final class StreamingParallelParsingCoordinator {
     }
 
     /**
+     * Opens the sequential decompressed stream. Production passes {@code storageObject::newStream} (or
+     * {@code decompressing::newStream}) so the GET and its storage permit are acquired only after
+     * {@link StreamingSegmentatorAdmission} has handed the segmentator a pool thread that can finish
+     * the read and release the permit. Tests that already hold an {@link InputStream} wrap
+     * {@code () -> stream}.
+     */
+    @FunctionalInterface
+    public interface StreamOpener {
+        InputStream open() throws IOException;
+    }
+
+    /**
      * Creates a parallel-parsing iterator over a sequential decompressed stream.
      *
      * @param reader              the segmentable format reader (provides record boundary semantics)
@@ -132,7 +145,7 @@ public final class StreamingParallelParsingCoordinator {
     ) throws IOException {
         return parallelRead(
             reader,
-            decompressedStream,
+            () -> decompressedStream,
             null,
             projectedColumns,
             batchSize,
@@ -213,7 +226,7 @@ public final class StreamingParallelParsingCoordinator {
     ) throws IOException {
         return parallelRead(
             reader,
-            decompressedStream,
+            () -> decompressedStream,
             storageObject,
             projectedColumns,
             batchSize,
@@ -240,6 +253,11 @@ public final class StreamingParallelParsingCoordinator {
      * {@link StreamingSegmentatorAdmission}). Production always threads the per-node admission gate;
      * the overload above supplies {@link StreamingSegmentatorAdmission#unbounded()} for tests and
      * benchmarks running on an isolated, generously-sized pool where segmentator saturation cannot arise.
+     * <p>
+     * Tests that already hold a live {@link InputStream} use this overload; it wraps the stream as a
+     * {@link StreamOpener} so the iterator still admits before any further read. Production callers
+     * that would acquire a storage permit on {@code newStream()} must use the {@link StreamOpener}
+     * overload below so the GET happens on the admitted segmentator thread.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -262,6 +280,63 @@ public final class StreamingParallelParsingCoordinator {
         ExternalReadCounters readCounters,
         @Nullable FormatReadCounters formatCounters
     ) throws IOException {
+        return parallelRead(
+            reader,
+            () -> decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            admission,
+            breaker,
+            readCounters,
+            formatCounters
+        );
+    }
+
+    /**
+     * Production streaming path: at {@code parallelism > 1}, {@code opener} is invoked as the admitted
+     * segmentator's first action, so a storage permit is held only by a task that already runs on the
+     * shared I/O pool and can finish the stream on that same thread. Unadmitted work holds zero permits
+     * and zero pool threads.
+     * <p>
+     * {@code parallelism <= 1} is the single-pass fallback used by tests and benchmarks: it calls
+     * {@code opener.open()} on the caller, then {@code reader.read}. That does not invert permits
+     * against the I/O pool (same thread acquires, reads, closes, releases). Production
+     * {@link AsyncExternalSourceOperatorFactory#openWithParallelism} returns {@code null} when
+     * {@code parsingParallelism <= 1} and never reaches this overload for that case.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StreamOpener opener,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
+    ) throws IOException {
+        Objects.requireNonNull(opener, "opener");
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "streaming parallelRead: readSchema={}, parallelism={}, projection={}",
@@ -273,11 +348,10 @@ public final class StreamingParallelParsingCoordinator {
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {
-            // Single-pass fallback reads the whole decompressed stream in one shot starting at
-            // baseFileOffset, so per-stripe stats attribution applies exactly as in the parallel branch and
-            // its trailing stripe is always file-final. Thread .stats(...) here too — mirrors the sibling
-            // ParallelParsingCoordinator's single-segment fallback — so a streaming read at parallelism 1
-            // still harvests per-stripe stats instead of silently dropping the capture.
+            // Test/benchmark single-pass fallback: open on this thread, then read the whole stream.
+            // AESOF never takes this path (openWithParallelism returns null at parsingParallelism<=1).
+            // Same thread acquires, reads, closes, and releases, so this is not the permit×pool cycle.
+            // Thread .stats(...) here too — mirrors ParallelParsingCoordinator's single-segment fallback.
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
@@ -290,12 +364,12 @@ public final class StreamingParallelParsingCoordinator {
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
-            return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
+            return reader.read(new InputStreamStorageObject(opener.open()), ctx);
         }
 
         return new StreamingParallelIterator(
             reader,
-            decompressedStream,
+            opener,
             storageObject,
             projectedColumns,
             batchSize,
@@ -369,13 +443,6 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
-        /**
-         * Node-level gate bounding how many segmentators occupy the shared {@code esql_external_io} pool at once,
-         * so parser tasks are never starved of a thread (see {@link StreamingSegmentatorAdmission}). Never
-         * {@code null}: production threads the per-node controller; tests/benchmarks on an isolated, generously-sized
-         * pool pass {@link StreamingSegmentatorAdmission#unbounded()}, which dispatches immediately.
-         */
-        private final StreamingSegmentatorAdmission admission;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final AtomicInteger buffersAllocated;
@@ -460,13 +527,27 @@ public final class StreamingParallelParsingCoordinator {
         private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
 
         /**
-         * The sequential decompressed stream being segmented. Closed exactly once by whichever path
-         * gets there first: {@link #runSegmentator}'s {@code finally}, {@link #onSegmentatorLaunchRejected}
-         * on a pool rejection, or {@link #close()} as a backstop for the segmentator-still-queued case.
-         * The {@link #streamClosed} CAS ensures only one caller's {@code close()} runs.
+         * Opens the sequential stream as the admitted segmentator's first action. Never invoked for
+         * work cancelled while still pending in {@link StreamingSegmentatorAdmission}.
          */
-        private final InputStream decompressedStream;
+        private final StreamOpener opener;
+        /**
+         * The sequential decompressed stream being segmented, assigned after {@link #opener} succeeds.
+         * {@code null} until then. Closed exactly once by whichever path gets there first
+         * ({@link #runSegmentator}'s {@code finally}, {@link #onSegmentatorLaunchRejected} on a pool
+         * rejection, or {@link #close()} as a backstop for the segmentator-still-queued case).
+         * The {@link #streamClosed} CAS ensures only one caller's close runs once a stream exists.
+         */
+        private volatile InputStream decompressedStream;
+        /**
+         * Failure from {@link StreamOpener#open()}, stored separately from parse-time {@link #firstError}
+         * so {@link #checkError()} can rethrow it unwrapped — 403/404 type and message must match the
+         * pre-lazy-open path where {@code newStream()} threw on the opener thread.
+         */
+        private final AtomicReference<Throwable> openFailure = new AtomicReference<>();
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
+        /** Cancels still-pending admission so {@link #close()} of a never-started iterator is prompt. */
+        private final StreamingSegmentatorAdmission.Handle admissionHandle;
         private final ExternalReadCounters readCounters;
         @Nullable
         private final FormatReadCounters formatCounters;
@@ -497,7 +578,7 @@ public final class StreamingParallelParsingCoordinator {
         ) {
             this(
                 reader,
-                decompressedStream,
+                () -> decompressedStream,
                 storageObject,
                 projectedColumns,
                 batchSize,
@@ -520,7 +601,7 @@ public final class StreamingParallelParsingCoordinator {
 
         StreamingParallelIterator(
             SegmentableFormatReader reader,
-            InputStream decompressedStream,
+            StreamOpener opener,
             @Nullable StorageObject storageObject,
             List<String> projectedColumns,
             int batchSize,
@@ -539,7 +620,6 @@ public final class StreamingParallelParsingCoordinator {
             ExternalReadCounters readCounters,
             @Nullable FormatReadCounters formatCounters
         ) {
-            this.admission = admission;
             this.breaker = breaker;
             this.originalReader = reader;
             this.reader = reader;
@@ -581,18 +661,41 @@ public final class StreamingParallelParsingCoordinator {
             // where producer-loop drivers and sub-tasks of other iterators competed for the same slots.
             this.tasksOutstanding = new AtomicInteger(1);
 
-            this.decompressedStream = decompressedStream;
+            this.opener = opener;
             this.readCounters = readCounters;
             this.formatCounters = formatCounters;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
             // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
-            // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
+            // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded). Admission happens before
+            // opener.open() so unadmitted work holds no storage permit and no pool thread.
             Runnable segmentatorTask = () -> {
                 try {
-                    readCounters.meteredCpu(() -> runSegmentator(this.decompressedStream, this.chunkSize), false);
+                    // Already-dispatched close vs a not-yet-started task can still GET after close()
+                    // if the runnable sits in the pool FIFO. finally aborts. One extra GET, not the
+                    // permit×pool cycle — leave unless soak shows cancel-during-admit storms.
+                    if (closed.get()) {
+                        return;
+                    }
+                    InputStream stream;
+                    try {
+                        stream = Objects.requireNonNull(this.opener.open(), "opener");
+                    } catch (Throwable t) {
+                        openFailure.compareAndSet(null, t);
+                        signalReady();
+                        return;
+                    }
+                    this.decompressedStream = stream;
+                    if (closed.get()) {
+                        return;
+                    }
+                    readCounters.meteredCpu(() -> runSegmentator(stream, this.chunkSize), false);
                 } finally {
+                    // Backstop if opener succeeded but runSegmentator was never entered (closed after
+                    // open, or meteredCpu threw before the lambda). runSegmentator's own finally also
+                    // calls closeStream; the CAS makes a double call a no-op.
+                    closeStream();
                     // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
                     // and exit on their own after processing. Segmentator's done; decrement and signal
                     // so the consumer wakes if it's the last task standing (EOF condition is
@@ -602,7 +705,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
             };
-            admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
+            this.admissionHandle = admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
         }
 
         /**
@@ -612,8 +715,8 @@ public final class StreamingParallelParsingCoordinator {
          */
         private void onSegmentatorLaunchRejected(RejectedExecutionException e) {
             firstError.compareAndSet(null, e);
-            // The segmentator never ran, so its finally block never closed the stream. Release it
-            // promptly here; close() provides a backstop for any racing path.
+            // The segmentator never ran, so opener was never invoked. closeStream is a no-op (never opened);
+            // close() provides a backstop for any racing path.
             closeStream();
             if (tasksOutstanding.decrementAndGet() == 0) {
                 signalReady();
@@ -625,15 +728,21 @@ public final class StreamingParallelParsingCoordinator {
          * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
          * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
          * available, so providers such as S3 can discard the underlying HTTP connection without draining
-         * the remaining response body.
+         * the remaining response body. A no-op when the opener never ran ({@code decompressedStream} is
+         * still null) — does not CAS {@link #streamClosed} in that case so a racing segmentator can still
+         * close the stream it is about to assign.
          */
         private void closeStream() {
+            InputStream stream = decompressedStream;
+            if (stream == null) {
+                return;
+            }
             if (streamClosed.compareAndSet(false, true)) {
                 try {
                     if (storageObject != null) {
-                        storageObject.abortStream(decompressedStream);
+                        storageObject.abortStream(stream);
                     } else {
-                        decompressedStream.close();
+                        stream.close();
                     }
                 } catch (IOException e) {
                     logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
@@ -1272,6 +1381,8 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Override
         public boolean hasNext() {
+            // Closed short-circuits before checkError, so close-then-hasNext swallows openFailure.
+            // Production drain uses tryAdvance first (which throws). Do not assert 403/404 via this path.
             if (closed.get()) {
                 return false;
             }
@@ -1369,7 +1480,7 @@ public final class StreamingParallelParsingCoordinator {
          * blocking, and resumes via {@link #signalReady()} when the next chunk's first page lands.
          */
         private boolean isReadyNow() {
-            if (closed.get() || buffered != null || firstError.get() != null) {
+            if (closed.get() || buffered != null || firstError.get() != null || openFailure.get() != null) {
                 return true;
             }
             skipDrainedPoison();
@@ -1486,10 +1597,37 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void checkError() {
+            Throwable open = openFailure.get();
+            if (open != null) {
+                // Open 403/404 must surface with the same type and message as the pre-lazy-open path,
+                // where newStream() threw on the opener thread — not wrapped as "Streaming parallel
+                // parsing failed".
+                throw rethrowOpenFailure(open);
+            }
             Throwable t = firstError.get();
             if (t != null) {
                 throw ExternalFailures.surface(t, "Streaming parallel parsing failed");
             }
+        }
+
+        /**
+         * Rethrows an opener failure unchanged: RuntimeException and Error as-is, checked exceptions
+         * sneaked so {@link java.util.Iterator} callers still see {@link IOException} rather than a
+         * status-rewriting wrapper.
+         */
+        private static RuntimeException rethrowOpenFailure(Throwable t) {
+            if (t instanceof Error error) {
+                throw error;
+            }
+            if (t instanceof RuntimeException re) {
+                throw re;
+            }
+            throw sneakyThrow(t);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T extends Throwable> RuntimeException sneakyThrow(Throwable t) throws T {
+            throw (T) t;
         }
 
         /**
@@ -1556,31 +1694,34 @@ public final class StreamingParallelParsingCoordinator {
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
             drainAllQueues();
-            // Poll tasksOutstanding instead of waiting on a fixed CountDownLatch — the number of
-            // outstanding tasks is dynamic (one per dispatched chunk) so we can't precompute it.
-            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
-            try {
-                while (tasksOutstanding.get() > 0 && System.nanoTime() < deadlineNanos) {
-                    Thread.sleep(50);
-                    drainAllQueues();
+            boolean neverStarted = admissionHandle.cancel();
+            if (neverStarted) {
+                // Still in the admission queue: opener never ran, no permit is held, skip the 60s poll.
+                tasksOutstanding.decrementAndGet();
+            } else {
+                // Poll tasksOutstanding instead of waiting on a fixed CountDownLatch — the number of
+                // outstanding tasks is dynamic (one per dispatched chunk) so we can't precompute it.
+                long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
+                try {
+                    while (tasksOutstanding.get() > 0 && System.nanoTime() < deadlineNanos) {
+                        Thread.sleep(50);
+                        drainAllQueues();
+                    }
+                    if (tasksOutstanding.get() > 0) {
+                        logger.warn(
+                            "Timed out waiting for streaming parallel parsing tasks to finish after [{}]s; "
+                                + "any pages published by still-running parsers after this point will leak their blocks",
+                            CLOSE_TIMEOUT_SECONDS
+                        );
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
-                if (tasksOutstanding.get() > 0) {
-                    logger.warn(
-                        "Timed out waiting for streaming parallel parsing tasks to finish after [{}]s; "
-                            + "any pages published by still-running parsers after this point will leak their blocks",
-                        CLOSE_TIMEOUT_SECONDS
-                    );
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                drainAllQueues();
             }
-            drainAllQueues();
-            // Backstop: if the segmentator was never promoted from the admission queue (still pending
-            // when the timeout fired) or if any code path did not call closeStream() themselves,
-            // release the stream now. In the timeout and interrupt paths tasksOutstanding may still
-            // be above 0, meaning the segmentator (or parsers) can be concurrently executing — the
-            // CAS in streamClosed is the safety mechanism that prevents a double-release race with a
-            // still-running segmentator's own closeStream() call.
+            // Backstop for never-started (no-op while the stream is still null) and for any path that
+            // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close
+            // a stream it assigns after this read.
             closeStream();
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
@@ -1591,7 +1732,12 @@ public final class StreamingParallelParsingCoordinator {
             // A non-strict truncation (external_max_record_size cap-hit) likewise emits only a prefix of the
             // file's records, so it must not be cached as the file's full contribution. Either way a
             // non-clean scan poisons the file's contributions: the reconciler discards them.
-            boolean cleanCompletion = firstError.get() == null && truncated == false && currentChunk >= chunksDispatched.get();
+            // Never-started work is unclean so a cancelled iterator cannot cache empty stats.
+            boolean cleanCompletion = neverStarted == false
+                && firstError.get() == null
+                && openFailure.get() == null
+                && truncated == false
+                && currentChunk >= chunksDispatched.get();
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
             }

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1056,7 +1057,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
-        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
+        // The config is whatever the user typed. Framework keys are stripped here because the unknown-key check
+        // deliberately ignores them, so nothing else would reject one a user supplied -- and a supplied
+        // _definition_version would otherwise address a registered dataset's cache entries.
+        return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
     }
 
     /**
@@ -1499,20 +1503,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
         Source source = source(ctx);
-        // `prefix = "..."` renames generated highlight columns; default is "highlight_".
-        final String prefix = highlightPrefix(ctx);
-        // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
-        // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
+        String prefix = highlightPrefix(ctx);
         Expression query = ctx.queryExpression == null ? null : expression(ctx.queryExpression);
-        // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
-        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
-            .stream()
-            .map(qn -> (NamedExpression) visitQualifiedName(qn))
-            .toList();
-        // Recompute generatedFields when fields can be derived after analysis.
-        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
+        List<NamedExpression> fields = ctx.highlightFields == null ? List.of() : visitQualifiedNamePatterns(ctx.highlightFields, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                throw new ParsingException(ne.source(), "Invalid pattern [{}] in HIGHLIGHT ON, expected field names or [*]", up.pattern());
+            }
+        });
+        if (fields.size() > 1 && fields.stream().anyMatch(f -> f instanceof UnresolvedStar)) {
+            throw new ParsingException(source, "HIGHLIGHT ON [*] cannot be combined with other fields");
+        }
+        boolean derivedFields = fields.isEmpty() || fields.getFirst() instanceof UnresolvedStar;
+        List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
-            new Highlight(source, p, prefix, query, fields, null, generatedFields),
+            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields),
             ctx.commandNamedParameters()
         );
     }

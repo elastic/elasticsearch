@@ -14,6 +14,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
 import java.io.IOException;
@@ -57,6 +58,25 @@ public class GoogleVertexAiStreamingProcessorTests extends ESTestCase {
 
         var exception = onError(new GoogleVertexAiStreamingProcessor(), item);
         assertThat(exception, instanceOf(XContentParseException.class));
+    }
+
+    /**
+     * A candidate that ran out of output budget before producing any text has content without parts. It contributes
+     * no completion delta, and must not fail the stream.
+     */
+    public void testParseCandidateWithoutParts_ReturnsNoResults() {
+        var event = new ServerSentEvent("""
+            {
+              "candidates": [ { "content": { "role": "model" }, "finishReason": "MAX_TOKENS" } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 0, "totalTokenCount": 1010 },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """);
+
+        var results = GoogleVertexAiStreamingProcessor.parse(XContentParserConfiguration.EMPTY, event).toList();
+
+        assertTrue(results.isEmpty());
     }
 
     public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {

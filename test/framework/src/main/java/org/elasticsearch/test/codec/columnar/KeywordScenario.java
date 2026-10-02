@@ -36,14 +36,29 @@ public final class KeywordScenario {
 
     private final String name;
     private final Supplier<List<KeywordDoc>> builder;
+    private final boolean multiValue;
 
     private KeywordScenario(final String name, final Supplier<List<KeywordDoc>> builder) {
+        this(name, builder, true);
+    }
+
+    private KeywordScenario(final String name, final Supplier<List<KeywordDoc>> builder, boolean multiValue) {
         this.name = name;
         this.builder = builder;
+        this.multiValue = multiValue;
     }
 
     public String name() {
         return name;
+    }
+
+    /**
+     * @return whether the keyword field is mapped to accept several values a document. A scenario that says not maps it
+     *         {@code doc_values.multi_value: false}, which selects a different doc-values layout, and generates at most
+     *         one value a document to match.
+     */
+    public boolean multiValue() {
+        return multiValue;
     }
 
     /**
@@ -135,6 +150,23 @@ public final class KeywordScenario {
      */
     public static KeywordScenario largeCorpus() {
         return new KeywordScenario("large_corpus", () -> build(randomIntBetween(300, 500), doc -> List.of(KeywordValues.themed())));
+    }
+
+    /**
+     * A field mapped {@code doc_values.multi_value: false}, so every document holds one value or none. The values span
+     * the shapes the multi-valued scenarios cover one at a time - repeated, unique, unicode, long, and empty - so a
+     * single corpus exercises the single-valued layout with a dictionary, escapes, and variable lengths.
+     */
+    public static KeywordScenario singleValued() {
+        return new KeywordScenario("single_valued", () -> build(doc -> switch (randomInt(5)) {
+            case 0 -> null;
+            case 1 -> List.of(KeywordValues.themed());
+            case 2 -> List.of(KeywordValues.unique(doc));
+            case 3 -> List.of(KeywordValues.unicode());
+            case 4 -> List.of(KeywordValues.longValue());
+            case 5 -> List.of(KeywordValues.emptyString());
+            default -> throw new AssertionError("unreachable");
+        }), false);
     }
 
     public static KeywordScenario randomizedMixed() {

@@ -512,8 +512,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private boolean canCache(FieldCapabilitiesRequest request, String[] concreteLocalIndices) {
-        if (concreteLocalIndices.length > 5) {
+    private boolean canCache(FieldCapabilitiesRequest request, Map<String, OriginalIndices> remoteIndices, String[] concreteLocalIndices) {
+        if (remoteIndices.isEmpty() == false) {
+            // This cache targets low-latency local requests. A request that fans out to remote clusters already pays
+            // a remote round trip, so the saving is negligible; keep the slots for local requests.
+            return false;
+        }
+        if (concreteLocalIndices.length > FieldCapsCache.MAX_INDICES) {
             return false;
         }
         if (cacheEnabled == false) {

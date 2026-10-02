@@ -425,26 +425,14 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
     }
 
     boolean cacheable() {
-        return fields.length < 10
+        return fields.length <= FieldCapsCache.MAX_FIELDS
+            && filters.length <= FieldCapsCache.MAX_FILTERS
             && types.length == 0
             && includeEmptyFields
             && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
             && runtimeFields.isEmpty()
-            && Strings.isEmpty(clusterAlias)
-            && cacheableFilters();
-    }
-
-    private boolean cacheableFilters() {
-        if (filters.length >= 3) {
-            return false;
-        }
-        int length = 0;
-        for (String filter : filters) {
-            length += filter.length();
-            if (length > 50) {
-                return false;
-            }
-        }
-        return true;
+            // This cache targets low-latency local requests. Requests that are part of a cross-cluster request
+            // already pay a remote round trip, so the saving is negligible; keep the slots for local requests.
+            && Strings.isEmpty(clusterAlias);
     }
 }

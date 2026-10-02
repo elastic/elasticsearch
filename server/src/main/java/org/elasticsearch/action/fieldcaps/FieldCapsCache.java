@@ -23,6 +23,11 @@ import java.util.Arrays;
 final class FieldCapsCache {
     private static final int SIZE = 1024;
     private static final int MASK = SIZE - 1;
+    // These are hard-coded/small constants to keep the overhead of this cache small
+    // in terms of memory usage and compute in both hit/miss paths.
+    static final int MAX_FIELDS = 10;
+    static final int MAX_FILTERS = 3;
+    static final int MAX_INDICES = 5;
 
     record Key(String indexUUID, long settingsVersion, long mappingVersion, String[] fields, String[] filters) {
         int slot() {

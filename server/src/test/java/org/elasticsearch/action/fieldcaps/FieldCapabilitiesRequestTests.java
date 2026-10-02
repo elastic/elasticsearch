@@ -159,11 +159,13 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         assertTrue(request.cacheable());
         request.filters("-metadata");
         assertTrue(request.cacheable());
-        request.filters("x".repeat(50));
-        assertTrue(request.cacheable());
-        request.filters("x".repeat(51));
+        request.filters("-nested", "+dimension", "-metadata", "-multifield");
         assertFalse(request.cacheable());
         request.filters("-nested");
+        request.fields(IntStream.range(0, FieldCapsCache.MAX_FIELDS + 1).mapToObj(i -> "f" + i).toArray(String[]::new));
+        assertFalse(request.cacheable());
+        request.fields("_index");
+        assertTrue(request.cacheable());
         request.clusterAlias("remote");
         assertFalse(request.cacheable());
     }

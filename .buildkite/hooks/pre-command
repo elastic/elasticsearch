@@ -52,8 +52,6 @@ fi
 
 export GCP_PREEMPTION_EXIT_CODE=47
 
-source .buildkite/scripts/setup_node.sh
-
 vault_with_retry() {
   local attempt delays=(1 5 10)
   for attempt in 0 1 2 3; do
@@ -68,6 +66,44 @@ vault_with_retry() {
   echo "Vault command failed after 4 attempts" >&2
   return 1
 }
+
+# Most jobs still provision their own Node.js toolchain via setup_node.sh.
+# The agentic workflow instead uses the Node.js and archimedes distribution
+# baked into the elasticsearch-* agent images.
+if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
+  # Fail closed before any vault access if another pipeline tries to opt into
+  # the agentic workflow runtime.
+  if [[ "${BUILDKITE_PIPELINE_SLUG:-}" != "elasticsearch-agentic-workflow" ]]; then
+    echo "USE_ARCHIMEDES=true is only permitted on the elasticsearch-agentic-workflow pipeline" \
+         "(got '${BUILDKITE_PIPELINE_SLUG:-<unset>}'); refusing to read agentic-workflow secrets" >&2
+    exit 1
+  fi
+
+  export NVM_DIR="${HOME}/.nvm"
+  if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
+    echo "expected baked nvm at ${NVM_DIR}/nvm.sh; the elasticsearch agent image is missing the preinstalled Node.js runtime" >&2
+    exit 1
+  fi
+
+  # shellcheck source=/dev/null
+  . "${NVM_DIR}/nvm.sh"
+  if ! nvm use default >/dev/null; then
+    echo "failed to activate the baked default Node.js via nvm; the elasticsearch agent image may be stale" >&2
+    exit 1
+  fi
+
+  export PATH="${HOME}/.local/bin:${PATH}"
+  if ! command -v node >/dev/null 2>&1; then
+    echo "expected baked Node.js on PATH after 'nvm use default', but 'node' was not found" >&2
+    exit 1
+  fi
+  if ! command -v archimedes >/dev/null 2>&1; then
+    echo "expected baked archimedes on PATH at ${HOME}/.local/bin/archimedes, but it was not found" >&2
+    exit 1
+  fi
+else
+  source .buildkite/scripts/setup_node.sh
+fi
 
 GRADLE_BUILD_CACHE_USERNAME=$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_USERNAME
@@ -86,73 +122,9 @@ export BUILDKITE_API_TOKEN
 
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
-# ── pi-agent ──────────────────────────────────────────────────────────────────
-# Bootstraps the self-contained pi-agent CLI (https://github.com/elastic/rene-bk-experiments)
-# so the elasticsearch-agentic-workflow pipeline can run pi sessions on this agent.
-#
-# Completely inert unless USE_PI_AGENT=true is set on the step. The required
-# secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
-if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
-  # LiteLLM API key — the bundled models.json resolves it automatically.
-  ELASTIC_LITELLM_API_KEY=$(vault_with_retry read -field=litellm_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ELASTIC_LITELLM_API_KEY
-
-  # Read-only Buildkite token for the agent's bk_* tools. The bundled
-  # buildkite-jobs extension reads BUILDKITE_API_TOKEN, so alias it here
-  # (scoped to this step's environment).
-  BUILDKITE_RO_API_TOKEN=$(vault_with_retry read -field=buildkite_ro_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export BUILDKITE_RO_API_TOKEN
-  export BUILDKITE_API_TOKEN="${BUILDKITE_RO_API_TOKEN}"
-
-  # Develocity API key for build-scan reads during analysis.
-  DEVELOCITY_API_KEY=$(vault_with_retry read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export DEVELOCITY_API_KEY
-
-  export PATH="${HOME}/.local/bin:${PATH}"
-
-  # Bootstrap pi-agent if not already cached on this agent.
-  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.2}"
-  PI_AGENT_DIR="${HOME}/.local/pi-agent"
-
-  if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
-    echo "--- Bootstrapping pi-agent (${PI_AGENT_TAG})"
-
-    # The release repo is private — use the org-level gh_token from Vault.
-    GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
-
-    # Resolve the pinned release's .tgz asset API URL.
-    PI_TARBALL_URL=$(curl -fsSL \
-      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
-      "https://api.github.com/repos/elastic/rene-bk-experiments/releases/tags/${PI_AGENT_TAG}" \
-      | node -e "
-          const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
-          const a = r.assets.find(a => a.name.endsWith('.tgz') && !a.name.includes('sha256'));
-          if (!a) { process.stderr.write('No .tgz asset found in release\n'); process.exit(1); }
-          process.stdout.write(a.url);
-        ")
-
-    TMPDIR_DL="$(mktemp -d)"
-    curl -fsSL \
-      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
-      -H "Accept: application/octet-stream" \
-      "${PI_TARBALL_URL}" \
-      -o "${TMPDIR_DL}/pi-agent.tgz"
-
-    rm -rf "${PI_AGENT_DIR}"
-    mkdir -p "${PI_AGENT_DIR}"
-    tar -xzf "${TMPDIR_DL}/pi-agent.tgz" -C "${PI_AGENT_DIR}" --strip-components=1
-
-    # Install the bundled pi SDK dependency.
-    npm install --prefix "${PI_AGENT_DIR}" --omit=dev --no-audit --no-fund --silent
-
-    mkdir -p "${HOME}/.local/bin"
-    ln -sf "${PI_AGENT_DIR}/bin/pi-agent.js" "${HOME}/.local/bin/pi-agent"
-    chmod +x "${PI_AGENT_DIR}/bin/pi-agent.js"
-    rm -rf "${TMPDIR_DL}"
-    unset GH_ADMIN_TOKEN
-  fi
+if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
+  source .buildkite/scripts/archimedes-env.sh
 fi
-# ── end pi-agent ──────────────────────────────────────────────────────────────
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
@@ -174,15 +146,21 @@ if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
   export ORG_GRADLE_PROJECT_signingPassword
 fi
 
-if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
-  DRA_VAULT_ROLE_ID_SECRET=$(vault_with_retry read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
-  export DRA_VAULT_ROLE_ID_SECRET
-
-  DRA_VAULT_SECRET_ID_SECRET=$(vault_with_retry read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
-  export DRA_VAULT_SECRET_ID_SECRET
-
-  DRA_VAULT_ADDR=https://secrets.elastic.co:8200
-  export DRA_VAULT_ADDR
+# Credentials for the DRA maven/javadoc publisher (dra-maven-publish.sh).
+# The `unified-release-maven` AWS role is scoped to the `maven/` and `javadoc/`
+# prefixes on both snapshots.elastic.co and artifacts.elastic.co, provisioned by
+# Artifact Management in
+# https://github.com/elastic/platform-engineering-productivity/issues/2840.
+if [[ "${USE_MAVEN_S3_CREDENTIALS:-}" == "true" ]]; then
+  aws_creds=$(vault_with_retry read -format=json aws-elastic-ci-prod/creds/unified-release-maven)
+  AWS_ACCESS_KEY_ID=$(echo "$aws_creds" | jq -r .data.access_key)
+  AWS_SECRET_ACCESS_KEY=$(echo "$aws_creds" | jq -r .data.secret_key)
+  AWS_SESSION_TOKEN=$(echo "$aws_creds" | jq -r '.data.security_token // empty')
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  if [[ -n "$AWS_SESSION_TOKEN" ]]; then
+    export AWS_SESSION_TOKEN
+  fi
+  unset aws_creds
 fi
 
 source .buildkite/scripts/third-party-test-credentials.sh

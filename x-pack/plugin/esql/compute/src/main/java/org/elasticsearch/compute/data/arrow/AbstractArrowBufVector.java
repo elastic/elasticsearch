@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.FixedWidthVector;
-import org.elasticsearch.compute.data.AbstractNonThreadSafeRefCounted;
+import org.elasticsearch.compute.data.AbstractBlockRefCounted;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.Vector;
 
 import java.lang.foreign.MemorySegment;
 
-public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractNonThreadSafeRefCounted implements Vector {
+public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractBlockRefCounted implements Vector {
 
     protected final ArrowBuf valueBuffer;
     protected final int positionCount;
@@ -100,6 +100,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         // FIXME: does this apply to Arrow buffers?
     }
 
@@ -139,12 +140,22 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     public V filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         final var allocator = blockFactory.arrowAllocator();
         final int size = byteSize();
-        final var buffer = allocator.buffer((long) length * size);
-        for (int i = 0; i < length; i++) {
-            int pos = positions[offset + i];
-            buffer.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
+        ArrowBuf buffer = null;
+        boolean success = false;
+        try {
+            buffer = allocator.buffer((long) length * size);
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
+                buffer.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
+            }
+            V result = vectorConstructor().create(buffer, length, blockFactory);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                ArrowUtils.releaseBuffers(buffer);
+            }
         }
-        return vectorConstructor().create(buffer, length, blockFactory);
     }
 
     // TODO

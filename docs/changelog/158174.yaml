@@ -1,0 +1,6 @@
+pr: 158174
+summary: Fix channel misalignment in union sub plans
+area: ES|QL
+type: bug
+issues:
+ - 158164

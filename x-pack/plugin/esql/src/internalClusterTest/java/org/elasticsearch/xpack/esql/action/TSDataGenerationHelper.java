@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.Temporality;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
@@ -19,9 +22,12 @@ import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.fields.PredefinedField;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -132,11 +138,11 @@ class TSDataGenerationHelper {
                             var res = new HashMap<String, Object>();
                             res.put("counterl_hdd.bytes.read", Randomness.get().nextLong(0, 1000L));
                             res.put("gaugel_hdd.bytes.used", Randomness.get().nextLong(0, 1000000L));
-                            // Counter metrics
                             switch (ESTestCase.randomIntBetween(0, 1)) {
                                 case 0 -> res.put("counterd_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
                                 case 1 -> res.put("gauged_cpu.percent", Randomness.get().nextDouble(0, 100));
                             }
+                            res.put("histoexp_responseTime", generateHistogramJson());
                             return res;
                         }
                     )
@@ -170,6 +176,15 @@ class TSDataGenerationHelper {
                 Map.of(
                     "gauge_double",
                     Map.of("path_match", "metrics.gauged_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
+                ),
+                Map.of(
+                    "histogram_exp",
+                    Map.of(
+                        "path_match",
+                        "metrics.histoexp_*",
+                        "mapping",
+                        Map.of("type", "exponential_histogram", "time_series_metric", "histogram")
+                    )
                 )
             )
         );
@@ -182,6 +197,23 @@ class TSDataGenerationHelper {
     final int numTimeSeries;
     final long numDocs;
     final List<String> attributesForMetrics;
+
+    /**
+     * Generates a random non-empty exponential histogram as a Map suitable for JSON indexing.
+     */
+    static Map<String, Object> generateHistogramJson() {
+        ExponentialHistogram histo;
+        do {
+            histo = BlockTestUtils.randomExponentialHistogram();
+        } while (histo.isEmpty());
+        try {
+            var builder = XContentFactory.jsonBuilder();
+            ExponentialHistogramXContent.serialize(builder, histo);
+            return Map.copyOf(XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     XContentBuilder generateDocument(Map<String, Object> additionalFields) throws IOException {
         var doc = XContentFactory.jsonBuilder();

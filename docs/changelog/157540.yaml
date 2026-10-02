@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 157540
+summary: "[ESQLDS] Fix `DiscardingSubscriber` shared EMPTY buffer causing double-free\
+  \ hang"
+type: bug

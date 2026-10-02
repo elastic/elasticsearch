@@ -8,28 +8,38 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 
-abstract class AnalyzerUnmappedTestBase extends ESTestCase {
+public abstract class AnalyzerUnmappedTestBase extends AnalyzerTestCase {
 
-    static TestAnalyzer test() {
+    AnalyzerUnmappedTestBase(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    TestAnalyzer test() {
         return analyzer().addEmployees("test");
     }
 
     static String setUnmappedLoad(String query) {
         return "SET unmapped_fields=\"load\"; " + query;
+    }
+
+    static String setUnmappedLoadAll(String query) {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        return "SET unmapped_fields=\"LOAD_ALL\"; " + query;
     }
 
     static String setUnmappedNullify(String query) {
@@ -49,7 +59,9 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
             "lookup_only",
             keywordField("lookup_only")
         );
-        return IndexResolution.valid(new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", IndexMode.LOOKUP), Map.of(), Map.of()));
+        return IndexResolution.valid(
+            new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", new IndexProperties(IndexMode.LOOKUP, 0)), Map.of(), Map.of())
+        );
     }
 
     static IndexResolution keywordLanguagesLookup() {
@@ -57,14 +69,14 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
             new EsIndex(
                 "keyword_languages_lookup",
                 Map.of("language_code", keywordField("language_code"), "language_name", keywordField("language_name")),
-                Map.of("keyword_languages_lookup", IndexMode.LOOKUP),
+                Map.of("keyword_languages_lookup", new IndexProperties(IndexMode.LOOKUP, 0)),
                 Map.of(),
                 Map.of()
             )
         );
     }
 
-    static TestAnalyzer partialMappingTest() {
+    TestAnalyzer partialMappingTest() {
         return analyzer().addIndex("partial_mapping_sample_data", "mapping-partial_mapping_sample_data.json")
             .addLookupIndex("partial_message_types_lookup", "mapping-partial_message_types_lookup.json");
     }
@@ -74,7 +86,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
             new EsIndex(
                 "message_lookup",
                 Map.of("message", keywordField("message"), "type", keywordField("type")),
-                Map.of("message_lookup", IndexMode.LOOKUP),
+                Map.of("message_lookup", new IndexProperties(IndexMode.LOOKUP, 0)),
                 Map.of(),
                 Map.of()
             )

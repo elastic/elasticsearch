@@ -48,7 +48,7 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             () -> ClusterInfo.EMPTY,
             null,
             DefaultProjectResolver.INSTANCE

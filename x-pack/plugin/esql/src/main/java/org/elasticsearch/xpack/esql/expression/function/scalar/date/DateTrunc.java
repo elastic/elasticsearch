@@ -16,7 +16,10 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,8 +29,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -47,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
-public class DateTrunc extends EsqlConfigurationFunction {
+public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
@@ -72,6 +77,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "date", "date_nanos" },
+        signatures = { @Signature(params = { "date_period|time_duration", "date|date_nanos" }, returnType = "$1") },
         briefSummary = "Rounds down a date to the closest interval.",
         description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
         examples = {
@@ -177,6 +183,72 @@ public class DateTrunc extends EsqlConfigurationFunction {
     @Override
     public boolean foldable() {
         return interval.foldable() && timestampField.foldable();
+    }
+
+    /**
+     * Fold an all-literal call without constructing a {@code DateTrunc} node. Listing runs
+     * before ImplicitCasting, so KEYWORD ISO datetimes are parsed here. Returns {@code null}
+     * when the call cannot be folded; does not call {@code dataType()} on unresolved children.
+     * {@code source} is the unresolved call being replaced.
+     */
+    static Literal tryFoldLiterals(Source source, List<Expression> args, Configuration configuration) {
+        Literal[] literals = DateFunctionLiterals.literalArgs(args, 2);
+        if (literals == null) {
+            return null;
+        }
+        Object interval = literals[0].value();
+        // Quoted DATE_TRUNC("1 year", ...) is still KEYWORD/BytesRef until ImplicitCasting.
+        // Listing does not parse string intervals; only parser-built Period/Duration literals fold.
+        if (interval instanceof Period == false && interval instanceof Duration == false) {
+            return null;
+        }
+        ZoneId zone = DateFunctionLiterals.zoneId(configuration);
+        DateFunctionLiterals.ParsedDate parsed = DateFunctionLiterals.parseDateLiteral(literals[1], zone);
+        if (parsed == null) {
+            return null;
+        }
+        Rounding.Prepared rounding = createRounding(interval, zone, null, null);
+        if (parsed.nanos()) {
+            return new Literal(source, processDateNanos(parsed.epoch(), rounding), DATE_NANOS);
+        }
+        return new Literal(source, processDatetime(parsed.epoch(), rounding), DATETIME);
+    }
+
+    /**
+     * Invert {@code DATE_TRUNC(interval, field) op literal} into field-vs-literal inequalities.
+     * Interval must already be a foldable {@code Period}/{@code Duration} (quoted strings are
+     * cast after analysis). Returns {@code null} to leave the comparison unchanged.
+     */
+    static Expression tryRewriteComparison(DateTrunc trunc, EsqlBinaryComparison cmp, FoldContext ctx) {
+        Expression field = DateFunctionLiterals.datetimeField(trunc.field());
+        if (field == null) {
+            return null;
+        }
+        if (trunc.interval().foldable() == false) {
+            return null;
+        }
+        Object interval = trunc.interval().fold(ctx);
+        if (interval instanceof Period == false && interval instanceof Duration == false) {
+            return null;
+        }
+        ZoneId zone = trunc.zoneId();
+        Long literalEpoch = DateFunctionLiterals.foldDateToFieldEpoch(cmp.right(), field.dataType(), zone, ctx);
+        if (literalEpoch == null) {
+            return null;
+        }
+        Rounding.Prepared rounding = createRounding(interval, zone, null, null);
+        long literalMillis = DateFunctionLiterals.toMillis(literalEpoch, field.dataType());
+        long startMillis = rounding.round(literalMillis);
+        long nextMillis = rounding.nextRoundingValue(startMillis);
+        long startEpoch = DateFunctionLiterals.toFieldEpoch(startMillis, field.dataType());
+        long nextEpoch = DateFunctionLiterals.toFieldEpoch(nextMillis, field.dataType());
+        return DateFunctionComparisonRewriter.rewriteComparisonBounds(
+            cmp,
+            field,
+            DateFunctionComparisonRewriter.boundLiteral(cmp, startEpoch, field.dataType()),
+            DateFunctionComparisonRewriter.boundLiteral(cmp, nextEpoch, field.dataType()),
+            startEpoch == literalEpoch
+        );
     }
 
     public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max) {
@@ -321,6 +393,6 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(source(), field(), interval(), null, null, configuration());
+        return new Bucket(source(), field(), interval(), null, null, null, configuration());
     }
 }

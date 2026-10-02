@@ -147,8 +147,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
         NodeClient client,
-        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks,
-        SnapshotMetrics snapshotMetrics
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -171,7 +170,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.defaultRepository = DEFAULT_REPOSITORY_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
-        snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 
     /**
@@ -1166,7 +1164,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
-    private Collection<LongWithAttributes> getShardSnapshotsInProgress() {
+    public Collection<LongWithAttributes> getShardSnapshotsInProgress() {
         return repositories.values()
             .stream()
             .flatMap(repositories -> repositories.values().stream())

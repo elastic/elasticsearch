@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
@@ -20,7 +20,7 @@ public abstract class ShapeValuesSource<T extends ShapeValues<?>> extends Values
     public abstract T shapeValues(LeafReaderContext context);
 
     @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+    public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
         return FieldData.emptySortedBinary();
     }
 

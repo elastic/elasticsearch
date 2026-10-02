@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 150665
-summary: "[ES|QL|DS] Parquet reader: handle TIME, INTERVAL & BSON types"
-type: enhancement

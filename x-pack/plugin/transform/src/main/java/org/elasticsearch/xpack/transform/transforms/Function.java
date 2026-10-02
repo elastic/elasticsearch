@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -120,6 +121,7 @@ public interface Function {
      * @param headers headers to be used to query only for what the caller is allowed to
      * @param transformId transform id
      * @param sourceConfig the source configuration
+     * @param indicesOptions the source indices options scoped to the caller's cross-project access
      * @param listener listener to take the deduced mapping
      */
     void deduceMappings(
@@ -127,6 +129,7 @@ public interface Function {
         Map<String, String> headers,
         String transformId,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         ActionListener<Map<String, String>> listener
     );
 
@@ -137,6 +140,7 @@ public interface Function {
      * @param timeout search query timeout
      * @param headers headers to be used to query only for what the caller is allowed to
      * @param sourceConfig the source configuration
+     * @param indicesOptions the source indices options scoped to the caller's cross-project access
      * @param fieldTypeMap mapping of field types
      * @param numberOfRows number of rows to produce for the preview
      * @param listener listener that takes a list, where every entry corresponds to 1 row/doc in the preview
@@ -146,6 +150,7 @@ public interface Function {
         @Nullable TimeValue timeout,
         Map<String, String> headers,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         Map<String, String> fieldTypeMap,
         int numberOfRows,
         ActionListener<List<Map<String, Object>>> listener
@@ -188,6 +193,7 @@ public interface Function {
      * @param client a client instance for querying the source
      * @param headers headers to be used to query only for what the caller is allowed to
      * @param sourceConfig the source configuration
+     * @param indicesOptions the source indices options scoped to the caller's cross-project access
      * @param timeout search query timeout
      * @param listener the result listener
      */
@@ -195,6 +201,7 @@ public interface Function {
         Client client,
         Map<String, String> headers,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         @Nullable TimeValue timeout,
         ActionListener<Boolean> listener
     );

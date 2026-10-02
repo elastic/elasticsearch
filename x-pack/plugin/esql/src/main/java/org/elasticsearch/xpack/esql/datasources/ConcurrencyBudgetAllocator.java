@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,7 +41,7 @@ class ConcurrencyBudgetAllocator {
     }
 
     ConcurrencyBudgetAllocator(int totalBudget) {
-        this(totalBudget, 60_000L);
+        this(totalBudget, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
     }
 
     /**

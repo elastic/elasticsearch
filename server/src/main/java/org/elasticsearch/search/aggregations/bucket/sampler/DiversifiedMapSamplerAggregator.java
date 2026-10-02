@@ -18,7 +18,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
@@ -95,7 +95,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
         // a lookup from elasticsearch's ValuesSource
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
-            private SortedBinaryDocValues values;
+            private SortableBinaryDocValues values;
 
             ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);

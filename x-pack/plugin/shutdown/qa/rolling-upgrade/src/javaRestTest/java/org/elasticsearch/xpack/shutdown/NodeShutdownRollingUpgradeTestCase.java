@@ -12,9 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;

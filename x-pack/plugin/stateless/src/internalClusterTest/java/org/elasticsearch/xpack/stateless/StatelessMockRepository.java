@@ -22,6 +22,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * A mock repository for stateless testing. It supports manipulating calls to the blob store: logic can be injected, via a
@@ -190,15 +192,17 @@ public class StatelessMockRepository extends FsRepository {
                 String blobName,
                 long blobSize,
                 BlobMultiPartInputStreamProvider provider,
-                boolean failIfAlreadyExists
+                boolean failIfAlreadyExists,
+                Executor executor
             ) throws IOException {
                 getStrategy().blobContainerWriteBlobAtomic(
-                    () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists),
+                    () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor),
                     purpose,
                     blobName,
                     blobSize,
                     provider,
-                    failIfAlreadyExists
+                    failIfAlreadyExists,
+                    executor
                 );
             }
 
@@ -226,10 +230,11 @@ public class StatelessMockRepository extends FsRepository {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize
+                long blobSize,
+                @Nullable Executor executor
             ) throws IOException {
                 getStrategy().blobContainerCopyBlob(
-                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize),
+                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor),
                     purpose,
                     sourceBlobContainer,
                     sourceBlobName,

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -29,7 +30,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class RLike extends RegexMatch<RLikePattern> {
+public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
     public static final String NAME = "RLIKE";
 
@@ -41,7 +42,9 @@ public class RLike extends RegexMatch<RLikePattern> {
             Use `RLIKE` to filter data based on string patterns using
             <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
             the left-hand side of the operator, but it can also act on a constant (literal)
-            expression. The right-hand side of the operator represents the pattern.""",
+            expression. The right-hand side of the operator represents the pattern, which can
+            be a string literal, a query parameter, or any constant expression such as a call
+            to `CONCAT` or `TO_UPPER`.""",
 
         // we use an inline example here because ?pattern not supported in csv-spec test
         detailedDescription = """
@@ -79,6 +82,13 @@ public class RLike extends RegexMatch<RLikePattern> {
             ```{applies_to}
             stack: ga 9.3
             ```
+
+            ```{applies_to}
+            stack: ga 9.6
+            ```
+            The pattern can also be any constant expression, such as a call to `CONCAT` or `TO_UPPER`.
+
+            <<load-esql-example, file=where-like tag=rlikeConstExprConcat>>
             """,
         operator = NAME,
         examples = @Example(file = "docs", tag = "rlike")

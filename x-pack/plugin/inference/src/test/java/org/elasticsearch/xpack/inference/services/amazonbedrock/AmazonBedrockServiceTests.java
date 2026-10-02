@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -35,14 +36,15 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -73,7 +75,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -277,7 +279,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                      }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -1152,7 +1154,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             )
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
+                var mockResults = new CompletionResults(List.of(new CompletionResults.Result("test result")));
                 requestSender.enqueue(mockResults);
 
                 var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
@@ -1193,7 +1195,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             )
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
+                var mockResults = new CompletionResults(List.of(new CompletionResults.Result("test result")));
                 requestSender.enqueue(mockResults);
 
                 var model = AmazonBedrockChatCompletionModelTests.createChatCompletionModel(
@@ -1207,7 +1209,9 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
                 service.unifiedCompletionInfer(
                     model,
-                    UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                    UnifiedCompletionRequest.streaming(
+                        UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                    ),
                     TIMEOUT,
                     listener
                 );

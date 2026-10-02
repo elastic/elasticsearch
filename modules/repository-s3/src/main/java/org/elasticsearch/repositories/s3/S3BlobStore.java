@@ -37,6 +37,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -364,16 +365,18 @@ class S3BlobStore implements BlobStore {
         final List<ObjectIdentifier> partition = new ArrayList<>();
         try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final var deletionExceptions = new DeletionExceptions();
-            blobNames.forEachRemaining(key -> {
-                partition.add(ObjectIdentifier.builder().key(key).build());
-                if (partition.size() == bulkDeletionBatchSize) {
-                    deletePartition(purpose, partition, deletionExceptions);
+            final var batchIterator = Iterators.batching(
+                bulkDeletionBatchSize,
+                Iterators.map(blobNames, key -> ObjectIdentifier.builder().key(key).build()),
+                () -> {
+                    // re-use partition, no need to allocate afresh
                     partition.clear();
+                    return partition;
                 }
-            });
-            if (partition.isEmpty() == false) {
-                deletePartition(purpose, partition, deletionExceptions);
+            );
+            final var deletionExceptions = new DeletionExceptions();
+            while (batchIterator.hasNext()) {
+                deletePartition(purpose, batchIterator.next(), deletionExceptions);
             }
             if (deletionExceptions.exception != null) {
                 throw deletionExceptions.exception;

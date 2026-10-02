@@ -22,12 +22,12 @@ import java.util.stream.IntStream;
  * contexts, used by the node-reduce driver) and individual slices (used by the data drivers). Contexts are added to the array in batches
  * via {@link #newSubRangeView(List)}, which also returns an {@link IndexedByShardId} of the slice.
  */
-class AcquiredSearchContexts implements Releasable {
+public class AcquiredSearchContexts implements Releasable {
     private final ComputeSearchContext[] allContexts;
     private int nextAddIndex = 0;
     private boolean isClosed = false;
 
-    AcquiredSearchContexts(int size) {
+    public AcquiredSearchContexts(int size) {
         this.allContexts = new ComputeSearchContext[size];
     }
 
@@ -53,8 +53,17 @@ class AcquiredSearchContexts implements Releasable {
         checkNotClosed();
         var startingIndex = nextAddIndex;
         for (var cse : searchContexts) {
-            allContexts[nextAddIndex] = new ComputeSearchContext(nextAddIndex, cse);
-            nextAddIndex++;
+            final int idx = nextAddIndex++;
+            cse.addReleasable(() -> {
+                synchronized (AcquiredSearchContexts.this) {
+                    ComputeSearchContext ctx = allContexts[idx];
+                    if (ctx != null) {
+                        // Allow GC of closed search contexts as soon as they are released.
+                        allContexts[idx] = ctx.tombstone();
+                    }
+                }
+            });
+            allContexts[idx] = new ComputeSearchContext(idx, cse);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
     }

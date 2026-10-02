@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
@@ -103,9 +105,10 @@ public class StatelessFlushDuringRecoveryIT extends AbstractStatelessPluginInteg
         // Documents that were flushed during the previous recovery were not applied.
         final RecoveryState recoveryState = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(RecoveryState::getPrimary)
             .findFirst()
             .get();
@@ -148,7 +151,8 @@ public class StatelessFlushDuringRecoveryIT extends AbstractStatelessPluginInteg
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -162,6 +166,7 @@ public class StatelessFlushDuringRecoveryIT extends AbstractStatelessPluginInteg
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override

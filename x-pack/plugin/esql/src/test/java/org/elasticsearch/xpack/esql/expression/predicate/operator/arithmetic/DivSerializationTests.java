@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class DivSerializationTests extends AbstractArithmeticSerializationTests<Div> {
     @Override
     protected Div create(Source source, Expression left, Expression right) {
-        return new Div(source, left, right);
+        return new Div(source, left, right, null, randomBoolean());
     }
 }

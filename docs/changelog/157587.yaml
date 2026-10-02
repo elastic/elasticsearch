@@ -1,0 +1,7 @@
+pr: 157587
+summary: Fix Parquet filter pushdown failing the query when a predicate column batch
+  decodes all-null
+area: ES|QL
+type: bug
+issues:
+ - 157313

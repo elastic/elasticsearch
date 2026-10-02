@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160564
+pr: 160574
+summary: Warn on GROK typed conversion failure
+type: bug

@@ -8,6 +8,7 @@
  */
 
 module org.elasticsearch.telemetry.apm {
+    requires java.management;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
@@ -35,4 +36,5 @@ module org.elasticsearch.telemetry.apm {
     requires okhttp3;
 
     exports org.elasticsearch.telemetry.apm;
+    exports org.elasticsearch.telemetry.apm.internal.metrics.spi to org.elasticsearch.nodemetrics;
 }

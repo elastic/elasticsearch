@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 160593
+summary: Register `CoordinatedInferenceAction` when NLP is disabled
+type: bug

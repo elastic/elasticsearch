@@ -494,6 +494,36 @@ public class InferenceStatsTests extends ESTestCase {
         verify(longCounter).incrementBy(eq(1L), eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString())));
     }
 
+    public void testWithProductContext_DoesNotEmitInteractionId() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var ctx = new InferenceProductContext(
+            SECURITY_AI_ASSISTANT_USE_CASE,
+            TEST_PRODUCT_ORIGIN,
+            "security",
+            "attack_discovery",
+            randomAlphaOfLength(20)
+        );
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    SECURITY_AI_ASSISTANT_USE_CASE,
+                    ES_PRODUCT_ORIGIN,
+                    TEST_PRODUCT_ORIGIN
+                )
+            )
+        );
+    }
+
     public void testWithProductUseCase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());

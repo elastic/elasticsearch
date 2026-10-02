@@ -9,6 +9,8 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
@@ -54,6 +56,9 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
+// This test creates a MockWebServer backed by the JDK's HttpServer, which leaves daemon timer threads that cannot
+// be deterministically joined on close; filter them out so they aren't reported as leaked threads.
+@ThreadLeakFilters(defaultFilters = true, filters = { HttpServerThreadsFilter.class })
 public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
 
     private static final String AUTOCONFIG_DIRNAME = "certs";

@@ -1,0 +1,22 @@
+---
+"Test simulate index template setting registry_installed field is rejected":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: POST
+          path: /_index_template/_simulate_index/{name}
+          capabilities: [ index_template_registry_installed_field ]
+      reason: "Index template registry_installed field is reserved and cannot be set by a user"
+
+  - do:
+      catch: bad_request
+      indices.simulate_index_template:
+        name: test
+        body:
+          index_patterns: [ "test-*" ]
+          template:
+            settings:
+              number_of_shards: 1
+          registry_installed: true
+  - match: { status: 400 }
+  - match: { error.reason: "[registry_installed] is a system-managed field and cannot be set by a user" }

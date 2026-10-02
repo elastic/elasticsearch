@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationStateTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -17,7 +20,13 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests;
 
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomTransformConfigUpdate;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
@@ -34,6 +43,11 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         }
         if (randomBoolean()) {
             request.setAuthState(AuthorizationStateTests.randomAuthorizationState());
+        }
+        // Randomly include a cloud credential so the wire path with the optional field is exercised
+        // by the inherited round-trip test even though the field is excluded from equals/hashCode.
+        if (randomBoolean()) {
+            request.setCloudCredential(randomCloudCredential());
         }
         return request;
     }
@@ -70,13 +84,17 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(update, id, deferValidation, timeout);
+        Request mutated = new Request(update, id, deferValidation, timeout);
+        mutated.setCloudCredential(instance.getCloudCredential());
+        return mutated;
     }
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         // Both the inner TransformConfigUpdate and the optional TransformConfig carry a SourceConfig with
         // version-gated fields; drop them for older versions so the BWC baseline matches the wire round-trip.
+        // cloudCredential is excluded from Request.equals so it passes through unchanged here; the explicit
+        // drop semantics are asserted by testCloudCredentialDroppedWhenWireVersionTooOld.
         Request mutated = new Request(
             TransformConfigUpdateTests.mutateForVersion(instance.getUpdate(), version),
             instance.getId(),
@@ -90,6 +108,63 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         if (instance.getAuthState() != null) {
             mutated.setAuthState(instance.getAuthState());
         }
+        mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
+    }
+
+    public void testCloudCredentialRoundTripPreservesValue() throws IOException {
+        String secret = randomAlphaOfLengthBetween(8, 32);
+        Request original = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean(), randomTimeValue());
+        original.setCloudCredential(new CloudCredential(new SecureString(secret.toCharArray())));
+
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader());
+        try {
+            assertThat(copy.getCloudCredential(), is(notNullValue()));
+            assertThat(copy.getCloudCredential().value().toString(), is(secret));
+        } finally {
+            copy.close();
+        }
+    }
+
+    public void testCloudCredentialDroppedWhenWireVersionTooOld() throws IOException {
+        Request original = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean(), randomTimeValue());
+        original.setCloudCredential(randomCloudCredential());
+
+        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST);
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), olderVersion);
+        try {
+            // Older receivers can't decode the new optional field, so it must round-trip as null.
+            assertThat(copy.getCloudCredential(), is(nullValue()));
+        } finally {
+            copy.close();
+        }
+    }
+
+    public void testRequestCloseIsIdempotentWithCredential() {
+        // Both the sender's and receiver's listeners may fire close() on the same Request instance
+        // (local dispatch reuses the same instance). The contract we rely on is that a second close()
+        // is a safe no-op so we never need to coordinate which side closes the credential.
+        var credential = randomCloudCredential();
+        var request = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean(), randomTimeValue());
+        request.setCloudCredential(credential);
+
+        request.close();
+        // SecureString.length() throws once close() has zeroed the underlying char array.
+        expectThrows(IllegalStateException.class, () -> credential.value().length());
+
+        // Second close must not throw.
+        request.close();
+    }
+
+    public void testRequestCloseIsIdempotentWithoutCredential() {
+        // Non-UIAM callers leave the credential null. The same close-twice path must be a no-op.
+        var request = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean(), randomTimeValue());
+
+        request.close();
+        request.close();
+    }
+
+    private static CloudCredential randomCloudCredential() {
+        return new CloudCredential(new SecureString(randomAlphaOfLengthBetween(8, 32).toCharArray()));
     }
 }

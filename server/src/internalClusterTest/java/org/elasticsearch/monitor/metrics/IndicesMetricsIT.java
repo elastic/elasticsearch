@@ -49,9 +49,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     public static class TestAPMInternalSettings extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
+            return List.of(Setting.timeSetting("telemetry.export.interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope));
         }
     }
 
@@ -64,7 +62,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            .put("telemetry.export.interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
     }
 
@@ -149,8 +147,8 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 greaterThanOrEqualTo(0L)
             )
         );
-        long cached = telemetry.getLongGaugeMeasurement(FIELD_INFOS_CACHED_CURRENT).getLast().getLong();
-        long total = telemetry.getLongGaugeMeasurement(FIELD_INFOS_CURRENT).getLast().getLong();
+        long cached = telemetry.getLongAsyncGaugeMeasurement(FIELD_INFOS_CACHED_CURRENT).getLast().getLong();
+        long total = telemetry.getLongAsyncGaugeMeasurement(FIELD_INFOS_CURRENT).getLast().getLong();
         assertThat("cached.current must not exceed field_infos.current", cached, lessThanOrEqualTo(total));
     }
 
@@ -420,7 +418,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         telemetry.collect();
         for (Map.Entry<String, Matcher<Long>> e : matchers.entrySet()) {
             String name = e.getKey();
-            List<Measurement> measurements = telemetry.getLongGaugeMeasurement(name);
+            List<Measurement> measurements = telemetry.getLongAsyncGaugeMeasurement(name);
             assertThat(name, measurements, hasSize(times));
             assertThat(name, measurements.getLast().getLong(), e.getValue());
         }

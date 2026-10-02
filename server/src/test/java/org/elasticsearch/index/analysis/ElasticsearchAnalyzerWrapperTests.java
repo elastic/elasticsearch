@@ -40,6 +40,11 @@ public class ElasticsearchAnalyzerWrapperTests extends ESTestCase {
                 createCallCount.incrementAndGet();
                 return tokenStream;
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
         AnalyzerComponents components = new AnalyzerComponents(
             tokenizerFactory,
@@ -63,6 +68,7 @@ public class ElasticsearchAnalyzerWrapperTests extends ESTestCase {
             assertEquals("second use without reload should reuse cached components", 1, createCallCount.get());
 
             delegate.reload(
+                new ReloadToken(),
                 "test_analyzer",
                 Settings.builder().put("tokenizer", "standard").putList("filter", "tracking").build(),
                 Map.of("standard", tokenizerFactory),

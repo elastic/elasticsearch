@@ -458,7 +458,7 @@ public class FsBlobContainerTests extends ESTestCase {
         final var blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final var contents = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
         sourceContainer.writeBlob(randomPurpose(), sourceBlobName, contents, true);
-        destinationContainer.copyBlob(randomPurpose(), sourceContainer, sourceBlobName, blobName, contents.length());
+        destinationContainer.copyBlob(randomPurpose(), sourceContainer, sourceBlobName, blobName, contents.length(), null);
 
         var sourceContents = Streams.readFully(sourceContainer.readBlob(randomPurpose(), sourceBlobName));
         var targetContents = Streams.readFully(destinationContainer.readBlob(randomPurpose(), blobName));

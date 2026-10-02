@@ -3,7 +3,7 @@
 ## Parameters
 
 `field`
-:   Numeric or date expression from which to derive buckets.
+:   Numeric, date or histogram expression from which to derive buckets.
 
 `buckets`
 :   Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.
@@ -13,4 +13,7 @@
 
 `to`
 :   End of the range. Can be a number, a date or a date expressed as a string.
+
+`options` {applies_to}`{"serverless": "ga", "stack": "ga 9.6.0"}`
+:   (Optional) Additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
 

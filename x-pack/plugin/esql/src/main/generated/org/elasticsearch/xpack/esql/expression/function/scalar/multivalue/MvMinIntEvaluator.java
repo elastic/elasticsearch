@@ -41,11 +41,11 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
     int positionCount = v.getPositionCount();
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         int value = v.getInt(first);
@@ -95,11 +95,11 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
     int positionCount = v.getPositionCount();
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int idx = MvMin.ascendingIndex(valueCount);
         int result = v.getInt(first + idx);

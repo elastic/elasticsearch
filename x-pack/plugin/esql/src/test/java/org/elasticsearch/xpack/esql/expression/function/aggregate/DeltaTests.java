@@ -51,7 +51,7 @@ public class DeltaTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_KEEPS_TYPE);
     }
 
     @Override

@@ -14,10 +14,13 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -25,19 +28,29 @@ import static org.hamcrest.Matchers.equalTo;
 public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCase {
 
     @Override
-    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService) {
+    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService, int batchSize, boolean tolerateFailures) {
         return new EmbeddingOperator.Factory(
             inferenceService,
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            InputType.INTERNAL_INGEST,
+            batchSize,
+            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
+            Source.EMPTY,
+            tolerateFailures
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("EmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo(
+            "EmbeddingOperator[inference_id=["
+                + SIMPLE_INFERENCE_ID
+                + "], batch_size=["
+                + InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE
+                + "]]"
+        );
     }
 
     public void testImageEmbeddingOperator() {
@@ -46,7 +59,11 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            InputType.INTERNAL_INGEST,
+            InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
+            Source.EMPTY,
+            false
         );
 
         var runner = new TestDriverRunner().builder(driverContext());

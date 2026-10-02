@@ -73,6 +73,7 @@ public final class TransformInternalIndex {
      * version 6 (7.12):stats::delete_time_in_ms, stats::documents_deleted
      * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
      * version 8 (9.5):add mapping for cloud_credential::persisted_credential (version, id, value)
+     * version 9 (9.6):add mapping for cloud_credential::persisted_credential::encrypted (v2 envelope)
      */
 
     /**
@@ -81,7 +82,7 @@ public final class TransformInternalIndex {
      * of changes above. Increment this constant by one at the same time as adding a new
      * entry to the table of changes above.
      */
-    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 3;
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 4;
     /**
      * No longer used for determining the age of mappings, but system index descriptor
      * code requires <em>something</em> be set. We use a value that can be parsed by
@@ -388,6 +389,9 @@ public final class TransformInternalIndex {
             .field(TYPE, KEYWORD)
             .endObject()
             .startObject("value")
+            .field(ENABLED, false)
+            .endObject()
+            .startObject("encrypted")
             .field(ENABLED, false)
             .endObject()
             .endObject()

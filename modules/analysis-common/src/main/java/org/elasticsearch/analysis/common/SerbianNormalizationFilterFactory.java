@@ -28,4 +28,8 @@ public class SerbianNormalizationFilterFactory extends AbstractTokenFilterFactor
         return new SerbianNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

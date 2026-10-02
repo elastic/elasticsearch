@@ -39,14 +39,17 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -494,12 +497,220 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     final var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
                     switch (status) {
                         case FOUND -> assertThat(syntheticIdTermsEnum.term(), equalTo(lookupTerm));
-                        case NOT_FOUND -> assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        case NOT_FOUND -> assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
                         case END -> assertNull(finalDocs.ceilingKey(lookupTerm));
                     }
                 }
             }
         });
+    }
+
+    public void testSoftUpdateResolvesEveryIdAcrossSegments() throws IOException {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
+            final int routing = randomNonNegativeInt();
+            // Matches the failing shard: ~7000 docs over consecutive milliseconds, 4 time series, flushed in irregular batches
+            final int totalToIndex = randomIntBetween(5000, 8000);
+
+            final var docs = new ArrayList<Doc>();
+            long timestamp = Instant.now().toEpochMilli();
+            int untilFlush = randomIntBetween(1000, 2500);
+            for (int doc = 0; doc < totalToIndex; doc++) {
+                var testDoc = new Doc(timestamp++, "vm-dev0" + randomInt(3), "cpu-load", randomInt(), 1, routing);
+                writer.addDocument(parser.parse(testDoc));
+                docs.add(testDoc);
+                if (--untilFlush == 0) {
+                    writer.flush();
+                    untilFlush = randomIntBetween(1000, 2500);
+                }
+            }
+            writer.flush();
+
+            final int totalDocs = docs.size();
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.numDocs(), equalTo(totalDocs));
+            }
+
+            // Soft-update a random subset. Lucene applies the buffered delete terms in sorted order, per segment, so each of these must
+            // resolve to the existing document rather than adding a second live copy.
+            final var updated = randomSubsetOf(randomIntBetween(totalDocs / 2, totalDocs), docs);
+            int untilRefresh = randomIntBetween(1000, 2500);
+            for (var previousDoc : updated) {
+                // An update keeps the fields the synthetic id derives from, so the replacement carries the same _id
+                var updatedDoc = new Doc(
+                    previousDoc.timestamp(),
+                    previousDoc.hostName(),
+                    previousDoc.metricField(),
+                    previousDoc.metricValue(),
+                    previousDoc.version() + 1,
+                    previousDoc.routing()
+                );
+                writer.softUpdateDocument(
+                    new Term(IdFieldMapper.NAME, uidEncodedSyntheticId(previousDoc)),
+                    parser.parse(updatedDoc),
+                    Lucene.newSoftDeletesField()
+                );
+                if (--untilRefresh == 0) {
+                    // Deletes are resolved against whatever segments exist when they are applied, so flush in between
+                    writer.flush();
+                    untilRefresh = randomIntBetween(1000, 2500);
+                }
+            }
+
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(
+                    "soft updates that failed to resolve their _id term left extra live documents behind",
+                    reader.numDocs(),
+                    equalTo(totalDocs)
+                );
+            }
+        });
+    }
+
+    public void testSeekCeilWithTimestampAboveTsidMaxAcrossSkipperBlocks() throws IOException {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
+            var segment = indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var leaf = reader.leaves().getFirst().reader();
+
+                // smallest term >= idInTimestampGap
+                BytesRef expectedCeiling = null;
+                var iter = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (BytesRef term = iter.next(); term != null; term = iter.next()) {
+                    if (term.compareTo(segment.idInTimestampGap()) >= 0) {
+                        expectedCeiling = BytesRef.deepCopyOf(term);
+                        break;
+                    }
+                }
+                assertThat(expectedCeiling, notNullValue());
+
+                var termsEnum = leaf.terms(IdFieldMapper.NAME).iterator();
+                assertThat(termsEnum.seekCeil(segment.idInTimestampGap()), is(TermsEnum.SeekStatus.NOT_FOUND));
+                assertThat("seekCeil overshot the ceiling", termsEnum.term(), equalTo(expectedCeiling));
+            }
+        });
+    }
+
+    public void testGetMinAndGetMax() throws IOException {
+        // Reproduces the node crash observed during a serverless primary-shard relocation. On the relocation target,
+        // IndexEngine#prewarmIdLookups calls Terms#getMax() on the _id field. Lucene's default getMax() drills into the
+        // terms with incomplete probe keys via seekCeil(). When a probe's _tsid matches an indexed one,
+        // SyntheticIdTermsEnum#seekCeil used to call extractTimestampFromSyntheticId() on the probe, whose trailing
+        // 8 bytes are not a real (Long.MAX_VALUE - timestamp) delta, so the decoded delta is negative and tripped
+        // `assert timestamp >= 0`. The uncaught-exception handler turned that into a node exit.
+        runTest(false, (writer, parser) -> {
+            indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var terms = reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                BytesRef expectedMin = null;
+                BytesRef expectedMax = null;
+                var iter = terms.iterator();
+                for (BytesRef term = iter.next(); term != null; term = iter.next()) {
+                    if (expectedMin == null) {
+                        expectedMin = BytesRef.deepCopyOf(term);
+                    }
+                    expectedMax = BytesRef.deepCopyOf(term);
+                }
+                assertThat(expectedMin, notNullValue());
+                assertThat(expectedMax, notNullValue());
+
+                assertThat(terms.getMin(), equalTo(expectedMin));
+                assertThat(terms.getMax(), equalTo(expectedMax));
+            }
+        });
+    }
+
+    public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
+            var segment = indexMultiBlockSegment(writer, parser);
+            var deletes = new ArrayList<>(segment.ids());
+            deletes.add(segment.idInTimestampGap());
+            Collections.shuffle(deletes, random());
+            for (var uid : deletes) {
+                writer.softUpdateDocument(new Term(IdFieldMapper.NAME, uid), syntheticIdTombstone(uid), Lucene.newSoftDeletesField());
+            }
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat("the sorted delete-term walk dropped deletes", reader.numDocs(), equalTo(0));
+            }
+        });
+    }
+
+    public void testSeekCeilMatchesLinearScanAcrossManySkipperBlocks() throws IOException {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
+            final var indexed = indexWideTsIdSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final var leaf = reader.leaves().getFirst().reader();
+
+                // Every term in the segment, in order, read through next(). This is the reference the seek is compared against.
+                final var terms = new ArrayList<BytesRef>();
+                final var allTerms = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (BytesRef t = allTerms.next(); t != null; t = allTerms.next()) {
+                    terms.add(BytesRef.deepCopyOf(t));
+                }
+                assertThat(terms, hasSize(indexed.size()));
+
+                // Probe with terms that exist, and with terms that fall between or beyond them.
+                final var probes = new ArrayList<BytesRef>(indexed);
+                for (var id : randomSubsetOf(Math.min(64, indexed.size()), indexed)) {
+                    probes.add(randomTermAfter(id));
+                }
+                Collections.shuffle(probes, random());
+
+                final var termsEnum = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (var probe : probes) {
+                    // The linear scan says what seekCeil has to return: the first term at or after the probe.
+                    BytesRef expectedTerm = null;
+                    for (var term : terms) {
+                        if (term.compareTo(probe) >= 0) {
+                            expectedTerm = term;
+                            break;
+                        }
+                    }
+                    final var expectedStatus = expectedTerm == null
+                        ? TermsEnum.SeekStatus.END
+                        : (expectedTerm.equals(probe) ? TermsEnum.SeekStatus.FOUND : TermsEnum.SeekStatus.NOT_FOUND);
+
+                    assertThat("seekCeil status for " + probe, termsEnum.seekCeil(probe), equalTo(expectedStatus));
+                    if (expectedStatus != TermsEnum.SeekStatus.END) {
+                        assertThat("seekCeil landed on the wrong term for " + probe, termsEnum.term(), equalTo(expectedTerm));
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Indexes a segment holding one time series wider than a skipper interval, so that seeking within it covers a range that
+     * spans more than one interval, alongside two narrower ones.
+     */
+    private static List<BytesRef> indexWideTsIdSegment(IndexWriter writer, TestDocParser parser) throws IOException {
+        // Keep everything in one segment: merging must not materialize synthetic ids. Flushing by document count is already
+        // disabled, and Lucene rejects disabling both triggers, so the RAM buffer is raised out of the way instead.
+        writer.getConfig().setRAMBufferSizeMB(64);
+        final int routing = randomNonNegativeInt();
+        // Added in ascending timestamp order; the index sort stores them descending per _tsid.
+        final long baseTimestamp = Instant.now().toEpochMilli();
+        final var hosts = List.of("vm-wide-a", "vm-wide-b", "vm-wide-c");
+        // The second time series spans a little over two skipper intervals; the others stay well inside one.
+        final int[] docCounts = { randomIntBetween(50, 200), randomIntBetween(8_500, 9_000), randomIntBetween(500, 1_000) };
+        final var ids = new ArrayList<BytesRef>();
+        for (int tsid = 0; tsid < hosts.size(); tsid++) {
+            for (int i = 0; i < docCounts[tsid]; i++) {
+                var doc = new Doc(baseTimestamp + i, hosts.get(tsid), "cpu-load", randomInt(), 1, routing);
+                writer.addDocument(parser.parse(doc));
+                ids.add(uidEncodedSyntheticId(doc));
+            }
+        }
+        writer.flush();
+        return ids;
     }
 
     public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
@@ -510,6 +721,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testConcurrentSeekExactRandomDirectory() throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         doTestConcurrentSeekExact(directory);
     }
@@ -538,7 +750,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                             startLatch.await();
                             for (int i = 0; i < iterationsPerThread; i++) {
                                 final BytesRef id = ids.get((i + threadIdx) % ids.size());
-                                termsEnum.seekExact(id);
+                                assertTrue(termsEnum.seekExact(id));
                             }
                         } catch (Throwable e) {
                             logger.error("unexpected exception", e);
@@ -563,6 +775,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTestWithRandomDocs(directory, test);
     }
@@ -648,18 +861,28 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
     private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
-        final var directory = newDirectory();
-        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-        // that is not supported in TSDBSyntheticIdFieldsProducer today.
-        //
-        // TODO would be nice to enable check-index-on-close
-        directory.setCheckIndexOnClose(false);
-        runTest(directory, test);
+        runTest(rarely(), test);
     }
 
     private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+        runTest(rarely(), directory, test);
+    }
+
+    private static void runTest(boolean disableSkippers, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test)
+        throws IOException {
+        final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
+        directory.setCheckIndexOnClose(false);
+        runTest(disableSkippers, directory, test);
+    }
+
+    private static void runTest(
+        boolean disableSkippers,
+        Directory directory,
+        CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test
+    ) throws IOException {
         final var indexName = randomIdentifier();
-        final var indexSettings = buildIndexSettings(indexName);
+        final var indexSettings = buildIndexSettings(indexName, disableSkippers);
         final var mapperService = buildMapperService(indexSettings);
         final var documentParser = buildDocumentParser(mapperService);
 
@@ -667,7 +890,14 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new PerFieldMapperCodec(
+                        Lucene104Codec.Mode.BEST_SPEED,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        mapperService,
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        null
+                    )
                 )
             );
             // Configure the index writer for time-series indices
@@ -686,12 +916,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     /**
      * Builds time-series index settings.
      */
-    private static IndexSettings buildIndexSettings(final String indexName) {
+    private static IndexSettings buildIndexSettings(final String indexName, boolean disableSkippers) {
         final List<String> dimensions = List.of("hostname", "metric.field", "_metric_names_hash");
         var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions);
-        if (rarely()) {
+        if (disableSkippers) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }
         return new IndexSettings(IndexMetadata.builder(indexName).settings(settings.build()).putMapping("""
@@ -988,4 +1218,50 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         return id;
     }
 
+    private static Iterable<? extends IndexableField> syntheticIdTombstone(BytesRef uid) {
+        var tombstone = ParsedDocument.deleteTombstone(
+            // Must match the _seq_no field shape of the parsed documents, see buildIndexSettings
+            SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+            true,
+            true,
+            false,
+            Uid.decodeId(uid.bytes, uid.offset, uid.length),
+            uid
+        );
+        var doc = tombstone.docs().getFirst();
+        doc.add(Lucene.newSoftDeletesField());
+        return doc;
+    }
+
+    private record MultiBlockSegment(List<BytesRef> ids, BytesRef idInTimestampGap) {}
+
+    private static MultiBlockSegment indexMultiBlockSegment(IndexWriter writer, TestDocParser parser) throws IOException {
+        writer.getConfig().setRAMBufferSizeMB(64);
+        final int routing = randomNonNegativeInt();
+        // Order the hosts by their _tsid, since that is the order their documents take in the segment
+        final var hostsByTsId = new TreeMap<BytesRef, String>();
+        for (var host : List.of("vm-dev-a", "vm-dev-b", "vm-dev-c")) {
+            hostsByTsId.put(buildTsId(new Doc(0L, host, "cpu-load", 0, 1, routing)), host);
+        }
+        final var hosts = List.copyOf(hostsByTsId.values());
+
+        final long baseTimestamp = Instant.now().toEpochMilli();
+        final long timestampGap = 10_000_000L;
+        final var ids = new ArrayList<BytesRef>();
+        final int[] docCounts = { randomIntBetween(50, 200), randomIntBetween(4_500, 5_000), randomIntBetween(1_000, 2_000) };
+        for (int tsid = 0; tsid < hosts.size(); tsid++) {
+            for (int i = 0; i < docCounts[tsid]; i++) {
+                long timestamp = (tsid == 2 ? baseTimestamp + timestampGap : baseTimestamp) + i;
+                var doc = new Doc(timestamp, hosts.get(tsid), "cpu-load", randomInt(), 1, routing);
+                writer.addDocument(parser.parse(doc));
+                ids.add(uidEncodedSyntheticId(doc));
+            }
+        }
+        writer.flush();
+
+        // An id of the middle time series with a timestamp above that time series' maximum in the segment, but below the segment-wide
+        // maximum. It does not exist in the segment; its ceiling is the very first id of the middle time series.
+        var idInTimestampGap = uidEncodedSyntheticId(new Doc(baseTimestamp + timestampGap / 2, hosts.get(1), "cpu-load", 0, 1, routing));
+        return new MultiBlockSegment(ids, idInTimestampGap);
+    }
 }

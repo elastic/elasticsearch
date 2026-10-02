@@ -33,8 +33,12 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -43,6 +47,9 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.After;
@@ -51,6 +58,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +79,7 @@ import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecovery
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -227,6 +236,158 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, 4, 5, 0, () -> false, operations[5], operations[4]);
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, 8, 10, 0, () -> false);
+    }
+
+    public void testBatchOperationsAreSyncedAndReadBack() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        List<Long> persistedSeqNos = Collections.synchronizedList(new ArrayList<>());
+        translogReplicator.register(shardId, primaryTerm, seqNos -> {
+            for (int i = seqNos.offset; i < seqNos.offset + seqNos.length; i++) {
+                persistedSeqNos.add(seqNos.longs[i]);
+            }
+        });
+
+        Translog.Operation[] singles = generateRandomOperations(2);
+        Translog.Serialized[] serializedSingles = serializeOperations(singles);
+        IndexOperationBatch.TranslogRecord batch = buildBatch(
+            List.of(Map.of("k", "v0"), Map.of("k", "v1"), Map.of("k", "v2")),
+            2L,
+            primaryTerm
+        );
+        Translog.Serialized serializedBatch = serializeBatch(batch);
+
+        long currentLocation = 0;
+        translogReplicator.add(shardId, serializedSingles[0], 0, new Translog.Location(0, currentLocation, serializedSingles[0].length()));
+        currentLocation += serializedSingles[0].length();
+        translogReplicator.add(shardId, serializedSingles[1], 1, new Translog.Location(0, currentLocation, serializedSingles[1].length()));
+        currentLocation += serializedSingles[1].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serializedBatch.length());
+        translogReplicator.addRecord(shardId, serializedBatch, new long[] { 2, 3, 4 }, finalLocation);
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.sync(shardId, finalLocation, future);
+        future.actionGet();
+
+        // The reader explodes the batch record into its individual operations, in order.
+        List<Translog.Operation> exploded = batch.explode();
+        assertTranslogContains(
+            objectStoreService.getTranslogBlobContainer(),
+            shardId,
+            singles[0],
+            singles[1],
+            exploded.get(0),
+            exploded.get(1),
+            exploded.get(2)
+        );
+
+        // Sequence-number range filtering applies to the operations inside a batch record.
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, 3, 3, 0, () -> false, exploded.get(1));
+
+        // Every operation in the batch was reported persisted after upload.
+        assertThat(persistedSeqNos, hasItems(0L, 1L, 2L, 3L, 4L));
+    }
+
+    public void testBatchOnlyBlobCountsLogicalOperations() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        int docCount = randomIntBetween(2, 5);
+        List<Map<String, Object>> docs = new ArrayList<>(docCount);
+        long[] seqNos = new long[docCount];
+        for (int i = 0; i < docCount; i++) {
+            docs.add(Map.of("k", "v" + i));
+            seqNos[i] = i;
+        }
+        IndexOperationBatch.TranslogRecord batch = buildBatch(docs, 0L, primaryTerm);
+        Translog.Serialized serializedBatch = serializeBatch(batch);
+        Translog.Location location = new Translog.Location(0, 0, serializedBatch.length());
+        translogReplicator.addRecord(shardId, serializedBatch, seqNos, location);
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.sync(shardId, location, future);
+        future.actionGet();
+
+        // One record, docCount logical operations: the reader must return every exploded op and terminate cleanly.
+        List<Translog.Operation> exploded = batch.explode();
+        assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, exploded.toArray(new Translog.Operation[0]));
+    }
+
+    private static IndexOperationBatch.TranslogRecord buildBatch(List<Map<String, Object>> docs, long firstSeqNo, long primaryTerm)
+        throws IOException {
+        List<BytesReference> sources = new ArrayList<>(docs.size());
+        for (Map<String, Object> doc : docs) {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.map(doc);
+                sources.add(BytesReference.bytes(builder));
+            }
+        }
+        final BytesReference batchData;
+        try (EscfBatch escf = EscfEncoder.encode(sources, XContentType.JSON)) {
+            batchData = new BytesArray(escf.data().toBytesRef(), true);
+        }
+        final int docCount = docs.size();
+        final byte[] statuses = new byte[docCount]; // all ROW_INDEXED
+        final long[] seqNos = new long[docCount];
+        final long[] versions = new long[docCount];
+        final long[] timestamps = new long[docCount];
+        final XContentType[] types = new XContentType[docCount];
+        final BytesRef[] uids = new BytesRef[docCount];
+        for (int i = 0; i < docCount; i++) {
+            seqNos[i] = firstSeqNo + i;
+            versions[i] = 1L;
+            timestamps[i] = -1L;
+            types[i] = XContentType.JSON;
+            uids[i] = Uid.encodeId("doc-" + i);
+        }
+        return new IndexOperationBatch.TranslogRecord(
+            primaryTerm,
+            statuses,
+            seqNos,
+            versions,
+            timestamps,
+            types,
+            uids,
+            null,
+            null,
+            batchData
+        );
+    }
+
+    private static Translog.Serialized serializeBatch(IndexOperationBatch.TranslogRecord batch) throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            Translog.writeBatchHeaderWithSize(out, batch);
+            return Translog.Serialized.create(out.bytes(), batch.batchData(), new CRC32());
+        }
     }
 
     public void testTranslogReplicatorReaderStartingTranslogFile() throws IOException {

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -167,6 +168,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         };
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private Function<String, String> buildTrimmer(String trim) {
         if (trim == null) {
             return val -> val;
@@ -175,13 +177,14 @@ public final class KeyValueProcessor extends AbstractProcessor {
             return val -> {
                 try {
                     return pattern.matcher(val).replaceAll("");
-                } catch (Exception | StackOverflowError error) {
+                } catch (Exception | StackOverflowError error) { // TODO: unsafe - replace with manual depth tracking
                     throw logAndBuildException("Error trimming [" + val + "] using pattern [" + trim + "]", error);
                 }
             };
         }
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private Function<String, String[]> buildSplitter(String split, boolean fields) {
         int limit = fields ? 0 : 2;
         if (split.length() > 2 || split.length() == 2 && split.charAt(0) != '\\') {
@@ -189,7 +192,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
             return val -> {
                 try {
                     return splitPattern.split(val, limit);
-                } catch (Exception | StackOverflowError error) {
+                } catch (Exception | StackOverflowError error) { // TODO: unsafe - replace with manual depth tracking
                     throw logAndBuildException("Error splitting [" + val + "] using pattern [" + split + "]", error);
                 }
             };

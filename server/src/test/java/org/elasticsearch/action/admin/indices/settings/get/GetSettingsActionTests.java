@@ -58,7 +58,7 @@ public class GetSettingsActionTests extends ESTestCase {
                 GetSettingsActionTests.this.clusterService,
                 GetSettingsActionTests.this.threadPool,
                 settingsFilter,
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 new Resolver(),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS

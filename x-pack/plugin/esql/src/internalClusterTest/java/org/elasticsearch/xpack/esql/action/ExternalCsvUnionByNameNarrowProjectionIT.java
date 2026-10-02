@@ -67,19 +67,24 @@ public class ExternalCsvUnionByNameNarrowProjectionIT extends AbstractExternalDa
     }
 
     /**
-     * Force splits onto data nodes (round_robin) and the parallel-parse path (parsing_parallelism > 1) so
+     * Force splits onto data nodes (round_robin) and the parallel-parse path (external_parsing_parallelism > 1) so
      * the read goes through {@code AsyncExternalSourceOperatorFactory#adaptSchema}, mirroring the EC2
      * 1rg-per-file shape. Even under distribution the coordinator prunes the mapping before shipping, so
      * the width matches the projection.
      */
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("external_distribution", "round_robin").put("parsing_parallelism", 4).build());
+        return new QueryPragmas(
+            Settings.builder().put("external_distribution", "round_robin").put("external_parsing_parallelism", 4).build()
+        );
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.source.cache.stripe.size", "64kb").build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("esql.external.cache.stripe.size", "64kb")
+            .build();
     }
 
     public void testUnionByNameNarrowMinProjection() throws Exception {

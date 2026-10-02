@@ -23,6 +23,7 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
 
     private final Pattern pattern;
     private final int group;
+    private final Object sharingKey;
 
     PatternTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -34,10 +35,18 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
 
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
         this.group = settings.getAsInt("group", -1);
+        this.sharingKey = new Key(pattern.pattern(), pattern.flags(), group);
     }
 
     @Override
     public Tokenizer create() {
         return new PatternTokenizer(pattern, group);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern, int flags, int group) {}
 }

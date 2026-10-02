@@ -143,7 +143,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
      */
     private boolean shouldCheck(final DetailAST ast) {
         final Scope customScope = ScopeUtil.getScope(ast);
-        final Scope surroundingScope = ScopeUtil.getSurroundingScope(ast);
+        final Scope surroundingScope = ScopeUtil.getSurroundingScope(ast).orElse(null);
 
         final String outerTypeName = ast.findFirstToken(TokenTypes.IDENT).getText();
 

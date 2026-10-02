@@ -1,0 +1,4 @@
+id:keyword,unmapped.foo:text,unmapped.bar:version,unmapped.deep.leaf:ip
+10,lazy fox,1.2.3.4,192.168.1.10
+11,[lazy fox,quick dog],,[192.168.1.10,10.0.0.0]
+12,,[6.7.0,6.7.1],[192.168.1.10,10.0.0.0]

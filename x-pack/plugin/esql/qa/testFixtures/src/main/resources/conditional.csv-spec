@@ -432,6 +432,7 @@ CASE(y==2, 10, 1) * MIN(x):integer | y:integer
 
 casePartialFoldTrueToTextKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10003
@@ -448,6 +449,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldTrailingTextArmKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10003
@@ -464,6 +466,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldKeywordIsGroupable
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10005
@@ -479,6 +482,7 @@ c:long | g:keyword
 
 casePartialFoldMixedConditionsKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no >= 10001 AND emp_no <= 10003
@@ -495,6 +499,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldMultivalueTextKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no == 10001
@@ -508,6 +513,7 @@ emp_no:integer | x:keyword
 
 casePartialFoldTextArmNullElseKeepsKeyword
 required_capability: fix_case_partial_fold_keyword_type
+required_capability: fn_to_text
 
 FROM employees
 | WHERE emp_no == 10001
@@ -517,4 +523,52 @@ FROM employees
 
 emp_no:integer | x:keyword
 10001          | null
+;
+
+// Exercises CLAMP:field, CLAMP:min, and CLAMP:max with keyword field references so that
+// field_extract coverage is recorded for all three parameter slots.
+// CLAMP(first_name="Georgi", min=last_name="Facello", max=gender="M"):
+//   ClampMin("Georgi", "Facello") = "Georgi" (G > F)
+//   ClampMax("Georgi", "M") = "Georgi" (G < M)
+clampWithKeywordFields
+required_capability: clamp_functions
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL c = CLAMP(first_name, last_name, gender)
+| KEEP emp_no, first_name, last_name, gender, c
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword | c:keyword
+10001          | Georgi             | Facello           | M              | Georgi
+;
+
+// Exercises CLAMP_MAX:field and CLAMP_MAX:max with keyword field references.
+// CLAMP_MAX(first_name="Georgi", max=last_name="Facello"): min("Georgi", "Facello") = "Facello" (G > F)
+clampMaxWithKeywordFields
+required_capability: clamp_functions
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL c = CLAMP_MAX(first_name, last_name)
+| KEEP emp_no, first_name, last_name, c
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | c:keyword
+10001          | Georgi             | Facello           | Facello
+;
+
+// Exercises CLAMP_MIN:field and CLAMP_MIN:min with keyword field references.
+// CLAMP_MIN(first_name="Georgi", min=last_name="Facello"): max("Georgi", "Facello") = "Georgi" (G > F)
+clampMinWithKeywordFields
+required_capability: clamp_functions
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL c = CLAMP_MIN(first_name, last_name)
+| KEEP emp_no, first_name, last_name, c
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | c:keyword
+10001          | Georgi             | Facello           | Georgi
 ;

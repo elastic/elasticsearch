@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -44,7 +46,9 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -57,9 +61,11 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -175,6 +181,11 @@ public class TestAnalyzer {
      * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
+     * <p>
+     * The shadow rules treat a resolution with no resolved indices as no-match, so a matched
+     * fixture's {@code EsIndex} must carry {@code indexProperties} (build it with the 3-arg
+     * {@code EsIndexGenerator.esIndex(name, mapping, indexNameWithModes)}); otherwise the shadow
+     * is stripped instead of resolved.
      */
     public TestAnalyzer addLenientResolution(EsIndex esIndex) {
         return addLenientResolution(
@@ -207,7 +218,7 @@ public class TestAnalyzer {
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
             Map.of(),
-            Map.of(noFieldsIndexName, IndexMode.STANDARD),
+            Map.of(noFieldsIndexName, new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of("", List.of(noFieldsIndexName)),
             Map.of("", List.of(noFieldsIndexName))
         );
@@ -328,6 +339,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the datenanos-k8s index with k8s-mappings-date_nanos.json in time series mode. It mirrors {@link #addK8s()}
+     * but carries a {@code date_nanos} {@code @timestamp}, so tests can exercise the date_nanos time-bucket/step path.
+     */
+    public TestAnalyzer addK8sDateNanos() {
+        return addIndex("datenanos-k8s", "k8s-mappings-date_nanos.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
      * Adds the otel-metrics index, built programmatically to mirror what IndexResolver produces for a real
      * OTel TSDB index. In a real OTel index both the root-level alias (e.g. {@code cpu}) and the concrete
      * passthrough field (e.g. {@code attributes.cpu}) have {@code isAlias=false}; the mapping here reflects
@@ -365,7 +384,13 @@ public class TestAnalyzer {
         mapping.put("host.name", new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
         mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metricsChildren, false, EsField.TimeSeriesFieldType.NONE));
 
-        EsIndex otelMetrics = new EsIndex("otel-metrics", mapping, Map.of("otel-metrics", IndexMode.TIME_SERIES), Map.of(), Map.of());
+        EsIndex otelMetrics = new EsIndex(
+            "otel-metrics",
+            mapping,
+            Map.of("otel-metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
         return addIndex(otelMetrics);
     }
 
@@ -557,6 +582,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add an inference resolution with the similarity measure used by the endpoint.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType, SimilarityMeasure similarity) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType, similarity));
+        return this;
+    }
+
+    /**
      * Add an error in inference resolution.
      */
     public TestAnalyzer addInferenceResolutionError(String inferenceId, String reason) {
@@ -610,7 +643,7 @@ public class TestAnalyzer {
      * {@code ViewResolver#replaceViews} followed by {@code InSubqueryResolver#verify} in {@code EsqlSession#execute}.
      * <p>
      * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
-     * such as EVAL or SORT).
+     * such as SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
@@ -637,6 +670,16 @@ public class TestAnalyzer {
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
                 return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Eval eval) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Aggregate aggregate) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
             }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
@@ -679,13 +722,15 @@ public class TestAnalyzer {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
+        Set<String> viewBranchKeys = new HashSet<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
             subplans.put(namedSubquery.name(), namedSubquery.child());
+            viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, List.of());
+            return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }
     }
 
@@ -918,13 +963,20 @@ public class TestAnalyzer {
      * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier) {
+        lastAnalyzer = new Analyzer(buildContext(), verifier) {
             @Override
             public LogicalPlan analyze(LogicalPlan plan) {
                 resolveEnrichResolution(plan);
                 return super.analyze(plan);
             }
         };
+        return lastAnalyzer;
+    }
+
+    private Analyzer lastAnalyzer;
+
+    public Analyzer lastAnalyzer() {
+        return lastAnalyzer;
     }
 
     /**
@@ -947,7 +999,8 @@ public class TestAnalyzer {
             minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds,
-            TEST_IP_LOCATION_RESOLUTION
+            TEST_IP_LOCATION_RESOLUTION,
+            false
         );
     }
 
@@ -958,7 +1011,13 @@ public class TestAnalyzer {
         var grouped = Arrays.stream(indexName.split(","))
             .collect(groupingBy(index -> RemoteClusterAware.splitIndexName(index).getClusterGroupingKey()));
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), grouped, grouped)
+            new EsIndex(
+                indexName,
+                EsqlTestUtils.loadMapping(resource),
+                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                grouped,
+                grouped
+            )
         );
     }
 

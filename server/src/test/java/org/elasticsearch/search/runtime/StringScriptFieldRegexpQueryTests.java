@@ -14,6 +14,9 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.script.Script;
 
 import java.util.List;
@@ -22,6 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldRegexpQuery> {
+
     @Override
     protected StringScriptFieldRegexpQuery createTestInstance() {
         int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
@@ -32,7 +36,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             randomAlphaOfLength(6),
             randomInt(RegExp.ALL),
             matchFlags,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            null
         );
     }
 
@@ -45,7 +50,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             orig.pattern(),
             orig.syntaxFlags(),
             orig.matchFlags(),
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            null
         );
     }
 
@@ -71,7 +77,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             pattern,
             syntaxFlags,
             matchFlags,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            null
         );
     }
 
@@ -84,7 +91,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "a.+b",
             0,
             0,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            null
         );
         BytesRefBuilder scratch = new BytesRefBuilder();
         assertTrue(query.matches(List.of("astuffb"), scratch));
@@ -102,7 +110,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "a.+b",
             0,
             RegExp.ASCII_CASE_INSENSITIVE,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            null
         );
         assertTrue(ciQuery.matches(List.of("astuffB"), scratch));
         assertTrue(ciQuery.matches(List.of("Astuffb", "fffff"), scratch));
@@ -122,10 +131,29 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "a.+b",
             0,
             0,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            null
         );
         ByteRunAutomaton automaton = visitForSingleAutomata(query);
         BytesRef term = new BytesRef("astuffb");
         assertThat(automaton.run(term.bytes, term.offset, term.length), is(true));
+    }
+
+    public void testCircuitBreakerTripsForHugeRepetition() {
+        CircuitBreaker tinyBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> new StringScriptFieldRegexpQuery(
+                randomScript(),
+                leafFactory,
+                "test",
+                "a{100000000}",
+                RegExp.ALL,
+                0,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                tinyBreaker
+            )
+        );
+        assertEquals("no memory should remain reserved after the breaker trips", 0, tinyBreaker.getUsed());
     }
 }

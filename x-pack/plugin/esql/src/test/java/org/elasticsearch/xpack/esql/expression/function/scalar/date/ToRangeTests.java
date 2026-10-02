@@ -10,22 +10,26 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for ToRange(from datetime, to datetime) -> date_range.
- * Validates that a date_range is correctly constructed from two datetime bounds.
+ * Tests for constructing range values from scalar bounds.
  */
 public class ToRangeTests extends AbstractScalarFunctionTestCase {
     public ToRangeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -71,8 +75,58 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
                 );
             }));
         }
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            double from = randomDoubleBetween(-1000.0, 0.0, true);
+            double to = randomDoubleBetween(0.0, 1000.0, true);
+            var expected = new DoubleRangeBlockBuilder.DoubleRange(from, to);
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(from, DataType.DOUBLE, "from").withAppliesTo(doubleRangeAppliesTo),
+                    new TestCaseSupplier.TypedData(to, DataType.DOUBLE, "to").withAppliesTo(doubleRangeAppliesTo)
+                ),
+                "ToRangeDoubleEvaluator[from=" + read0 + ", to=" + read1 + "]",
+                DataType.DOUBLE_RANGE,
+                equalTo(expected)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier("unbounded double range", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            var expected = new DoubleRangeBlockBuilder.DoubleRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(Double.NEGATIVE_INFINITY, DataType.DOUBLE, "from").withAppliesTo(doubleRangeAppliesTo),
+                    new TestCaseSupplier.TypedData(Double.POSITIVE_INFINITY, DataType.DOUBLE, "to").withAppliesTo(doubleRangeAppliesTo)
+                ),
+                "ToRangeDoubleEvaluator[from=" + read0 + ", to=" + read1 + "]",
+                DataType.DOUBLE_RANGE,
+                equalTo(expected)
+            );
+        }));
+
+        suppliers.add(invalidDoubleRange("equal bounds", 1.0, 1.0));
+        suppliers.add(invalidDoubleRange("NaN lower bound", Double.NaN, 1.0));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+    }
+
+    private static TestCaseSupplier invalidDoubleRange(String name, double from, double to) {
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        return new TestCaseSupplier(
+            name,
+            List.of(DataType.DOUBLE, DataType.DOUBLE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(from, DataType.DOUBLE, "from").withAppliesTo(doubleRangeAppliesTo),
+                    new TestCaseSupplier.TypedData(to, DataType.DOUBLE, "to").withAppliesTo(doubleRangeAppliesTo)
+                ),
+                "ToRangeDoubleEvaluator[from=Attribute[channel=0], to=Attribute[channel=1]]",
+                DataType.DOUBLE_RANGE,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: 'from' [" + from + "] must be less than 'to' [" + to + "]")
+        );
     }
 
     @Override

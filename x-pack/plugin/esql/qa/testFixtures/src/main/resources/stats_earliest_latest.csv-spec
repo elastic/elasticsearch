@@ -259,6 +259,16 @@ x01:long | x02:long | x05:null | x06:null | x07:null | x08:null
 
 # ----------------------------------------------------------------------------------------------------------------------
 
+constantFieldSharedAcrossAggs
+required_capability: aggs_more_inputs_via_eval
+FROM voyager | STATS a = EARLIEST(7), b = LATEST(7)
+;
+a:integer | b:integer
+7         | 7
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
 pass foldables with grouping
 required_capability: earliest_latest_aggs
 

@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -109,6 +111,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -162,6 +165,7 @@ public class EsqlDataTypeConverter {
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(DOUBLE_RANGE, ToDoubleRange::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToExponentialHistogram::new),
         Map.entry(GEO_POINT, ToGeoPoint::new),
         Map.entry(GEO_SHAPE, ToGeoShape::new),
@@ -751,8 +755,78 @@ public class EsqlDataTypeConverter {
         return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
     }
 
+    /**
+     * Parses the string representation used for double range response values.
+     */
+    public static DoubleRangeBlockBuilder.DoubleRange parseDoubleRange(String value) {
+        String[] bounds = value.split("\\.\\.", -1);
+        if (bounds.length != 2) {
+            throw new IllegalArgumentException("expected double range in the form 'from..to', got [" + value + "]");
+        }
+        double from = Double.parseDouble(bounds[0]);
+        double to = Double.parseDouble(bounds[1]);
+        if (Double.isNaN(from) || Double.isNaN(to) || from >= to) {
+            throw new IllegalArgumentException("double range 'from' [" + bounds[0] + "] must be less than 'to' [" + bounds[1] + "]");
+        }
+        return new DoubleRangeBlockBuilder.DoubleRange(from, to);
+    }
+
+    /**
+     * Formats a half-open double range for response serialization.
+     */
+    public static String doubleRangeToString(DoubleRangeBlockBuilder.DoubleRange range) {
+        return doubleRangeToString(range.from(), range.to());
+    }
+
+    /**
+     * Formats half-open double range bounds for response serialization.
+     */
+    public static String doubleRangeToString(double from, double to) {
+        return Double.toString(from) + ".." + Double.toString(to);
+    }
+
     public static BytesRef numericBooleanToString(Object field) {
         return new BytesRef(String.valueOf(field));
+    }
+
+    private static final BytesRef BYTES_TRUE = new BytesRef("true");
+    private static final BytesRef BYTES_FALSE = new BytesRef("false");
+
+    public static BytesRef booleanToString(boolean b) {
+        return b ? BYTES_TRUE : BYTES_FALSE;
+    }
+
+    public static BytesRef intToString(int integer) {
+        byte[] buf = new byte[11]; // "-2147483648" is 11 bytes
+        int pos = 11;
+        boolean negative = integer < 0;
+        int q = negative ? integer : -integer;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 11 - pos);
+    }
+
+    public static BytesRef longToString(long lng) {
+        // Work in negated space throughout to handle Long.MIN_VALUE without overflow.
+        byte[] buf = new byte[20]; // "-9223372036854775808" needs 20 bytes
+        int pos = 20;
+        boolean negative = lng < 0;
+        long q = negative ? lng : -lng;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (int) (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - (int) q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 20 - pos);
     }
 
     public static boolean stringToBoolean(String field) {
@@ -788,6 +862,10 @@ public class EsqlDataTypeConverter {
     }
 
     public static BytesRef unsignedLongToString(long number) {
+        if (number < 0) {
+            // stored biased value < 0 means unsigned value <= Long.MAX_VALUE: recover it and write directly
+            return longToString(number ^ Long.MIN_VALUE);
+        }
         return new BytesRef(unsignedLongAsNumber(number).toString());
     }
 

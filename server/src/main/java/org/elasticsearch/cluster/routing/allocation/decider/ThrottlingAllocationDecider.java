@@ -130,7 +130,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary() && shardRouting.unassigned()) {
             // Primary is unassigned, means we are going to do recovery from store, snapshot or local shards
-            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() != RecoverySource.Type.PEER;
+            assert initializingShardRecoverySourceType(shardRouting, node.nodeId()) != RecoverySource.Type.PEER;
 
             if (allocation.isSimulating()) {
                 return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
@@ -170,7 +170,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "replica allocation is not throttled when simulating");
         } else {
             // Peer recovery
-            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
+            assert initializingShardRecoverySourceType(shardRouting, node.nodeId()) == RecoverySource.Type.PEER;
 
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
@@ -231,10 +231,13 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
      * - the started shard routing in case if we want to check if we can relocate to this node.
      * - the relocating shard routing if we want to relocate to this node now instead.
      *
-     * This method returns the corresponding initializing shard that would be allocated to this node.
+     * This method returns the recovery source type of the corresponding initializing shard that would be allocated to this node.
      */
-    public static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
+    public static RecoverySource.Type initializingShardRecoverySourceType(ShardRouting shardRouting, String currentNodeId) {
         final ShardRouting initializingShard;
+        // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will not be
+        // added to the cluster state:
+        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.initializing()) {
@@ -243,18 +246,19 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 // unassigned shards must have unassignedInfo (initializing shards might not)
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "fake");
             }
-            initializingShard = shardRouting.moveToUnassigned(unassignedInfo)
+            initializingShard = shardRouting.moveToUnassigned(unassignedInfo, recoveryPriority)
                 .initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.relocating()) {
             initializingShard = shardRouting.cancelRelocation()
-                .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority)
                 .getTargetRelocatingShard();
         } else {
             assert shardRouting.started();
-            initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+            initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority)
                 .getTargetRelocatingShard();
         }
         assert initializingShard.initializing();
-        return initializingShard;
+        assert initializingShard.recoverySource() != null;
+        return initializingShard.recoverySource().getType();
     }
 }

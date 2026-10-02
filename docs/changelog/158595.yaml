@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158595
+summary: Use int array count grouping aggregation
+type: enhancement

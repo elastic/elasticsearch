@@ -1,0 +1,96 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_fix_unmapped_object_value ]
+      reason: "Loading an unmapped object field as a keyword from stored source must return null, not Java's Map.toString()"
+      # Stored-source twin of 297_unmapped_load_object_from_synthetic_source.yml: the two source modes reach different block loaders,
+      # and the stored one corrupts the value silently rather than failing, so it needs its own coverage.
+  - do:
+      indices.create:
+        index: stored_objects
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              network:
+                properties:
+                  eth0:
+                    properties:
+                      rx:
+                        type: integer
+  - do:
+      index:
+        index: stored_objects
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          unmapped:
+            nested: "a"
+          network:
+            bytes_in: 10
+            eth0:
+              tx: 5
+              rx: 7
+          tags:
+            - "t1"
+            - "t2"
+          samples:
+            - nested: "x"
+            - nested: "y"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: stored_objects
+
+---
+'unmapped object field from stored source loads as null':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM stored_objects | KEEP id, unmapped, unmapped.nested | LIMIT 5'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: unmapped }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: unmapped.nested }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", null, "a" ] }
+
+---
+'mapped object field from stored source loads as null':
+  # A mapped object is never an ES|QL attribute (DataType.isPrimitive excludes OBJECT), so "network" takes the unmapped-keyword path.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM stored_objects | KEEP id, network, network.eth0.rx | LIMIT 5'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: network }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: network.eth0.rx }
+  - match: { columns.2.type: integer }
+  - match: { values.0: [ "1", null, 7 ] }
+
+---
+'unmapped array fields from stored source: scalar elements load as multivalue, object elements drop':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM stored_objects | KEEP id, tags, samples, samples.nested | LIMIT 5'
+  - length: { columns: 4 }
+  - length: { values: 1 }
+  - match: { columns.1.name: tags }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: samples }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: samples.nested }
+  - match: { columns.3.type: keyword }
+  - match: { values.0: [ "1", [ "t1", "t2" ], null, [ "x", "y" ] ] }

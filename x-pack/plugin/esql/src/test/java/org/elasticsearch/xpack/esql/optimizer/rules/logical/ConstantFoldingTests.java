@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -97,6 +99,25 @@ public class ConstantFoldingTests extends ESTestCase {
         assertEquals(Nullability.TRUE, constantFolding(new Or(EMPTY, NULL, FALSE)).canonical().nullable());
         assertEquals(Nullability.TRUE, constantFolding(new Or(EMPTY, FALSE, NULL)).canonical().nullable());
         assertEquals(Nullability.TRUE, constantFolding(new Or(EMPTY, NULL, NULL)).canonical().nullable());
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/154079
+    public void testConstantFoldingBinaryLogic_WithMultivalues() {
+        Literal mv = new Literal(EMPTY, List.of(true, false), DataType.BOOLEAN);
+        Literal expected = new Literal(EMPTY, null, DataType.BOOLEAN);
+        assertEquals(expected, constantFolding(new And(EMPTY, mv, TRUE)));
+        assertEquals(expected, constantFolding(new And(EMPTY, FALSE, mv)));
+        assertEquals(expected, constantFolding(new Or(EMPTY, mv, FALSE)));
+        assertEquals(expected, constantFolding(new Or(EMPTY, TRUE, mv)));
+    }
+
+    public void testConstantNot_WithMultivalues() {
+        Literal mv = new Literal(EMPTY, List.of(true, false), DataType.BOOLEAN);
+        assertEquals(new Literal(EMPTY, null, DataType.BOOLEAN), constantFolding(new Not(EMPTY, mv)));
+        assertWarnings(
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+        );
     }
 
     public void testConstantFoldingRange() {

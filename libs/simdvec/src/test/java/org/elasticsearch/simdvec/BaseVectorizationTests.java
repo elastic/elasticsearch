@@ -100,10 +100,15 @@ public abstract class BaseVectorizationTests extends ESTestCase {
         }
 
         @Override
-        public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-            throws IOException {
+        public boolean withSliceAddresses(
+            long[] offsets,
+            int length,
+            int count,
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
             assertEquals("unexpected slice length", expectedSliceLength, length);
-            return delegate.withMemorySegmentSlices(offsets, length, count, action);
+            return delegate.withSliceAddresses(offsets, length, count, addressesScratch, action);
         }
 
         @Override

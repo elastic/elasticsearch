@@ -92,6 +92,10 @@ The following parameters are accepted by `object` fields:
 [`properties`](/reference/elasticsearch/mapping-reference/properties.md)
 :   The fields within the object, which can be of any [data type](/reference/elasticsearch/mapping-reference/field-data-types.md), including `object`. New properties may be added to an existing object.
 
+::::{note}
+In [columnar index modes](/reference/elasticsearch/columnar/index.md), `object` fields are always auto-flattened to leaf fields. The [`dynamic`](/reference/elasticsearch/mapping-reference/dynamic.md) and [`enabled`](/reference/elasticsearch/mapping-reference/enabled.md) settings are preserved under `prefix_properties` rather than on the object mapper itself.
+::::
+
 ::::{important}
 If you need to index arrays of objects instead of single objects, read [Nested](/reference/elasticsearch/mapping-reference/nested.md) first.
 ::::

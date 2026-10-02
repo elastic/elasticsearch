@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.AnnotationTestOrdering;
-import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -32,7 +28,6 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@TestCaseOrdering(AnnotationTestOrdering.class)
 public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final String TRANSFORM_USER = REMOTE_TRANSFORM_USER;
@@ -73,8 +68,16 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
         return true;
     }
 
-    @Order(10)
-    public void testInitialSetup() throws IOException {
+    public void testTransformMigrationFromRcs1ToRcs2AndBack() throws Exception {
+        initialSetup();
+        setupRcs1();
+        changeQueryClusterCredentialsForRcs2();
+        setupRcs2();
+        changeQueryClusterCredentialsForRcs1();
+        setupRcs1Again();
+    }
+
+    private void initialSetup() throws IOException {
         final Request createIndexRequest = new Request("PUT", "shared-transform-index");
         createIndexRequest.setJsonEntity("""
             {
@@ -96,8 +99,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
         assertOK(performRequestWithAdminUser(putUserRequest));
     }
 
-    @Order(20)
-    public void testRcs1Setup() throws Exception {
+    private void setupRcs1() throws Exception {
         // Create role on leader cluster
         final Request putRoleRequest = new Request("POST", "/_security/role/" + TRANSFORM_USER_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -155,8 +157,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
     }
 
     // First migrate to RCS 2.0
-    @Order(30)
-    public void testQueryClusterCredentialsChangeForRcs2() throws IOException {
+    private void changeQueryClusterCredentialsForRcs2() throws IOException {
         // Update the transform_user_role so that it is sufficient for both RCS 1.0 and 2.0
         final Request putRoleRequest = new Request("POST", "/_security/role/" + TRANSFORM_USER_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -189,7 +190,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
         // Simulate new source data coming in during migration
         indexSourceDocuments(new UserStars("a", 4), new UserStars("b", 3));
 
-        // Create cross-cluster API key, add it to the keystore and restart query cluster
+        // Create a cross-cluster API key and reload the query cluster's secure settings
         final Map<String, Object> crossClusterAccessApiKey = createCrossClusterAccessApiKey("""
             {
               "search": [
@@ -201,8 +202,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
         configureRemoteClusterCredentials("my_remote_cluster", (String) crossClusterAccessApiKey.get("encoded"), keystoreSettings);
     }
 
-    @Order(40)
-    public void testRcs2Setup() throws Exception {
+    private void setupRcs2() throws Exception {
         // Configure a new remote cluster using RCS 2.0
         configureRemoteCluster("my_remote_cluster");
 
@@ -219,8 +219,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
     }
 
     // Second migrate back to RCS 1.0
-    @Order(50)
-    public void testQueryClusterCredentialsChangeAgainForRcs1() throws IOException {
+    private void changeQueryClusterCredentialsForRcs1() throws IOException {
         stopTransform();
 
         // Remove the RCS 2.0 remote cluster
@@ -248,8 +247,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
         removeRemoteClusterCredentials("my_remote_cluster", keystoreSettings);
     }
 
-    @Order(60)
-    public void testRcs1SetupAgain() throws Exception {
+    private void setupRcs1Again() throws Exception {
         // Configure RCS 1.0 remote cluster and restart transform
         configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
         startTransform();

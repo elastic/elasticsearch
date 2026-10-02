@@ -1,7 +1,7 @@
 import { execSync } from "child_process";
 import { resolve } from "path";
 
-import { RunnableCommand } from "../domain.ts";
+import type { RunnableCommand } from "../domain.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 

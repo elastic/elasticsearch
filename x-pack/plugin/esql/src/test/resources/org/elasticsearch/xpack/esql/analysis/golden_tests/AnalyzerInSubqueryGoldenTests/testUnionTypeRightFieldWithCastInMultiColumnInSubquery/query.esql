@@ -1,0 +1,7 @@
+FROM employees
+| WHERE (first_name, last_name) IN (
+    FROM employees, employees_incompatible
+    | EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
+    | KEEP id_kw, sal_kw
+  )
+| KEEP first_name, last_name

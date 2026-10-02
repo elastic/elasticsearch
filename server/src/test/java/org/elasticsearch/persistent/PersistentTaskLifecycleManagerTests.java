@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -643,6 +644,35 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
             removeListener.getAndSet(null).onResponse(null);
             assertThat("onRemove should be called after successful remove", onRemove.get(), notNullValue());
+        }
+    }
+
+    public void testProjectTaskNotStartedWhenProjectUnderDeletion() {
+        final var blockedProjectId = randomUniqueProjectId();
+        final var otherProjectId = randomUniqueProjectId();
+        final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
+            manager.start();
+
+            final var state = masterStateWithProjects(Set.of(blockedProjectId, otherProjectId));
+            setState(
+                clusterService,
+                ClusterState.builder(state)
+                    .blocks(
+                        ClusterBlocks.builder(state.blocks())
+                            .addProjectGlobalBlock(blockedProjectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+                            .build()
+                    )
+                    .build()
+            );
+
+            verify(persistentTasksService).sendProjectStartRequest(eq(otherProjectId), any(), any(), any(), any(), any());
+            verify(persistentTasksService, never()).sendProjectStartRequest(eq(blockedProjectId), any(), any(), any(), any(), any());
         }
     }
 

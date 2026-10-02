@@ -135,7 +135,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.DOC;
+                // Doc-values scan on a small (< threshold) index: the shared cost check keeps it on the low-overhead
+                // SHARD. DOC picking (scan-heavy) is covered by the forced-DOC tests and the source/TopN strategy tests.
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
         },
         MATCH_0_AND_1 {
@@ -167,7 +169,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.DOC;
+                // Doc-values scan on a small (< threshold) index: the shared cost check keeps it on the low-overhead
+                // SHARD. DOC picking (scan-heavy) is covered by the forced-DOC tests and the source/TopN strategy tests.
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
         },
         LTE_100_GT_100 {
@@ -216,7 +220,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.DOC;
+                // Doc-values scan on a small (< threshold) index: the shared cost check keeps it on the low-overhead
+                // SHARD. DOC picking (scan-heavy) is covered by the forced-DOC tests and the source/TopN strategy tests.
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
         };
 
@@ -553,7 +559,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             contexts,
             queryFn,
             DataPartitioning.DOC,
-            LuceneCountOperator::partitioningStrategyForCount,
+            (c, q) -> LuceneCountOperator.partitioningStrategyForCount(c, q, (long) taskConcurrency * LuceneSliceQueue.MIN_DOCS_PER_SLICE),
             1,
             taskConcurrency,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,

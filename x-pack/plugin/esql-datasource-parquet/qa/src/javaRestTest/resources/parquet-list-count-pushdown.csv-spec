@@ -4,7 +4,8 @@
 // scan answers. employees_ds carries job_positions (list<keyword>) and salary_change (list<double>).
 // ES|QL COUNT counts VALUES, so COUNT(<list>) is the total non-null element count, not the row count.
 //
-// Authored as FROM <dataset>: dataset-capable backends (S3) run FROM; others rebuild the EXTERNAL query.
+// Authored as FROM <dataset>: ParquetFormatSpecIT registers the dataset and runs the FROM query verbatim on
+// every storage backend.
 
 listCountKeyword
 required_capability: external_command

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -97,8 +98,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private IndicesAdminClient indicesClient;
     private long now;
     private ThreadPool threadPool;
+    @SuppressWarnings("rawtypes")
+    private MasterServiceTaskQueue mockTaskQueue;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void prepareServices() {
         nodeId = randomAlphaOfLength(10);
         ExecutorService executorService = mock(ExecutorService.class);
@@ -121,6 +125,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             new ClusterSettings(settings, Set.of(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING))
         );
         when(clusterService.lifecycleState()).thenReturn(State.STARTED);
+        mockTaskQueue = mock(MasterServiceTaskQueue.class);
+        when(clusterService.createTaskQueue(eq("ilm-runner"), any(), any())).thenReturn(mockTaskQueue);
 
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -152,6 +158,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testStoppedModeSkip() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
@@ -180,7 +187,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
-        assertThat(mockStep.getExecuteCount(), equalTo(0L));
+        Mockito.verify(mockTaskQueue, Mockito.never()).submitTask(anyString(), any(), any());
     }
 
     public void testRequestedStopOnShrink() {

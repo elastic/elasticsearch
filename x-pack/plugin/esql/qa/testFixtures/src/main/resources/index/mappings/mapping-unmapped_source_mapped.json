@@ -1,0 +1,14 @@
+{
+    "dynamic": "false",
+    "subobjects": false,
+    "properties": {
+        "id":              { "type": "keyword" },
+        "a.b":             { "type": "keyword" },
+        "deep.l1.l2.l3":  { "type": "keyword" },
+        "arr":             { "type": "keyword" },
+        "objarr.k":        { "type": "keyword" },
+        "objarr.j":        { "type": "keyword" },
+        "nest.inner.leaf": { "type": "keyword" },
+        "nully":           { "type": "keyword" }
+    }
+}

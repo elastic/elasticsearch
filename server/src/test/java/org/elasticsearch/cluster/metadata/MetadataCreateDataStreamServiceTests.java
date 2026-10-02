@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -638,20 +640,31 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
-        AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> MetadataCreateDataStreamService.createDataStream(
-                metadataCreateIndexService,
-                Settings.EMPTY,
-                cs,
-                randomBoolean(),
-                req,
-                RerouteBehavior.PERFORM_REROUTE,
-                ActionListener.noop(),
-                false
-            )
-        );
-        assertThat(e.getMessage(), containsString("matches a SystemIndexDescriptor"));
+        try (var mockLog = MockLog.capture(MetadataCreateDataStreamService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "hybrid data stream warning",
+                    MetadataCreateDataStreamService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*whose name matches system index pattern [.my-system-idx*] but which is not registered as a system data stream*"
+                )
+            );
+            AssertionError e = expectThrows(
+                AssertionError.class,
+                () -> MetadataCreateDataStreamService.createDataStream(
+                    metadataCreateIndexService,
+                    Settings.EMPTY,
+                    cs,
+                    randomBoolean(),
+                    req,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop(),
+                    false
+                )
+            );
+            assertThat(e.getMessage(), containsString("matches a SystemIndexDescriptor"));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.fireworksai.request;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -34,7 +34,7 @@ class FireworksAiUnifiedChatCompletionRequestEntity implements ToXContentObject 
         builder.startObject();
         unifiedRequestEntity.toXContent(
             builder,
-            UnifiedCompletionRequest.withMaxCompletionTokens(model.getServiceSettings().modelId(), params)
+            UnifiedCompletionRequestBody.withMaxCompletionTokens(model.getServiceSettings().modelId(), params)
         );
 
         if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {

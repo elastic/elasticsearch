@@ -28,6 +28,6 @@ public class BFloat16BinaryDenseVectorDocValuesField extends BinaryDenseVectorDo
 
     @Override
     void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
-        VectorEncoderDecoder.decodeBFloat16DenseVector(vectorBR, vector);
+        VectorEncoderDecoder.decodeBFloat16DenseVector(indexVersion, vectorBR, vector);
     }
 }

@@ -34,12 +34,16 @@ class ExternalClusters {
      */
     static ElasticsearchCluster buildExternalCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.buildClusterSpec()
+            // This suite registers data sources and reads them, so it pins the federation gate
+            // rather than depending on the build default.
+            .setting("esql.federation.enabled", "true")
             // Pin the request-breaker limit so the suite reliably trips it regardless of the
             // base cluster's heap size (which varies between the standard and serverless configs).
             // Kept low to leave headroom for untracked S3/Netty allocations.
             .setting("indices.breaker.request.limit", BREAKER_LIMIT_PERCENT + "%")
             // S3 client wiring — endpoint discovered at startup from the fixture rule.
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             .setting("s3.client.default.protocol", "http")
             .keystore("s3.client.default.access_key", S3FixtureUtils.ACCESS_KEY)
             .keystore("s3.client.default.secret_key", S3FixtureUtils.SECRET_KEY)

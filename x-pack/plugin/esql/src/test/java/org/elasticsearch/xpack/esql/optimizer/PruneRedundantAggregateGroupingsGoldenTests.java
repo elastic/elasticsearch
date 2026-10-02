@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -37,6 +39,15 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
     private static final String DATASET_NAME = "ext_ds";
     private static final String DATA_RESOURCE = "s3://bucket/data.parquet";
 
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PruneRedundantAggregateGroupingsGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     /**
      * Renaming an external column, deriving a value from it, then grouping by both: the derived grouping is pruned and
      * rebuilt above the aggregate reading the rename alias, so the plan stays consistent.
@@ -49,11 +60,7 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
             | EVAL c = cip - 1
             | STATS count = COUNT(*) BY cip, c
             """;
-        builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
-            .datasetMetadata(datasetMetadata())
-            .externalSourceResolution(externalSourceResolution())
-            .run();
+        builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();
     }
 
     /** Registers {@code ext_ds} as an external dataset so {@code FROM ext_ds} becomes an external relation. */

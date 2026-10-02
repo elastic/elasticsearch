@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -17,8 +18,15 @@ import java.util.Objects;
 public final class LocalLogicalOptimizerContext extends LogicalOptimizerContext {
     private final SearchStats searchStats;
 
+    /**
+     * Constructor for tests, production passes session flags via the four-argument constructor.
+     */
     public LocalLogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, SearchStats searchStats) {
-        super(configuration, foldCtx, null);
+        this(configuration, foldCtx, searchStats, EsqlFlags.DEFAULTS);
+    }
+
+    public LocalLogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, SearchStats searchStats, EsqlFlags flags) {
+        super(configuration, foldCtx, null, flags);
         this.searchStats = searchStats;
     }
 

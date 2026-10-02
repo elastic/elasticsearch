@@ -161,3 +161,128 @@ teardown:
           mappings:
             properties:
               join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" }, "fields": {"keyword": {"type": "keyword"}} }
+
+---
+"join field named _type is not returned as root metadata":
+  - requires:
+      cluster_features: ["search.fetch_fields.excludes_non_metadata_type"]
+      reason: "fix for user-mapped _type field appearing in hit root metadata"
+
+  - do:
+      indices.create:
+        index: type-join
+        body:
+          mappings:
+            properties:
+              text: { "type": "keyword" }
+              _type: { "type": "join", "relations": { "question": "answer" } }
+
+  - do:
+      bulk:
+        index: type-join
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{ "text": "What species does chewbacca belong to?", "_type": { "name": "question" }}'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "text": "How did Yoda die?", "_type": { "name": "question" }}'
+          - '{ "index": {"_id": "3", "routing": "1"}}'
+          - '{ "text": "Wookie", "_type": { "name": "answer", "parent": "1" }}'
+          - '{ "index": {"_id": "4", "routing": "2"}}'
+          - '{ "text": "Old age", "_type": { "name": "answer", "parent": "2" }}'
+
+  - do:
+      search:
+        index: type-join
+        body:
+          sort: [ "text" ]
+          query: { match_all: { } }
+
+  - match: { hits.total.value: 4 }
+
+  - match: { hits.hits.0._id: "2" }
+  - is_false: hits.hits.0._type
+  - match: { hits.hits.0._source._type.name: "question" }
+  - match: { hits.hits.0._source.text: "How did Yoda die?" }
+
+  - match: { hits.hits.1._id: "4" }
+  - is_false: hits.hits.1._type
+  - match: { hits.hits.1._source._type.name: "answer" }
+  - match: { hits.hits.1._source._type.parent: "2" }
+  - match: { hits.hits.1._source.text: "Old age" }
+
+  - match: { hits.hits.2._id: "1" }
+  - is_false: hits.hits.2._type
+  - match: { hits.hits.2._source._type.name: "question" }
+  - match: { hits.hits.2._source.text: "What species does chewbacca belong to?" }
+
+  - match: { hits.hits.3._id: "3" }
+  - is_false: hits.hits.3._type
+  - match: { hits.hits.3._source._type.name: "answer" }
+  - match: { hits.hits.3._source._type.parent: "1" }
+  - match: { hits.hits.3._source.text: "Wookie" }
+
+  - do:
+      search:
+        index: type-join
+        body:
+          sort: [ "text" ]
+          query: { ids: { values: [ "1", "3" ] } }
+          fields: [ "_type" ]
+
+  - match: { hits.total.value: 2 }
+  - is_false: hits.hits.0._type
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields._type.0.name: "question" }
+  - is_false: hits.hits.1._type
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields._type.0.name: "answer" }
+  - match: { hits.hits.1.fields._type.0.parent: "1" }
+
+---
+"keyword field named _type is not returned as root metadata":
+  - requires:
+      cluster_features: ["search.fetch_fields.excludes_non_metadata_type"]
+      reason: "fix applies to any mapper type named _type, not only join"
+
+  - do:
+      indices.create:
+        index: type-keyword
+        body:
+          mappings:
+            properties:
+              _type: { "type": "keyword" }
+
+  - do:
+      bulk:
+        index: type-keyword
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{ "_type": "question" }'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "_type": "answer" }'
+
+  - do:
+      search:
+        index: type-keyword
+        body:
+          sort: [ "_type" ]
+          query: { match_all: { } }
+
+  - match: { hits.total.value: 2 }
+  - is_false: hits.hits.0._type
+  - match: { hits.hits.0._source._type: "answer" }
+  - is_false: hits.hits.1._type
+  - match: { hits.hits.1._source._type: "question" }
+
+  - do:
+      search:
+        index: type-keyword
+        body:
+          query: { term: { _type: "question" } }
+          fields: [ "_type" ]
+
+  - match: { hits.total.value: 1 }
+  - is_false: hits.hits.0._type
+  - match: { hits.hits.0.fields._type.0: "question" }

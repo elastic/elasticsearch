@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Before;
 
 import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
@@ -27,9 +28,8 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
     private ThreadPool threadPool;
     private Settings.Builder settingsBuilder;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         settingsBuilder = Settings.builder()
             .put("path.home", createTempDir())

@@ -165,8 +165,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
         } else {
             // an automaton that includes metadata fields, including join fields created by the _parent field such
             // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            Automaton metaFieldsAutomaton = Operations.concatenate(List.of(Automata.makeChar('_'), Automata.makeAnyString()));
+            grantedFieldsAutomaton = Operations.union(List.of(Automatons.patterns(grantedFields), metaFieldsAutomaton));
         }
 
         Automaton deniedFieldsAutomaton;

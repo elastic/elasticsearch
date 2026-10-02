@@ -27,7 +27,7 @@ import java.util.function.Function;
  * Handles streaming chat completion responses and error parsing for OpenAI inference endpoints.
  * This handler is designed to work with the unified OpenAI chat completion API.
  */
-public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiCompletionResponseHandler {
     private static final ChatCompletionErrorResponseHandler DEFAULT_CHAT_COMPLETION_ERROR_RESPONSE_HANDLER =
         new ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorResponse.ERROR_PARSER);
 

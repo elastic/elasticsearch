@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -58,6 +59,22 @@ public class NumbersTests extends ESTestCase {
             "For input string: \"t12345\"",
             expectThrows(IllegalArgumentException.class, () -> Numbers.toLong("t12345", false)).getMessage()
         );
+    }
+
+    public void testNewBigDecimalRejectsOversizedString() {
+        // A value at the limit parses normally; one character longer is rejected before construction.
+        String atLimit = "1".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        assertThat(Numbers.newBigDecimal(atLimit), equalTo(new BigDecimal(atLimit)));
+
+        String tooLong = "1".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> Numbers.newBigDecimal(tooLong)).getMessage(),
+            containsString("exceeds the maximum")
+        );
+
+        // toLong routes string coercion through the same guard instead of parsing an unbounded number.
+        String oversizedDecimal = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> Numbers.toLong(oversizedDecimal, true));
     }
 
     public void testToLongExact() {

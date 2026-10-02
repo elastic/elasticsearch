@@ -76,11 +76,11 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
 
     @Override
     public final void clusterChanged(ClusterChangedEvent event) {
-        if (templatesEnabled == false) {
-            return;
-        }
         // wait for the cluster state to be recovered
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+        if (templatesEnabled == false) {
             return;
         }
 

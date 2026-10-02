@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
@@ -25,17 +26,21 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Represents a request to create a token based on the provided information. This class accepts the
- * fields for an OAuth 2.0 access token request that uses the <code>password</code> grant type or the
- * <code>refresh_token</code> grant type.
+ * fields for an OAuth 2.0 access token request that uses the <code>password</code> grant type, the
+ * <code>refresh_token</code> grant type, or one of the custom grant types such as
+ * <code>_kerberos</code> and <code>_user_managed_service_account</code>.
  */
 public final class CreateTokenRequest extends UntypedActionRequest {
+
+    private static final TransportVersion UMSA_OAUTH2_TOKEN_EXCHANGE = TransportVersion.fromName("umsa_oauth2_token_exchange");
 
     public enum GrantType {
         PASSWORD("password"),
         KERBEROS("_kerberos"),
         REFRESH_TOKEN("refresh_token"),
         AUTHORIZATION_CODE("authorization_code"),
-        CLIENT_CREDENTIALS("client_credentials");
+        CLIENT_CREDENTIALS("client_credentials"),
+        USER_MANAGED_SERVICE_ACCOUNT("_user_managed_service_account");
 
         private final String value;
 
@@ -60,7 +65,13 @@ public final class CreateTokenRequest extends UntypedActionRequest {
     }
 
     private static final Set<GrantType> SUPPORTED_GRANT_TYPES = Collections.unmodifiableSet(
-        EnumSet.of(GrantType.PASSWORD, GrantType.KERBEROS, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS)
+        EnumSet.of(
+            GrantType.PASSWORD,
+            GrantType.KERBEROS,
+            GrantType.REFRESH_TOKEN,
+            GrantType.CLIENT_CREDENTIALS,
+            GrantType.USER_MANAGED_SERVICE_ACCOUNT
+        )
     );
 
     private String grantType;
@@ -69,6 +80,7 @@ public final class CreateTokenRequest extends UntypedActionRequest {
     private SecureString kerberosTicket;
     private String scope;
     private String refreshToken;
+    private SecureString serviceAccountToken;
 
     public CreateTokenRequest(StreamInput in) throws IOException {
         super(in);
@@ -78,6 +90,9 @@ public final class CreateTokenRequest extends UntypedActionRequest {
         refreshToken = in.readOptionalString();
         scope = in.readOptionalString();
         kerberosTicket = in.readOptionalSecureString();
+        if (in.getTransportVersion().supports(UMSA_OAUTH2_TOKEN_EXCHANGE)) {
+            serviceAccountToken = in.readOptionalSecureString();
+        }
     }
 
     public CreateTokenRequest() {}
@@ -90,12 +105,25 @@ public final class CreateTokenRequest extends UntypedActionRequest {
         @Nullable String scope,
         @Nullable String refreshToken
     ) {
+        this(grantType, username, password, kerberosTicket, scope, refreshToken, null);
+    }
+
+    public CreateTokenRequest(
+        String grantType,
+        @Nullable String username,
+        @Nullable SecureString password,
+        @Nullable SecureString kerberosTicket,
+        @Nullable String scope,
+        @Nullable String refreshToken,
+        @Nullable SecureString serviceAccountToken
+    ) {
         this.grantType = grantType;
         this.username = username;
         this.password = password;
         this.kerberosTicket = kerberosTicket;
         this.scope = scope;
         this.refreshToken = refreshToken;
+        this.serviceAccountToken = serviceAccountToken;
     }
 
     @Override
@@ -107,6 +135,7 @@ public final class CreateTokenRequest extends UntypedActionRequest {
                 case PASSWORD -> {
                     validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateUnsupportedField(type, "service_account_token", serviceAccountToken, validationException);
                     validationException = validateRequiredField("username", username, validationException);
                     validationException = validateRequiredField("password", password, validationException);
                 }
@@ -114,12 +143,14 @@ public final class CreateTokenRequest extends UntypedActionRequest {
                     validationException = validateUnsupportedField(type, "username", username, validationException);
                     validationException = validateUnsupportedField(type, "password", password, validationException);
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateUnsupportedField(type, "service_account_token", serviceAccountToken, validationException);
                     validationException = validateRequiredField("kerberos_ticket", kerberosTicket, validationException);
                 }
                 case REFRESH_TOKEN -> {
                     validationException = validateUnsupportedField(type, "username", username, validationException);
                     validationException = validateUnsupportedField(type, "password", password, validationException);
                     validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "service_account_token", serviceAccountToken, validationException);
                     validationException = validateRequiredField("refresh_token", refreshToken, validationException);
                 }
                 case CLIENT_CREDENTIALS -> {
@@ -127,6 +158,14 @@ public final class CreateTokenRequest extends UntypedActionRequest {
                     validationException = validateUnsupportedField(type, "password", password, validationException);
                     validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateUnsupportedField(type, "service_account_token", serviceAccountToken, validationException);
+                }
+                case USER_MANAGED_SERVICE_ACCOUNT -> {
+                    validationException = validateUnsupportedField(type, "username", username, validationException);
+                    validationException = validateUnsupportedField(type, "password", password, validationException);
+                    validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
+                    validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
+                    validationException = validateRequiredField("service_account_token", serviceAccountToken, validationException);
                 }
                 default -> validationException = addValidationError(
                     "grant_type only supports the values: ["
@@ -207,6 +246,10 @@ public final class CreateTokenRequest extends UntypedActionRequest {
         this.refreshToken = refreshToken;
     }
 
+    public void setServiceAccountToken(@Nullable SecureString serviceAccountToken) {
+        this.serviceAccountToken = serviceAccountToken;
+    }
+
     public String getGrantType() {
         return grantType;
     }
@@ -236,6 +279,11 @@ public final class CreateTokenRequest extends UntypedActionRequest {
         return refreshToken;
     }
 
+    @Nullable
+    public SecureString getServiceAccountToken() {
+        return serviceAccountToken;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -245,5 +293,18 @@ public final class CreateTokenRequest extends UntypedActionRequest {
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(scope);
         out.writeOptionalSecureString(kerberosTicket);
+        if (out.getTransportVersion().supports(UMSA_OAUTH2_TOKEN_EXCHANGE)) {
+            out.writeOptionalSecureString(serviceAccountToken);
+        } else if (serviceAccountToken != null) {
+            // Never silently drop a credential: an older node would fail the grant type validation with a
+            // misleading message, so fail the serialization instead.
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + UMSA_OAUTH2_TOKEN_EXCHANGE.toReleaseVersion()
+                    + "] can't handle the [_user_managed_service_account] grant type and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
     }
 }

@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
@@ -1150,21 +1154,53 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("object.foo.bar.baz.keyword"));
     }
 
-    public void testVectordbDocumentDenseVectorMappingsUseLowerThreshold() throws IOException {
-        DocumentMapper mapper = createVectordbDocumentModeDocumentMapper(topMapping(b -> {}));
-        BytesReference source = BytesReference.bytes(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("tooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB - 1, 0.0, 5.0).toArray())
-                .field("mapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB, 0.0, 5.0).toArray())
-                .field("alsoMapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
-                .endObject()
-        );
-        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+    public void testVectordbModesDenseVectorMappingsUseLowerThreshold() throws IOException {
+        for (IndexMode mode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isVectorDb).toList()) {
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {}), mode);
+            BytesReference source = BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("tooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB - 1, 0.0, 5.0).toArray())
+                    .field("mapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB, 0.0, 5.0).toArray())
+                    .field("alsoMapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                    .endObject()
+            );
+            ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+            Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
+            assertNotNull(update);
+            assertThat(((FieldMapper) update.getRoot().getMapper("tooSmall")).fieldType().typeName(), equalTo("float"));
+            DenseVectorFieldMapper mapsToVector = (DenseVectorFieldMapper) update.getRoot().getMapper("mapsToVector");
+            assertThat(mapsToVector.fieldType().typeName(), equalTo("dense_vector"));
+            assertThat(mapsToVector.fieldType().getElementType(), equalTo(DenseVectorFieldMapper.ElementType.BFLOAT16));
+            assertTrue(mapsToVector.fieldType().isSearchable());
+            assertThat(((FieldMapper) update.getRoot().getMapper("alsoMapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
+        }
+    }
+
+    public void testVectordbColumnarDynamicStringsMapAsText() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createVectordbColumnarModeDocumentMapper(topMapping(b -> {}));
+        ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("title", "A dynamically mapped title")));
         Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
         assertNotNull(update);
-        assertThat(((FieldMapper) update.getRoot().getMapper("tooSmall")).fieldType().typeName(), equalTo("float"));
-        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
-        assertThat(((FieldMapper) update.getRoot().getMapper("alsoMapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
+        Mapper titleMapper = update.getRoot().getMapper("title");
+        assertThat(titleMapper, instanceOf(TextFieldMapper.class));
+        TextFieldMapper title = (TextFieldMapper) titleMapper;
+        assertFalse(title.multiFields().iterator().hasNext());
+        assertTrue(title.fieldType().isSearchable());
+        assertNull(parsedDocument.rootDoc().getField("title.keyword"));
+        assertTrue(
+            parsedDocument.rootDoc().getFields("title").stream().anyMatch(field -> field.fieldType().indexOptions() != IndexOptions.NONE)
+        );
+        assertTrue(
+            parsedDocument.rootDoc().getFields("title").stream().anyMatch(field -> field.fieldType().docValuesType() != DocValuesType.NONE)
+        );
+        assertTrue(
+            parsedDocument.rootDoc()
+                .getFields("title")
+                .stream()
+                .filter(field -> field.fieldType().indexOptions() != IndexOptions.NONE)
+                .allMatch(field -> field.fieldType().omitNorms() == false)
+        );
     }
 }

@@ -199,3 +199,72 @@ FROM employees METADATA _tier | KEEP _tier | LIMIT 1;
 _tier:keyword
 data_content
 ;
+
+classAndNameOnAnIndex
+required_capability: metadata_class_and_name
+from employees metadata _class, _name | sort emp_no | limit 2 | keep emp_no, _class, _name;
+
+emp_no:integer |_class:keyword |_name:keyword
+10001          |index          |employees
+10002          |index          |employees
+;
+
+nameWithoutIndexRequested
+required_capability: metadata_class_and_name
+from employees metadata _name | sort emp_no | limit 2 | keep emp_no, _name;
+
+emp_no:integer |_name:keyword
+10001          |employees
+10002          |employees
+;
+
+classAlongsideIndex
+required_capability: metadata_class_and_name
+from employees metadata _index, _class, _name | sort emp_no | limit 2 | keep emp_no, _index, _class, _name;
+
+emp_no:integer |_index:keyword |_class:keyword |_name:keyword
+10001          |employees      |index          |employees
+10002          |employees      |index          |employees
+;
+
+classInComparison
+required_capability: metadata_class_and_name
+from employees metadata _class | where _class == "index" | stats count = count(*);
+
+count:long
+100
+;
+
+classInAggs
+required_capability: metadata_class_and_name
+from employees metadata _class, _name | stats max = max(emp_no) by _class, _name;
+
+max:integer |_class:keyword |_name:keyword
+10100       |index          |employees
+;
+
+renameClassAndName
+required_capability: metadata_class_and_name
+from employees metadata _class, _name | sort emp_no | limit 2 | rename _class as kind, _name as relation | keep emp_no, kind, relation;
+
+emp_no:integer |kind:keyword |relation:keyword
+10001          |index        |employees
+10002          |index        |employees
+;
+
+classAndNameInAnExpression
+required_capability: metadata_class_and_name
+from employees metadata _class, _name | sort emp_no | limit 2 | eval qualified = concat(_class, ":", _name) | keep emp_no, qualified;
+
+emp_no:integer |qualified:keyword
+10001          |index:employees
+10002          |index:employees
+;
+
+dropBothNamesLeavesTheQueryWorking
+required_capability: metadata_class_and_name
+from employees metadata _class, _name | drop _class, _name | stats count = count(*);
+
+count:long
+100
+;

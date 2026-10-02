@@ -22,6 +22,11 @@ public class MockWarnings implements Warnings {
         warnings.add(new MockWarning(exceptionClass, message));
     }
 
+    @Override
+    public void registerWarning(String message) {
+        warnings.add(new MockWarning(null, message));
+    }
+
     public List<MockWarning> warnings() {
         return warnings;
     }

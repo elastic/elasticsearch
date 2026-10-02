@@ -45,7 +45,12 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), null, createTestMapperMetrics().sourceFieldMetrics());
+                SourceProvider provider = SourceProvider.fromLookup(
+                    mapper.mappers(),
+                    null,
+                    createTestMapperMetrics().sourceFieldMetrics(),
+                    null
+                );
                 Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
                 assertEquals(synthetic.source().get("kwd"), "foo");
             }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160755
+summary: Coalesce concurrent Parquet footer loads
+type: enhancement

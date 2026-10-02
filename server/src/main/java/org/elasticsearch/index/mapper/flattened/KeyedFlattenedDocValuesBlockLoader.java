@@ -15,8 +15,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -53,11 +53,11 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
                 var binary = context.reader().getBinaryDocValues(keyedFieldName);
                 var counts = context.reader()
                     .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                SortedBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                SortableBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
                 return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
             }
-            MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);
-            SortedBinaryDocValues filtered = BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
+            MultiValuedSortableBinaryDocValues dv = MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);
+            SortableBinaryDocValues filtered = BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
             return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
         } else {
             SortedSetDocValues dv = DocValues.getSortedSet(context.reader(), keyedFieldName);
@@ -96,10 +96,10 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
     }
 
     private static final class BinaryKeyedBlockDocValuesReader extends KeyedBlockDocValuesReader {
-        private final SortedBinaryDocValues filteredDocValues;
+        private final SortableBinaryDocValues filteredDocValues;
         private int curDocId = -1;
 
-        BinaryKeyedBlockDocValuesReader(CircuitBreaker circuitBreaker, SortedBinaryDocValues filteredDocValues) {
+        BinaryKeyedBlockDocValuesReader(CircuitBreaker circuitBreaker, SortableBinaryDocValues filteredDocValues) {
             super(circuitBreaker);
 
             this.filteredDocValues = filteredDocValues;

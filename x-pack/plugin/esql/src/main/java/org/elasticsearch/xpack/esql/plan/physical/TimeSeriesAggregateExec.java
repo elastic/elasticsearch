@@ -46,7 +46,6 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     );
 
     private final Bucket timeBucket;
-    private final Bucket outputTimeBucket;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -58,32 +57,15 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
-        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket);
-    }
-
-    public TimeSeriesAggregateExec(
-        Source source,
-        PhysicalPlan child,
-        List<? extends Expression> groupings,
-        List<? extends NamedExpression> aggregates,
-        AggregatorMode mode,
-        List<Attribute> intermediateAttributes,
-        Integer estimatedRowSize,
-        Bucket timeBucket,
-        Bucket outputTimeBucket
-    ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
-        this.outputTimeBucket = outputTimeBucket;
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
         if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
-            this.outputTimeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
-        } else {
-            this.outputTimeBucket = this.timeBucket;
+            in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
         }
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
             in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapseExec
@@ -95,7 +77,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
         if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
-            out.writeOptionalWriteable(outputTimeBucket);
+            out.writeOptionalWriteable(timeBucket);
         }
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
             out.writeBoolean(false);
@@ -118,8 +100,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -133,8 +114,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -148,8 +128,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -163,8 +142,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             newMode,
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -178,8 +156,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize,
-            timeBucket,
-            outputTimeBucket
+            timeBucket
         );
     }
 
@@ -187,13 +164,9 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return timeBucket;
     }
 
-    public Bucket outputTimeBucket() {
-        return outputTimeBucket;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), timeBucket, outputTimeBucket);
+        return Objects.hash(super.hashCode(), timeBucket);
     }
 
     @Override
@@ -202,7 +175,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             return false;
         }
         TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
-        return Objects.equals(timeBucket, other.timeBucket) && Objects.equals(outputTimeBucket, other.outputTimeBucket);
+        return Objects.equals(timeBucket, other.timeBucket);
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
@@ -212,17 +185,6 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Rounding.Prepared rounding = timeBucket.getDateRoundingOrNull(foldContext);
         if (rounding == null) {
             throw new EsqlIllegalArgumentException("expected TBUCKET; got ", timeBucket);
-        }
-        return rounding;
-    }
-
-    public Rounding.Prepared outputTimeBucketRounding(FoldContext foldContext) {
-        if (outputTimeBucket == null) {
-            return null;
-        }
-        Rounding.Prepared rounding = outputTimeBucket.getDateRoundingOrNull(foldContext);
-        if (rounding == null) {
-            throw new EsqlIllegalArgumentException("expected output TBUCKET; got ", outputTimeBucket);
         }
         return rounding;
     }

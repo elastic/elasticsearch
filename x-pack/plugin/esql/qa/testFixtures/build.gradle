@@ -55,3 +55,129 @@ tasks.register("loadCsvSpecData", JavaExec) {
   classpath = sourceSets.main.runtimeClasspath
   mainClass = "org.elasticsearch.xpack.esql.CsvTestsDataLoader"
 }
+
+def sharedSpecResources = file('src/main/resources')
+def dataSourceModules = rootProject.file('x-pack/plugin')
+def dataSourceSpecExclusions = [
+  [
+    path: 'x-pack/plugin/esql-datasource-parquet/qa/src/javaRestTest/resources/clickbench/external-clickbench.csv-spec',
+    owner: 'parquet',
+    reason: 'Current-only specialized suite downloads about 93 MB from an external service.'
+  ],
+  [
+    path: 'x-pack/plugin/esql-datasource-grpc/src/javaRestTest/resources/grpc-flight.csv-spec',
+    owner: 'grpc',
+    reason: 'Flight needs a BWC-aware multi-endpoint fixture and strict connector capability checks.'
+  ],
+  [
+    path: 'x-pack/plugin/esql-datasource-iceberg/qa/src/javaRestTest/resources/iceberg-basic.csv-spec',
+    owner: 'iceberg',
+    reason: 'IcebergSpecIT is @AwaitsFix and still uses raw EXTERNAL.'
+  ],
+]
+
+def verifyDataSourceCsvSpecOwnership = tasks.register('verifyDataSourceCsvSpecOwnership') {
+  def rootSpecs = fileTree(sharedSpecResources) {
+    include '*.csv-spec'
+  }
+  def sharedDataSourceSpecs = fileTree(new File(sharedSpecResources, 'datasources')) {
+    include '*.csv-spec'
+  }
+  def moduleSpecs = fileTree(dataSourceModules) {
+    include 'esql-datasource-*/**/*.csv-spec'
+    exclude 'esql-datasource-*/**/build/**'
+  }
+  def moduleBuildFiles = fileTree(dataSourceModules) {
+    include 'esql-datasource-*/build.gradle'
+    include 'esql-datasource-*/qa/build.gradle'
+  }
+  inputs.files(rootSpecs, sharedDataSourceSpecs, moduleSpecs, moduleBuildFiles).withPathSensitivity(PathSensitivity.RELATIVE)
+  inputs.property('exclusions', dataSourceSpecExclusions.collect { "${it.path}|${it.owner}|${it.reason}" })
+  // Nothing is produced but the verdict, so a marker keeps repeated `check` runs up to date.
+  def resultFile = layout.buildDirectory.file('tmp/verifyDataSourceCsvSpecOwnership/result.txt')
+  outputs.file(resultFile)
+
+  // Resolved during configuration: the task body must not reach back into the project model.
+  def repoRoot = rootProject.projectDir
+  def exclusionFiles = dataSourceSpecExclusions.collectEntries { [(it.path): new File(repoRoot, it.path)] }
+  def moduleRoots = dataSourceModules.listFiles()
+    ?.findAll { it.isDirectory() && it.name.startsWith('esql-datasource-') }
+    ?.collectEntries { [(it.name.substring('esql-datasource-'.length())): it] } ?: [:]
+
+  doLast {
+    def failures = []
+    def exclusions = dataSourceSpecExclusions.collectEntries { [(it.path): it] }
+
+    rootSpecs.files.sort { it.path }.each { spec ->
+      if (spec.text =~ /(?m)^\s*dataset:/) {
+        failures.add("dataset-backed spec remains at the shared resource root: ${spec}")
+      }
+    }
+
+    sharedDataSourceSpecs.files.sort { it.path }.each { spec ->
+      if (spec.name.startsWith('external-') == false) {
+        failures.add("shared data-source spec must use the external-* prefix: ${spec}")
+      }
+    }
+
+    moduleSpecs.files.sort { it.path }.each { spec ->
+      String relative = repoRoot.toPath().relativize(spec.toPath()).toString().replace('\\', '/')
+      def matcher = relative =~ /^x-pack\/plugin\/esql-datasource-([^\/]+)\/(.*)$/
+      if (matcher.matches() == false) {
+        failures.add("cannot determine data-source owner for ${relative}")
+        return
+      }
+      String owner = matcher.group(1)
+      String withinModule = matcher.group(2)
+      String resourcePath = withinModule.substring(withinModule.indexOf('/resources/') + '/resources/'.length())
+      def exclusion = exclusions[relative]
+      if (exclusion != null) {
+        if (exclusion.owner?.trim() != owner) {
+          failures.add("exclusion owner [${exclusion.owner}] does not match module owner [${owner}] for ${relative}")
+        }
+        if (exclusion.reason?.trim()) {
+          logger.info("Excluded data-source csv-spec [${relative}] (owner: ${owner}): ${exclusion.reason}")
+        } else {
+          failures.add("excluded data-source csv-spec has no reason: ${relative}")
+        }
+        return
+      }
+
+      def prefixes = owner == 'csv' ? ['csv-', 'tsv-'] : ["${owner}-"]
+      if (prefixes.any { spec.name.startsWith(it) } == false) {
+        failures.add("module-local spec does not match owner prefix ${prefixes}: ${relative}")
+      }
+      if (resourcePath.contains('/')) {
+        failures.add("specialized data-source spec requires an explicit exclusion with owner and reason: ${relative}")
+      }
+
+      File moduleRoot = moduleRoots[owner]
+      def conventionFiles = moduleRoot == null
+        ? []
+        : [new File(moduleRoot, 'build.gradle'), new File(moduleRoot, 'qa/build.gradle')].findAll { it.exists() }
+      boolean bwcEnabled = conventionFiles.any { it.text.contains("elasticsearch.esql-datasource-bwc") }
+      if (bwcEnabled == false) {
+        failures.add("data-source spec is not BWC-enabled and has no explicit exclusion: ${relative}")
+      }
+    }
+
+    dataSourceSpecExclusions.each { exclusion ->
+      if (!exclusion.owner?.trim() || !exclusion.reason?.trim()) {
+        failures.add("every data-source csv-spec exclusion needs a non-empty owner and reason: ${exclusion}")
+      }
+      if (exclusionFiles[exclusion.path].exists() == false) {
+        failures.add("data-source csv-spec exclusion points to a missing file: ${exclusion.path}")
+      }
+    }
+
+    if (failures.isEmpty() == false) {
+      throw new GradleException("Invalid ES|QL data-source csv-spec ownership:\n - " + failures.join('\n - '))
+    }
+    resultFile.get().asFile.parentFile.mkdirs()
+    resultFile.get().asFile.text = 'ok'
+  }
+}
+
+tasks.named('check').configure {
+  dependsOn verifyDataSourceCsvSpecOwnership
+}

@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 148938
-summary: Add raw histogram mapping hint
-type: enhancement

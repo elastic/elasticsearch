@@ -127,10 +127,10 @@ public class Delta$Type$Aggregator {
         }
 
         void combine(int groupId, LongBlock samples, LongBlock timestamps, $Type$Block values, int otherPosition) {
-            final int valueCount = timestamps.getValueCount(otherPosition);
-            if (valueCount == 0) {
+            if (timestamps.isNull(otherPosition)) {
                 return;
             }
+            final int valueCount = timestamps.getValueCount(otherPosition);
             final long valuesSeen = samples.getLong(samples.getFirstValueIndex(otherPosition));
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);

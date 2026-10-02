@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
@@ -27,13 +34,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * The catalog of registered ES|QL query settings.
  *
  * <p>Each entry is one fluent declaration. {@link QuerySettingDef} carries the schema and the read API;
- * this class is a list of constants and two utility methods ({@link #validate} for the in-query SET
- * pass, {@link #resolve} for the merge step that produces an {@link ResolvedSettings}).
+ * this class is a list of constants plus the entry points that use them — {@link #validate} for the in-query SET
+ * pass, {@link #resolve} for the merge that produces a {@link ResolvedSettings}, and the cluster-setting
+ * registration and warning.
  *
  * <h2>Adding a new setting</h2>
  *
@@ -50,6 +60,8 @@ import java.util.Map;
  */
 public final class QuerySettings {
 
+    private static final Logger logger = LogManager.getLogger(QuerySettings.class);
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QuerySettings.class);
 
     @Param(name = "project_routing", type = { "keyword" }, description = """
@@ -61,7 +73,6 @@ public final class QuerySettings {
     @Example(file = "from", tag = "project-routing", description = "Route a query to a specific project by alias:")
     public static final QuerySettingDef<String> PROJECT_ROUTING = QuerySettingDef.string("project_routing")
         .withServerlessOnly()
-        .withPreview()
         .withValidator((value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled")
         .withRequestBody()
         .withAliasAtRoot()
@@ -72,43 +83,59 @@ public final class QuerySettings {
         type = { "keyword" },
         since = "9.4+",
         description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
-            + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones)."
+            + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones).\n\n"
+            + "The default itself is configurable. If a query does not specify a timezone, the "
+            + "`esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured "
+            + "either, the timezone is UTC. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
         .withDefault(ZoneOffset.UTC)
+        .withClusterDefault()
         .withRequestBody()
         .withAliasAtRoot()
         .canonicalize(ZoneId::normalized)
         .build();
 
-    @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
+    // LOAD_ALL is deliberately absent from this description: it is snapshot-only, and there is no mechanism to hold
+    // docs back for a snapshot-only value of an already-released setting. Document it once it ships.
+    @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
-        For a conceptual overview and use cases, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+        For a conceptual overview and use cases, including performance considerations, refer to
+        [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
         Possible values are:
 
         - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
-        - `NULLIFY` : Treats unmapped fields as null values.
-        - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
-        with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
+        - `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
+          appear in the output.
+        - `LOAD` : Loads referenced fully unmapped fields from the stored
+          [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
+          absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
+        {applies_to}`stack: preview =9.4, ga 9.5+`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
         Special notes about the `LOAD` option:
-        - `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
+        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
         - Referencing subfields of `flattened` parents is not supported.
-        - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported.
-          {applies_to}`stack: preview 9.5`
+        - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
+          although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
+          {applies_to}`stack: ga 9.5+`
           - Full-text search functions are not supported anywhere in the query. {applies_to}`stack: preview =9.4`
-        - [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on partially unmapped
-          `dense_vector` fields is not yet supported.
         - Partially unmapped non-`keyword` fields can be used in expressions. If the field is mapped to a single type and there's an
-          available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion,
-          and an explicit one has not been provided by the user, values remain typed where mapped and are `null` for rows from
-          indices where the field is unmapped. {applies_to}`stack: preview 9.5`
-          - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or `TO_TYPE`),
-            unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
+          available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion
+          (for example `text`, `aggregate_metric_double`, or `dense_vector`), and an explicit one has not been provided by the user,
+          values retain the mapped type but are `null` for rows from indices where the field is unmapped.
+          {applies_to}`stack: ga 9.5+`
+          - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
+            `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
+
+        The default itself is configurable. If a query does not specify a value, the
+        `esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
+        either, the value is `DEFAULT`.
+        {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
@@ -125,7 +152,15 @@ public final class QuerySettings {
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = QuerySettingDef.string(
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
-    ).withDefault(UnmappedResolution.DEFAULT).withPreview().build();
+    )
+        .withValidator(
+            (value, ctx) -> value == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false
+                ? "unmapped_fields value [LOAD_ALL] requires a snapshot build"
+                : null
+        )
+        .withDefault(UnmappedResolution.DEFAULT)
+        .withClusterDefault()
+        .build();
 
     @Param(
         name = "column_metadata",
@@ -133,10 +168,57 @@ public final class QuerySettings {
         since = "9.5.0",
         description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
             + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
-            + " and contains bucket interval and unit for queries where it can be determined."
+            + " and contains bucket interval and unit for queries where it can be determined.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.column_metadata` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
         .withDefault(Boolean.FALSE)
+        .withClusterDefault()
+        .withPreview()
+        .withRequestBody()
+        .build();
+
+    @Param(
+        name = "wildcards_match_datasets",
+        type = { "boolean" },
+        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
+        // every page documenting that feature is stack: experimental / serverless: unavailable. Deriving it from
+        // preview() would instead claim the setting is available in preview on serverless, where the feature is not
+        // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
+        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        description = "When enabled, a wildcard in `FROM` also matches registered datasets."
+            + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
+            + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+    )
+    public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_DATASETS = QuerySettingDef.bool("wildcards_match_datasets")
+        .withDefault(Boolean.FALSE)
+        .withClusterDefault()
+        .withPreview()
+        .withRequestBody()
+        .build();
+
+    @Param(
+        name = "wildcards_match_views",
+        type = { "boolean" },
+        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        description = "When enabled, a wildcard in `FROM` also matches registered views."
+            + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
+            + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+    )
+    public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
+        .withDefault(Boolean.FALSE)
+        .withClusterDefault()
         .withPreview()
         .withRequestBody()
         .build();
@@ -147,7 +229,12 @@ public final class QuerySettings {
         since = "9.5+, preview =9.4",
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
-            + "default settings. Map values enable query approximation with custom settings."
+            + "default settings. Map values enable query approximation with custom settings.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise "
+            + "license; without one the cluster default does not apply and queries run exactly. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
     @MapParam(
         name = "approximation",
@@ -175,6 +262,7 @@ public final class QuerySettings {
         .withRequestBody()
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
+        .withClusterDefault("false")
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 
@@ -183,7 +271,15 @@ public final class QuerySettings {
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
      * you declare it. Referencing this field initializes the class, so there is no load-order hazard.
      */
-    public static final List<QuerySettingDef<?>> ALL = List.of(APPROXIMATION, COLUMN_METADATA, PROJECT_ROUTING, TIME_ZONE, UNMAPPED_FIELDS);
+    public static final List<QuerySettingDef<?>> ALL = List.of(
+        APPROXIMATION,
+        COLUMN_METADATA,
+        WILDCARDS_MATCH_DATASETS,
+        WILDCARDS_MATCH_VIEWS,
+        PROJECT_ROUTING,
+        TIME_ZONE,
+        UNMAPPED_FIELDS
+    );
 
     private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);
 
@@ -201,6 +297,22 @@ public final class QuerySettings {
     /** All declared settings. */
     public static List<QuerySettingDef<?>> all() {
         return ALL;
+    }
+
+    /**
+     * The cluster settings derived from the registry — what {@code EsqlPlugin.getSettings()} registers, and what
+     * {@link #watchClusterDefaults} watches. A setting without an operator default contributes nothing, so its key
+     * stays unknown and a typo is rejected. Public only because the plugin is in another package.
+     */
+    public static List<Setting<?>> clusterSettings() {
+        List<Setting<?>> out = new ArrayList<>();
+        for (QuerySettingDef<?> def : all()) {
+            Setting<?> clusterSetting = def.clusterSetting();
+            if (clusterSetting != null) {
+                out.add(clusterSetting);
+            }
+        }
+        return out;
     }
 
     /** The setting with this name, or {@code null} if no such setting is declared. */
@@ -227,10 +339,19 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
-            );
+            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
         }
+    }
+
+    /**
+     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
+     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
+     */
+    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
+        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
+            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
+            .toList();
+        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**
@@ -300,30 +421,147 @@ public final class QuerySettings {
     }
 
     /**
-     * Folds {@code registry default < request body < in-query SET} into a single {@link ResolvedSettings},
-     * applying each setting's {@link QuerySettingDef#reconciler()} at every step.
+     * Folds {@code registry default < cluster < request body < in-query SET} into a single {@link ResolvedSettings},
+     * applying each setting's {@link QuerySettingDef#reconciler()} at every step. The chain is ordered by whose
+     * decision a value is: the product's, the operator's, the calling application's, the query author's.
+     *
+     * @param clusterState the cluster-state settings, {@link Settings#EMPTY} for a caller with no cluster context
+     * @param nodeSettings this node's settings, which carry any {@code elasticsearch.yml} value
      */
     public static ResolvedSettings resolve(
+        Settings clusterState,
+        Settings nodeSettings,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx
+    ) {
+        return resolve(all(), clusterState, nodeSettings, requestParams, statement, ctx);
+    }
+
+    /**
+     * Log any operator default this node cannot use. Resolution falls back to the built-in default for such a value
+     * rather than failing queries, so without this the operator would have no signal at all.
+     *
+     * @param effectiveSettings the settings to read operator values from — node and cluster-state already merged and
+     *     filtered to these keys on the settings-update path, or cluster-state alone on the license-listener path
+     * @param nodeSettings the {@code elasticsearch.yml} layer, or {@link Settings#EMPTY} when {@code effectiveSettings}
+     *     already contains it. Both arms read the same view, so they cannot report different sets.
+     * @param approximationLicensed whether approximation is licensed; supplied as a predicate rather than by importing
+     *     the license checker, so this package keeps knowing only about settings. Must not record feature usage.
+     */
+    public static void warnUnusableClusterDefaults(
+        Settings effectiveSettings,
+        Settings nodeSettings,
+        BooleanSupplier approximationLicensed
+    ) {
+        for (QuerySettingDef<?> def : all()) {
+            String error = def.clusterValueError(effectiveSettings, nodeSettings);
+            if (error != null) {
+                logger.warn(
+                    "Cluster setting [{}{}] is configured but not usable on this cluster and is being ignored; "
+                        + "queries fall back to the built-in default. Reason: {}",
+                    QuerySettingDef.CLUSTER_SETTING_PREFIX,
+                    def.name(),
+                    error
+                );
+            }
+        }
+        // The license is a second way an operator default becomes unusable, and it is invisible to clusterValueError:
+        // the value is valid, it is the entitlement that comes and goes. Checked here so both the settings-update path
+        // and the license-transition path report the same set of unusable defaults through one implementation.
+        if (approximationLicensed.getAsBoolean() == false
+            && ApproximationSettings.isOn(APPROXIMATION.effectiveDefault(effectiveSettings, nodeSettings))) {
+            logger.warn(
+                "Cluster setting [{}{}] is configured but this cluster's license does not permit approximation; "
+                    + "queries that did not ask for it run exactly. A query that asks for it explicitly still fails.",
+                QuerySettingDef.CLUSTER_SETTING_PREFIX,
+                APPROXIMATION.name()
+            );
+        }
+    }
+
+    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
+    static ResolvedSettings resolve(
+        List<QuerySettingDef<?>> defs,
+        Settings clusterState,
+        Settings nodeSettings,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx
     ) {
         Map<QuerySettingDef<?>, Object> resolved = new HashMap<>();
-        for (QuerySettingDef<?> def : all()) {
-            resolveSingle(def, requestParams, statement, ctx, resolved);
+        for (QuerySettingDef<?> def : defs) {
+            resolveSingle(def, clusterState, nodeSettings, requestParams, statement, ctx, resolved);
         }
         return new ResolvedSettings(resolved);
+    }
+
+    /**
+     * Register {@link #warnUnusableClusterDefaults} on the settings-update path. A value {@code elasticsearch.yml}
+     * cannot parse or that fails its validator already stops the node starting, and cluster state does not exist yet
+     * when components are constructed, so this covers the updates that happen afterwards.
+     * <p>
+     * Pair it with {@link #watchApproximationLicense}: between them the two registrations cover both ways an operator
+     * default becomes unusable — the value changing, and the entitlement changing underneath it.
+     */
+    public static void watchClusterDefaults(ClusterSettings clusterSettings, BooleanSupplier approximationLicensed) {
+        clusterSettings.addSettingsUpdateConsumer(
+            updated -> warnUnusableClusterDefaults(updated, Settings.EMPTY, approximationLicensed),
+            QuerySettings.clusterSettings()
+        );
+    }
+
+    /**
+     * Warn the operator when a cluster-wide {@code approximation} default stops applying because the license no
+     * longer permits it.
+     * <p>
+     * The settings-update registration cannot cover this on its own: it runs only when a setting is updated, and a
+     * license expiring updates no setting. Both paths call {@link #warnUnusableClusterDefaults}, so they report the
+     * same set of unusable defaults rather than two drifting subsets. The per-query drop site cannot log it either:
+     * it runs on every query, and a misconfigured cluster would flood the log. A license listener fires once per
+     * transition, which is the granularity the operator needs, and costs the query path nothing.
+     * <p>
+     * The license is supplied as a predicate rather than by importing the checker, so this package keeps knowing
+     * only about settings.
+     */
+    public static void watchApproximationLicense(
+        @Nullable XPackLicenseState licenseState,
+        BooleanSupplier approximationLicensed,
+        Supplier<Settings> clusterStateSettings,
+        Settings nodeSettings
+    ) {
+        if (licenseState == null) {
+            // XPackPlugin publishes the shared license state through a SetOnce, so a harness that builds this plugin
+            // without XPackPlugin sees null. That is test-only: PlanExecutor captures the same state eagerly for its
+            // query-time license checks, so a null in a real node would fail every query long before this mattered.
+            // No license state means no license transitions, so there is nothing to report.
+            return;
+        }
+        licenseState.addListener(() -> { warnUnusableClusterDefaults(clusterStateSettings.get(), nodeSettings, approximationLicensed); });
+    }
+
+    /** Resolve with no operator defaults in play. */
+    public static ResolvedSettings resolve(
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx
+    ) {
+        return resolve(Settings.EMPTY, Settings.EMPTY, requestParams, statement, ctx);
     }
 
     @SuppressWarnings("unchecked")
     private static <T> void resolveSingle(
         QuerySettingDef<T> def,
+        Settings clusterState,
+        Settings nodeSettings,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
         Map<QuerySettingDef<?>, Object> resolved
     ) {
-        T value = def.defaultValue();
+        // Never userSupplied: an operator's value was checked where the operator could see the failure, and must
+        // not be revalidated under the query-time context.
+        T value = def.effectiveDefault(clusterState, nodeSettings);
         boolean userSupplied = false;
 
         if (requestParams.containsKey(def)) {

@@ -17,10 +17,11 @@ public class RankVectorsFeatures implements FeatureSpecification {
     static final NodeFeature RANK_VECTORS_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.rank_vectors.dynamic_template_dotted_field_fix"
     );
+    static final NodeFeature RANK_VECTORS_EMPTY_ARRAY_REJECTED = new NodeFeature("mapper.rank_vectors.empty_array_rejected");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RANK_VECTORS_FEATURE, RANK_VECTORS_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX);
+        return Set.of(RANK_VECTORS_FEATURE, RANK_VECTORS_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX, RANK_VECTORS_EMPTY_ARRAY_REJECTED);
     }
 
 }

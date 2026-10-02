@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 155649
+summary: Support long fields in `bitmap_terms` query
+type: feature

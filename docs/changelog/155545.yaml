@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 155545
+summary: Add `index_terms` parameter to long field type
+type: feature

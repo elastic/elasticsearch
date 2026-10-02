@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -36,7 +37,7 @@ public class DownsampleWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public DownsampleWithSecurityRestIT(final ClientYamlTestCandidate testCandidate) {
+    public DownsampleWithSecurityRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

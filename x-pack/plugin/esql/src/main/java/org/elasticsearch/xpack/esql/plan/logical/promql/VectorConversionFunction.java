@@ -34,6 +34,11 @@ public final class VectorConversionFunction extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean isIdentityTransparent() {
+        return true;
+    }
+
+    @Override
     protected NodeInfo<PromqlFunctionCall> info() {
         return NodeInfo.create(this, VectorConversionFunction::new, child(), definition(), parameters());
     }

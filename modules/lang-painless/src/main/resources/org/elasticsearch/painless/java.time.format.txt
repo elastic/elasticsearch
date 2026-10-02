@@ -30,7 +30,7 @@ class java.time.format.DateTimeFormatter {
   DateTimeFormatter ISO_WEEK_DATE
   DateTimeFormatter ISO_ZONED_DATE_TIME
   DateTimeFormatter RFC_1123_DATE_TIME
-  String format(TemporalAccessor)
+  String format(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
   void formatTo(TemporalAccessor,Appendable)
   Chronology getChronology()
   DecimalStyle getDecimalStyle()
@@ -42,10 +42,10 @@ class java.time.format.DateTimeFormatter {
   DateTimeFormatter ofLocalizedDateTime(FormatStyle)
   DateTimeFormatter ofLocalizedDateTime(FormatStyle,FormatStyle)
   DateTimeFormatter ofLocalizedTime(FormatStyle)
-  DateTimeFormatter ofPattern(String)
-  DateTimeFormatter ofPattern(String,Locale)
-  TemporalAccessor parse(CharSequence)
-  def parse(CharSequence,TemporalQuery)
+  DateTimeFormatter ofPattern(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="ofPatternBytes"]
+  DateTimeFormatter ofPattern(String,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="ofPatternBytes"]
+  TemporalAccessor parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterParseBytes"]
+  def parse(CharSequence,TemporalQuery) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterParseBytes"]
   TemporalAccessor parseBest(CharSequence,TemporalQuery[])
   TemporalQuery parsedExcessDays()
   TemporalQuery parsedLeapSecond()

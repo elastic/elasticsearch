@@ -207,6 +207,24 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
 ```
 
 
+## Query with {{esql}} [flattened-esql]
+
+```{applies_to}
+stack: preview 9.5+
+serverless: preview
+```
+
+{{esql}} reads a `flattened` field as a single column and extracts individual keys with the [`FIELD_EXTRACT`](/reference/query-languages/esql/functions-operators/string-functions/field_extract.md) function. Pass the flattened field and the dotted path to the key:
+
+```esql
+FROM bug_reports
+| EVAL priority = FIELD_EXTRACT(labels, "priority")
+| KEEP title, priority
+```
+
+Extracted values always come back as `keyword`s, so cast them when you need another type. For the full set of behaviors and caveats, see [{{esql}} and flattened fields](/reference/query-languages/esql/esql-flattened-fields.md).
+
+
 ## Mapped sub-fields [flattened-properties]
 
 ```{applies_to}

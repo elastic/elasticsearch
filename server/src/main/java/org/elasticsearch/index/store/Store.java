@@ -52,7 +52,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -147,8 +146,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Property.IndexScope
     );
 
-    public static final FeatureFlag DIRECTORY_METRICS_FEATURE_FLAG = new FeatureFlag("directory_metrics");
-
     /**
      * A {@link org.apache.lucene.store.IOContext.FileOpenHint} that we will only read the Lucene file footer
      */
@@ -209,9 +206,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     ) {
         super(shardId, indexSettings);
         ByteSizeDirectory byteSizeDirectory = byteSizeDirectory(directory, indexSettings, logger);
-        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            byteSizeDirectory = new StoreMetricsDirectory(byteSizeDirectory, metricHolder);
-        }
+        byteSizeDirectory = new StoreMetricsDirectory(byteSizeDirectory, metricHolder);
         // Insert FieldInfoCachingDirectory (when enabled) between byteSizeDirectory and StoreDirectory so that
         // store.directory() continues to return the same StoreDirectory external callers expect (its getDelegate()
         // simply has one more layer underneath).

@@ -86,9 +86,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     private Metadata metadata;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initService() throws Exception {
         threadPool = createThreadPool();
         client = new NodeStatsClient(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
@@ -110,10 +108,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         threadPool.close();
-        super.tearDown();
     }
 
     public void testAddRemoveNode() {

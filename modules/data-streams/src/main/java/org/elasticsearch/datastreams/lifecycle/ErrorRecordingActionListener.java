@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 
@@ -27,7 +28,7 @@ public class ErrorRecordingActionListener implements ActionListener<Void> {
 
     private final String actionName;
     private final ProjectId projectId;
-    private final String targetIndex;
+    private final Index targetIndex;
     private final DataStreamLifecycleErrorStore errorStore;
     private final String errorLogMessage;
     private final int signallingErrorRetryThreshold;
@@ -35,7 +36,7 @@ public class ErrorRecordingActionListener implements ActionListener<Void> {
     public ErrorRecordingActionListener(
         String actionName,
         ProjectId projectId,
-        String targetIndex,
+        Index targetIndex,
         DataStreamLifecycleErrorStore errorStore,
         String errorLogMessage,
         int signallingErrorRetryThreshold
@@ -50,7 +51,7 @@ public class ErrorRecordingActionListener implements ActionListener<Void> {
 
     @Override
     public void onResponse(Void unused) {
-        logger.trace("Clearing recorded error for index [{}] because the [{}] action was successful", targetIndex, actionName);
+        logger.trace("Clearing recorded error for index [{}] because the [{}] action was successful", targetIndex.getName(), actionName);
         errorStore.clearRecordedError(projectId, targetIndex);
     }
 

@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {}
+public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion, EsqlFlags flags) {
+    public PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {
+        this(configuration, minimumVersion, EsqlFlags.withRemoteFetchTopN(false));
+    }
+}

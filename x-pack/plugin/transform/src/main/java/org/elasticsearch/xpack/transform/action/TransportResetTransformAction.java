@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction.Request;
@@ -103,6 +104,17 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
+        // Extract on the coordinating node, before the request is forwarded to master — the
+        // AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive master forwarding.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        super.doExecute(task, request, ActionListener.releaseAfter(listener, request));
+    }
+
+    @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(state))) {
             listener.onFailure(
@@ -161,6 +173,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     destIndexSettings,
                     cloudCredentialManager,
                     false, // mintCloudCredential — validate with stored credential only
+                    request.getCloudCredential(),
                     updateTransformListener
                 );
             },

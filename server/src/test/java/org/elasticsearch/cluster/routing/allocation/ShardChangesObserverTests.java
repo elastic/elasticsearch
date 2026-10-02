@@ -108,7 +108,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 "["
                     + indexName
                     + "][0][P] is relocating ("
-                    + BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON
+                    + BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason()
                     + ") from [node-1] to [node-2]"
             ),
             new MockLog.SeenEventExpectation(

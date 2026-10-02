@@ -49,8 +49,8 @@ ROW row = [
 | STATS first_val = FIRST(number, @timestamp)
 ;
 
-warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+warningRegex:Line 15:10: evaluation of \[TO_LONG\(number\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[\]
 
 first_val:long
 null
@@ -112,8 +112,8 @@ ROW row = [
 | STATS last_val = LAST(number, @timestamp) BY name
 ;
 
-warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+warningRegex:Line 15:10: evaluation of \[TO_LONG\(number\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[\]
 
 last_val:long | name:keyword
 4             | alpha
@@ -152,6 +152,17 @@ FROM voyager
 
 f_distance:long            | f_active_instruments:integer | f_collision_risk:double | f_ack_station_ip:ip        | f_low_power_mode:boolean | f_status:keyword | f_notes:keyword                | l_distance:long            | l_active_instruments:integer | l_collision_risk:double | l_ack_station_ip:ip        | l_low_power_mode:boolean | l_status:keyword | l_notes:keyword
 [21190910701, 21190910702] | [4, 4, 5]                    | [1.0E-4, 2.0E-4]        | [173.21.3.11, 173.21.3.12] | [false, true]            | [OK, green]      | [all clear, nothing to report] | [21190910701, 21190910702] | [4, 4, 5]                    | [1.0E-4, 2.0E-4]        | [173.21.3.11, 173.21.3.12] | [false, true]            | [OK, green]      | [all clear, nothing to report]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+constantFieldSharedAcrossAggs
+required_capability: aggs_more_inputs_via_eval
+FROM voyager | STATS a = FIRST(7, @timestamp), b = LAST(7, @timestamp)
+;
+
+a:integer | b:integer
+7         | 7
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -427,8 +438,8 @@ ROW row = [
         last_val = LAST(@timestamp, number)
 ;
 
-warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+warningRegex:Line 15:10: evaluation of \[TO_LONG\(number\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[\]
 
 first_val:datetime       | last_val:datetime
 2025-11-25T00:00:01.000Z | 2025-11-25T00:00:05.000Z
@@ -874,4 +885,33 @@ FROM flattened_many
 
 last_flat:flattened
 "{""k"":""v1""}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test identical input fields for FIRST and LAST aggregations
+required_capability: fix_aggs_multiple_input_fields
+
+FROM employees
+| STATS f1 = FIRST(emp_no,  emp_no),
+        f2 = FIRST(emp_no, -emp_no),
+        l1 = LAST (emp_no,  emp_no),
+        l2 = LAST (emp_no, -emp_no)
+;
+
+f1:integer | f2:integer | l1:integer | l2:integer
+10001      | 10100      | 10100      | 10001
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+First with where clause
+required_capability: fix_aggs_multiple_input_fields
+
+FROM employees
+| STATS sum=sum(salary), value=FIRST(emp_no, salary) WHERE salary > 50000
+;
+
+sum:long | value:integer
+4824855  | 10046
 ;

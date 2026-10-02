@@ -184,6 +184,7 @@ public interface AuthorizationDenialMessages {
         private String authenticatedUserDescription(Authentication authentication) {
             String userText = (authentication.isServiceAccount() ? "service account"
                 : authentication.isCloudApiKey() ? "cloud API key"
+                : authentication.isCloudServiceAccount() ? "cloud service account"
                 : "user") + " [" + authentication.getAuthenticatingSubject().getUser().principal() + "]";
             if (authentication.isAuthenticatedAsApiKey() || authentication.isCrossClusterAccess()) {
                 final String apiKeyId = (String) authentication.getAuthenticatingSubject()
@@ -207,11 +208,24 @@ public interface AuthorizationDenialMessages {
         // package-private for tests
         String rolesDescription(Subject subject, @Nullable AuthorizationEngine.AuthorizationInfo authorizationInfo) {
             // We cannot print the roles if it's an API key or a service account (both do not have roles, but privileges)
-            if (subject.getType() != Subject.Type.USER && subject.getType() != Subject.Type.CLOUD_API_KEY) {
+            if (subject.getType() != Subject.Type.USER
+                && subject.getType() != Subject.Type.CLOUD_API_KEY
+                && subject.getType() != Subject.Type.CLOUD_SERVICE_ACCOUNT) {
                 return "";
             }
 
             final StringBuilder sb = new StringBuilder();
+            // LimitedRole.names() returns only the cloud cap, so assigned names missing from it are not unresolved roles.
+            final List<String> limitedByRoleNames = subject.getCloudLimitedByRoleNames();
+            if (limitedByRoleNames != null) {
+                sb.append(" with assigned roles [")
+                    .append(Strings.arrayToCommaDelimitedString(subject.getUser().roles()))
+                    .append("], limited by roles [")
+                    .append(Strings.collectionToCommaDelimitedString(limitedByRoleNames))
+                    .append(']');
+                return sb.toString();
+            }
+
             final List<String> effectiveRoleNames = extractEffectiveRoleNames(authorizationInfo);
             if (effectiveRoleNames == null) {
                 sb.append(" with assigned roles [").append(Strings.arrayToCommaDelimitedString(subject.getUser().roles())).append("]");

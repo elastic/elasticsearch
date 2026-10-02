@@ -72,6 +72,7 @@ public class MapperServiceFactory {
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         MapperService mapperService = new MapperService(
             () -> TransportVersion.current(),
+            f -> true,
             indexSettings,
             IndexAnalyzers.of(
                 Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),

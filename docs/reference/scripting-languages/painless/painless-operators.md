@@ -53,16 +53,11 @@ graph TB
     D1 --> D2
     E1 --> E2
     F1 --> F2
-    
-    classDef rootNode fill:#0B64DD,stroke:#101C3F,stroke-width:2px,color:#fff
-    classDef categoryBox fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#343741
-    classDef descBox fill:#48EFCF,stroke:#343741,stroke-width:2px,color:#343741
-    classDef exampleBox fill:#f5f7fa,stroke:#343741,stroke-width:2px,color:#343741
 
-    class A rootNode
-    class B,C,D,E,F categoryBox
-    class B1,C1,D1,E1,F1 descBox
-    class B2,C2,D2,E2,F2 exampleBox
+    class A highlight
+    class B,C,D,E,F note
+    class B1,C1,D1,E1,F1 tip
+    class B2,C2,D2,E2,F2 plain
 ```
 
 ### General operators

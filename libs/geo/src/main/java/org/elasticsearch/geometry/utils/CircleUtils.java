@@ -125,7 +125,8 @@ public class CircleUtils {
     // Improved method implementation for better performance can be found in `SloppyMath.haversinMeters` which
     // is included in `org.apache.lucene:lucene-core`.
     // Do not use this method for performance critical cases
-    private static double slowHaversin(double lat1, double lon1, double lat2, double lon2) {
+    // Package-private so tests can measure with this formula rather than an approximation of it.
+    static double slowHaversin(double lat1, double lon1, double lat2, double lon2) {
         double h1 = (1 - StrictMath.cos(StrictMath.toRadians(lat2) - StrictMath.toRadians(lat1))) / 2;
         double h2 = (1 - StrictMath.cos(StrictMath.toRadians(lon2) - StrictMath.toRadians(lon1))) / 2;
         double h = h1 + StrictMath.cos(StrictMath.toRadians(lat1)) * StrictMath.cos(StrictMath.toRadians(lat2)) * h2;

@@ -12,6 +12,7 @@ package org.elasticsearch.server.launcher;
 import org.elasticsearch.server.launcher.common.LaunchDescriptor;
 import org.elasticsearch.server.launcher.common.ProcessUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -171,8 +172,8 @@ public class ServerLauncherTests extends ESTestCase {
         System.setErr(new PrintStream(capturedStderr, true, StandardCharsets.UTF_8));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopActiveServerAndRestoreErr() throws Exception {
         try {
             ServerProcess server = activeServer;
             if (server != null) {
@@ -180,11 +181,7 @@ public class ServerLauncherTests extends ESTestCase {
                 server.stop();
             }
         } finally {
-            try {
-                System.setErr(originalErr);
-            } finally {
-                super.tearDown();
-            }
+            System.setErr(originalErr);
         }
     }
 

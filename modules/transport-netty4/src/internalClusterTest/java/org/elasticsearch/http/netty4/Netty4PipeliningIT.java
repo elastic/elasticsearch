@@ -352,7 +352,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
         try {
             telemetryPlugin.collect();
             assertMeasurement(telemetryPlugin.getLongAsyncCounterMeasurement("es.http.connections.total"), expectedTotal);
-            assertMeasurement(telemetryPlugin.getLongGaugeMeasurement("es.http.connections.current"), expectedCurrent);
+            assertMeasurement(telemetryPlugin.getLongAsyncGaugeMeasurement("es.http.connections.current"), expectedCurrent);
         } finally {
             telemetryPlugin.resetMeter();
         }

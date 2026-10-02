@@ -150,10 +150,38 @@ public class PlannerSettings {
     );
 
     /**
-     * Target number of rows per output page when the time-series aggregation operator chunks its partial/intermediate
-     * output. Each partial/intermediate emission is sliced into pages of about this many rows, bounding the size of
-     * each page sent to the coordinator. Specific to the time-series operator and independent of the regular
-     * aggregation emit settings.
+     * The number of grouping keys threshold for an aggregation to switch to partitioning mode. The partitioning mode
+     * has more overhead, but each hash table is small enough to stay cache-resident and leverages multiple cores.
+     * So the threshold should be selected to be the largest that still has its hash table fitting in the last-level
+     * CPU cache. This should also be controlled by a memory setting and decided by the block hash instead.
+     */
+    public static final Setting<Integer> AGG_PARTITIONING_COUNT_THRESHOLD = Setting.intSetting(
+        "esql.agg.partitioning_count_threshold",
+        HashAggregationOperator.DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD,
+        1024,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The estimated memory used by grouping keys threshold for an aggregation to switch to partitioning mode.
+     * This complements {@link #AGG_PARTITIONING_COUNT_THRESHOLD}: an aggregation switches to partitioning mode
+     * when either the number of keys or the estimated bytes of the keys exceeds its threshold. The memory threshold
+     * guards against large keys (e.g. long strings) blowing past the CPU cache long before the count threshold is hit.
+     */
+    public static final Setting<ByteSizeValue> AGG_PARTITIONING_MEMORY_THRESHOLD = Setting.byteSizeSetting(
+        "esql.agg.partitioning_memory_threshold",
+        ByteSizeValue.ofBytes(HashAggregationOperator.DEFAULT_PARTITIONING_MEMORY_THRESHOLD),
+        ByteSizeValue.ofKb(64),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Target number of rows per output page when the time-series aggregation operator chunks its output. The same target
+     * applies to partial/intermediate output sent to the coordinator and final output emitted by the coordinator.
+     * Specific to the time-series operator and independent of the regular aggregation emit settings.
      */
     public static final Setting<Integer> TIME_SERIES_TARGET_CHUNK_ROWS = Setting.intSetting(
         "esql.time_series.target_chunk_rows",
@@ -287,6 +315,39 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Enables Lucene min-competitive timestamp pruning for ES|QL TopN queries with a single
+     * {@code @timestamp}-like sort key over {@code EsQueryExec}.
+     */
+    public static final Setting<Boolean> MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED = Setting.boolSetting(
+        "esql.min_competitive.timestamp_optimization.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES = Setting.intSetting(
+        "esql.min_competitive.global_merge.batch_pages",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of sort keys a driver may accumulate in its local pending-keys list before
+     * flushing to the shared global heap mid-page. Bounding this caps both per-driver memory and
+     * the number of heap insertions performed under the global lock per flush, regardless of page
+     * size or {@link #MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES}.
+     */
+    public static final Setting<Integer> MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS = Setting.intSetting(
+        "esql.min_competitive.global_merge.max_pending_keys",
+        20000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -308,7 +369,12 @@ public class PlannerSettings {
             DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
             PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
             PARALLEL_OPERATOR_MAX_WORKERS,
-            IN_SUBQUERY_HASH_JOIN_THRESHOLD
+            IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+            MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
+            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
+            MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
+            AGG_PARTITIONING_COUNT_THRESHOLD,
+            AGG_PARTITIONING_MEMORY_THRESHOLD
         );
     }
 
@@ -369,6 +435,26 @@ public class PlannerSettings {
                 IN_SUBQUERY_HASH_JOIN_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.inSubqueryHashJoinThreshold(v))
             );
+            clusterSettings.initializeAndWatch(
+                MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
+                v -> settings.updateAndGet(s -> s.minCompetitiveTimestampOptimizationEnabled(v))
+            );
+            clusterSettings.initializeAndWatch(
+                MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
+                v -> settings.updateAndGet(s -> s.minCompetitiveGlobalMergeBatchPages(v))
+            );
+            clusterSettings.initializeAndWatch(
+                MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
+                v -> settings.updateAndGet(s -> s.minCompetitiveGlobalMergeMaxPendingKeys(v))
+            );
+            clusterSettings.initializeAndWatch(
+                AGG_PARTITIONING_COUNT_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.aggregationPartitioningCountThreshold(v))
+            );
+            clusterSettings.initializeAndWatch(
+                AGG_PARTITIONING_MEMORY_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.aggregationPartitioningMemoryThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -395,6 +481,11 @@ public class PlannerSettings {
     private final long parallelTopNPromotionThresholdRows;
     private final int parallelTopNMaxWorkers;
     private final int inSubqueryHashJoinThreshold;
+    private final boolean minCompetitiveTimestampOptimizationEnabled;
+    private final int minCompetitiveGlobalMergeBatchPages;
+    private final int minCompetitiveGlobalMergeMaxPendingKeys;
+    private final int aggregationPartitioningCountThreshold;
+    private final ByteSizeValue aggregationPartitioningMemoryThreshold;
 
     /**
      * Defaults.
@@ -418,7 +509,12 @@ public class PlannerSettings {
         DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
         PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
         PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
-        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
+        MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED.getDefault(Settings.EMPTY),
+        MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY),
+        MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS.getDefault(Settings.EMPTY),
+        AGG_PARTITIONING_COUNT_THRESHOLD.getDefault(Settings.EMPTY),
+        AGG_PARTITIONING_MEMORY_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -443,7 +539,12 @@ public class PlannerSettings {
         int docSequenceBytesRefFieldThreshold,
         long parallelTopNPromotionThresholdRows,
         int parallelTopNMaxWorkers,
-        int inSubqueryHashJoinThreshold
+        int inSubqueryHashJoinThreshold,
+        boolean minCompetitiveTimestampOptimizationEnabled,
+        int minCompetitiveGlobalMergeBatchPages,
+        int minCompetitiveGlobalMergeMaxPendingKeys,
+        int aggregationPartitioningCountThreshold,
+        ByteSizeValue aggregationPartitioningMemoryThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -464,6 +565,11 @@ public class PlannerSettings {
         this.parallelTopNPromotionThresholdRows = parallelTopNPromotionThresholdRows;
         this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
         this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
+        this.minCompetitiveTimestampOptimizationEnabled = minCompetitiveTimestampOptimizationEnabled;
+        this.minCompetitiveGlobalMergeBatchPages = minCompetitiveGlobalMergeBatchPages;
+        this.minCompetitiveGlobalMergeMaxPendingKeys = minCompetitiveGlobalMergeMaxPendingKeys;
+        this.aggregationPartitioningCountThreshold = aggregationPartitioningCountThreshold;
+        this.aggregationPartitioningMemoryThreshold = aggregationPartitioningMemoryThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -486,7 +592,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -514,7 +625,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -542,7 +658,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -584,7 +705,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -612,7 +738,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -640,7 +771,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -668,7 +804,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -696,7 +837,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -731,7 +877,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -762,7 +913,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -793,7 +949,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -821,7 +982,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -849,7 +1015,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -877,7 +1048,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -905,7 +1081,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -933,7 +1114,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -961,7 +1147,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -989,7 +1180,12 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
@@ -1017,11 +1213,189 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
         );
     }
 
     public int inSubqueryHashJoinThreshold() {
         return inSubqueryHashJoinThreshold;
+    }
+
+    public PlannerSettings minCompetitiveTimestampOptimizationEnabled(boolean minCompetitiveTimestampOptimizationEnabled) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
+        );
+    }
+
+    public boolean minCompetitiveTimestampOptimizationEnabled() {
+        return minCompetitiveTimestampOptimizationEnabled;
+    }
+
+    public PlannerSettings minCompetitiveGlobalMergeBatchPages(int minCompetitiveGlobalMergeBatchPages) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
+        );
+    }
+
+    public int minCompetitiveGlobalMergeBatchPages() {
+        return minCompetitiveGlobalMergeBatchPages;
+    }
+
+    public PlannerSettings minCompetitiveGlobalMergeMaxPendingKeys(int minCompetitiveGlobalMergeMaxPendingKeys) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
+        );
+    }
+
+    public int minCompetitiveGlobalMergeMaxPendingKeys() {
+        return minCompetitiveGlobalMergeMaxPendingKeys;
+    }
+
+    public PlannerSettings aggregationPartitioningCountThreshold(int aggregationPartitioningCountThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
+        );
+    }
+
+    /**
+     * The number of grouping keys threshold for an aggregation to switch to partitioning mode.
+     * See {@link #AGG_PARTITIONING_COUNT_THRESHOLD}.
+     */
+    public int aggregationPartitioningCountThreshold() {
+        return aggregationPartitioningCountThreshold;
+    }
+
+    public PlannerSettings aggregationPartitioningMemoryThreshold(ByteSizeValue aggregationPartitioningMemoryThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveTimestampOptimizationEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveGlobalMergeMaxPendingKeys,
+            aggregationPartitioningCountThreshold,
+            aggregationPartitioningMemoryThreshold
+        );
+    }
+
+    /**
+     * The estimated memory of grouping keys threshold for an aggregation to switch to partitioning mode.
+     * See {@link #AGG_PARTITIONING_MEMORY_THRESHOLD}.
+     */
+    public ByteSizeValue aggregationPartitioningMemoryThreshold() {
+        return aggregationPartitioningMemoryThreshold;
     }
 }

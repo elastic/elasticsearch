@@ -198,12 +198,21 @@ public class FlatCentroidIndexWriter {
     }
 
     private static void writeRawCentroids(IndexOutput centroidOutput, CentroidSupplier centroidSupplier, int dimension) throws IOException {
-        final ByteBuffer buffer = ByteBuffer.allocate(dimension * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < centroidSupplier.size(); i++) {
-            float[] centroid = centroidSupplier.centroid(i);
-            buffer.clear();
-            buffer.asFloatBuffer().put(centroid);
-            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
+        if (centroidSupplier.size() > 0 && centroidSupplier.byteCentroid(0) != null) {
+            // Write byte centroids (1 byte/dim)
+            for (int i = 0; i < centroidSupplier.size(); i++) {
+                byte[] centroid = centroidSupplier.byteCentroid(i);
+                centroidOutput.writeBytes(centroid, centroid.length);
+            }
+        } else {
+            // Write float centroids (4 bytes/dim)
+            final ByteBuffer buffer = ByteBuffer.allocate(dimension * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            for (int i = 0; i < centroidSupplier.size(); i++) {
+                float[] centroid = centroidSupplier.centroid(i);
+                buffer.clear();
+                buffer.asFloatBuffer().put(centroid);
+                centroidOutput.writeBytes(buffer.array(), buffer.array().length);
+            }
         }
     }
 

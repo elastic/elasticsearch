@@ -177,6 +177,7 @@ public class AsyncOperatorTests extends ESTestCase {
             sourceOperator,
             intermediateOperators,
             outputOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
             () -> assertFalse(it.hasNext())
         );
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
@@ -314,7 +315,14 @@ public class AsyncOperatorTests extends ESTestCase {
         };
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            sourceOperator,
+            List.of(asyncOperator),
+            outputOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
+            localBreaker
+        );
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {

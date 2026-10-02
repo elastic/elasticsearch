@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Function that reverses a string.
  */
-public class Reverse extends UnaryScalarFunction {
+public class Reverse extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Reverse.class)
         .unary(Reverse::new)
@@ -115,6 +116,11 @@ public class Reverse extends UnaryScalarFunction {
             if (ref.bytes[i] < 0 // Anything encoded in multibyte utf-8
                 || ref.bytes[i] == 0x28 // Backspace
             ) {
+                return false;
+            }
+            // A carriage return followed by a line feed is a single grapheme cluster, so reversing
+            // the bytes would wrongly split it into "\n\r". Fall back to the grapheme-aware path.
+            if (ref.bytes[i] == '\r' && i + 1 < end && ref.bytes[i + 1] == '\n') {
                 return false;
             }
         }

@@ -162,21 +162,23 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
                     newValidity = allocator.buffer(bitBufferLength(length));
                     newValidity.setZero(0, newValidity.capacity());
                 }
+
+                for (int i = 0; i < length; i++) {
+                    int pos = positions[offset + i];
+                    copyBit(valueBuffer, pos, newValues, i);
+                    if (newValidity != null && isNull(pos) == false) {
+                        setBit(newValidity, i);
+                    }
+                }
+
+                var result = new BooleanArrowBufBlock(newValues, newValidity, null, length, 0, blockFactory);
                 success = true;
+                return result;
             } finally {
                 if (success == false) {
                     ArrowUtils.releaseBuffers(newValues, newValidity);
                 }
             }
-
-            for (int i = 0; i < length; i++) {
-                int pos = positions[offset + i];
-                copyBit(valueBuffer, pos, newValues, i);
-                if (newValidity != null && isNull(pos) == false) {
-                    setBit(newValidity, i);
-                }
-            }
-            return new BooleanArrowBufBlock(newValues, newValidity, null, length, 0, blockFactory);
         }
 
         int totalValues = 0;
@@ -194,31 +196,33 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
                 newValidity.setZero(0, newValidity.capacity());
             }
             newOffsets = allocator.buffer((long) (length + 1) * Integer.BYTES);
+
+            int valueIdx = 0;
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
+                newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
+                if (isNull(pos) == false) {
+                    if (newValidity != null) {
+                        setBit(newValidity, i);
+                    }
+                    int first = getFirstValueIndex(pos);
+                    int count = getValueCount(pos);
+                    for (int j = 0; j < count; j++) {
+                        copyBit(valueBuffer, first + j, newValues, valueIdx + j);
+                    }
+                    valueIdx += count;
+                }
+            }
+            newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
+
+            var result = new BooleanArrowBufBlock(newValues, newValidity, newOffsets, length, length + 1, blockFactory);
             success = true;
+            return result;
         } finally {
             if (success == false) {
                 ArrowUtils.releaseBuffers(newValues, newValidity, newOffsets);
             }
         }
-
-        int valueIdx = 0;
-        for (int i = 0; i < length; i++) {
-            int pos = positions[offset + i];
-            newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
-            if (isNull(pos) == false) {
-                if (newValidity != null) {
-                    setBit(newValidity, i);
-                }
-                int first = getFirstValueIndex(pos);
-                int count = getValueCount(pos);
-                for (int j = 0; j < count; j++) {
-                    copyBit(valueBuffer, first + j, newValues, valueIdx + j);
-                }
-                valueIdx += count;
-            }
-        }
-        newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
-        return new BooleanArrowBufBlock(newValues, newValidity, newOffsets, length, length + 1, blockFactory);
     }
 
     @Override
@@ -283,41 +287,42 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
                 newOffsets = allocator.buffer((long) (batchSize + 1) * Integer.BYTES);
                 newValidity = allocator.buffer(bitBufferLength(batchSize));
                 newValidity.setZero(0, newValidity.capacity());
+
+                int valueIdx = 0;
+                for (int p = batchStart; p < batchEnd; p++) {
+                    int outPos = p - batchStart;
+                    newOffsets.setInt((long) outPos * Integer.BYTES, valueIdx);
+                    int pStart = positions.getFirstValueIndex(p);
+                    int pEnd = pStart + positions.getValueCount(p);
+                    int valuesForPos = 0;
+                    for (int i = pStart; i < pEnd; i++) {
+                        int vp = positions.getInt(i);
+                        if (vp >= getPositionCount()) {
+                            continue;
+                        }
+                        int vStart = getFirstValueIndex(vp);
+                        int vCount = getValueCount(vp);
+                        for (int j = 0; j < vCount; j++) {
+                            copyBit(valueBuffer, vStart + j, newValues, valueIdx + j);
+                        }
+                        valueIdx += vCount;
+                        valuesForPos += vCount;
+                    }
+                    if (valuesForPos > 0) {
+                        setBit(newValidity, outPos);
+                    }
+                }
+                newOffsets.setInt((long) batchSize * Integer.BYTES, valueIdx);
+                position = batchEnd;
+
+                var result = new BooleanArrowBufBlock(newValues, newValidity, newOffsets, batchSize, batchSize + 1, factory);
                 success = true;
+                return result;
             } finally {
                 if (success == false) {
                     ArrowUtils.releaseBuffers(newValues, newOffsets, newValidity);
                 }
             }
-
-            int valueIdx = 0;
-            for (int p = batchStart; p < batchEnd; p++) {
-                int outPos = p - batchStart;
-                newOffsets.setInt((long) outPos * Integer.BYTES, valueIdx);
-                int pStart = positions.getFirstValueIndex(p);
-                int pEnd = pStart + positions.getValueCount(p);
-                int valuesForPos = 0;
-                for (int i = pStart; i < pEnd; i++) {
-                    int vp = positions.getInt(i);
-                    if (vp >= getPositionCount()) {
-                        continue;
-                    }
-                    int vStart = getFirstValueIndex(vp);
-                    int vCount = getValueCount(vp);
-                    for (int j = 0; j < vCount; j++) {
-                        copyBit(valueBuffer, vStart + j, newValues, valueIdx + j);
-                    }
-                    valueIdx += vCount;
-                    valuesForPos += vCount;
-                }
-                if (valuesForPos > 0) {
-                    setBit(newValidity, outPos);
-                }
-            }
-            newOffsets.setInt((long) batchSize * Integer.BYTES, valueIdx);
-            position = batchEnd;
-
-            return new BooleanArrowBufBlock(newValues, newValidity, newOffsets, batchSize, batchSize + 1, factory);
         }
 
         @Override

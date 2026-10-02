@@ -154,4 +154,10 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     public FunctionType functionType() {
         return FunctionType.ACROSS_SERIES_AGGREGATION;
     }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // Aggregates across series into a grouped result: a relabel below it must be part of this grouping's identity.
+        return false;
+    }
 }

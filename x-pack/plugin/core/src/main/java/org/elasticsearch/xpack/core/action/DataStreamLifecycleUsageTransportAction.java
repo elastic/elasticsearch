@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,7 +33,7 @@ import java.util.Map;
 
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final ProjectResolver projectResolver;
     private final boolean isStateless;
 
@@ -43,11 +43,11 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.projectResolver = projectResolver;
         this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
@@ -63,7 +63,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-            globalRetentionSettings.get(),
+            dataStreamLifecycleSettings.getGlobalRetention(),
             isStateless
         );
         listener.onResponse(new XPackUsageFeatureResponse(new DataStreamLifecycleFeatureSetUsage(lifecycleStats)));

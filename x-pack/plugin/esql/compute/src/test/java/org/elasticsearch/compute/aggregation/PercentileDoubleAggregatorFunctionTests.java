@@ -34,7 +34,7 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileDoubleAggregatorFunctionSupplier(percentile);
+        return new PercentileDoubleAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION);
     }
 
     @Override

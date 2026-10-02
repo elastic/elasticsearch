@@ -15,56 +15,57 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 
 import java.util.Comparator;
+import java.util.function.Function;
 
-/**
- * A comparator that compares {@link ShardRouting} instances based on various properties. Instances
- * are ordered as follows.
- * <ol>
- *     <li>First, system indices are ordered before non-system indices</li>
- *     <li>Then indices are ordered by their priority, in descending order (index.priority)</li>
- *     <li>Then newer indices are ordered before older indices, based on their creation date. This benefits
- *         time-series indices, where newer indices are considered more urgent (index.creation_date)</li>
- *     <li>Lastly the index names are compared, which is useful when a date is baked into the index
- *         name, e.g. <code>logstash-2015.05.03</code></li>
- * </ol>
- */
-public abstract class PriorityComparator implements Comparator<ShardRouting> {
+/// A helper class for prioritizing [IndexMetadata] or [ShardRouting] instances.
+public final class PriorityComparator {
 
-    @Override
-    public final int compare(ShardRouting o1, ShardRouting o2) {
-        final Index o1Index = o1.index();
-        final Index o2Index = o2.index();
-        int cmp = 0;
-        if (o1Index.equals(o2Index) == false) {
-            final IndexMetadata metadata01 = getMetadata(o1Index);
-            final IndexMetadata metadata02 = getMetadata(o2Index);
-            cmp = Boolean.compare(metadata02.isSystem(), metadata01.isSystem());
+    private PriorityComparator() {} // static utility class, should not be instantiated
 
+    /// Returns a comparator for [IndexMetadata] instances that orders instances as follows:
+    ///
+    /// 1. First, system indices are ordered before non-system indices.
+    /// 2. Then indices are ordered by their priority (`index.priority`), in descending order.
+    /// 3. Then newer indices are ordered before older indices, based on their creation date (`index.creation_date`). This benefits
+    /// time-series indices, where newer indices are considered more urgent
+    /// 4. Lastly the index names are compared, which is useful when a date is baked into the index name, e.g. `logstash-2015.05.03`.
+    public static Comparator<IndexMetadata> getIndexMetadataComparator() {
+        return PriorityComparator::compareIndexMetadata;
+    }
+
+    /// Returns a comparator for [ShardRouting] instances that orders instances using the same rules as [#getIndexMetadataComparator()],
+    /// using the given [RoutingAllocation] to provide the [IndexMetadata].
+    public static Comparator<ShardRouting> getAllocationComparator(RoutingAllocation allocation) {
+        return getShardRoutingComparator(index -> allocation.metadata().indexMetadata(index));
+    }
+
+    // visible for testing
+    /// Returns a comparator for [ShardRouting] instances that orders instances using the same rules as [#getIndexMetadataComparator()],
+    /// using the given [Function] to provide the [IndexMetadata].
+    static Comparator<ShardRouting> getShardRoutingComparator(Function<Index, IndexMetadata> metadataMapper) {
+        return (shard1, shard2) -> compareShardRoutings(metadataMapper, shard1, shard2);
+    }
+
+    private static int compareIndexMetadata(IndexMetadata metadata1, IndexMetadata metadata2) {
+        int cmp = Boolean.compare(metadata2.isSystem(), metadata1.isSystem());
+        if (cmp == 0) {
+            cmp = Long.compare(metadata2.priority(), metadata1.priority());
             if (cmp == 0) {
-                cmp = Long.compare(metadata02.priority(), metadata01.priority());
-
+                cmp = Long.compare(metadata2.getCreationDate(), metadata1.getCreationDate());
                 if (cmp == 0) {
-                    cmp = Long.compare(metadata02.getCreationDate(), metadata01.getCreationDate());
-                    if (cmp == 0) {
-                        cmp = o2Index.getName().compareTo(o1Index.getName());
-                    }
+                    cmp = metadata2.getIndex().getName().compareTo(metadata1.getIndex().getName());
                 }
             }
         }
         return cmp;
     }
 
-    protected abstract IndexMetadata getMetadata(Index index);
-
-    /**
-     * Returns a PriorityComparator that uses the RoutingAllocation index metadata to access the index setting per index.
-     */
-    public static PriorityComparator getAllocationComparator(final RoutingAllocation allocation) {
-        return new PriorityComparator() {
-            @Override
-            protected IndexMetadata getMetadata(Index index) {
-                return allocation.metadata().indexMetadata(index);
-            }
-        };
+    private static int compareShardRoutings(Function<Index, IndexMetadata> metadataMapper, ShardRouting shard1, ShardRouting shard2) {
+        final Index o1Index = shard1.index();
+        final Index o2Index = shard2.index();
+        if (o1Index.equals(o2Index)) {
+            return 0;
+        }
+        return compareIndexMetadata(metadataMapper.apply(o1Index), metadataMapper.apply(o2Index));
     }
 }

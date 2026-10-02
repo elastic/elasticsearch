@@ -46,7 +46,7 @@ public class AvgSerializationTests extends AbstractExpressionSerializationTests<
         return new Avg(instance.source(), field, filter, window, summationMode);
     }
 
-    public static class OldAvg extends AggregateFunction {
+    public static class OldAvg extends UnaryAggregateFunction {
         public OldAvg(Source source, Expression field, Expression filter) {
             super(source, field, filter, NO_WINDOW, List.of());
         }

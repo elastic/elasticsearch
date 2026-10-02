@@ -63,7 +63,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery.Builder#getSlop()
+     * @see org.apache.lucene.search.PhraseQuery.Builder#setSlop(int)
      */
     public int getSlop() {
         return slop;

@@ -57,15 +57,10 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         bulkItemResponses.remove(2);
         assertFirstException(bulkItemResponses.values(), IllegalArgumentException.class, "illegal argument error");
         bulkItemResponses.remove(3);
-        assertFirstException(bulkItemResponses.values(), ElasticsearchSecurityException.class, "Authentication required");
-        bulkItemResponses.remove(6);
-        assertFirstException(
-            bulkItemResponses.values(),
-            ElasticsearchSecurityException.class,
-            "current license is non-compliant for [transform]"
-        );
-        bulkItemResponses.remove(7);
-
+        // The remaining failures are all recoverable. In particular ElasticsearchSecurityException (auth/authz
+        // denials, e.g. the UNAUTHORIZED and the FORBIDDEN license failure above) is treated as retryable, because
+        // such denials can be transient during cluster-membership churn in serverless (the .security index is
+        // briefly unresolvable, so role resolution returns empty and the write is denied with a 403).
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
@@ -88,6 +83,22 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertFalse(
             ExceptionRootCauseFinder.isExceptionIrrecoverable(
                 new CircuitBreakingException("circuit broken", CircuitBreaker.Durability.TRANSIENT)
+            )
+        );
+        // Authorization (403) and authentication (401) failures are retryable: they can be transient during
+        // cluster-membership churn in serverless, where the .security index is briefly unresolvable and role
+        // resolution returns empty. A genuinely persistent auth failure still fails once the retry limit is hit.
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new ElasticsearchSecurityException(
+                    "action [indices:data/write/bulk] is unauthorized ... with effective roles []",
+                    RestStatus.FORBIDDEN
+                )
+            )
+        );
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED)
             )
         );
         assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexClosedException(new Index("index", "1234"))));

@@ -7,52 +7,74 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
-import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Verifies that {@link PushFiltersToSource#resolveFormatName} delegates to
- * {@link FormatNameResolver#resolve}. Comprehensive resolution tests live in
+ * Filter pushdown onto an {@link ExternalSourceExec} keys the reader on {@code sourceType}, not a last-dot
+ * of {@code sourcePath()}. Comprehensive format-name resolution tests live in
  * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolverTests}.
  */
 public class PushFiltersToSourceTests extends ESTestCase {
 
-    public void testResolveFormatNameDelegatesToFormatNameResolver() {
-        assertEquals(
-            FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"),
-            PushFiltersToSource.resolveFormatName(Map.of("reader", "java"), "file.parquet")
-        );
+    /**
+     * A compressed CSV path last-dots to {@code gz}. The plan's {@code sourceType} is still {@code csv}, so
+     * pushdown must look up the csv reader — the same origin as {@code InsertExternalFieldExtraction}.
+     */
+    public void testPushesCompressedCsvUsingSourceTypeNotPathSuffix() {
+        FilterExec filterExec = filterOverExternalSource("file:///hits.csv.gz", "csv", "null_field", Set.of());
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
-    public void testResolveFormatNameFromExtension() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(null, "s3://bucket/data/file.orc"));
+    /**
+     * {@code sourceType=parquet} still pushes when the path uses the {@code .parq} alias. The rule keys
+     * the reader on {@code sourceType}, not a last-dot of {@code sourcePath()}.
+     */
+    public void testPushesParquetSourceTypeForParqAliasPaths() {
+        for (String path : List.of("file:///data/*.parq", "file:///data/file.parq")) {
+            FilterExec filterExec = filterOverExternalSource(path, "parquet", "null_field", Set.of());
+            PhysicalPlan result = applyRule(filterExec, registry(true));
+            assertThat(path, result, instanceOf(ExternalSourceExec.class));
+            assertNotNull(path, ((ExternalSourceExec) result).pushedFilter());
+        }
     }
 
     // -- referencesAnyColumn: partition/data conjunct split --
@@ -88,212 +110,208 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertFalse(PushFiltersToSource.referencesAnyColumn(lit, Set.of("lang")));
     }
 
+    // -- skip_row row-drop guard: readers that cannot drop rows once filtered must not receive the filter --
+
     /**
-     * The happy path: a single conjunction of one {@code >=} and one {@code <=} on the same
-     * {@code field_extract(root, "k")} folds into one inclusive {@code Range}. The plan run
-     * by {@code PushFiltersToSource} must therefore land a {@code RangeQuery} on the keyed
-     * sub-field, with no {@code FilterExec} left behind.
+     * A pushed filter is the only signal Parquet keys late materialization off, and that path emits pages without
+     * the row-drop compaction — so a coercion failure there would null the cell and keep the row, silently serving
+     * {@code null_field} semantics for a {@code skip_row} read. The rule must leave the predicate in the FilterExec.
+     * <p>
+     * This has to be decided here, at the mint. The operator factory cannot undo it later: for a
+     * {@code Pushability.YES} conjunct the FilterExec is already gone, so suppressing the filter downstream would
+     * leak unfiltered rows instead.
      */
-    public void testCombinesGreaterThanOrEqualAndLessThanOrEqualOnFieldExtractIntoRange() {
-        assumeQueryPushdownEnabled();
-        FieldAttribute root = flattenedRoot("resource.attributes");
-        FieldExtract fe = fieldExtract(root, "host.name");
-        Expression lower = new GreaterThanOrEqual(SRC, fe, Literal.keyword(SRC, "node-a"));
-        Expression upper = new LessThanOrEqual(SRC, fe, Literal.keyword(SRC, "node-z"));
+    public void testDoesNotPushWhenReaderCannotDropRowsUnderPushedFilter() {
+        FilterExec filterExec = filterOverExternalSource("skip_row", Set.of("salary"));
 
-        List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
-            List.of(lower, upper),
-            UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
-        );
+        PhysicalPlan result = applyRule(filterExec, registry(/* dropsRowsUnderPushedFilter = */ false));
 
-        assertThat(result, hasSize(1));
-        assertThat(result.get(0), instanceOf(Range.class));
-        Range range = (Range) result.get(0);
-        assertThat(range.value(), equalTo(fe));
-        assertThat(range.lower(), equalTo(Literal.keyword(SRC, "node-a")));
-        assertThat(range.upper(), equalTo(Literal.keyword(SRC, "node-z")));
-        assertThat(range.includeLower(), equalTo(true));
-        assertThat(range.includeUpper(), equalTo(true));
+        assertSame("the filter must stay above the source, unpushed", filterExec, result);
     }
 
     /**
-     * The combine must respect the strictness of each half independently: {@code >} folds to
-     * an exclusive lower bound, {@code <} folds to an exclusive upper bound. Verifies the
-     * boundary flags from the original BCs land on the produced {@code Range}.
+     * The stub above reaches {@code false} by saying nothing, which is the point: the SPI default is the conservative
+     * answer, so a reader written without a thought for {@code skip_row} loses the pushdown rather than the row-drop.
+     * Pinned separately from the rule so a flip of the default is a failure here and not only a silent correctness
+     * regression in whichever reader forgot to opt out.
      */
-    public void testCombinesGreaterThanAndLessThanOnFieldExtractIntoExclusiveRange() {
-        assumeQueryPushdownEnabled();
-        FieldAttribute root = flattenedRoot("resource.attributes");
-        FieldExtract fe = fieldExtract(root, "host.name");
-        Expression lower = new GreaterThan(SRC, fe, Literal.keyword(SRC, "node-a"));
-        Expression upper = new LessThan(SRC, fe, Literal.keyword(SRC, "node-z"));
+    public void testReaderSilentAboutRowDropTakesTheConservativeDefault() {
+        assertFalse(new StubReader().dropsRowsUnderPushedFilter());
+    }
 
-        List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
-            List.of(lower, upper),
-            UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
-        );
+    /** The same read on a reader that does drop rows on its filtered path (ORC) keeps the pushdown. */
+    public void testPushesWhenReaderDropsRowsUnderPushedFilter() {
+        FilterExec filterExec = filterOverExternalSource("skip_row", Set.of("salary"));
 
-        assertThat(result, hasSize(1));
-        Range range = (Range) result.get(0);
-        assertThat(range.includeLower(), equalTo(false));
-        assertThat(range.includeUpper(), equalTo(false));
+        PhysicalPlan result = applyRule(filterExec, registry(/* dropsRowsUnderPushedFilter = */ true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
     /**
-     * A lone {@code >=} or {@code <=} on {@code field_extract} must <em>not</em> be turned into
-     * a {@code Range} by the combiner. Single-sided ranges now have their own direct pushdown
-     * path on {@code EsqlBinaryComparison}, so the unpaired half stays as a binary comparison
-     * and is translated against the keyed flattened mapper's single-sided range support. The
-     * combiner only ever folds matching {@code (lower, upper)} pairs.
+     * Invert emits {@code ts >= start AND ts < next} as two comparisons, not a {@code Range} node.
+     * Pushdown must accept that DATETIME pair through FilterExec → ExternalSourceExec.
      */
-    public void testDoesNotCombineSingleSidedRangeOnFieldExtract() {
-        assumeQueryPushdownEnabled();
-        FieldAttribute root = flattenedRoot("resource.attributes");
-        FieldExtract fe = fieldExtract(root, "host.name");
-        Expression lower = new GreaterThanOrEqual(SRC, fe, Literal.keyword(SRC, "node-a"));
-
-        List<Expression> conjuncts = List.of(lower);
-        List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
-            conjuncts,
-            UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
-        );
-
-        // Same reference: with no matching upper, the combiner short-circuits and returns the
-        // original list rather than constructing a new one. The binary comparison itself is
-        // independently pushable through the {@code FieldExtract} branch on
-        // {@link EsqlBinaryComparison#translatable}, so the surrounding classification picks it
-        // up directly.
-        assertThat(result, equalTo(conjuncts));
-    }
-
-    /**
-     * Pairs across different flattened roots or different literal keys must stay separate.
-     * Two halves only fold together when {@code FieldExtract#tryAsKeyedSubfieldName} returns
-     * the same synthetic data-node field name for both.
-     */
-    public void testDoesNotCombineWhenFieldExtractRootsDiffer() {
-        assumeQueryPushdownEnabled();
-        FieldAttribute root = flattenedRoot("resource.attributes");
-        // Two field_extract calls on the same root but for different literal sub-keys produce
-        // different synthetic field names (root.host.name vs root.agent.id), so the combiner
-        // groups them into separate buckets and finds no pair.
-        FieldExtract hostExtract = fieldExtract(root, "host.name");
-        FieldExtract agentExtract = fieldExtract(root, "agent.id");
-        Expression lower = new GreaterThanOrEqual(SRC, hostExtract, Literal.keyword(SRC, "node-a"));
-        Expression upper = new LessThanOrEqual(SRC, agentExtract, Literal.keyword(SRC, "id-z"));
-
-        List<Expression> conjuncts = List.of(lower, upper);
-        List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
-            conjuncts,
-            UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
-        );
-
-        assertThat(result, equalTo(conjuncts));
-    }
-
-    /**
-     * The combiner resolves {@code ReferenceAttribute}s through {@code aliasReplacedBy} before
-     * the {@code FieldExtract}-shape check. The applicable shape is an EVAL or RENAME that
-     * aliases the <em>flattened root</em> (e.g. {@code | EVAL my_root = real_root | WHERE
-     * field_extract(my_root, "k") >= "a" AND field_extract(my_root, "k") <= "z"}); after
-     * resolution the two halves point at the same underlying root and fold into a single
-     * {@code Range}.
-     */
-    public void testCombinesFieldExtractRangePairsOnAliasResolvedConjuncts() {
-        assumeQueryPushdownEnabled();
-        FieldAttribute realRoot = flattenedRoot("real_root");
-        // The alias map records a ReferenceAttribute "my_root" pointing at the real flattened
-        // attribute. The conjuncts below address the alias; only after alias resolution does
-        // the field_extract see a true FieldAttribute and become eligible for the keyed-name
-        // lookup.
-        ReferenceAttribute aliasAttr = new ReferenceAttribute(SRC, "my_root", DataType.FLATTENED);
-        AttributeMap.Builder<Attribute> aliasBuilder = AttributeMap.builder();
-        aliasBuilder.put(aliasAttr, realRoot);
-        AttributeMap<Attribute> aliasReplacedBy = aliasBuilder.build();
-
-        FieldExtract aliasedExtract = new FieldExtract(SRC, aliasAttr, Literal.keyword(SRC, "host.name"));
-        Expression lower = new GreaterThanOrEqual(SRC, aliasedExtract, Literal.keyword(SRC, "node-a"));
-        Expression upper = new LessThanOrEqual(SRC, aliasedExtract, Literal.keyword(SRC, "node-z"));
-
-        List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
-            List.of(lower, upper),
-            UNMAPPED_KEY_PREDICATES,
-            aliasReplacedBy
-        );
-
-        assertThat(result, hasSize(1));
-        Range range = (Range) result.get(0);
-        // The produced Range references the resolved field_extract (the one whose field is the
-        // real FieldAttribute), not the original aliased one. The classification loop's later
-        // alias-resolution pass would therefore be a no-op for this Range.
-        Expression rangeValue = range.value();
-        assertThat(rangeValue, instanceOf(FieldExtract.class));
-        assertThat(((FieldExtract) rangeValue).children().get(0), equalTo(realRoot));
-    }
-
-    /**
-     * Combining must not affect {@link FieldAttribute} LHS: those are still handled by the
-     * existing post-classification {@code combineEligiblePushableToRange} step. This test
-     * pins down that the new pre-pass is additive, not a replacement.
-     */
-    public void testFieldAttributeRangePairsAreNotCombinedByPrePass() {
-        FieldAttribute keyword = new FieldAttribute(
+    public void testPushesDatetimeHalfOpenInequalityPair() {
+        FieldAttribute ts = datetimeField("ts");
+        long start = java.time.Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = java.time.Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+        Expression range = new And(
             SRC,
-            "host.name",
-            new EsField("host.name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start, DataType.DATETIME), null),
+            new LessThan(SRC, ts, new Literal(SRC, next, DataType.DATETIME), null)
         );
-        Expression lower = new GreaterThanOrEqual(SRC, keyword, Literal.keyword(SRC, "node-a"));
-        Expression upper = new LessThanOrEqual(SRC, keyword, Literal.keyword(SRC, "node-z"));
+        ExternalSourceExec source = new ExternalSourceExec(
+            SRC,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "null_field"),
+            Map.of(),
+            null,
+            null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+        FilterExec filterExec = new FilterExec(SRC, source, range);
 
-        List<Expression> conjuncts = List.of(lower, upper);
-        List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
-            conjuncts,
-            UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
-        );
+        PhysicalPlan result = applyRule(filterExec, registry(true));
 
-        // FieldAttribute LHS never enters the field_extract bucket. The pre-pass is a no-op
-        // and returns the original list; the post-classification combineEligiblePushableToRange
-        // continues to own this case.
-        assertThat(result, equalTo(conjuncts));
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
-    private static FieldAttribute flattenedRoot(String name) {
-        return new FieldAttribute(SRC, name, new EsField(name, DataType.FLATTENED, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    /** No declared column types means nothing can fail to coerce, so no row is ever dropped: pushdown stays on
+     *  even for a reader that cannot drop rows, and skip_row costs nothing. */
+    public void testPushesUnderSkipRowWithoutDeclaredTypeColumns() {
+        FilterExec filterExec = filterOverExternalSource("skip_row", Set.of());
+
+        PhysicalPlan result = applyRule(filterExec, registry(false));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
-    private static FieldExtract fieldExtract(FieldAttribute root, String key) {
-        return new FieldExtract(SRC, root, Literal.keyword(SRC, key));
-    }
+    /** Declared column types under a mode that keeps every row are equally harmless. */
+    public void testPushesUnderNullFieldWithDeclaredTypeColumns() {
+        FilterExec filterExec = filterOverExternalSource("null_field", Set.of("salary"));
 
-    private static void assumeQueryPushdownEnabled() {
-        assumeTrue("fn_field_extract must be enabled for this test path", FieldExtract.isFnFieldExtractCapabilityMet());
+        PhysicalPlan result = applyRule(filterExec, registry(false));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
     private static final Source SRC = Source.EMPTY;
 
-    /**
-     * A stats-backed predicate whose {@code SearchStats} reports the {@code field_extract} loader config as
-     * supported (i.e. the sub-key is an unmapped keyed sub-field, so it stays pushable) while relying on the
-     * attribute's aggregatable flag for indexed/doc-values. The stats-less
-     * {@link LucenePushdownPredicates#DEFAULT} now conservatively reports no loader config as supported
-     * (can_match has no mapping access), so these recognition tests use this predicate to exercise the
-     * pushable (unmapped) path that local physical planning sees with real {@code SearchStats}.
-     */
-    private static final LucenePushdownPredicates UNMAPPED_KEY_PREDICATES = LucenePushdownPredicates.from(
-        new EsqlTestUtils.TestSearchStats(),
-        new EsqlFlags(true)
-    );
-
     private static FieldAttribute fieldAttr(String name) {
-        return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        return fieldAttr(name, DataType.INTEGER);
+    }
+
+    private static FieldAttribute datetimeField(String name) {
+        return fieldAttr(name, DataType.DATETIME);
+    }
+
+    private static FieldAttribute fieldAttr(String name, DataType type) {
+        return new FieldAttribute(SRC, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static Literal intLiteral(int value) {
         return new Literal(SRC, value, DataType.INTEGER);
+    }
+
+    private static FilterExec filterOverExternalSource(String errorMode, Set<String> declaredTypeColumns) {
+        return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, declaredTypeColumns);
+    }
+
+    private static FilterExec filterOverExternalSource(
+        String sourcePath,
+        String sourceType,
+        String errorMode,
+        Set<String> declaredTypeColumns
+    ) {
+        FieldAttribute salary = fieldAttr("salary");
+        ExternalSourceExec source = new ExternalSourceExec(
+            SRC,
+            sourcePath,
+            sourceType,
+            List.of(salary),
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode),
+            Map.of(),
+            /* pushedFilter = */ null,
+            /* estimatedRowSize = */ null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns));
+        return new FilterExec(SRC, source, new Equals(SRC, salary, intLiteral(100)));
+    }
+
+    private static PhysicalPlan applyRule(FilterExec filterExec, FormatReaderRegistry registry) {
+        LocalPhysicalOptimizerContext ctx = new LocalPhysicalOptimizerContext(
+            null,
+            null,
+            null,
+            FoldContext.small(),
+            null,
+            new ExternalOptimizerContext(registry)
+        );
+        return new PushFiltersToSource().apply(filterExec, ctx);
+    }
+
+    private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        FormatReader parquet = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
+        registry.registerLazy("parquet", (settings, blockFactory) -> parquet, null, null);
+        // csv is registered so a compressed csv sourceType still finds a pushdown-capable reader.
+        registry.registerLazy("csv", (settings, blockFactory) -> new DroppingStubReader(), null, null);
+        return registry;
+    }
+
+    /**
+     * Reader stub whose only interesting behaviour is the pair the rule consults: it always offers pushdown (via a
+     * support object that swallows every conjunct) and says nothing at all about
+     * {@link FormatReader#dropsRowsUnderPushedFilter()} — the shape a newly written reader has, so it takes the SPI
+     * default. The remaining {@link NoConfigFormatReader} methods stay unimplemented so accidental use during a rule
+     * pass is loud.
+     */
+    private static class StubReader implements NoConfigFormatReader {
+
+        @Override
+        public FilterPushdownSupport filterPushdownSupport() {
+            return filters -> new FilterPushdownSupport.PushdownResult("opaque", filters, List.of());
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /** The opt-in half: a reader that does declare the row-drop on its filtered path, as ORC does. */
+    private static final class DroppingStubReader extends StubReader {
+        @Override
+        public boolean dropsRowsUnderPushedFilter() {
+            return true;
+        }
     }
 }

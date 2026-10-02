@@ -11,20 +11,20 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
-import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
+import org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Estimates the heap footprint of a {@link SegmentInfos} from commit metadata without opening a reader. Per
- * segment, sums a fixed baseline ({@link StatelessMemoryMetricsService#ADAPTIVE_SEGMENT_MEMORY_OVERHEAD}),
+ * segment, sums a fixed baseline ({@link ShardHeapEstimator#ADAPTIVE_SEGMENT_MEMORY_OVERHEAD}),
  * the in-memory postings bytes recorded by {@link TrackingPostingsInMemoryBytesCodec}, and the soft-delete
  * {@code FixedBitSet} when the segment has soft deletes.
  */
 public final class DirectoryReaderHeapEstimator {
 
-    public static final long PER_SEGMENT_BASELINE_BYTES = StatelessMemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes();
+    public static final long PER_SEGMENT_BASELINE_BYTES = ShardHeapEstimator.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes();
 
     private DirectoryReaderHeapEstimator() {}
 

@@ -36,7 +36,7 @@ public interface XContent {
     boolean hasBulkSeparator();
 
     /**
-     * @return a {@link byte} that separates items in a bulk request that uses this {@link XContent}.
+     * @return a {@code byte} that separates items in a bulk request that uses this {@link XContent}.
      * @throws RuntimeException if this {@link XContent} does not support a delimited bulk format. See {@link #hasBulkSeparator()}.
      */
     byte bulkSeparator();

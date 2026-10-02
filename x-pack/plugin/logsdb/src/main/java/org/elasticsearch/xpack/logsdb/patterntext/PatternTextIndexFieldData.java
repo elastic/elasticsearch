@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -74,7 +74,7 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
         final BinaryDocValues values = PatternTextFallbackDocValues.from(context, fieldType);
         return new LeafFieldData() {
 
-            final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
+            final ToScriptFieldFactory<SortableBinaryDocValues> factory = KeywordDocValuesField::new;
 
             @Override
             public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
@@ -82,8 +82,8 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
             }
 
             @Override
-            public SortedBinaryDocValues getBytesValues() {
-                return new SortedBinaryDocValues(values) {
+            public SortableBinaryDocValues getBytesValues() {
+                return new SortableBinaryDocValues(values) {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
                         return values != null && values.advanceExact(doc);

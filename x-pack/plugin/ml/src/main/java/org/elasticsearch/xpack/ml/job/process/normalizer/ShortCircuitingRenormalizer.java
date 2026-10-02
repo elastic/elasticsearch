@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
 import java.util.Date;
@@ -176,7 +179,21 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                         latestAugmentedQuantiles.getWindowExtensionMs()
                     );
                 } catch (Exception e) {
-                    logger.error("[" + jobId + "] Normalization failed", e);
+                    if (ExceptionsHelper.unwrap(e, SearchContextMissingNodesException.class, SearchContextMissingException.class) != null) {
+                        // The scroll context backing this renormalization was lost, for example because a node
+                        // holding it left the cluster during a rolling restart, or because the context expired.
+                        // Renormalization is best-effort: the same time window will be renormalized again when the
+                        // next bucket completes, so this is an expected, self-healing transient rather than an error.
+                        logger.warn(
+                            () -> "["
+                                + jobId
+                                + "] Normalization did not complete because the search context was lost; "
+                                + "it will be retried when the next bucket is processed",
+                            e
+                        );
+                    } else {
+                        logger.error(() -> "[" + jobId + "] Normalization failed", e);
+                    }
                 } finally {
                     latch.countDown();
                 }

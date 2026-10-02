@@ -71,10 +71,11 @@ public final class HypotEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock n1Block, DoubleBlock n2Block) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (n1Block.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (n1Block.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class HypotEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (n2Block.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (n2Block.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -124,7 +126,7 @@ public final class HypotEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -50,6 +50,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
@@ -173,6 +174,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
+    }
+
+    @Override
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // should no longer be needed in v10 as the deprecated settings are all gone
+    protected boolean enableWarningsCheck() {
+        // this test suite is about retries; it sometimes uses some deprecated settings causing warnings but these warnings are tested
+        // elsewhere so there's no need to check them here
+        return false;
     }
 
     @After

@@ -17,6 +17,7 @@ import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ENABLE
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ROLES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class StatelessPluginTests extends ESTestCase {
 
@@ -169,6 +171,11 @@ public class StatelessPluginTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeInvalidSettings));
         assertThat(ex.getMessage(), containsString("does not support setting data_streams.lifecycle_only.mode to false"));
+    }
+
+    public void testIdLookupPrewarmEnabledSettingIsRegistered() {
+        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        assertThat(plugin.getSettings(), hasItem(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING));
     }
 
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -236,7 +237,9 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         final var taskId = registration.taskIdFn().apply(projectId);
         final boolean taskExists = PersistentTasksCustomMetadata.getTaskWithId(project, taskId) != null;
         final boolean enabled = registration.enabled().getAsBoolean();
-        if (enabled && taskExists == false) {
+        // A project under deletion rejects new persistent tasks; don't keep trying to start one on every metadata change.
+        final boolean underDeletion = ProjectMetadata.isProjectUnderDeletion(state.blocks(), projectId);
+        if (enabled && taskExists == false && underDeletion == false) {
             sendProjectTaskStartRequest(registration, projectId, taskId);
         } else if (enabled == false && taskExists) {
             sendProjectTaskRemoveRequest(registration, projectId, taskId);

@@ -82,19 +82,33 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
             equalTo(1L)
         );
         assertThat(
-            "a zero midpoint (content at the epoch) is floored to the oldest representable instant",
+            "a zero midpoint (content at the epoch) is floored to the minimal cache timestamp",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(0L, 0L)),
-            equalTo(1L)
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat(
-            "a negative midpoint (content before the epoch) is floored to the oldest representable instant",
+            "a negative midpoint (content before the epoch) is floored to the minimal cache timestamp",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-3000L, -1000L)),
-            equalTo(1L)
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat(
             "a range whose midpoint would collide with the UNKNOWN_TIMESTAMP sentinel (-1) is floored, not treated as unknown",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-2L, 0L)),
-            equalTo(1L)
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
+        );
+    }
+
+    public void testFirstKnownTimestamp() {
+        assertThat(BlobFileRanges.firstKnownTimestamp(1000L, 2000L), equalTo(1000L));
+        assertThat(BlobFileRanges.firstKnownTimestamp(1000L, SharedBlobCacheService.UNKNOWN_TIMESTAMP), equalTo(1000L));
+        assertThat(BlobFileRanges.firstKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, 2000L), equalTo(2000L));
+        assertThat(
+            BlobFileRanges.firstKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, SharedBlobCacheService.UNKNOWN_TIMESTAMP),
+            equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+        );
+        assertThat(
+            BlobFileRanges.firstKnownTimestamp(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP, 2000L),
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
     }
 
@@ -149,6 +163,28 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         assertThat(withReplicated.reconcileWith(withReplicated).locationOfFirstReplicatedContents(), equalTo(expectedCopy));
     }
 
+    public void testMostRecentKnownTimestampPrefersNonNegativeOverUnknown() {
+        // A known timestamp always wins over UNKNOWN, regardless of argument order.
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, 1000L), equalTo(1000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(2000L, SharedBlobCacheService.UNKNOWN_TIMESTAMP), equalTo(2000L));
+        // With two known timestamps the larger one wins irrespective of order: this is a max, not "the last one folded in".
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(1000L, 3000L), equalTo(3000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(3000L, 1000L), equalTo(3000L));
+        // MINIMAL_CACHE_TIMESTAMP (0L) is a known value and must still beat UNKNOWN.
+        assertThat(
+            BlobFileRanges.mostRecentKnownTimestamp(
+                SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP,
+                SharedBlobCacheService.UNKNOWN_TIMESTAMP
+            ),
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
+        );
+        // Two UNKNOWNs fold to UNKNOWN (nothing known yet).
+        assertThat(
+            BlobFileRanges.mostRecentKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, SharedBlobCacheService.UNKNOWN_TIMESTAMP),
+            equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+        );
+    }
+
     private static BlobLocation randomBlobLocation() {
         return createBlobLocation(
             randomLongBetween(1, 10),
@@ -169,7 +205,7 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         final long generation = randomNonZeroPositiveLong();
         final var cc = getCommitWithInternalFilesReplicatedRanges(
             randomShardId(),
-            new BlobFile(StatelessCompoundCommit.PREFIX + generation, new PrimaryTermAndGeneration(primaryTerm, generation)),
+            new BlobFile(BatchedCompoundCommit.PREFIX + generation, new PrimaryTermAndGeneration(primaryTerm, generation)),
             "_na_",
             0,
             ByteSizeValue.ofKb(4).getBytes()

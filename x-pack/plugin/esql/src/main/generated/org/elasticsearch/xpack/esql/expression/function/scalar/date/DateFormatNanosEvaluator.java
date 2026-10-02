@@ -83,10 +83,11 @@ public final class DateFormatNanosEvaluator implements ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -94,10 +95,11 @@ public final class DateFormatNanosEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (formatterBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (formatterBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -138,7 +140,7 @@ public final class DateFormatNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

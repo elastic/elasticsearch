@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
@@ -24,6 +26,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests.randomQueryConfig;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -278,6 +281,77 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(equalTo(scriptBasedRuntimeMappings)));
     }
 
+    public void testWithProjectRouting() {
+        SourceConfig original = new SourceConfig(
+            new String[] { "index1", "index2" },
+            randomQueryConfig(),
+            Map.of("field", Map.of("type", "keyword")),
+            indicesOptions(),
+            null
+        );
+
+        SourceConfig withRouting = original.withProjectRouting("_alias:_origin");
+        assertThat(withRouting.getProjectRouting(), equalTo("_alias:_origin"));
+        assertThat(withRouting.getIndex(), equalTo(original.getIndex()));
+        assertThat(withRouting.getQueryConfig(), equalTo(original.getQueryConfig()));
+        assertThat(withRouting.getRuntimeMappings(), equalTo(original.getRuntimeMappings()));
+        assertThat(withRouting.indicesOptions(true), equalTo(original.indicesOptions(true)));
+
+        SourceConfig cleared = withRouting.withProjectRouting(null);
+        assertThat(cleared.getProjectRouting(), is(equalTo(null)));
+        assertThat(cleared.getIndex(), equalTo(original.getIndex()));
+    }
+
+    public void testIndicesOptionsScopingDropsCrossProjectWhenNotAllowed() {
+        SourceConfig cpsSource = randomSourceConfig(true);
+        assertThat(cpsSource.indicesOptions(true).resolveCrossProjectIndexExpression(), is(true));
+
+        // Not allowed to fan out (no credential): cross-project resolution is dropped, and the result
+        // matches the plain local-only options the transform would otherwise use.
+        assertThat(cpsSource.indicesOptions(false).resolveCrossProjectIndexExpression(), is(false));
+        assertThat(cpsSource.indicesOptions(false), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN));
+    }
+
+    public void testIndicesOptionsScopingIsNoopWhenSourceIsLocalOnly() {
+        SourceConfig localSource = randomSourceConfig(false);
+        assertThat(localSource.indicesOptions(true).resolveCrossProjectIndexExpression(), is(false));
+        // Nothing to drop, so scoping never changes a non-cross-project source regardless of credential.
+        assertThat(localSource.indicesOptions(false), equalTo(localSource.indicesOptions(true)));
+    }
+
+    /**
+     * {@code project_routing} is declared via {@code declareString}, which only accepts
+     * {@code VALUE_STRING} tokens — not {@code VALUE_NULL} — for both the strict and lenient
+     * parsers (the declaration doesn't branch on {@code lenient}). So a caller cannot express
+     * "clear project_routing" as a literal JSON {@code null}; the request must omit the field
+     * entirely instead. This matters for {@code _update}: `TransformUpdater` treats "the update
+     * explicitly supplied a source config" as an opt-out from the migration LOCAL_ONLY default —
+     * but only when the source config is parseable in the first place.
+     */
+    public void testProjectRoutingRejectsExplicitNull() throws IOException {
+        String source = """
+            {
+              "index": ["index1"],
+              "project_routing": null
+            }""";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> SourceConfig.fromXContent(parser, false, new TransformParsingContext(crossProject))
+            );
+            assertThat(e.getMessage(), containsString("project_routing"));
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> SourceConfig.fromXContent(parser, true, new TransformParsingContext(crossProject))
+            );
+            assertThat(e.getMessage(), containsString("project_routing"));
+        }
+    }
+
     public void testRequiresRemoteCluster() {
         assertFalse(
             new SourceConfig(
@@ -360,7 +434,7 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
             instance.getIndex(),
             instance.getQueryConfig(),
             instance.getRuntimeMappings(),
-            version.supports(SourceConfig.TRANSFORM_INDICES_OPTIONS) ? instance.indicesOptions() : IndicesOptions.LENIENT_EXPAND_OPEN,
+            version.supports(SourceConfig.TRANSFORM_INDICES_OPTIONS) ? instance.indicesOptions(true) : IndicesOptions.LENIENT_EXPAND_OPEN,
             version.supports(SourceConfig.TRANSFORM_PROJECT_ROUTING) ? instance.getProjectRouting() : null
         );
     }

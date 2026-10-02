@@ -454,7 +454,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
     }
 
     /**
-     * Sets resumption data to continue from a previously-acquired worker state (for both scroll and point-in-time).
+     * Sets resumption data to continue from a previously-acquired worker state.
      */
     public Self setResumeInfo(ResumeInfo resumeInfo) {
         this.resumeInfo = Objects.requireNonNull(resumeInfo);

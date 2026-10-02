@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -92,9 +93,10 @@ public class Pivot extends AbstractCompositeAggFunction {
         Map<String, String> headers,
         String transformId,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         final ActionListener<Map<String, String>> listener
     ) {
-        SchemaUtil.deduceMappings(client, headers, transformId, settings, config, sourceConfig, listener);
+        SchemaUtil.deduceMappings(client, headers, transformId, settings, config, sourceConfig, indicesOptions, listener);
     }
 
     /**

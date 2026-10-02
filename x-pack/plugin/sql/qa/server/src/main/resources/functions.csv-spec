@@ -156,6 +156,20 @@ AO             |1
 AP             |2   
 ;
 
+selectInsertEmptyWithLengthPastEnd
+SELECT INSERT('', 1, 2000000000, 'hello') modified;
+
+modified:s
+hello
+;
+
+selectInsertCutLongerThanInput
+SELECT INSERT('ab', 1, 2000000000, 'z') modified;
+
+modified:s
+z
+;
+
 selectSubstringWithGroupBy
 SELECT SUBSTRING("first_name",1,2) modified, COUNT(*) count FROM "test_emp" WHERE ASCII("first_name")=65 GROUP BY SUBSTRING("first_name",1,2) ORDER BY SUBSTRING("first_name",1,2) ASC LIMIT 10;
 

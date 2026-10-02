@@ -8,17 +8,12 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import fixture.s3.BlobEntry;
-import fixture.s3.S3ConsistencyModel;
-import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpHandler;
-
-import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -28,9 +23,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
-
-import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
-import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 /**
  * Tests S3StorageProvider.listObjects() and glob-style filtering against an in-process
@@ -46,7 +38,7 @@ public class S3GlobDiscoveryTests extends ESTestCase {
     private static final String DISCOVER_PREFIX = "warehouse/discover";
 
     @ClassRule
-    public static HandlerExposingS3HttpFixture s3Fixture = new HandlerExposingS3HttpFixture();
+    public static HandlerExposingS3HttpFixture s3Fixture = new HandlerExposingS3HttpFixture(BUCKET, ACCESS_KEY);
 
     private static S3StorageProvider provider;
 
@@ -143,6 +135,31 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         assertEquals(3, matched.size());
     }
 
+    public void testS3ListChildrenSeparatesFilesFromDirectories() throws IOException {
+        // The prefix holds only "subdirectories" (common prefixes of the delimiter listing), no direct objects.
+        StorageChildren children = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX), 10_000);
+        assertEquals(List.of(), children.files());
+        assertEquals(
+            List.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat", "s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/nested"),
+            children.directories().stream().map(StoragePath::toString).sorted().toList()
+        );
+
+        // A leaf directory holds only objects, no common prefixes.
+        StorageChildren flat = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat"), 10_000);
+        assertEquals(List.of(), flat.directories());
+        assertEquals(List.of("a.bin", "b.bin", "c.txt"), flat.files().stream().map(e -> e.path().objectName()).sorted().toList());
+    }
+
+    /**
+     * A directory wider than {@code limit} withdraws to {@code null} rather than buffering; exactly {@code limit}
+     * is allowed (S3 checks after each page, so the boundary is inclusive like the other providers').
+     */
+    public void testS3ListChildrenPastLimitReturnsNull() throws IOException {
+        StoragePath flat = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+        assertNotNull("exactly the child count must be allowed", provider.listChildren(flat, 3));
+        assertNull("one child over the limit must withdraw", provider.listChildren(flat, 2));
+    }
+
     private static void addBlob(String key, byte[] content) {
         s3Fixture.handler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
     }
@@ -157,33 +174,4 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         return entries;
     }
 
-    /**
-     * Local S3HttpFixture variant that captures the S3HttpHandler so tests can inject blobs directly.
-     * Mirrors the DataSourcesS3HttpFixture from x-pack/plugin/esql/qa:server (kept inline here to avoid
-     * dragging the heavyweight qa:server dependencies into this module's test classpath).
-     */
-    @SuppressForbidden(reason = "overrides S3HttpFixture.createHandler which returns com.sun.net.httpserver.HttpHandler")
-    public static final class HandlerExposingS3HttpFixture extends S3HttpFixture {
-
-        private S3HttpHandler handler;
-
-        public HandlerExposingS3HttpFixture() {
-            super(true, () -> S3ConsistencyModel.STRONG_MPUS);
-        }
-
-        @Override
-        protected HttpHandler createHandler() {
-            handler = new S3HttpHandler(BUCKET, null, S3ConsistencyModel.STRONG_MPUS);
-            var auth = fixedAccessKey(ACCESS_KEY, () -> "us-east-1", "s3");
-            return exchange -> {
-                if (checkAuthorization(auth, exchange)) {
-                    handler.handle(exchange);
-                }
-            };
-        }
-
-        S3HttpHandler handler() {
-            return handler;
-        }
-    }
 }

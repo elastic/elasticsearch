@@ -34,6 +34,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that verify error messages produced during external source distribution
@@ -111,9 +112,11 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of(sourceType, factory))
         );
 
-        assertThat(e.getMessage(), containsString(sourcePath));
+        assertThat(e.getMessage(), containsString("*.parquet"));
         assertThat(e.getMessage(), containsString(sourceType));
-        assertNotNull(e.getCause());
+        assertThat(e.getMessage(), containsString("connection reset"));
+        assertThat(e.getMessage(), not(containsString("my-bucket")));
+        assertNull("storage failures are logged, not chained into caused_by", e.getCause());
     }
 
     public void testDistributionPlanWithStaleNodeAssignment() {

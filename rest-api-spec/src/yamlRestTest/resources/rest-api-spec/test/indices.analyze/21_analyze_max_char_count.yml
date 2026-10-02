@@ -1,0 +1,53 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_analyze
+          capabilities: [ analyze_max_char_count ]
+      reason: index.analyze.max_char_count bounds the characters an _analyze request may produce
+
+  - do:
+      indices.create:
+          index: test_2
+          body:
+              settings:
+                  index.analyze.max_char_count: 20
+
+---
+"_analyze with No. produced characters less than or equal to index.analyze.max_char_count should succeed":
+
+  - do:
+      indices.analyze:
+          index:  test_2
+          body:
+              text: under the limit
+              analyzer: standard
+  - length: { tokens: 3 }
+  - match:  { tokens.0.token: under }
+  - match:  { tokens.1.token: the }
+  - match:  { tokens.2.token: limit }
+
+---
+"_analyze with No. produced characters more than index.analyze.max_char_count should fail":
+
+  - do:
+      catch: /The number of characters produced by calling _analyze has exceeded the allowed maximum of \[20\]. This limit can be set by changing the \[index.analyze.max_char_count\] index level setting\./
+      indices.analyze:
+          index:  test_2
+          body:
+              text: this text is well over the limit
+              analyzer: standard
+
+---
+"_analyze with explain with No. produced characters more than index.analyze.max_char_count should fail":
+
+  - do:
+      catch: /The number of characters produced by calling _analyze has exceeded the allowed maximum of \[20\]. This limit can be set by changing the \[index.analyze.max_char_count\] index level setting\./
+      indices.analyze:
+          index:  test_2
+          body:
+              text: this text is well over the limit
+              analyzer: standard
+              explain: true

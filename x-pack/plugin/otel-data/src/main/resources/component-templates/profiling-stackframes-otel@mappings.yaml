@@ -1,0 +1,40 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Mappings for eBPF Profiler stackframes OTel data stream
+  managed: true
+template:
+  settings:
+    index:
+      number_of_shards: 16
+      auto_expand_replicas: "0-1"
+      refresh_interval: 10s
+      routing.allocation.include._tier_preference: data_hot
+  mappings:
+    # _source must be enabled for the inline symbolization chain. doc_values are disabled to avoid
+    # storing values twice. Synthetic source is not used because it requires array concatenation and
+    # adds latency when _source is reconstructed at query time.
+    _source:
+      enabled: true
+    dynamic: false
+    properties:
+      line.number:
+        type: integer
+        index: false
+        doc_values: false
+        store: false
+      function.filename:
+        type: keyword
+        index: false
+        doc_values: false
+        store: false
+      function.name:
+        type: keyword
+        index: false
+        doc_values: false
+        store: false
+      function.offset:
+        type: integer
+        index: false
+        doc_values: false
+        store: false

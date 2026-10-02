@@ -9,8 +9,12 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
@@ -18,10 +22,29 @@ import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements QueryProfilerProvider {
+import java.io.IOException;
+import java.util.List;
+
+public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery
+    implements
+        QueryProfilerProvider,
+        PostFilterableKnnQuery {
+
     private final int kParam;
+    private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
+    private final BitSetProducer parentsFilter;
+    private final int[][] seedDocsPerLeaf;
+    /**
+     * True when this instance is a post-filter delegate or retry rather than the query the user asked for.
+     * Only such instances have their raw per-leaf candidates read back, via {@link #getPostFilterCandidates()},
+     * so nothing else stashes them: retaining the pool would keep the reader's leaf contexts alive for the
+     * whole search context.
+     */
+    private final boolean postFilterDelegate;
+    private List<LeafReaderContext> leaves;
+    private TopDocs[] rawPerLeafResults;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -32,7 +55,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, null, false);
     }
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
@@ -45,13 +68,43 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, null, false);
+    }
+
+    ESDiversifyingChildrenByteKnnVectorQuery(
+        String field,
+        byte[] query,
+        Query childFilter,
+        int k,
+        int numCands,
+        BitSetProducer parentsFilter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination,
+        int[][] seedDocsPerLeaf,
+        boolean postFilterDelegate
+    ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
+        this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
+        this.parentsFilter = parentsFilter;
+        this.seedDocsPerLeaf = seedDocsPerLeaf;
+        this.postFilterDelegate = postFilterDelegate;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        if (postFilterDelegate) {
+            this.leaves = searcher.getIndexReader().leaves();
+        }
+        return super.rewrite(searcher);
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
+        if (postFilterDelegate) {
+            this.rawPerLeafResults = perLeafResults;
+        }
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
@@ -62,13 +115,86 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
+    @Override
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+        assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
+        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        return new ESDiversifyingChildrenByteKnnVectorQuery(
+            field,
+            getTargetCopy(),
+            filter,
+            remainingK,
+            numCandsParam,
+            parentsFilter,
+            searchStrategy,
+            earlyTermination,
+            seedDocsPerLeaf,
+            true
+        );
+    }
+
+    @Override
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
+        int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
+        return new ESDiversifyingChildrenByteKnnVectorQuery(
+            field,
+            getTargetCopy(),
+            null,
+            scaledK,
+            scaledNumCands,
+            parentsFilter,
+            searchStrategy,
+            earlyTermination,
+            null,
+            true
+        );
+    }
+
+    @Override
+    public ScoreDoc[][] getPostFilterCandidates() {
+        return rawPerLeafResults == null
+            ? leaves == null ? new ScoreDoc[0][] : new ScoreDoc[leaves.size()][]
+            : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
+    }
+
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            ByteVectorValues fvv = leaf.reader().getByteVectorValues(field);
+            if (fvv != null) {
+                totalVectors += fvv.size();
+            }
+        }
+        return totalVectors;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
+    }
+
+    @Override
+    public int k() {
+        return kParam;
+    }
+
+    @Override
+    public int numCands() {
+        return numCandsParam;
+    }
+
     public KnnSearchStrategy getStrategy() {
         return searchStrategy;
     }
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
-        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
+        KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
+        if (PostFilterableKnnQuery.hasSeeds(seedDocsPerLeaf)) {
+            base = new SeededRetryCollectorManager(base, seedDocsPerLeaf, field);
+        }
+        return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }
 }

@@ -1,5 +1,0 @@
-area: Authorization
-issues: []
-pr: 148179
-summary: Fix data stream privilege checking
-type: bug

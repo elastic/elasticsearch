@@ -109,6 +109,38 @@ teardown:
   - match: { error.root_cause.0.reason: "index [my_index_no_policy] is not associated with an Index Lifecycle Policy" }
 
 ---
+"Test Invalid Move To Step With Lookup Index":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_ilm/move/{name}
+          capabilities: [ lookup_index_not_managed ]
+      reason: "Lookup index rejection for ILM move_to_step was added in a later version"
+
+  - do:
+      indices.create:
+        index: my_lookup_index
+        body:
+          settings:
+            index.mode: lookup
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      catch: bad_request
+      ilm.move_to_step:
+        index: "my_lookup_index"
+        body:
+          current_step:
+            phase: "new"
+            action: "complete"
+            name: "complete"
+          next_step:
+            phase: "warm"
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "index [my_lookup_index] is a lookup index and cannot be managed by ILM" }
+
+---
 "Test Invalid Move To Step With Invalid Index":
 
   - do:

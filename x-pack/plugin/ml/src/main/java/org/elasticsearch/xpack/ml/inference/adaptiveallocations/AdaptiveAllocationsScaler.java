@@ -42,6 +42,7 @@ public class AdaptiveAllocationsScaler {
     private int neededNumberOfAllocations;
     private Integer minNumberOfAllocations;
     private Integer maxNumberOfAllocations;
+    private Integer maxNumberOfAllocationsByMemory;
     private boolean dynamicsChanged;
 
     private Double lastMeasuredRequestRate;
@@ -66,6 +67,7 @@ public class AdaptiveAllocationsScaler {
         neededNumberOfAllocations = numberOfAllocations;
         minNumberOfAllocations = null;
         maxNumberOfAllocations = null;
+        maxNumberOfAllocationsByMemory = null;
         dynamicsChanged = false;
 
         lastMeasuredRequestRate = null;
@@ -76,6 +78,16 @@ public class AdaptiveAllocationsScaler {
     void setMinMaxNumberOfAllocations(Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
         this.minNumberOfAllocations = minNumberOfAllocations;
         this.maxNumberOfAllocations = maxNumberOfAllocations;
+    }
+
+    /**
+     * Sets an upper bound on the number of allocations derived from the memory actually available on the ML nodes and
+     * the observed per-allocation memory. This is a reactive, defense-in-depth cap: it prevents the scaler from
+     * demanding more allocations than can fit in memory even if the planner has not yet caught up. Pass {@code null}
+     * to disable the cap (e.g. before any runtime memory has been observed, so the first scale-up is unaffected).
+     */
+    void setMaxAllocationsByMemory(Integer maxNumberOfAllocationsByMemory) {
+        this.maxNumberOfAllocationsByMemory = maxNumberOfAllocationsByMemory;
     }
 
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
@@ -246,5 +258,9 @@ public class AdaptiveAllocationsScaler {
 
     public Integer getMaxNumberOfAllocations() {
         return maxNumberOfAllocations;
+    }
+
+    public Integer getMaxNumberOfAllocationsByMemory() {
+        return maxNumberOfAllocationsByMemory;
     }
 }

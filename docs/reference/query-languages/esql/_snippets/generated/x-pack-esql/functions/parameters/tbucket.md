@@ -11,3 +11,6 @@
 `to`
 :   End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter {applies_to}`stack: ga 9.4`.
 
+`options` {applies_to}`{"serverless": "ga", "stack": "ga 9.6.0"}`
+:   (Optional) Additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+

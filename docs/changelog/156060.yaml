@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 156041
+pr: 156060
+summary: Account for the correct number of rows when rewriting a Page in the `load_all`
+  flow
+type: bug

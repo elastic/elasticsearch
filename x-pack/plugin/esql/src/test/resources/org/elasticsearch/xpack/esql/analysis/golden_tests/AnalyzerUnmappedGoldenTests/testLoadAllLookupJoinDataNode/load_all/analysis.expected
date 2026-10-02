@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_OrderBy[[Order[language_name{f}#0,ASC,LAST]]]
+  \_LookupJoin[LEFT,[lc{r}#1],[language_code{f}#2],lc{r}#1 == language_code{f}#2,ANY]
+    |_Project[[@timestamp{f}#3, client_ip{f}#4, event_duration{f}#5, message{f}#6, lc{r}#1, $$unmapped_fields{m}#7]]
+    | \_Eval[[TO_INTEGER(language_code{f(PotentiallyUnmappedKeywordEsField)}#8) AS lc#1]]
+    |   \_EsRelation[partial_mapping_sample_data][@timestamp{f}#3, client_ip{f}#4, event_duration{f}#5, message{f}#6, language_code{f(PotentiallyUnmappedKeywordEsField)}#8, $$unmapped_fields{m}#7]
+    \_EsRelation[languages_lookup][LOOKUP][language_code{f}#2, language_name{f}#0]

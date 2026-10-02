@@ -60,7 +60,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             doc.add(field);
         }
         // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
-        // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+        // It must be copied alongside the main binary field for MultiValuedSortableBinaryDocValues to decode values.
         String countsKey = wildcardFieldMapper.fullPath() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         IndexableField countsField = parseDoc.getByKey(countsKey);
         if (countsField != null) {

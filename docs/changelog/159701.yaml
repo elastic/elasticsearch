@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 159701
+summary: Make sure buffer files are cleared at startup
+type: bug

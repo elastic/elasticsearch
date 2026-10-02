@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
@@ -19,7 +21,8 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Source source = randomSource();
         Expression field = randomChild();
         Expression percentile = randomChild();
-        return new Percentile(source, field, percentile);
+        double tDigestStateCompression = randomDouble();
+        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
     }
 
     @Override
@@ -27,11 +30,13 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Source source = instance.source();
         Expression field = instance.field();
         Expression percentile = instance.percentile();
-        if (randomBoolean()) {
-            field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
-        } else {
-            percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
+        double tDigestStateCompression = instance.tDigestStateCompression();
+        switch (between(0, 2)) {
+            case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
+            case 1 -> percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
+            case 2 -> tDigestStateCompression = randomValueOtherThan(tDigestStateCompression, ESTestCase::randomDouble);
         }
-        return new Percentile(source, field, percentile);
+        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
     }
+
 }

@@ -9,45 +9,45 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.search.vectors.KnnQueryUtils.applyFilter;
-import static org.elasticsearch.search.vectors.KnnQueryUtils.computeSelectivity;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.dedupAndSelectTopK;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays;
 
 /**
- * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with up to two
- * additional rounds when the initial pass yields fewer than k results.
- * <ol>
- *   <li>Post-filter retry - re-runs the post-filter delegate while avoiding previously visited
- *       results (doc IDs for HNSW, centroid posting lists for IVF). Asks for the remainder.
- *       See {@link PostFilterableKnnQuery#createRetryQuery}.</li>
- *   <li>Augmented pre-filter fallback - switches modes from post-filter to pre-filter, applying
- *       the original filter combined with an {@code ExcludeDocsQuery} over the already-collected
- *       docs and asking for the remaining {@code k - scoreDocs.length} only.
- *       See {@link PostFilterableKnnQuery#createFallbackQuery}.</li>
- * </ol>
- * If both extra rounds still leave the merged result short of k, the partial result is returned
- * as-is - the caller is expected to tolerate fewer than k hits when the filter genuinely admits
- * fewer matching docs. Only when no post-filter results were ever produced (round 0 found
- * nothing) does the outer rewrite fall through to the bare inner query.
+ * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with a single
+ * retry round when the initial pass yields fewer than the candidate pool it is aiming for. The retry
+ * re-runs the post-filter delegate excluding every doc already seen, and asks for the remainder.
+ * See {@link PostFilterableKnnQuery#createRetryQuery}.
+ * <p>
+ * Two sizes matter here and must not be conflated. {@link #k} is the <em>final</em> result count the user
+ * asked for. {@link PostFilterableKnnQuery#postFilterExpectedBaseQueryDocMatches(List)} is the larger pool that the final scoring pass
+ * consumes - an outer {@code RescoreKnnVectorQuery}, or
+ * {@link PostFilterableKnnQuery#finalizeTopK} for auto-calibrated IVF.
  */
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
@@ -57,10 +57,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     // be meaningful (e.g. k=3, selectivity=0.7 → expected=2.1, threshold=1.05, a single passer
     // would block recovery rounds for no real reason).
     private static final int EARLY_EXIT_MIN_K = 5;
+    // Upper bound on retry seed entry points per leaf
+    private static final int MAX_SEEDS_PER_LEAF = 4;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
     private final Query filter;
+    /** The final result count the user asked for - not the candidate pool. See the class javadoc. */
     private final int k;
     private final String field;
     private long totalVectorOps;
@@ -96,12 +99,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         if (rewriteMeta != null) {
             assert rewriteMeta.postFilterQuery() instanceof PostFilterableKnnQuery
                 : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
-            var rewritten = postFilterRewrite(
-                searcher,
-                (PostFilterableKnnQuery) rewriteMeta.postFilterQuery(),
-                filterWeight,
-                rewriteMeta.selectivity()
-            );
+            var rewritten = postFilterRewrite(searcher, rewriteMeta, filterWeight);
             if (rewritten != null) {
                 return rewritten;
             }
@@ -114,90 +112,89 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return rewritten;
     }
 
-    private Query postFilterRewrite(IndexSearcher searcher, PostFilterableKnnQuery postFilterQuery, Weight filterWeight, float selectivity)
+    private Query postFilterRewrite(IndexSearcher searcher, PostFilterRewriteMeta postFilterRewriteMeta, Weight filterWeight)
         throws IOException {
+        PostFilterableKnnQuery postFilterQuery = (PostFilterableKnnQuery) postFilterRewriteMeta.postFilterQuery;
         Query delegate = (Query) postFilterQuery;
+
+        int expectedBaseQueryDocMatches = postFilterRewriteMeta.expectedBaseQueryDocMatches;
+        float selectivity = postFilterRewriteMeta.selectivity;
 
         // first pass: initial post-filter search. delegateK is the scaled K already baked into the
         // delegate by createPostFilterDelegate.
         int delegateK = postFilterQuery.k();
-        TopDocs topDocs = searcher.search(delegate, delegateK);
-        long vectorOps = postFilterQuery.totalVectorOps();
-        ScoreDoc[] passingDocs = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
-        ScoreDoc[] scoreDocs = dedupAndSelectTopK(passingDocs, searcher.getIndexReader(), parentsFilter, k);
-
-        // Exit early when the filter is negatively correlated to the knn query and further rounds are unlikely
-        // to recover. Zero passers always exits.
-        if (scoreDocs.length == 0 || shouldExitEarly(scoreDocs.length, selectivity)) {
+        var topDocs = searcher.search(delegate, delegateK);
+        if (topDocs.scoreDocs.length == 0) {
             return null;
         }
 
-        // retry round - single retry if round 0 came up short.
-        if (scoreDocs.length < k) {
-            logger.debug(
-                "post-filter retry firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}] and visited=[{}]",
-                field,
-                k,
-                selectivity,
-                scoreDocs.length,
-                vectorOps
-            );
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+        ScoreDoc[][] perLeafCandidates = postFilterQuery.getPostFilterCandidates();
+        FilteredCandidates filtered = applyFilter(perLeafCandidates, filterWeight, leaves);
 
-            int[] seenDocs = trackedDocs((PostFilterableKnnQuery) delegate, topDocs);
-            int remaining = k - scoreDocs.length;
-            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), sortedDocIds(scoreDocs), seenDocs, remaining);
-            TopDocs retryDocs = searcher.search(retry, remaining);
-            if (retryDocs.scoreDocs.length > 0) {
-                vectorOps += ((PostFilterableKnnQuery) retry).totalVectorOps();
-                ScoreDoc[] retryPassing = applyFilter(retryDocs.scoreDocs, filterWeight, searcher);
-                scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), searcher.getIndexReader(), parentsFilter, k);
-            }
+        ScoreDoc[][] matching = filtered.matchingPerLeaf();
+        int[][] filteredOut = filtered.filteredOutPerLeaf();
+        ScoreDoc[] scoreDocs = dedupAndSelectTopK(flattenPerLeaf(matching), expectedBaseQueryDocMatches);
+
+        long vectorOps = postFilterQuery.totalVectorOps();
+
+        if (scoreDocs.length == 0 || shouldExitEarly(scoreDocs.length, selectivity)) {
+            this.totalVectorOps += vectorOps;
+            return null;
         }
 
-        // Augmented pre-filter fallback. When the post-filter rounds yielded some - but fewer
-        // than k - results, switch from post-filter to pre-filter mode: ask the inner query to
-        // search again with the original filter combined with an ExcludeDocsQuery over the docs
-        // we already collected, requesting only the remainder. The collected scoreDocs are kept
-        // and merged with the new ones rather than discarded.
-        if (scoreDocs.length < k) {
+        // retry round - single retry if round 0 came up short of the expected matches.
+        if (scoreDocs.length < expectedBaseQueryDocMatches) {
             logger.debug(
-                "post-filter augmented fallback firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}]",
+                "post-filter retry firing for field=[{}], k=[{}],"
+                    + " expectedBaseQueryDocMatches=[{}], selectivity=[{}], scoreDocs so far=[{}]",
                 field,
                 k,
+                expectedBaseQueryDocMatches,
                 selectivity,
                 scoreDocs.length
             );
-            int remaining = k - scoreDocs.length;
-            // add oversampling if we have a parents bitset
-            if (parentsFilter != null) {
-                remaining = (int) Math.ceil(1.2f * remaining);
+            // Exclude everything already tried from later rounds. For nested (block-join) queries a parent
+            // we already matched is done - we keep only one hit per parent - so we exclude its whole block;
+            // a parent whose child was merely filtered out stays eligible through its untried children.
+            // Non-nested queries exclude the individual matched docs.
+            int[] alreadyMatched = parentsFilter != null
+                ? KnnQueryUtils.expandToParentBlocks(matching, searcher.getIndexReader(), parentsFilter)
+                : sortedDocIdsFromPerLeaf(matching);
+            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), alreadyMatched);
+            // Seeds are the nearest (highest-scoring) round-0 matches per leaf, selected here while the
+            // scores are still available on `matching`; excluded still needs the full matching set above.
+            int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_LEAF);
+            int remaining = expectedBaseQueryDocMatches - scoreDocs.length;
+            int retryK = PostFilterableKnnQuery.computeScaledK(remaining, selectivity);
+            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, retryK);
+            TopDocs retryDocs = searcher.search(retry, retryK);
+            if (retryDocs.scoreDocs.length > 0) {
+                PostFilterableKnnQuery retryQuery = (PostFilterableKnnQuery) retry;
+                vectorOps += retryQuery.totalVectorOps();
+                ScoreDoc[][] retryCandidates = retryQuery.getPostFilterCandidates();
+                ScoreDoc[] retryPassing = flattenPerLeaf(applyFilter(retryCandidates, filterWeight, leaves).matchingPerLeaf());
+                scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), expectedBaseQueryDocMatches);
             }
-            int[] excludedDocs = sortedDocIds(scoreDocs);
-            Query fallback = innerQuery.createFallbackQuery(searcher.getIndexReader(), excludedDocs, remaining);
-            TopDocs fallbackDocs = searcher.search(fallback, remaining);
-            vectorOps += ((PostFilterableKnnQuery) fallback).totalVectorOps();
-            // No applyFilter() - the fallback already pre-filtered with the original filter.
-            scoreDocs = dedupAndSelectTopK(
-                mergeScoreDocArrays(scoreDocs, fallbackDocs.scoreDocs),
-                searcher.getIndexReader(),
-                parentsFilter,
-                k
-            );
         }
 
-        // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
-        // reflects the full cost - the outer rewrite() adds the bare innerQuery's own ops on top
-        // only when we return null (zero-result case).
         this.totalVectorOps += vectorOps;
-        if (scoreDocs.length < k) {
+        if (scoreDocs.length < expectedBaseQueryDocMatches) {
             logger.debug(
                 "post filtering retrieved only [{}] results, less than the desired [{}] results. Falling back to original query",
                 scoreDocs.length,
-                k
+                expectedBaseQueryDocMatches
             );
             return null;
         }
-        return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
+
+        // Final scoring pass. Identity unless the inner query owns its own exact rescore (auto-calibrated
+        // IVF), in which case the pool is rescored here - after filtering, so no exact comparison is spent
+        // on a doc the filter rejected.
+        long opsBeforeFinalize = postFilterQuery.totalVectorOps();
+        ScoreDoc[] finalDocs = postFilterQuery.finalizeTopK(searcher, scoreDocs, k);
+        this.totalVectorOps += postFilterQuery.totalVectorOps() - opsBeforeFinalize;
+        return new KnnScoreDocQuery(finalDocs, searcher.getIndexReader());
     }
 
     /**
@@ -215,7 +212,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return false;
         }
         double expectedHits = k * (double) selectivity;
-        double threshold = expectedHits / 2.0;
+        double threshold = expectedHits * 0.5;
         boolean shouldExit = scoreDocsCount < threshold;
         if (shouldExit) {
             logger.debug(
@@ -232,40 +229,181 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return shouldExit;
     }
 
-    private static int[] trackedDocs(PostFilterableKnnQuery delegate, TopDocs topDocs) {
-        int[] roundDocs = delegate.getTrackedDocs();
-        if (roundDocs.length == 0) {
-            roundDocs = new int[topDocs.scoreDocs.length];
-            for (int i = 0; i < roundDocs.length; i++) {
-                roundDocs[i] = topDocs.scoreDocs[i].doc;
+    /**
+     * Per-leaf partition of candidates against the filter.
+     *
+     * @param matchingPerLeaf          per-leaf matching candidates indexed by leaf ordinal (null entries = no
+     *                          matches for that leaf). Within each leaf, docs are sorted by global doc ID.
+     * @param filteredOutPerLeaf        per-leaf global doc IDs of candidates that did NOT pass the filter,
+     *                          indexed by leaf ordinal (null entries = no filtered-out docs for that leaf).
+     *                          Within each leaf, sorted ascending by doc ID.
+     */
+    record FilteredCandidates(ScoreDoc[][] matchingPerLeaf, int[][] filteredOutPerLeaf) {}
+
+    /**
+     * Partitions per-leaf candidates into filter-matching and filtered-out sets in one pass
+     * per leaf. Within each leaf, candidates are sorted by doc ID and tested by random access
+     * via {@link Lucene#asSequentialAccessBits}: when the filter scorer exposes a
+     * {@link org.apache.lucene.search.TwoPhaseIterator}, each candidate costs one approximation
+     * advance plus one {@code matches()} call. Consuming such scorers through
+     * {@code iterator().advance()} instead would have to locate the <em>next matching</em> doc,
+     * evaluating the match predicate over every approximation doc in the gap — pathological for
+     * filters whose match set is contiguous or sparse (e.g. doc-values ranges, phrases), where one
+     * out-of-set candidate can trigger a scan to the end of the segment. Filters without a
+     * two-phase view (postings, prebuilt bitsets) take the plain iterator path, which is already
+     * cheap for them; eagerly-materializing scorers with no random access (e.g. a bare
+     * {@code PointRangeQuery} with no doc-values pairing) still pay their {@code ScorerSupplier#get}
+     * cost, same as before. Candidates are sorted in-place.
+     */
+    static FilteredCandidates applyFilter(ScoreDoc[][] perLeafCandidates, Weight filterWeight, List<LeafReaderContext> leaves)
+        throws IOException {
+
+        ScoreDoc[][] matchingPerLeaf = new ScoreDoc[perLeafCandidates.length][];
+        int[][] filteredOutPerLeaf = new int[perLeafCandidates.length][];
+
+        for (int leafOrd = 0; leafOrd < perLeafCandidates.length; leafOrd++) {
+            ScoreDoc[] cands = perLeafCandidates[leafOrd];
+            if (cands == null || cands.length == 0) continue;
+
+            LeafReaderContext ctx = leaves.get(leafOrd);
+            Arrays.sort(cands, Comparator.comparingInt(sd -> sd.doc));
+
+            // null supplier (no docs match the filter in this leaf) yields MatchNoBits: all filtered out
+            ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
+            Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), ss, cands.length);
+
+            List<ScoreDoc> leafMatching = new ArrayList<>();
+            int[] leafFilteredOut = new int[cands.length];
+            int filteredOutCount = 0;
+            for (ScoreDoc cand : cands) {
+                if (bits.get(cand.doc - ctx.docBase)) {
+                    leafMatching.add(cand);
+                } else {
+                    leafFilteredOut[filteredOutCount++] = cand.doc;
+                }
+            }
+
+            if (leafMatching.isEmpty() == false) {
+                matchingPerLeaf[leafOrd] = leafMatching.toArray(new ScoreDoc[0]);
+            }
+            if (filteredOutCount > 0) {
+                filteredOutPerLeaf[leafOrd] = filteredOutCount == leafFilteredOut.length
+                    ? leafFilteredOut
+                    : Arrays.copyOf(leafFilteredOut, filteredOutCount);
             }
         }
-        Arrays.sort(roundDocs);
-        return roundDocs;
+
+        return new FilteredCandidates(matchingPerLeaf, filteredOutPerLeaf);
     }
 
-    private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity) {}
+    private static ScoreDoc[] flattenPerLeaf(ScoreDoc[][] perLeaf) {
+        int total = 0;
+        for (ScoreDoc[] docs : perLeaf) {
+            if (docs != null) total += docs.length;
+        }
+        ScoreDoc[] out = new ScoreDoc[total];
+        int pos = 0;
+        for (ScoreDoc[] docs : perLeaf) {
+            if (docs != null) {
+                System.arraycopy(docs, 0, out, pos, docs.length);
+                pos += docs.length;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Concatenates per-leaf int arrays in leaf-ordinal order. Because {@link #applyFilter}
+     * sorts candidates by doc ID within each leaf and docBases increase across leaves,
+     * the output is naturally sorted without an explicit sort step.
+     */
+    private static int[] flattenPerLeafDocIds(int[][] perLeaf) {
+        int total = 0;
+        for (int[] ids : perLeaf) {
+            if (ids != null) total += ids.length;
+        }
+        int[] out = new int[total];
+        int pos = 0;
+        for (int[] ids : perLeaf) {
+            if (ids != null) {
+                System.arraycopy(ids, 0, out, pos, ids.length);
+                pos += ids.length;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Collects doc IDs from per-leaf matching arrays in leaf-ordinal order. Because
+     * {@link #applyFilter} sorts candidates by doc ID within each leaf and docBases
+     * increase across leaves, the output is naturally sorted without an explicit sort step.
+     */
+    private static int[] sortedDocIdsFromPerLeaf(ScoreDoc[][] perLeaf) {
+        int total = 0;
+        for (ScoreDoc[] docs : perLeaf) {
+            if (docs != null) total += docs.length;
+        }
+        int[] ids = new int[total];
+        int pos = 0;
+        for (ScoreDoc[] docs : perLeaf) {
+            if (docs != null) {
+                for (ScoreDoc sd : docs) {
+                    ids[pos++] = sd.doc;
+                }
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Selects up to {@code maxPerLeaf} seed doc IDs per leaf (graph), keeping the highest-scoring
+     * (nearest) matches in each leaf so the retry's HNSW search seeds from entry points close to the
+     * query. Selection happens here because {@code perLeaf} still carries round-0 scores. Returns an
+     * array indexed by leaf ordinal (same indexing as {@code perLeaf}); each sub-array holds that leaf's
+     * seed doc IDs sorted ascending, or is {@code null} when the leaf has no matches. {@link
+     * SeededRetryCollectorManager} indexes it directly by {@code ctx.ord} — no re-partitioning needed.
+     */
+    static int[][] nearestSeedsPerLeaf(ScoreDoc[][] perLeaf, int maxPerLeaf) {
+        int[][] seedsPerLeaf = new int[perLeaf.length][];
+        for (int leafOrd = 0; leafOrd < perLeaf.length; leafOrd++) {
+            ScoreDoc[] docs = perLeaf[leafOrd];
+            if (docs == null || docs.length == 0) {
+                continue;
+            }
+            int keep = Math.min(docs.length, maxPerLeaf);
+            if (keep < docs.length) {
+                // Partition so the top-`keep` by score (descending) occupy [0, keep); avoids a full sort.
+                ArrayUtil.select(docs, 0, docs.length, keep, Comparator.comparingDouble((ScoreDoc sd) -> sd.score).reversed());
+            }
+            int[] ids = new int[keep];
+            for (int i = 0; i < keep; i++) {
+                ids[i] = docs[i].doc;
+            }
+            Arrays.sort(ids);
+            seedsPerLeaf[leafOrd] = ids;
+        }
+        return seedsPerLeaf;
+    }
+
+    private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity, int expectedBaseQueryDocMatches) {}
 
     private PostFilterRewriteMeta maybeCreatePostFilterQuery(IndexSearcher searcher, Weight filterWeight) throws IOException {
         if (filterWeight == null) {
             return null;
         }
         var leaves = searcher.getIndexReader().leaves();
-        int totalVectors = innerQuery.countTotalVectors(leaves);
-        float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
+        float selectivity = innerQuery.estimateFilterSelectivity(filterWeight, leaves);
         if (selectivity >= postFilterSelectivityThreshold) {
-            return new PostFilterRewriteMeta(innerQuery.createPostFilterDelegate(selectivity), selectivity);
+            int expectedBaseQueryDocMatches = Math.max(k, innerQuery.postFilterExpectedBaseQueryDocMatches(leaves));
+            Query delegate = innerQuery.createPostFilterDelegate(selectivity);
+            return new PostFilterRewriteMeta(delegate, selectivity, expectedBaseQueryDocMatches);
         }
         return null;
     }
 
-    private static int[] sortedDocIds(ScoreDoc[] scoreDocs) {
-        int[] ids = new int[scoreDocs.length];
-        for (int i = 0; i < scoreDocs.length; i++) {
-            ids[i] = scoreDocs[i].doc;
-        }
-        Arrays.sort(ids);
-        return ids;
+    /** The final result count this wrapper targets. Package-private: used to pin the mapper's wiring. */
+    int k() {
+        return k;
     }
 
     Query innerQuery() {

@@ -23,10 +23,42 @@ import java.lang.annotation.Target;
  * {@link StructFactory @StructFactory} method).
  *
  * <p>When applied to an interface, the interface represents a struct that lives in native memory
- * and is accessed field-by-field via VarHandles. Such interfaces must extend {@link Addressable},
- * and their native array pointer fields are declared with {@link ArrayField @ArrayField}.
+ * and is accessed field-by-field via VarHandle-backed accessors; the generated implementation is
+ * {@link Addressable}. Native array pointer fields are declared with {@link ArrayField @ArrayField}.
+ *
+ * <p>Example — a dense struct, whose fields lay out in declaration order with natural alignment:
+ *
+ * <pre>{@code
+ * @StructSpecification
+ * interface Timespec {
+ *     long tvSec();  void tvSec(long v);
+ *     long tvNsec(); void tvNsec(long v);
+ * }
+ * }</pre>
+ *
+ * <p>Example — a sparse struct, placing fields at explicit offsets (see {@link Offset} and
+ * {@link StructSize}) for a layout defined by the platform ABI:
+ *
+ * <pre>{@code
+ * @StructSpecification(sparse = true)
+ * @StructSize(144)
+ * interface Stat64 {
+ *     @Offset(48) long stSize();   void stSize(long v);
+ *     @Offset(56) long stBlocks(); void stBlocks(long v);
+ * }
+ * }</pre>
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface StructSpecification {
+    /**
+     * When {@code true}, the struct is in sparse mode: every field must declare an {@link Offset
+     * @Offset}, and the type must declare a {@link StructSize @StructSize}. Fields are placed at
+     * their resolved offsets; unmodeled bytes become padding in the layout.
+     *
+     * <p>When {@code false} (the default), the struct is in dense mode: fields lay out sequentially
+     * in declaration order with C natural-alignment padding inserted automatically. {@link Offset
+     * @Offset} and {@link StructSize @StructSize} are compile errors.
+     */
+    boolean sparse() default false;
 }

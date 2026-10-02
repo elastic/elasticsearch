@@ -27,16 +27,16 @@ dependencies {
   implementation project(":libs:entitlement")
   implementation project(path: "bc", configuration: 'shadow')
   // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
-  implementation 'org.ow2.asm:asm:9.9'
-  implementation 'org.ow2.asm:asm-tree:9.9'
+  implementation 'org.ow2.asm:asm:9.10.1'
+  implementation 'org.ow2.asm:asm-tree:9.10.1'
 
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 
-  testImplementation "org.bouncycastle:bcpg-jdk18on:1.84"
-  testImplementation "org.bouncycastle:bcprov-jdk18on:1.84"
-  testImplementation "org.bouncycastle:bcutil-jdk18on:1.84"
+  testImplementation "org.bouncycastle:bcpg-jdk18on:1.85"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:1.85"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:1.85"
 }
 
 tasks.named("test").configure {

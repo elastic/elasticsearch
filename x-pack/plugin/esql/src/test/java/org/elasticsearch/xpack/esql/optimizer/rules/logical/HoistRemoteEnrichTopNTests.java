@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -26,6 +25,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 // @TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.optimizer:TRACE")
 public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTests {
+
+    public HoistRemoteEnrichTopNTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * <pre>

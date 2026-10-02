@@ -210,6 +210,21 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         assertEquals(enableRequestBody == false, loggingAuditTrail.includeRequestBody);
     }
 
+    public void testDynamicSecurityConfigChangeActorSettings() {
+        final boolean enableActorAttribution = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(LoggingAuditTrail.EMIT_SECURITY_CONFIG_CHANGE_ACTOR.getKey(), enableActorAttribution);
+        updateClusterSettings(settingsBuilder);
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+            .iterator()
+            .next()
+            .getAuditTrail();
+        assertEquals(enableActorAttribution, loggingAuditTrail.includeSecurityConfigChangeActor);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_SECURITY_CONFIG_CHANGE_ACTOR.getKey(), enableActorAttribution == false);
+        updateClusterSettings(settingsBuilder);
+        assertEquals(enableActorAttribution == false, loggingAuditTrail.includeSecurityConfigChangeActor);
+    }
+
     public void testDynamicEventsSettings() {
         final List<String> allEventTypes = Arrays.asList(
             "anonymous_access_denied",

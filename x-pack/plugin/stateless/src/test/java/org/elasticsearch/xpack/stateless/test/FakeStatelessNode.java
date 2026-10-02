@@ -72,7 +72,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -128,6 +127,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
@@ -254,7 +254,7 @@ public class FakeStatelessNode implements Closeable {
         );
 
         try (var localCloseables = new TransferableCloseables()) {
-            threadPool = createThreadPool();
+            threadPool = createThreadPool(nodeSettings);
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(createClusterService());
@@ -347,8 +347,8 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
-    protected ThreadPool createThreadPool() {
-        return new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    protected ThreadPool createThreadPool(Settings nodeSettings) {
+        return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
     }
 
     protected ClusterSettings createClusterSettings(Settings settings) {
@@ -371,10 +371,18 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
             DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
-            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL
+            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
+            ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
         );
     }
 
@@ -396,8 +404,7 @@ public class FakeStatelessNode implements Closeable {
             Map.of(),
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
     }
 
@@ -439,7 +446,14 @@ public class FakeStatelessNode implements Closeable {
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        return new SearchDirectory(
+            sharedCacheService,
+            cacheBlobReaderService,
+            objectStoreUploadTracker,
+            shardId,
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
+        );
     }
 
     protected StatelessSharedBlobCacheService createCacheService(
@@ -452,7 +466,13 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-        return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool);
+        return new CacheBlobReaderService(
+            nodeSettings,
+            cacheService,
+            client,
+            threadPool,
+            TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+        );
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {

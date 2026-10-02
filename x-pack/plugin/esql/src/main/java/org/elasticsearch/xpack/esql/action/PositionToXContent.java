@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -72,6 +74,16 @@ public abstract class PositionToXContent {
 
     protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
         throws IOException;
+
+    /**
+     * Re-emits an already serialised value token by token, converting between content types on the way if needed.
+     */
+    private static XContentBuilder copyStructure(XContentBuilder builder, BytesArray bytes) throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, bytes)) {
+            parser.nextToken();
+            return builder.copyCurrentStructure(parser);
+        }
+    }
 
     public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, ZoneId zoneId, BytesRef scratch) {
         return switch (columnInfo.type()) {
@@ -218,6 +230,15 @@ public abstract class PositionToXContent {
                     return builder.value(dateRangeToString(from, to));
                 }
             };
+            case DOUBLE_RANGE -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    var from = ((DoubleRangeBlock) block).getDoubleFromBlock().getDouble(valueIndex);
+                    var to = ((DoubleRangeBlock) block).getDoubleToBlock().getDouble(valueIndex);
+                    return builder.value(doubleRangeToString(from, to));
+                }
+            };
             case NULL -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -232,15 +253,31 @@ public abstract class PositionToXContent {
                     return builder.value((String) null);
                 }
             };
-            case SOURCE, FLATTENED -> new PositionToXContent(block) {
+            case SOURCE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-                    try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
-                        parser.nextToken();
-                        return builder.copyCurrentStructure(parser);
+                    BytesArray bytes = new BytesArray(val);
+                    XContentType sourceType = XContentHelper.xContentType(bytes);
+                    if (sourceType == null) {
+                        // Not recognisable as xcontent, e.g. a compressed _source. Leave it to the general-purpose parser
+                        // factory.
+                        return copyStructure(builder, bytes);
                     }
+                    /*
+                     * _source is already serialised, so copy its bytes into the response instead of parsing and
+                     * re-emitting every token. rawValue only does the raw copy when the output is JSON of the same content
+                     * type, without pretty printing or filtering; otherwise it falls back to a token-by-token copy.
+                     */
+                    return builder.rawValue(bytes.streamInput(), sourceType);
+                }
+            };
+            case FLATTENED -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return copyStructure(builder, new BytesArray(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case DENSE_VECTOR -> new PositionToXContent(block) {

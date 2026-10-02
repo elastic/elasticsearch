@@ -41,9 +41,8 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeJimfs() throws Exception {
         IOUtils.close(jimfs);
-        super.tearDown();
     }
 
     @Override

@@ -1218,15 +1218,40 @@ setup:
 
 ---
 "Test delete already-deleted model returns 404 not 409":
+  # Self-contained: unique model/pipeline ids so suite wipe / sibling sections
+  # that delete a-classification-model cannot change the observable status code.
+  - do:
+      ml.put_trained_model:
+        model_id: "already-deleted-model-404"
+        body: >
+          {
+            "description": "model for already-deleted delete status test",
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+
   - do:
       ingest.put_pipeline:
-        id: "pipeline-using-a-classification-model"
+        id: "pipeline-using-already-deleted-model-404"
         body:  >
           {
             "processors": [
               {
                 "inference": {
-                  "model_id": "a-classification-model",
+                  "model_id": "already-deleted-model-404",
                   "target_field": "infer_result",
                   "inference_config": { "classification": {} }
                 }
@@ -1236,23 +1261,23 @@ setup:
 
   - do:
       ml.delete_trained_model:
-        model_id: "a-classification-model"
+        model_id: "already-deleted-model-404"
         force: true
   - match: { acknowledged: true }
 
- # Second delete returns 404
+  # Second delete returns 404 (not 409 from leftover pipeline reference).
   - do:
       catch: missing
       ml.delete_trained_model:
-        model_id: "a-classification-model"
+        model_id: "already-deleted-model-404"
 
   # Same behavior with force=true.
   - do:
       catch: missing
       ml.delete_trained_model:
-        model_id: "a-classification-model"
+        model_id: "already-deleted-model-404"
         force: true
 
   - do:
       ingest.delete_pipeline:
-        id: "pipeline-using-a-classification-model"
+        id: "pipeline-using-already-deleted-model-404"

@@ -13,7 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -227,7 +227,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());
@@ -241,7 +241,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertFalse(values.advanceExact(0));
             assertTrue(config.alignsWithSearchIndex());
 
@@ -268,7 +268,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             config = ValuesSourceConfig.resolve(context, ValueType.STRING, "field", null, "abc", null, null, CoreValuesSourceType.KEYWORD);
             valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());
@@ -401,7 +401,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
 
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("value"), values.nextValue());
@@ -417,7 +417,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
 
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("index"), values.nextValue());
@@ -433,7 +433,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());
@@ -456,7 +456,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * End-to-end pin for the {@code mode: escaped} × {@code _rowPosition} double-decode: projecting a metadata
  * column must never change a data column's value.
  *
- * <p>{@code METADATA _id} forces the synthetic {@code _rowPosition} column, which routes the CSV reader onto its
+ * <p>{@code METADATA _file.record_ref} forces the synthetic {@code _rowPosition} column, which routes the CSV reader onto its
  * record-materialized iterator. That iterator's {@code parseRecord} already un-escapes each field, so a second
  * un-escape in the batch consumer silently re-interpreted the escape sequences the first pass had produced —
  * a literal {@code \t} became a TAB, a literal {@code \N} became SQL null. The unit-level pin lives in
@@ -69,22 +69,23 @@ public class ExternalCsvEscapedRowPositionIT extends AbstractExternalDataSourceI
 
         assertThat(notes("FROM " + dataset + " | SORT id | KEEP note"), equalTo(EXPECTED_NOTES));
 
-        // METADATA _id forces _rowPosition onto the reader's projection. The note values must not move.
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " METADATA _id | SORT id | KEEP note, _id"), TIMEOUT)) {
+        // METADATA _file.record_ref forces _rowPosition onto the reader's projection, via the
+        // SyntheticColumns.rowPositionIndexInNames rail. The note values must not move.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " METADATA _file.record_ref | SORT id | KEEP note, _file.record_ref"),
+                TIMEOUT
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(2));
             List<String> notes = new ArrayList<>();
             for (List<Object> row : rows) {
                 notes.add((String) row.get(0));
-                assertThat("_id must surface alongside the data column", row.get(1), notNullValue());
+                assertThat("_file.record_ref must surface alongside the data column", row.get(1), notNullValue());
             }
             assertThat("projecting _rowPosition must not re-decode escape sequences", notes, equalTo(EXPECTED_NOTES));
         }
-
-        // _file.record_ref is the other user-facing column that forces _rowPosition onto the reader, via the same
-        // SyntheticColumns.rowPositionIndexInNames rail. Pin it too: it is named in the bug report as an affected
-        // surface, and nothing else would catch it were the two rails ever to diverge.
-        assertThat(notes("FROM " + dataset + " METADATA _file.record_ref | SORT id | KEEP note"), equalTo(EXPECTED_NOTES));
     }
 
     private List<String> notes(String query) throws Exception {

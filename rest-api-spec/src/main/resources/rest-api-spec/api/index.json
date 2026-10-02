@@ -75,11 +75,11 @@
         "type": "list",
         "description": "Specific routing value"
       },
-      "_slice": {
+      "slice": {
         "type": "string",
-        "description": "Slice value for slice-enabled indices. Replaces routing when `index.slice.enabled` is true.",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); required to scope the operation to that slice",
         "visibility": "feature_flag",
-        "feature_flag": "es.index_mode_feature_flag_registered"
+        "feature_flag": "es.slice_indexing_feature_flag_enabled"
       },
       "timeout": {
         "type": "time",

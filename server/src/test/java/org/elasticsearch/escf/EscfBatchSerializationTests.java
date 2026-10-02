@@ -12,8 +12,8 @@ package org.elasticsearch.escf;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -80,7 +80,7 @@ public class EscfBatchSerializationTests extends ESTestCase {
 
     private static Map<String, Object> reconstruct(SourceBatch batch, int row) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            EirfRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+            SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
             return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         }
     }

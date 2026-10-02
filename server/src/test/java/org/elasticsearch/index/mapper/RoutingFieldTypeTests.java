@@ -35,7 +35,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     public void testTermQueryDocValues() {
         BytesRef value = new BytesRef("foo");
         Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termQuery(value.utf8ToString(), MOCK_CONTEXT);
-        assertEquals("SortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
+        assertEquals("XSortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
         assertEquals("[" + value + " TO " + value + "]", query.toString("_routing"));
     }
 
@@ -115,7 +115,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQueryDocValues() {
         Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.rangeQuery("foo", "qux", true, false, null, null, null, MOCK_CONTEXT);
-        assertEquals("SortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
+        assertEquals("XSortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
         assertEquals("[" + new BytesRef("foo") + " TO " + new BytesRef("qux") + "}", query.toString("_routing"));
 
         ElasticsearchException ee = expectThrows(

@@ -56,6 +56,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         "esql_external_splits_in_data_node_request"
     );
 
+    private static final TransportVersion SINGLE_NODE_OPTIMIZATION = TransportVersion.fromName("esql_single_node_optimization");
+
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
     private final String sessionId;
@@ -69,6 +71,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final boolean runNodeLevelReduction;
     private final boolean reductionLateMaterialization;
     private final boolean retainSearchContexts;
+    private final boolean singleNodeOptimizations;
     private final List<ExternalSplit> externalSplits;
 
     /**
@@ -86,6 +89,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
         boolean retainSearchContexts,
+        boolean singleNodeOptimizations,
         List<ExternalSplit> externalSplits
     ) {
         this.sessionId = sessionId;
@@ -99,6 +103,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.runNodeLevelReduction = runNodeLevelReduction;
         this.reductionLateMaterialization = reductionLateMaterialization;
         this.retainSearchContexts = retainSearchContexts;
+        this.singleNodeOptimizations = singleNodeOptimizations;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
     }
 
@@ -116,7 +121,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
-        boolean retainSearchContexts
+        boolean retainSearchContexts,
+        boolean singleNodeOptimizations
     ) {
         this(
             sessionId,
@@ -130,6 +136,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction,
             reductionLateMaterialization,
             retainSearchContexts,
+            singleNodeOptimizations,
             List.of()
         );
     }
@@ -170,6 +177,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             this.reductionLateMaterialization = false;
         }
         this.retainSearchContexts = in.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS) && in.readBoolean();
+        if (in.getTransportVersion().supports(SINGLE_NODE_OPTIMIZATION)) {
+            this.singleNodeOptimizations = in.readBoolean();
+        } else {
+            this.singleNodeOptimizations = false;
+        }
         if (in.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         } else {
@@ -198,6 +210,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (out.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
             out.writeBoolean(retainSearchContexts);
+        }
+        if (out.getTransportVersion().supports(SINGLE_NODE_OPTIMIZATION)) {
+            out.writeBoolean(singleNodeOptimizations);
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
@@ -286,6 +301,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return retainSearchContexts;
     }
 
+    boolean singleNodeOptimizations() {
+        return singleNodeOptimizations;
+    }
+
     List<ExternalSplit> externalSplits() {
         return externalSplits;
     }
@@ -298,6 +317,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (retainSearchContexts) {
             desc += " retainSearchContexts=true";
+        }
+        if (singleNodeOptimizations) {
+            desc += " singleNodeOptimizations=true";
         }
         return desc;
     }
@@ -324,6 +346,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && runNodeLevelReduction == request.runNodeLevelReduction
             && reductionLateMaterialization == request.reductionLateMaterialization
             && retainSearchContexts == request.retainSearchContexts
+            && singleNodeOptimizations == request.singleNodeOptimizations
             && externalSplits.equals(request.externalSplits);
     }
 
@@ -341,6 +364,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction,
             reductionLateMaterialization,
             retainSearchContexts,
+            singleNodeOptimizations,
             externalSplits
         );
     }
@@ -358,6 +382,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction,
             reductionLateMaterialization,
             retainSearchContexts,
+            singleNodeOptimizations,
             externalSplits
         );
     }

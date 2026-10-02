@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 157702
+summary: Wiring up the ability to restore a snapshot over an open index
+type: enhancement

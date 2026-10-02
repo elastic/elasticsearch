@@ -6,12 +6,17 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +26,16 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MlLearningToRankRescorerIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static final String MODEL_ID = "basic-ltr-model";
     private static final String INDEX_NAME = "store";

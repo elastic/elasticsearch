@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +43,7 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
     ) {
         return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
             @Override
-            protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+            protected void scheduleWarmingTask(AbstractWarmingTask task) {
                 if (task instanceof AbstractWarmer.WarmBlobByteRangeTask warmTask) {
                     warmTasksForBCCs.put(
                         warmTask.blobFile.blobName(),

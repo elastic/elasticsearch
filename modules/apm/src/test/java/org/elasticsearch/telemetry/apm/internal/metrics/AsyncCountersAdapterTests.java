@@ -10,7 +10,6 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -26,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncCountersAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -102,6 +102,26 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
     }
 
+    public void testZeroValuedAsyncCountersAreNotRecorded() {
+        LongAsyncCounter longCounter = registry.registerLongAsyncCounter(
+            "es.test.long.total",
+            "desc",
+            "unit",
+            () -> new LongWithAttributes(0L)
+        );
+        DoubleAsyncCounter doubleCounter = registry.registerDoubleAsyncCounter(
+            "es.test.double.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(0.0)
+        );
+
+        otelMeter.collectMetrics();
+
+        assertThat(otelMeter.getRecorder().getMeasurements(longCounter), hasSize(0));
+        assertThat(otelMeter.getRecorder().getMeasurements(doubleCounter), hasSize(0));
+    }
+
     public void testLongWithInvalidAttribute() {
         registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 
@@ -121,26 +141,24 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
     }
 
-    public void testNullRecord() throws Exception {
-        DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<DoubleWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dcounter);
-        assertThat(metrics, hasSize(0));
+    public void testNullRecord() {
+        DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dcounter.close();
 
-        LongAsyncCounter lcounter = registry.registerLongAsyncCounter(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            new AtomicReference<LongWithAttributes>()::get
-        );
-        otelMeter.collectMetrics();
-        metrics = otelMeter.getRecorder().getMeasurements(lcounter);
-        assertThat(metrics, hasSize(0));
+        LongAsyncCounter lcounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lcounter.close();
+    }
+
+    public void testNullRecords() {
+        DoubleAsyncCounter dcounter = registry.registerDoublesAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        dcounter.close();
+
+        LongAsyncCounter lcounter = registry.registerLongsAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
+        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
+        lcounter.close();
     }
 
     public void testLongAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {

@@ -14,7 +14,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -230,22 +229,24 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return new JinaAITextEmbeddingServiceSettings(
-                new JinaAICommonServiceSettings(modelName, rateLimitSettings),
-                similarity,
-                dimensions,
-                maxInputTokens,
-                embeddingType,
-                dimensionsSetByUser
-            );
-        } else if (taskType == EMBEDDING) {
-            return new JinaAIEmbeddingServiceSettings(
-                new JinaAICommonServiceSettings(modelName, rateLimitSettings),
+                modelName,
                 similarity,
                 dimensions,
                 maxInputTokens,
                 embeddingType,
                 dimensionsSetByUser,
-                multimodalModel
+                rateLimitSettings
+            );
+        } else if (taskType == EMBEDDING) {
+            return new JinaAIEmbeddingServiceSettings(
+                modelName,
+                similarity,
+                dimensions,
+                maxInputTokens,
+                embeddingType,
+                dimensionsSetByUser,
+                multimodalModel,
+                rateLimitSettings
             );
         } else {
             throw new IllegalArgumentException("Invalid taskType: " + taskType);

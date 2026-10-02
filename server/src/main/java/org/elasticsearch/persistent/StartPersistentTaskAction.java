@@ -158,8 +158,11 @@ public class StartPersistentTaskAction {
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            // Cluster is not affected but we look up repositories in metadata
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+            if (PersistentTasksExecutorRegistry.isClusterScopedTask(request.getTaskName())) {
+                return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+            }
+            // Project-scoped tasks live in the project metadata, so project-global blocks (e.g. project under deletion) apply
+            return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
         }
 
         @Override

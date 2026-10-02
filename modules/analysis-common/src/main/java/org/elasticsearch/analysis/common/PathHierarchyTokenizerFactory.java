@@ -26,6 +26,8 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     private final int skip;
     private final boolean reverse;
 
+    private final Object sharingKey;
+
     PathHierarchyTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         bufferSize = settings.getAsInt("buffer_size", 1024);
@@ -48,6 +50,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
         this.reverse = settings.getAsBoolean("reverse", false);
+        this.sharingKey = new Key(bufferSize, delimiter, replacement, skip, reverse);
     }
 
     @Override
@@ -58,4 +61,10 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         return new PathHierarchyTokenizer(bufferSize, delimiter, replacement, skip);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int bufferSize, char delimiter, char replacement, int skip, boolean reverse) {}
 }

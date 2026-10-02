@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158689
+summary: "ESQL:DS: Cap Parquet I/O at heap/8"
+type: enhancement

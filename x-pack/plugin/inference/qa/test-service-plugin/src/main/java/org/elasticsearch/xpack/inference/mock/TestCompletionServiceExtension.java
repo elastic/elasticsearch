@@ -33,7 +33,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -177,7 +177,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
         }
 
         private InferenceServiceResults makeChatCompletionResults(List<String> inputs, Map<String, Object> taskSettings) {
-            List<ChatCompletionResults.Result> results = new ArrayList<>();
+            List<CompletionResults.Result> results = new ArrayList<>();
 
             for (String text : inputs) {
                 String result = text.toUpperCase(Locale.ROOT);
@@ -191,10 +191,10 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
                     }
                 }
 
-                results.add(new ChatCompletionResults.Result(result));
+                results.add(new CompletionResults.Result(result));
             }
 
-            return new ChatCompletionResults(results);
+            return new CompletionResults(results);
         }
 
         public static class Configuration {

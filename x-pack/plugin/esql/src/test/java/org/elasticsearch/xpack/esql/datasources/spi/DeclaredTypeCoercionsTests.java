@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,8 +36,11 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Pins the declared-type coercion contract: the castability predicate
@@ -324,53 +328,75 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * The convergence contract (audit F-NUM / F-CAST-INT): a declared numeric read is value-identical
-     * to the ES|QL {@code ::} cast, which <b>rounds</b> string&rarr;whole-number (the former
-     * {@code NumberType.parse} path truncated). Fractional, scientific, and signed tokens are accepted.
-     * {@code unsigned_long} truncates — the documented per-target split ({@code ::long} rounds,
-     * {@code ::unsigned_long} truncates).
+     * A declared whole-number read accepts only exact whole numbers. Tokens that name a whole number
+     * ({@code 2.0}, {@code 1e3}) succeed; a non-zero fractional part is refused — deliberately unlike
+     * {@code ::integer}/{@code ::long} (which round) and {@code ::unsigned_long} (which truncates).
      */
-    public void testDeclaredNumericReadMatchesCastEngineRounding() {
-        assertLongCast("1.9", 2L);   // == "1.9"::long (was 1 under truncate)
-        assertLongCast("-1.9", -2L);
-        assertLongCast("2.5", 3L);
+    public void testDeclaredNumericReadIsExactWholeNumber() {
         assertLongCast("1e3", 1000L);
+        assertLongCast("2.0", 2L);
         assertLongCast("+5", 5L);
         assertLongCast("42", 42L);
-        assertIntCast("1.9", 2);
-        assertIntCast("-2.6", -3);
+        assertIntCast("2.0", 2);
+        assertIntCast("1e2", 100);
+        InvalidArgumentException fraction = expectThrows(InvalidArgumentException.class, () -> assertLongCast("1.9", 2L));
+        assertThat(fraction.getMessage(), containsString("not a whole number"));
+        assertThat(fraction.getMessage(), not(containsString("out of range")));
+        expectThrows(InvalidArgumentException.class, () -> assertLongCast("-1.9", -2L));
+        expectThrows(InvalidArgumentException.class, () -> assertLongCast("2.5", 3L));
+        expectThrows(InvalidArgumentException.class, () -> assertIntCast("1.9", 2));
+        expectThrows(InvalidArgumentException.class, () -> assertIntCast("-2.6", -3));
         try (Block src = bytesBlock("1.9"); Block d = castStrict(src, DataType.KEYWORD, DataType.DOUBLE)) {
             assertThat(((DoubleBlock) d).getDouble(0), equalTo(1.9));
         }
-        // unsigned_long truncates where long rounds (F-CAST-INT)
-        try (Block src = bytesBlock("2.5"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
+        // unsigned_long also refuses a fraction (does not truncate); message names a fraction, not "out of range"
+        InvalidArgumentException ulFraction = expectThrows(InvalidArgumentException.class, () -> {
+            try (Block src = bytesBlock("2.5"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
+                fail("expected refuse, got " + NumericUtils.unsignedLongAsNumber(((LongBlock) ul).getLong(0)));
+            }
+        });
+        assertThat(ulFraction.getMessage(), containsString("not a whole number"));
+        assertThat(ulFraction.getMessage(), not(containsString("out of range")));
+        try (Block src = bytesBlock("2.0"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
             assertThat(NumericUtils.unsignedLongAsNumber(((LongBlock) ul).getLong(0)).longValue(), equalTo(2L));
         }
+        // Unmaterializable whole vs fractional tiny: message must not conflate the two
+        InvalidArgumentException huge = expectThrows(InvalidArgumentException.class, () -> assertLongCast("1e999999999", 0L));
+        assertThat(huge.getMessage(), containsString("out of range"));
+        assertThat(huge.getMessage(), not(containsString("not a whole number")));
+        InvalidArgumentException tiny = expectThrows(InvalidArgumentException.class, () -> assertLongCast("1e-999999999", 0L));
+        assertThat(tiny.getMessage(), containsString("not a whole number"));
     }
 
     /**
-     * A physical DOUBLE column declared {@code long}/{@code integer} rounds like {@code ::long}/{@code ::integer}
-     * (not truncates) — the "declared read is value-identical to the cast engine" claim, exercised for a numeric
-     * (non-string) source. {@code testDeclaredNumericReadMatchesCastEngineRounding} only proves it for strings.
+     * A physical DOUBLE column declared {@code long}/{@code integer} accepts only already-whole values.
+     * Fractional doubles are refused — unlike {@code ::long}/{@code ::integer}, which round.
      */
-    public void testCastDoubleToLongAndIntegerRounds() {
+    public void testCastDoubleToLongAndIntegerRequiresWholeNumber() {
         try (
-            Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5, -1.9, 1000.0 }, 3).asBlock();
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1000.0, 2.0 }, 2).asBlock();
             Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)
         ) {
             LongBlock l = (LongBlock) cast;
-            assertEquals(3L, l.getLong(0));   // 2.5 rounds to 3, not truncates to 2
-            assertEquals(-2L, l.getLong(1));  // -1.9 rounds to -2
-            assertEquals(1000L, l.getLong(2));
+            assertEquals(1000L, l.getLong(0));
+            assertEquals(2L, l.getLong(1));
         }
-        try (
-            Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5, -2.6 }, 2).asBlock();
-            Block cast = castStrict(src, DataType.DOUBLE, DataType.INTEGER)
-        ) {
-            org.elasticsearch.compute.data.IntBlock i = (org.elasticsearch.compute.data.IntBlock) cast;
-            assertEquals(3, i.getInt(0));
-            assertEquals(-3, i.getInt(1));
-        }
+        expectThrows(InvalidArgumentException.class, () -> {
+            try (
+                Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5 }, 1).asBlock();
+                Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)
+            ) {
+                fail("expected refuse, got " + ((LongBlock) cast).getLong(0));
+            }
+        });
+        expectThrows(InvalidArgumentException.class, () -> {
+            try (
+                Block src = blockFactory.newDoubleArrayVector(new double[] { -1.9 }, 1).asBlock();
+                Block cast = castStrict(src, DataType.DOUBLE, DataType.INTEGER)
+            ) {
+                fail("expected refuse, got " + ((org.elasticsearch.compute.data.IntBlock) cast).getInt(0));
+            }
+        });
     }
 
     /**
@@ -530,7 +556,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     public void testCastWholeNumberToDatetimeUnparseableTokenFollowsErrorPolicy() {
         DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
         try (Block src = blockFactory.newLongArrayVector(new long[] { 7L }, 1).asBlock()) {
-            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close());
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close());
         }
         List<String> warnings = new ArrayList<>();
         try (
@@ -590,7 +616,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
         // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
         try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
-            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
         }
     }
 
@@ -613,7 +639,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
         DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
         try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock()) {
-            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond).close());
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond).close());
         }
     }
 
@@ -723,7 +749,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         // A genuinely unparseable token still fails (fail_fast throws).
         try (Block src = bytesBlock("notanumber")) {
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, null, null).close()
             );
         }
@@ -841,8 +867,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(2));
-        assertThat(warnings.get(0), containsString("ts"));
-        assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
+        assertThat(warnings.get(0), startsWith("column [ts]: cannot read [datetime] as [date_nanos]: "));
     }
 
     public void testCastStringToDatetimeHonorsDeclaredFormat() {
@@ -990,10 +1015,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertEquals("the good cell still decodes", 5L, out.getLong(out.getFirstValueIndex(1)));
         }
         assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
+        assertThat(warnings.get(0), containsString(" as [date_nanos]: "));
         try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.LONG, DataType.DATE_NANOS, null, blockFactory, null, null).close()
             );
         }
@@ -1077,9 +1102,22 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0), containsString("col"));
-        assertThat(warnings.get(0), containsString("declared type [long]"));
-        assertThat(warnings.get(0), containsString("returning null"));
+        assertThat(warnings.get(0), startsWith("column [col]: cannot read [keyword] as [long]: "));
+        // The outcome is the collector summary's to state, so the detail does not repeat it.
+        assertThat(warnings.get(0), not(containsString("returning null")));
+    }
+
+    /** The lenient branch degrades a null column name to {@code <unknown>} too, mirroring the strict path (shared detail). */
+    public void testLenientCoercionNullColumnDegrades() {
+        List<String> warnings = new ArrayList<>();
+        SkipWarnings sink = capturing(warnings);
+        try (Block source = bytesBlock("not-a-number")) {
+            try (Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, null, sink)) {
+                assertTrue("the bad cell nulls under a live sink", cast.isNull(0));
+            }
+        }
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), startsWith("column [<unknown>]: cannot read [keyword] as [long]: "));
     }
 
     public void testLenientOverflowNullsCellAndWarns() {
@@ -1092,19 +1130,81 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(1));
-        // The overflow now flows through the :: cast engine's range check (safeToInt), whose
-        // message names the target type — declared read == ::integer.
-        assertThat(warnings.get(0), containsString("out of [integer] range"));
+        assertThat(warnings.get(0), containsString("out of range for an integer"));
     }
 
     public void testStrictCoercionThrows() {
         try (Block source = bytesBlock("not-a-number")) {
-            // Reusing the :: cast engine, an unparseable token throws InvalidArgumentException
-            // (a QlClientException -> HTTP 400), not a raw IllegalArgumentException (500).
+            // An unparseable token throws InvalidArgumentException (a QlClientException -> HTTP 400),
+            // not a raw IllegalArgumentException (500).
             expectThrows(
                 InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, null, null).close()
             );
+        }
+    }
+
+    /**
+     * A strict coercion failure names the column, the declared type and the offending value, points at
+     * {@code [error_mode]} set to {@code [null_field]}, and is a client error (HTTP 400) — never the bare JDK parser exception
+     * with no column/type context that regressed diagnosability. The original exception is chained as the cause.
+     */
+    public void testStrictCoercionFailureNamesColumnTypeAndValue() {
+        try (Block src = bytesBlock("abc")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, "views", null).close()
+            );
+            assertThat(e.getMessage(), startsWith("column [views]: cannot read [keyword] as [double]: "));
+            assertThat("the offending value survives on the message", e.getMessage(), containsString("abc"));
+            assertThat(e.getMessage(), endsWith("; set [error_mode] to [null_field] to return null instead"));
+            assertThat("a coercion failure is a client error, not a 500", e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertNotNull("the low-level parser exception is preserved as the cause", e.getCause());
+        }
+    }
+
+    /**
+     * The reported incident: a column of empty strings declared {@code double} failed with a bare
+     * {@code NumberFormatException: empty String} naming neither the column nor the type. The retained
+     * message now leads with the column and declared type while still carrying the raw detail.
+     */
+    public void testStrictCoercionFailureOnEmptyStringNamesColumn() {
+        try (Block src = bytesBlock("")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, "FlashMinor2", null)
+                    .close()
+            );
+            assertThat(e.getMessage(), startsWith("column [FlashMinor2]: cannot read [keyword] as [double]: "));
+            assertThat("the raw JDK detail is retained, not discarded", e.getMessage(), containsString("empty String"));
+        }
+    }
+
+    /**
+     * Exact whole-number conversion throws {@link InvalidArgumentException} on an unparseable numeric token; the
+     * chokepoint re-wraps it with column + declared-type context. The outer type stays
+     * {@code InvalidArgumentException} (a client 400), the original exception is preserved as the cause, and the
+     * message reads cleanly without a duplicated clause.
+     */
+    public void testStrictCoercionFailureWrapsCastEngineException() {
+        try (Block src = bytesBlock("abc")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.LONG, null, blockFactory, "views", null).close()
+            );
+            assertThat(e.getMessage(), startsWith("column [views]: cannot read [keyword] as [long]: "));
+            assertTrue("the cast-engine exception is preserved as the cause", e.getCause() instanceof InvalidArgumentException);
+        }
+    }
+
+    /** A reader that does not track a column name passes {@code null}; the message degrades to {@code <unknown>}, no NPE. */
+    public void testStrictCoercionFailureNullColumnDegrades() {
+        try (Block src = bytesBlock("abc")) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, null, null).close()
+            );
+            assertThat(e.getMessage(), startsWith("column [<unknown>]: cannot read [keyword] as [double]: "));
         }
     }
 

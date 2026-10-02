@@ -1,0 +1,252 @@
+---
+"bitmap_terms on BKD-indexed long field":
+
+  - do:
+      indices.create:
+        index: test_bitmap_long_bkd
+        body:
+          mappings:
+            properties:
+              num:
+                type: long
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_bitmap_long_bkd
+        body:
+          - '{"index": {}}'
+          - '{"num": 1, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 4294967296, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 8589934593, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 1000000000001, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 2000000000002, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 3000000000003, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 1099511627776, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 9223372036854775807, "category": "odd"}'
+
+  # all 8 indexed values → all 8 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "CAAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAQAAADowAAABAAAAAAAAABAAAAAAAAIAAAA6MAAAAQAAAAAAAAAQAAAAAQDoAAAAOjAAAAEAAACl1AAAEAAAAAEQAAEAADowAAABAAAAAAAAABAAAAAAANEBAAA6MAAAAQAAAEqpAAAQAAAAAiC6AgAAOjAAAAEAAADvfQAAEAAAAAMw////fzowAAABAAAA//8AABAAAAD//w=="
+  - match: { hits.total: 8 }
+
+  # the three values around 10^12 → 3 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+  - match: { hits.total: 3 }
+
+  # smallest value, a value at 2^32, and Long.MAX_VALUE — three different buckets → 3 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AwAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAQAAADowAAABAAAAAAAAABAAAAAAAP///386MAAAAQAAAP//AAAQAAAA//8="
+  - match: { hits.total: 3 }
+
+  # Long.MAX_VALUE only → 1 doc
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AQAAAAAAAAD///9/OjAAAAEAAAD//wAAEAAAAP//"
+  - match: { hits.total: 1 }
+
+  # values that are not indexed, including one adjacent to an indexed value → 0 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AgAAAAAAAAAAAAAAOjAAAAEAAAAAAAEAEAAAAAUA5wMBAAAAOjAAAAEAAAAAAAAAEAAAAAEA"
+  - match: { hits.total: 0 }
+
+  # an empty bitmap matches nothing
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AAAAAAAAAAA="
+  - match: { hits.total: 0 }
+
+  # combined: the three 10^12 values AND category "odd" → 2 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+                - term:
+                    category: "odd"
+  - match: { hits.total: 2 }
+
+  # combined: the three 10^12 values AND category "even" → 1 doc
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_bkd
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+                - term:
+                    category: "even"
+  - match: { hits.total: 1 }
+
+---
+"bitmap_terms on index_terms long field":
+
+  - do:
+      indices.create:
+        index: test_bitmap_long_idx_terms
+        body:
+          mappings:
+            properties:
+              num:
+                type: long
+                index_terms: true
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_bitmap_long_idx_terms
+        body:
+          - '{"index": {}}'
+          - '{"num": 1, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 4294967296, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 8589934593, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 1000000000001, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 2000000000002, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 3000000000003, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 1099511627776, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 9223372036854775807, "category": "odd"}'
+
+  # all 8 indexed values → all 8 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "CAAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAQAAADowAAABAAAAAAAAABAAAAAAAAIAAAA6MAAAAQAAAAAAAAAQAAAAAQDoAAAAOjAAAAEAAACl1AAAEAAAAAEQAAEAADowAAABAAAAAAAAABAAAAAAANEBAAA6MAAAAQAAAEqpAAAQAAAAAiC6AgAAOjAAAAEAAADvfQAAEAAAAAMw////fzowAAABAAAA//8AABAAAAD//w=="
+  - match: { hits.total: 8 }
+
+  # the three values around 10^12 → 3 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+  - match: { hits.total: 3 }
+
+  # smallest value, a value at 2^32, and Long.MAX_VALUE — three different buckets → 3 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AwAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAQAAADowAAABAAAAAAAAABAAAAAAAP///386MAAAAQAAAP//AAAQAAAA//8="
+  - match: { hits.total: 3 }
+
+  # Long.MAX_VALUE only → 1 doc
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AQAAAAAAAAD///9/OjAAAAEAAAD//wAAEAAAAP//"
+  - match: { hits.total: 1 }
+
+  # values that are not indexed, including one adjacent to an indexed value → 0 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AgAAAAAAAAAAAAAAOjAAAAEAAAAAAAEAEAAAAAUA5wMBAAAAOjAAAAEAAAAAAAAAEAAAAAEA"
+  - match: { hits.total: 0 }
+
+  # combined: the three 10^12 values AND category "odd" → 2 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_long_idx_terms
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+                - term:
+                    category: "odd"
+  - match: { hits.total: 2 }

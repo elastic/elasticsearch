@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Locks the identity contract of {@link SchemaCacheKey#forDatasetAggregate}: the key must change with
@@ -27,63 +29,79 @@ public class SchemaCacheKeyTests extends ESTestCase {
             PATTERN,
             new FileSetFingerprint(11, 22),
             "ndjson",
+            "",
             Map.of("format", "ndjson")
         );
         SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
             "ndjson",
+            "",
             Map.of("format", "ndjson")
         );
         assertEquals(a, b);
     }
 
     public void testDatasetAggregateKeyChangesWithEitherFingerprintLane() {
-        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
-        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(12, 22), "ndjson", Map.of()));
-        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 23), "ndjson", Map.of()));
-    }
-
-    public void testDatasetAggregateKeyChangesWithFormatAffectingConfig() {
-        // error_mode changes which rows survive a scan, so a count harvested under one policy must
-        // never serve a query running under another — the config fingerprint is part of the key.
-        SchemaCacheKey strict = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            "ndjson",
-            Map.of("error_mode", "fail_fast")
-        );
-        SchemaCacheKey lenient = SchemaCacheKey.forDatasetAggregate(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            "ndjson",
-            Map.of("error_mode", "skip_row")
-        );
-        assertNotEquals(strict, lenient);
+        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "", Map.of());
+        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(12, 22), "ndjson", "", Map.of()));
+        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 23), "ndjson", "", Map.of()));
     }
 
     public void testDatasetAggregateKeyIgnoresCredentials() {
-        // Mirrors buildFormatConfig: credentials are not row-interpretation-affecting, so two users
+        // A storage identity names only non-secret fields: credentials are not row-interpretation-affecting, so two users
         // over the same files share the aggregate (the schema cache is shared by design).
         SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
             "ndjson",
+            "",
             Map.of("access_key", "userA")
         );
         SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
             new FileSetFingerprint(11, 22),
             "ndjson",
+            "",
             Map.of("access_key", "userB")
         );
         assertEquals(a, b);
     }
 
     public void testDatasetAggregateKeyChangesWithSourceType() {
-        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
-        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "csv", Map.of());
+        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "", Map.of());
+        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "csv", "", Map.of());
         assertNotEquals(ndjson, csv);
+    }
+
+    public void testDatasetAggregateKeyChangesWithRegion() {
+        // region is a dataset-level key; two identical file sets accessed with different regions
+        // must not share the same aggregate cache entry.
+        SchemaCacheKey usEast = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region")),
+            Map.of()
+        );
+        SchemaCacheKey euWest = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region")),
+            Map.of()
+        );
+        assertNotEquals(usEast, euWest);
+    }
+
+    public void testPerFileKeyChangesWithRegion() {
+        // region is a dataset-level key; the same file at the same mtime on different regions
+        // must not share a per-file schema cache entry.
+        String usEastIdentity = Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region"));
+        String euWestIdentity = Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region"));
+        SchemaCacheKey usEast = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", usEastIdentity, Map.of());
+        SchemaCacheKey euWest = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", euWestIdentity, Map.of());
+        assertNotEquals(usEast, euWest);
     }
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
@@ -92,8 +110,8 @@ public class SchemaCacheKeyTests extends ESTestCase {
         // null (so a pathological '#dataset-agg'-bearing object name at most loses warm enrichment, never
         // collides). canonicalPath stays the plain glob pattern (diagnostics-friendly, no smuggled
         // separators).
-        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
-        SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, "ndjson", Map.of());
+        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", "", Map.of());
+        SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, "ndjson", "", Map.of());
         assertNotEquals(dataset, perFile);
         assertTrue(dataset.isDatasetAggregate());
         assertFalse(perFile.isDatasetAggregate());

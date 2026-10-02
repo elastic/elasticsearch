@@ -27,7 +27,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 
 import java.util.Collection;
 import java.util.Locale;
@@ -39,7 +39,7 @@ import java.util.concurrent.locks.LockSupport;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTestCase {
@@ -122,7 +122,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 handler.messageReceived(request, channel, task);
             });
 
-        final var finalCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(finalGeneration);
+        final var finalCommitBlobName = BatchedCompoundCommit.blobNameFromGeneration(finalGeneration);
 
         // We want more commits to be made by the source shard while the relocation handoff is executing, so we block the handoff here
         var newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());

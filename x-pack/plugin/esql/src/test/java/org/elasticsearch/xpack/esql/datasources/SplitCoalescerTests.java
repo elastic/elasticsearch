@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.COALESCING_THRESHOLD;
+import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.DEFAULT_MAX_FILES_PER_GROUP;
+import static org.elasticsearch.xpack.esql.datasources.SplitCoalescer.DEFAULT_OPEN_COST_BYTES;
 
 public class SplitCoalescerTests extends ESTestCase {
 
@@ -34,12 +36,29 @@ public class SplitCoalescerTests extends ESTestCase {
 
     public void testBelowThresholdReturnsUnchanged() {
         List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD - 1);
-        assertSame(splits, SplitCoalescer.coalesce(splits));
+        assertEquals(splits, SplitCoalescer.coalesce(splits));
     }
 
     public void testExactlyAtThresholdReturnsUnchanged() {
         List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD);
-        assertSame(splits, SplitCoalescer.coalesce(splits));
+        assertEquals(splits, SplitCoalescer.coalesce(splits));
+    }
+
+    public void testCoalesceNeverReturnsTheCallersList() {
+        // Callers replace the contents of the list they passed in. Handing back that same list would make them
+        // clear the list they are copying from, silently emptying the scan, so declining to group must still
+        // produce a list of our own.
+        List<ExternalSplit> belowThreshold = makeSplits(COALESCING_THRESHOLD - 1);
+        assertNotSame(belowThreshold, SplitCoalescer.coalesce(belowThreshold));
+        List<ExternalSplit> aboveThreshold = makeSplits(COALESCING_THRESHOLD + 1);
+        assertNotSame(aboveThreshold, SplitCoalescer.coalesce(aboveThreshold));
+    }
+
+    public void testShouldCoalesceOwnsTheThresholdRule() {
+        assertFalse(SplitCoalescer.shouldCoalesce(0));
+        assertFalse(SplitCoalescer.shouldCoalesce(COALESCING_THRESHOLD - 1));
+        assertFalse(SplitCoalescer.shouldCoalesce(COALESCING_THRESHOLD));
+        assertTrue(SplitCoalescer.shouldCoalesce(COALESCING_THRESHOLD + 1));
     }
 
     public void testSizeBasedGrouping() {
@@ -126,6 +145,371 @@ public class SplitCoalescerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(splits, 0, 8));
     }
 
+    public void testParallelismFloorSpreadsTinyFiles() {
+        int count = 100;
+        int parallelism = 14;
+        // 1 KB files all fit one 128 MB bin, so without a floor they collapse to a single group.
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals("tiny files must be spread across at least the parallelism floor", parallelism, result.size());
+        assertEquals(count, countTotalLeaves(result));
+    }
+
+    public void testParallelismFloorCappedBySplitCount() {
+        int count = COALESCING_THRESHOLD + 8; // above the threshold so coalescing runs
+        int parallelism = 100;                // more than the number of files
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals("floor cannot exceed the number of input splits", count, result.size());
+        assertEquals(count, countTotalLeaves(result));
+    }
+
+    public void testSizeRaisesGroupCountAboveParallelismFloor() {
+        int count = 100;
+        long fileSize = 10 * 1024 * 1024;  // 10 MB
+        long target = 128 * 1024 * 1024;   // ~12 files per bin -> ~8 bins by size alone
+        int parallelism = 4;               // lower than the size-required bin count
+        List<ExternalSplit> splits = makeSplits(count, fileSize);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, parallelism);
+
+        int sizeBins = (int) Math.ceil((count * (double) fileSize) / target);
+        assertTrue("size must raise the group count above the parallelism floor", result.size() >= sizeBins);
+        assertEquals(count, countTotalLeaves(result));
+        for (ExternalSplit split : result) {
+            if (split instanceof CoalescedSplit coalesced) {
+                assertTrue("size budget must still be respected under the floor", coalesced.estimatedSizeInBytes() <= target + fileSize);
+            }
+        }
+    }
+
+    public void testParallelismFloorPreservesAllChildren() {
+        int count = 100;
+        int parallelism = 14;
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        Set<ExternalSplit> originalSet = new HashSet<>(splits);
+        Set<ExternalSplit> resultLeaves = new HashSet<>();
+        for (ExternalSplit split : result) {
+            if (split instanceof CoalescedSplit coalesced) {
+                resultLeaves.addAll(coalesced.children());
+            } else {
+                resultLeaves.add(split);
+            }
+        }
+        assertEquals(originalSet, resultLeaves);
+    }
+
+    public void testParallelismFloorWithoutSizeInfo() {
+        int count = 100;
+        int parallelism = 14;
+        List<ExternalSplit> splits = makeSplitsWithoutSize(count);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals("count-based grouping must also honor the parallelism floor", parallelism, result.size());
+        assertEquals(count, countTotalLeaves(result));
+    }
+
+    public void testFloorKeepsOversizedStandaloneAndSpreadsTiny() {
+        long target = 128 * 1024 * 1024;
+        int parallelism = 14;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, 200L * 1024 * 1024)); // oversized
+        splits.add(makeFileSplit(1, 300L * 1024 * 1024)); // oversized
+        for (int i = 2; i < 100; i++) {
+            splits.add(makeFileSplit(i, 1024));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, parallelism);
+
+        assertEquals(parallelism, result.size());
+        assertEquals(100, countTotalLeaves(result));
+        int standaloneOversized = 0;
+        for (ExternalSplit split : result) {
+            if (split instanceof FileSplit fs && fs.length() >= target) {
+                standaloneOversized++;
+            }
+            if (split instanceof CoalescedSplit coalesced) {
+                assertTrue("coalesced groups must stay under the size budget", coalesced.estimatedSizeInBytes() <= target + 1024);
+            }
+        }
+        assertEquals("both oversized files stay standalone", 2, standaloneOversized);
+    }
+
+    public void testFloorProducesBalancedGroups() {
+        int count = 100;
+        int parallelism = 14;
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals(parallelism, result.size());
+        int min = Integer.MAX_VALUE;
+        int max = 0;
+        for (ExternalSplit split : result) {
+            int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            min = Math.min(min, leaves);
+            max = Math.max(max, leaves);
+        }
+        assertTrue("groups should be balanced within one leaf, got min=" + min + " max=" + max, max - min <= 1);
+    }
+
+    public void testFloorSpreadsZeroSizedFilesEvenly() {
+        int count = 100;
+        int parallelism = 14;
+        // Zero-byte files all tie on load, so the least-loaded tie-break must still round-robin them across groups
+        // rather than piling every file after the seed into the first group.
+        List<ExternalSplit> splits = makeSplits(count, 0);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, parallelism);
+
+        assertEquals(parallelism, result.size());
+        assertEquals(count, countTotalLeaves(result));
+        int min = Integer.MAX_VALUE;
+        int max = 0;
+        for (ExternalSplit split : result) {
+            int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            min = Math.min(min, leaves);
+            max = Math.max(max, leaves);
+        }
+        assertTrue("zero-sized files should be balanced within one leaf, got min=" + min + " max=" + max, max - min <= 1);
+    }
+
+    public void testFloorBalancesFileCountAcrossMixedSizes() {
+        // A few larger files plus many tiny ones must not pile every tiny file into the single group seeded by a
+        // tiny file. Read parallelism over small files is bounded by per-file opens, so groups are balanced by leaf
+        // count, not by bytes: balancing by bytes alone would leave one group holding all 100 tiny files.
+        long target = 128 * 1024 * 1024;
+        int floor = 6;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            splits.add(makeFileSplit(i, 10 * 1024 * 1024)); // 10 MB
+        }
+        for (int i = 5; i < 105; i++) {
+            splits.add(makeFileSplit(i, 1024)); // 1 KB
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(105, countTotalLeaves(result));
+        int min = Integer.MAX_VALUE;
+        int max = 0;
+        for (ExternalSplit split : result) {
+            int leaves = split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+            min = Math.min(min, leaves);
+            max = Math.max(max, leaves);
+        }
+        assertTrue("groups must be balanced by leaf count, got min=" + min + " max=" + max, max - min <= 1);
+    }
+
+    public void testFloorStopsFillingGroupsAtSizeBudget() {
+        // A near-budget file seeds one group. Balancing purely by leaf count would keep steering tiny files onto
+        // that group whenever its count is the smallest, pushing it far past the budget. The fill must stop once a
+        // group reaches the budget and send the remaining files to groups that still have room.
+        long target = 100L * 1024 * 1024; // 100 MB
+        long tiny = 1024 * 1024;          // 1 MB
+        int floor = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, 95L * 1024 * 1024)); // 95 MB, just under budget
+        for (int i = 1; i <= 105; i++) {
+            splits.add(makeFileSplit(i, tiny));
+        }
+
+        // The default file cap would emit more bins than this floor on 1 MB leaves, skipping the floor path
+        // this test is about. Lift the cap so spreadLeastLoaded still runs.
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor, Integer.MAX_VALUE);
+
+        assertEquals(floor, result.size());
+        assertEquals(106, countTotalLeaves(result));
+        for (ExternalSplit split : result) {
+            assertTrue(
+                "no group may exceed the size budget by more than one file, got " + split.estimatedSizeInBytes(),
+                split.estimatedSizeInBytes() <= target + tiny
+            );
+        }
+    }
+
+    public void testFloorWithDefaultFileCapDoesNotExceedBudget() {
+        // Tiny files pack to ceil(n/32) bins, below this floor, so spreadLeastLoaded runs with the default
+        // cap still in force. Groups must stay at or under the file budget.
+        int count = 100;
+        int floor = 14;
+        List<ExternalSplit> splits = makeSplits(count, 1024);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(count, countTotalLeaves(result));
+        assertTrue("floor path must still honor the file cap, max=" + maxLeaves(result), maxLeaves(result) <= DEFAULT_MAX_FILES_PER_GROUP);
+    }
+
+    public void testFloorNearBudgetFilesRespectsFileCap() {
+        // A near-budget seed fills on bytes after a few 1 MB files; remaining files go to groups with room.
+        // Default cap still applies, and the floor is high enough that spreadLeastLoaded actually runs.
+        long target = 100L * 1024 * 1024;
+        long tiny = 1024 * 1024;
+        int floor = 8;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, 95L * 1024 * 1024));
+        for (int i = 1; i <= 80; i++) {
+            splits.add(makeFileSplit(i, tiny));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, floor);
+
+        assertEquals(floor, result.size());
+        assertEquals(81, countTotalLeaves(result));
+        assertTrue(
+            "floor + byte-budget skip must not exceed the file cap, max=" + maxLeaves(result),
+            maxLeaves(result) <= DEFAULT_MAX_FILES_PER_GROUP
+        );
+        for (ExternalSplit split : result) {
+            assertTrue(
+                "no group may exceed the size budget by more than one file, got " + split.estimatedSizeInBytes(),
+                split.estimatedSizeInBytes() <= target + tiny
+            );
+        }
+    }
+
+    public void testFloorOfOneMatchesDefaultGrouping() {
+        int count = 100;
+        List<ExternalSplit> splits = makeSplits(count, 10 * 1024 * 1024);
+
+        List<ExternalSplit> defaultGrouping = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8);
+        List<ExternalSplit> floored = SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 1);
+
+        assertEquals(defaultGrouping, floored);
+    }
+
+    public void testInvalidMinGroupCountThrows() {
+        List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD + 1);
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 0));
+    }
+
+    public void testBelowThresholdIgnoresMinGroups() {
+        List<ExternalSplit> splits = makeSplits(COALESCING_THRESHOLD - 1);
+        assertEquals(splits, SplitCoalescer.coalesce(splits, 128 * 1024 * 1024, 8, 14));
+    }
+
+    public void testInvalidParamsThrowEvenBelowThreshold() {
+        // Validation must fire before the early-return size guard so the same invalid argument is always rejected.
+        List<ExternalSplit> belowThreshold = makeSplits(COALESCING_THRESHOLD - 1);
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 8, 0));
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 0, 8, 1));
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 0, 1));
+        expectThrows(IllegalArgumentException.class, () -> SplitCoalescer.coalesce(belowThreshold, 128 * 1024 * 1024, 8, 1, 0));
+    }
+
+    public void testNoGroupExceedsTheFileCountBudget() {
+        // ClickBench-zstd leaf sizes pack 39 files under the 128 MiB byte budget alone. The file cap must bind
+        // first so no driver is handed more than DEFAULT_MAX_FILES_PER_GROUP leaves.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = makeSplits(3264, 3_386_719L);
+
+        assertEquals(39, maxLeaves(SplitCoalescer.coalesce(splits, target, 8, 1, Integer.MAX_VALUE)));
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, 1, DEFAULT_MAX_FILES_PER_GROUP);
+
+        assertEquals(3264, countTotalLeaves(result));
+        assertEquals("file cap must bind on this corpus (byte budget would allow 39)", DEFAULT_MAX_FILES_PER_GROUP, maxLeaves(result));
+    }
+
+    public void testByteBudgetStillBindsOnLargerFiles() {
+        // Uncompressed ClickBench leaves fill the 128 MiB byte budget at 15 files, below the file cap.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = makeSplits(3264, 8_512_192L);
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, 1, DEFAULT_MAX_FILES_PER_GROUP);
+
+        assertEquals(3264, countTotalLeaves(result));
+        assertEquals("byte budget must still bind first on larger files", 15, maxLeaves(result));
+        for (ExternalSplit split : result) {
+            assertTrue("size budget must still be respected, got " + split.estimatedSizeInBytes(), split.estimatedSizeInBytes() <= target);
+        }
+    }
+
+    public void testCompressionNoLongerScalesLargestGroup() {
+        // Same two corpora as the defect: without a file cap, compression packed 39 files vs 15 uncompressed.
+        // The default cap bounds the compressed side at 32; the byte budget still binds first on uncompressed.
+        // The issue's 1.1 leaf-count ratio cannot hold at cap=32 because uncompressed stays byte-bound at 15.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> compressed = makeSplits(3264, 3_386_719L);
+        List<ExternalSplit> uncompressed = makeSplits(3264, 8_512_192L);
+
+        int maxCompressed = maxLeaves(SplitCoalescer.coalesce(compressed, target, 8, 1));
+        int maxUncompressed = maxLeaves(SplitCoalescer.coalesce(uncompressed, target, 8, 1));
+
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP, maxCompressed);
+        assertEquals(15, maxUncompressed);
+    }
+
+    public void testClaimOrderPutsCostlyGroupsFirst() {
+        // BFD emits the exact-budget standalone first. Claim cost (bytes + 4 MiB per leaf) must invert that:
+        // a 32-leaf group of 4 MiB files costs ~256 MiB and must be claimed before the 128 MiB standalone
+        // (~132 MiB) and before cheap 1 KiB leftovers.
+        long target = 128L * 1024 * 1024;
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(makeFileSplit(0, target));
+        for (int i = 1; i <= DEFAULT_MAX_FILES_PER_GROUP; i++) {
+            splits.add(makeFileSplit(i, DEFAULT_OPEN_COST_BYTES));
+        }
+        for (int i = DEFAULT_MAX_FILES_PER_GROUP + 1; i <= DEFAULT_MAX_FILES_PER_GROUP + 40; i++) {
+            splits.add(makeFileSplit(i, 1024));
+        }
+
+        List<ExternalSplit> result = SplitCoalescer.coalesce(splits, target, 8, 1);
+
+        assertEquals(1 + DEFAULT_MAX_FILES_PER_GROUP + 40, countTotalLeaves(result));
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP, leafCount(result.get(0)));
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP * DEFAULT_OPEN_COST_BYTES, result.get(0).estimatedSizeInBytes());
+        assertTrue(
+            "exact-budget standalone must follow the costlier 32-leaf group",
+            result.get(1) instanceof FileSplit standalone && standalone.length() == target
+        );
+
+        long previousCost = Long.MAX_VALUE;
+        boolean sawFullFileCapGroup = false;
+        for (int i = 0; i < result.size(); i++) {
+            ExternalSplit group = result.get(i);
+            long cost = SplitCoalescer.claimCost(group);
+            assertTrue(
+                "claim cost must be non-increasing, at index " + i + " cost=" + cost + " prev=" + previousCost,
+                cost <= previousCost
+            );
+            previousCost = cost;
+            int leaves = leafCount(group);
+            if (leaves == DEFAULT_MAX_FILES_PER_GROUP) {
+                sawFullFileCapGroup = true;
+            }
+            if (leaves < DEFAULT_MAX_FILES_PER_GROUP && group instanceof CoalescedSplit) {
+                assertTrue("cheap leftover must not precede a 32-leaf group", sawFullFileCapGroup);
+            }
+        }
+        assertTrue("expected at least one group at the file cap", sawFullFileCapGroup);
+    }
+
+    public void testClaimCostCountsLeavesNotJustBytes() {
+        FileSplit standalone = makeFileSplit(0, 128L * 1024 * 1024);
+        CoalescedSplit tinyGroup = new CoalescedSplit("file", makeSplits(DEFAULT_MAX_FILES_PER_GROUP, 1024));
+        assertEquals(DEFAULT_MAX_FILES_PER_GROUP * 1024L, tinyGroup.estimatedSizeInBytes());
+        assertEquals(
+            tinyGroup.estimatedSizeInBytes() + DEFAULT_MAX_FILES_PER_GROUP * DEFAULT_OPEN_COST_BYTES,
+            SplitCoalescer.claimCost(tinyGroup)
+        );
+        assertEquals(standalone.length() + DEFAULT_OPEN_COST_BYTES, SplitCoalescer.claimCost(standalone));
+        // 32 leaves of 4 MiB each beat the standalone: open cost dominates stored bytes of one file.
+        CoalescedSplit costlyGroup = new CoalescedSplit("file", makeSplits(DEFAULT_MAX_FILES_PER_GROUP, DEFAULT_OPEN_COST_BYTES));
+        assertTrue(SplitCoalescer.claimCost(costlyGroup) > SplitCoalescer.claimCost(standalone));
+    }
+
     public void testMixedSizesProducesReasonableGroups() {
         List<ExternalSplit> splits = new ArrayList<>();
         long targetGroupSize = 100 * 1024 * 1024;
@@ -198,12 +582,21 @@ public class SplitCoalescerTests extends ESTestCase {
     private static int countTotalLeaves(List<ExternalSplit> splits) {
         int count = 0;
         for (ExternalSplit split : splits) {
-            if (split instanceof CoalescedSplit coalesced) {
-                count += coalesced.children().size();
-            } else {
-                count++;
-            }
+            count += leafCount(split);
         }
         return count;
     }
+
+    private static int maxLeaves(List<ExternalSplit> groups) {
+        int max = 0;
+        for (ExternalSplit group : groups) {
+            max = Math.max(max, leafCount(group));
+        }
+        return max;
+    }
+
+    private static int leafCount(ExternalSplit split) {
+        return split instanceof CoalescedSplit coalesced ? coalesced.children().size() : 1;
+    }
+
 }

@@ -1,0 +1,10 @@
+SET unmapped_fields="nullify";
+FROM sample_data, (
+  FROM sample_data, (FROM sample_data_ts_nanos)
+  | WHERE TO_STRING(message) IS NOT NULL OR missing_inner IS NOT NULL
+  | EVAL msg = TO_STRING(message)
+  | KEEP @timestamp, msg
+)
+| WHERE @timestamp IS NOT NULL OR missing_outer IS NOT NULL
+| KEEP @timestamp, msg
+| SORT @timestamp

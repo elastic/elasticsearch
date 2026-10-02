@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,11 +16,11 @@ import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 
 public class CompletionParameters extends RequestParameters {
 
-    public static CompletionParameters of(ChatCompletionInput completionInput) {
+    public static CompletionParameters of(CompletionInput completionInput) {
         return new CompletionParameters(Objects.requireNonNull(completionInput));
     }
 
-    private CompletionParameters(ChatCompletionInput completionInput) {
+    private CompletionParameters(CompletionInput completionInput) {
         super(completionInput.getInputs());
     }
 

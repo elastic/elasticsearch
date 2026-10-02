@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 152965
+pr: 153944
+summary: Let PITs on same commit share same `SegmentReaders` after relocation
+type: bug

@@ -1,0 +1,195 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.columnar.substrate;
+
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.LongValues;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+
+/**
+ * Round-trips the monotonic table that every offset structure in the format is built on — block offsets,
+ * value addresses, chunk starts, escape ranks. It is written into a temporary file and read back through a
+ * mapped slice, so nothing about it is held on the heap; what this checks is that every entry comes back
+ * exactly, across the shapes real offsets take.
+ */
+public class MonotonicTableTests extends ESTestCase {
+
+    public void testSingleEntry() throws IOException {
+        assertRoundTrip(new long[] { 0 });
+        assertRoundTrip(new long[] { randomNonNegativeLong() });
+    }
+
+    /** Every entry the same, which is what an offset table over empty values looks like. */
+    public void testConstant() throws IOException {
+        final long[] values = new long[between(2, 5000)];
+        final long constant = randomLongBetween(0, 1 << 20);
+        java.util.Arrays.fill(values, constant);
+        assertRoundTrip(values);
+    }
+
+    /** A fixed stride, which is what offsets over fixed-width values look like and packs to nothing. */
+    public void testFixedStride() throws IOException {
+        for (int stride : new int[] { 1, 7, 128, 65536 }) {
+            final long[] values = new long[between(2, 3000)];
+            for (int i = 1; i < values.length; i++) {
+                values[i] = values[i - 1] + stride;
+            }
+            assertRoundTrip(values);
+        }
+    }
+
+    /** Runs of no growth between jumps, which is what offsets over a mix of empty and large values look like. */
+    public void testPlateausAndJumps() throws IOException {
+        final long[] values = new long[between(100, 4000)];
+        for (int i = 1; i < values.length; i++) {
+            values[i] = values[i - 1] + (random().nextDouble() < 0.7 ? 0 : between(1, 100_000));
+        }
+        assertRoundTrip(values);
+    }
+
+    /** Offsets past the range of an int, which a column larger than 2GB reaches. */
+    public void testBeyondIntRange() throws IOException {
+        final long[] values = new long[between(2, 2000)];
+        values[0] = (long) Integer.MAX_VALUE + between(1, 1_000_000);
+        for (int i = 1; i < values.length; i++) {
+            values[i] = values[i - 1] + between(0, 1 << 20);
+        }
+        assertRoundTrip(values);
+    }
+
+    /** More entries than one monotonic block holds, so the table spans several of them. */
+    public void testSpanningManyBlocks() throws IOException {
+        final long[] values = new long[(1 << MonotonicWriter.BLOCK_SHIFT) * 2 + between(1, 1000)];
+        for (int i = 1; i < values.length; i++) {
+            values[i] = values[i - 1] + between(0, 40);
+        }
+        assertRoundTrip(values);
+    }
+
+    public void testRandom() throws IOException {
+        for (int iteration = 0; iteration < 20; iteration++) {
+            final long[] values = new long[between(1, 6000)];
+            values[0] = randomBoolean() ? 0 : randomLongBetween(0, 1L << 40);
+            for (int i = 1; i < values.length; i++) {
+                values[i] = values[i - 1] + randomFrom(0L, 1L, (long) between(0, 1000), randomLongBetween(0, 1 << 20));
+            }
+            assertRoundTrip(values);
+        }
+    }
+
+    /**
+     * Tables written into one file at the same time, as a column's navigation is, each read back whole. Enough
+     * entries that every table spans several blocks, so their blocks interleave in the file.
+     */
+    public void testTablesInterleavedInOneFile() throws IOException {
+        final int tables = between(2, 5);
+        final long[][] values = new long[tables][];
+        for (int t = 0; t < tables; t++) {
+            values[t] = new long[between(1, 3) * (1 << MonotonicWriter.BLOCK_SHIFT) + between(0, 5000)];
+            for (int i = 1; i < values[t].length; i++) {
+                values[t][i] = values[t][i - 1] + between(0, 1 << (t + 3));
+            }
+        }
+        try (Directory dir = newDirectory()) {
+            final MonotonicWriter.Table[] written = new MonotonicWriter.Table[tables];
+            try (IndexOutput out = dir.createOutput("tables.bin", IOContext.DEFAULT)) {
+                final MonotonicWriter[] writers = new MonotonicWriter[tables];
+                for (int t = 0; t < tables; t++) {
+                    writers[t] = new MonotonicWriter(out);
+                }
+                // In turn, one entry of each table at a time, so a block of one lands between blocks of another.
+                int longest = 0;
+                for (long[] table : values) {
+                    longest = Math.max(longest, table.length);
+                }
+                for (int i = 0; i < longest; i++) {
+                    for (int t = 0; t < tables; t++) {
+                        if (i < values[t].length) {
+                            writers[t].add(values[t][i]);
+                        }
+                    }
+                }
+                for (int t = 0; t < tables; t++) {
+                    written[t] = writers[t].finish();
+                }
+            }
+            assertArrayEquals("nothing is written but the file the tables were given", new String[] { "tables.bin" }, dir.listAll());
+            try (IndexInput in = dir.openInput("tables.bin", IOContext.DEFAULT)) {
+                for (int t = 0; t < tables; t++) {
+                    final MonotonicWriter.Table table = written[t];
+                    final LongValues read = MonotonicReader.open(
+                        in,
+                        table.meta(),
+                        values[t].length,
+                        table.dataOffset(),
+                        table.dataLength()
+                    );
+                    for (int i = 0; i < values[t].length; i++) {
+                        assertEquals("table " + t + " at " + i, values[t][i], read.get(i));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A table that went backwards would read back as wrong offsets rather than as a failure, so the writer
+     * refuses the entry. Checked within a block and across one, since a block is flushed and reused.
+     */
+    public void testRejectsEntriesOutOfOrder() throws IOException {
+        try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
+            final MonotonicWriter writer = new MonotonicWriter(out);
+            writer.add(10);
+            writer.add(20);
+            final IllegalArgumentException within = expectThrows(IllegalArgumentException.class, () -> writer.add(19));
+            assertTrue(within.getMessage(), within.getMessage().contains("[20], [19]"));
+
+            final MonotonicWriter spanning = new MonotonicWriter(out);
+            final int blockSize = 1 << MonotonicWriter.BLOCK_SHIFT;
+            for (int i = 0; i < blockSize; i++) {
+                spanning.add(i);
+            }
+            final IllegalArgumentException across = expectThrows(IllegalArgumentException.class, () -> spanning.add(blockSize - 2));
+            assertTrue(across.getMessage(), across.getMessage().contains("[" + (blockSize - 1) + "], [" + (blockSize - 2) + "]"));
+        }
+    }
+
+    private void assertRoundTrip(long[] values) throws IOException {
+        final String label = "entries=" + values.length + " last=" + values[values.length - 1];
+        try (Directory dir = newDirectory()) {
+            final MonotonicWriter.Table table;
+            try (IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
+                // A leading byte, so the table does not begin at zero and its recorded offset has to be used.
+                out.writeByte((byte) 42);
+                final MonotonicWriter writer = new MonotonicWriter(out);
+                for (long value : values) {
+                    writer.add(value);
+                }
+                table = writer.finish();
+            }
+            try (IndexInput in = dir.openInput("table.bin", IOContext.DEFAULT)) {
+                final LongValues read = MonotonicReader.open(in, table.meta(), values.length, table.dataOffset(), table.dataLength());
+                for (int i = 0; i < values.length; i++) {
+                    assertEquals(label + " at " + i, values[i], read.get(i));
+                }
+                // Out of order, since the readers a column drives are not sequential.
+                for (int probe = 0; probe < Math.min(200, values.length); probe++) {
+                    final int i = between(0, values.length - 1);
+                    assertEquals(label + " random at " + i, values[i], read.get(i));
+                }
+            }
+        }
+    }
+}

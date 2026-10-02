@@ -10,15 +10,15 @@ package org.elasticsearch.xpack.inference.services.groq.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;
@@ -30,9 +30,9 @@ public class GroqActionCreator implements GroqActionVisitor {
     public static final String COMPLETION_REQUEST_TYPE = "groq completion";
     private static final String USER_ROLE = "user";
 
-    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
         COMPLETION_REQUEST_TYPE,
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
 
     private final Sender sender;
@@ -51,7 +51,7 @@ public class GroqActionCreator implements GroqActionVisitor {
             overriddenModel,
             COMPLETION_HANDLER,
             inputs -> new GroqUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);

@@ -71,6 +71,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                         var result = indexShard.getService()
                             .getFromTranslog(
                                 item.id(),
+                                item.routing(),
                                 item.storedFields(),
                                 multiGetShardRequest.realtime(),
                                 item.version(),

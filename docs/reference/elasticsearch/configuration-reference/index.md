@@ -37,6 +37,7 @@ The settings are grouped by feature or purpose, for example:
 - [Index buffer](/reference/elasticsearch/configuration-reference/indexing-buffer-settings.md)
 - [Indexing pressure](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md)
 - [Inference](/reference/elasticsearch/configuration-reference/inference-settings.md)
+- [Ingest](/reference/elasticsearch/configuration-reference/ingest-settings.md)
 - [License](/reference/elasticsearch/configuration-reference/license-settings.md)
 - [Local gateway](/reference/elasticsearch/configuration-reference/local-gateway.md)
 - [Machine learning](/reference/elasticsearch/configuration-reference/machine-learning-settings.md)

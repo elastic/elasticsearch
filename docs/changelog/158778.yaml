@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158778
+summary: Read Parquet footers larger than the footer-cache entry cap
+type: bug

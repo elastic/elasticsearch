@@ -394,4 +394,50 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         assertValidateResourcesFailure(result,
             "has primary id 8123050 which is not aligned to increment 100")
     }
+
+    def "new definition on the patch branch must be a patch id"() {
+        given:
+        setupPatchBranch()
+        referableAndReferencedTransportVersion("some_new_tv", "8124000")
+        transportVersionUpperBound("9.2", "some_new_tv", "8124000")
+
+        when:
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:validateTransportVersionResources", PATCH_BRANCH_PROPERTY).buildAndFail()
+
+        then:
+        assertValidateResourcesFailure(result, "has primary id 8124000 which is not a patch id." +
+            " Transport versions added on the serverless patch branch must be patch ids." +
+            " Run ./gradlew generateTransportVersion --patch")
+    }
+
+    def "a patch id is valid on the patch branch"() {
+        given:
+        setupPatchBranch()
+        referableAndReferencedTransportVersion("some_new_tv", "8123001")
+        transportVersionUpperBound("9.2", "some_new_tv", "8123001")
+
+        when:
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:validateTransportVersionResources", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "a patch id merged back from the patch branch stays valid"() {
+        given:
+        // put a patch id on main, as merging the patch branch back into it would
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("merged_fix", "8123001")
+        transportVersionUpperBound("9.2", "merged_fix", "8123001")
+        commitAll("merge-back-the-patch")
+        execute("git checkout -b after-merge-back")
+
+        when:
+        def result = gradleRunner(":myserver:validateTransportVersionResources", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
 }

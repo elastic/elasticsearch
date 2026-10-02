@@ -32,12 +32,17 @@ import static org.hamcrest.Matchers.not;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
-    protected static TestAnalyzer tsAnalyzer() {
+    protected AbstractPromqlPlanOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    protected TestAnalyzer tsAnalyzer() {
         return analyzerWithEnrichPolicies().addK8s()
+            .addK8sDateNanos()
             .addOtelMetrics()
             .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
-            .minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE);
+            .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
     }
 
     protected LogicalPlan planPromql(String query) {
@@ -48,6 +53,12 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         return planPromql(query, false, optimize);
     }
 
+    /**
+     * PromQL translation writes non-finite-preserving expressions gated on several transport versions. The shared
+     * optimizer draws a random version, which can predate those gates and silently strip the semantics, so optimized
+     * PromQL plans use {@link org.elasticsearch.TransportVersion#current()}. Downgrade behavior itself is covered by
+     * {@code SubstituteTransportVersionAwareExpressionsTests}.
+     */
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
@@ -64,7 +75,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         if (optimize == false) {
             return analyzed;
         }
-        var optimized = logicalOptimizer.optimize(analyzed);
+        var optimized = logicalOptimizerWithLatestVersion.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);
         return optimized;
     }

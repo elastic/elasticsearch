@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -42,6 +43,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
+
+    @Nullable // if no fakery should take place
+    private volatile UnaryOperator<CacheSizesAndCommitmentStats> cacheSizesAndCommitmentStatsFunction;
 
     public MockInternalClusterInfoService(
         Settings settings,
@@ -58,7 +62,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             client,
             EstimatedHeapUsageCollector.EMPTY,
             CacheSizesAndCommitmentCollector.EMPTY,
-            NodeUsageStatsForThreadPoolsCollector.EMPTY
+            PartitionSizeCollector.EMPTY,
+            NodeUsageStatsForThreadPoolsCollector.EMPTY,
+            SearchLaneRequirementsCollector.EMPTY
         );
     }
 
@@ -69,6 +75,19 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFn) {
         this.shardSizeFunction = shardSizeFn;
+        ClusterInfoServiceUtils.refresh(this);
+    }
+
+    /**
+     * Sets a function used to replace the collected {@link CacheSizesAndCommitmentStats} (always
+     * {@link CacheSizesAndCommitmentStats#EMPTY} in production today, since no real {@link CacheSizesAndCommitmentCollector}
+     * implementation exists) with fake node cache size and commitment data, and shard cache requirement data, for driving
+     * cache-capacity-aware allocation deciders in tests.
+     */
+    public void setCacheSizesAndCommitmentStatsFunctionAndRefresh(
+        UnaryOperator<CacheSizesAndCommitmentStats> cacheSizesAndCommitmentStatsFn
+    ) {
+        this.cacheSizesAndCommitmentStatsFunction = cacheSizesAndCommitmentStatsFn;
         ClusterInfoServiceUtils.refresh(this);
     }
 
@@ -143,6 +162,15 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 shardStats.getSearchIdleTime()
             );
         }).toArray(ShardStats[]::new);
+    }
+
+    @Override
+    CacheSizesAndCommitmentStats adjustCacheSizesAndCommitmentStats(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
+        var function = this.cacheSizesAndCommitmentStatsFunction;
+        if (function == null) {
+            return cacheSizesAndCommitmentStats;
+        }
+        return function.apply(cacheSizesAndCommitmentStats);
     }
 
     @Override

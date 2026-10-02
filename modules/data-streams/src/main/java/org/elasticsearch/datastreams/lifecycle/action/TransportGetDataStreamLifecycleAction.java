@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,7 +45,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
     GetDataStreamLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -60,7 +60,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(
             GetDataStreamLifecycleAction.INSTANCE.name(),
@@ -72,7 +72,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
         );
         clusterSettings = clusterService.getClusterSettings();
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
 
         transportService.registerRequestHandler(
             actionName,
@@ -115,7 +115,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
                     .sorted(Comparator.comparing(GetDataStreamLifecycleAction.Response.DataStreamLifecycle::dataStreamName))
                     .toList(),
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionSettings.get()
+                dataStreamLifecycleSettings.getGlobalRetention()
             )
         );
     }

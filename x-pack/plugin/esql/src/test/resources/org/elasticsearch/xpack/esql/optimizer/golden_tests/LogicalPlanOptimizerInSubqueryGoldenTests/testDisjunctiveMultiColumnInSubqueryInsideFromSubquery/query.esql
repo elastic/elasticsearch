@@ -1,0 +1,2 @@
+FROM employees,
+     (FROM employees | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000 | KEEP emp_no)

@@ -1,0 +1,11 @@
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE salary IN (
+        FROM employees
+        | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+        | KEEP salary
+    )
+    | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+    | KEEP emp_no
+)

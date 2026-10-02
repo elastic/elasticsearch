@@ -1,0 +1,19 @@
+products:
+- product: cloud-serverless
+  target: 2026-09-01
+  repo: elasticsearch
+  owner: elastic
+entries:
+- file:
+    name: 158411.yaml
+    checksum: c8d4bb9616e8e95ab0ba600c53dde6210003c263
+  type: bug-fix
+  title: Fix NPE in nested inner_hits backward doc access
+  products:
+  - product: elasticsearch
+    lifecycle: ga
+  description: Fixes a `NullPointerException` that occurred when running queries with nested `inner_hits` against index segments that contain no nested documents for the queried field path.
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158411

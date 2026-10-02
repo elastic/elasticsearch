@@ -98,6 +98,8 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            // Avoid async .slm-history-* writes racing wipe/teardown
+            .put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED, false)
             .put(LifecycleSettings.SLM_MINIMUM_INTERVAL, TimeValue.timeValueSeconds(1L))    // use a small value to allow frequent snapshot
             .build();
     }

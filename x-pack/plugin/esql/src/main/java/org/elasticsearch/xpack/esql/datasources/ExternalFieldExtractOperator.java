@@ -21,6 +21,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
 import java.util.List;
@@ -65,6 +67,8 @@ public class ExternalFieldExtractOperator implements Operator {
         private final List<String> deferredColumnNames;
         private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
+        @org.elasticsearch.core.Nullable
+        private final String datasetLabel;
 
         /**
          * @param rowPositionChannel       channel index in the input page that holds {@code _rowPosition}
@@ -77,13 +81,15 @@ public class ExternalFieldExtractOperator implements Operator {
          *                                 ({@code DeclaredTypeCoercions})
          * @param sourceExtractorsLookup   per-driver registry resolver; must never return
          *                                 {@code null}
+         * @param datasetLabel             dataset context label for annotating failures, or {@code null}
          */
         public Factory(
             int rowPositionChannel,
             List<Integer> passThroughChannels,
             List<String> deferredColumnNames,
             List<DataType> deferredColumnTypes,
-            Function<DriverContext, SourceExtractors> sourceExtractorsLookup
+            Function<DriverContext, SourceExtractors> sourceExtractorsLookup,
+            @org.elasticsearch.core.Nullable String datasetLabel
         ) {
             if (rowPositionChannel < 0) {
                 throw new IllegalArgumentException("rowPositionChannel must be non-negative, got [" + rowPositionChannel + "]");
@@ -111,6 +117,7 @@ public class ExternalFieldExtractOperator implements Operator {
             this.deferredColumnNames = List.copyOf(deferredColumnNames);
             this.deferredColumnTypes = List.copyOf(deferredColumnTypes);
             this.sourceExtractorsLookup = sourceExtractorsLookup;
+            this.datasetLabel = datasetLabel;
         }
 
         @Override
@@ -127,7 +134,8 @@ public class ExternalFieldExtractOperator implements Operator {
                 deferredColumnNames,
                 deferredColumnTypes,
                 registry,
-                driverContext.blockFactory()
+                driverContext.blockFactory(),
+                datasetLabel
             );
         }
 
@@ -149,6 +157,8 @@ public class ExternalFieldExtractOperator implements Operator {
     private final List<DataType> deferredColumnTypes;
     private final SourceExtractors registry;
     private final BlockFactory blockFactory;
+    @org.elasticsearch.core.Nullable
+    private final String datasetLabel;
     private final LongAdder pagesProcessed = new LongAdder();
     private final LongAdder rowsExtracted = new LongAdder();
     private final LongAdder extractNanos = new LongAdder();
@@ -162,7 +172,8 @@ public class ExternalFieldExtractOperator implements Operator {
         List<String> deferredColumnNames,
         List<DataType> deferredColumnTypes,
         SourceExtractors registry,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        @org.elasticsearch.core.Nullable String datasetLabel
     ) {
         this.rowPositionChannel = rowPositionChannel;
         this.passThroughChannels = passThroughChannels;
@@ -170,6 +181,7 @@ public class ExternalFieldExtractOperator implements Operator {
         this.deferredColumnTypes = deferredColumnTypes;
         this.registry = registry;
         this.blockFactory = blockFactory;
+        this.datasetLabel = datasetLabel;
     }
 
     @Override
@@ -206,7 +218,11 @@ public class ExternalFieldExtractOperator implements Operator {
         Page page = prev;
         prev = null;
         if (page.getPositionCount() == 0) {
-            return reshapeEmpty(page);
+            try {
+                return reshapeEmpty(page);
+            } finally {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
         }
         long start = System.nanoTime();
         try {
@@ -214,6 +230,7 @@ public class ExternalFieldExtractOperator implements Operator {
             rowsExtracted.add(out.getPositionCount());
             return out;
         } finally {
+            Releasables.closeExpectNoException(page::releaseBlocks);
             extractNanos.add(System.nanoTime() - start);
             pagesProcessed.increment();
         }
@@ -227,12 +244,12 @@ public class ExternalFieldExtractOperator implements Operator {
     /**
      * For an empty input page, build a shape-correct empty output: drop {@code _rowPosition},
      * keep the pass-through blocks (incRef'd), and append empty placeholder blocks for the
-     * deferred columns.
+     * deferred columns. The input page is owned and released by {@link #getOutput()}.
      */
     private Page reshapeEmpty(Page page) {
         Block[] outBlocks = new Block[passThroughChannels.size() + deferredColumnNames.size()];
-        int idx = 0;
         try {
+            int idx = 0;
             for (int ch : passThroughChannels) {
                 Block b = page.getBlock(ch);
                 b.incRef();
@@ -244,15 +261,9 @@ public class ExternalFieldExtractOperator implements Operator {
             for (int i = 0; i < deferredColumnNames.size(); i++) {
                 outBlocks[idx++] = blockFactory.newConstantNullBlock(0);
             }
-            page.releaseBlocks();
             return new Page(0, outBlocks);
-        } catch (RuntimeException e) {
-            for (int i = 0; i < idx; i++) {
-                if (outBlocks[i] != null) {
-                    outBlocks[i].close();
-                }
-            }
-            page.releaseBlocks();
+        } catch (Throwable e) {
+            Releasables.closeExpectNoException(outBlocks);
             throw e;
         }
     }
@@ -260,13 +271,12 @@ public class ExternalFieldExtractOperator implements Operator {
     /**
      * Hot path: extract deferred columns for the surviving positions and assemble the output
      * page. Pass-through blocks get an extra ref so the new page owns its own references; the
-     * old page's references are released via {@link Page#releaseBlocks()}.
+     * input page is owned and released by {@link #getOutput()}, on success and failure alike.
      */
     private Page materialize(Page page) {
         int positions = page.getPositionCount();
         Block rpBlock = page.getBlock(rowPositionChannel);
         if (rpBlock instanceof LongBlock == false) {
-            page.releaseBlocks();
             throw new IllegalStateException(
                 "_rowPosition channel [" + rowPositionChannel + "] expected LongBlock but was " + rpBlock.getClass().getSimpleName()
             );
@@ -281,7 +291,6 @@ public class ExternalFieldExtractOperator implements Operator {
         } else {
             for (int i = 0; i < positions; i++) {
                 if (rp.isNull(i) || rp.getValueCount(i) != 1) {
-                    page.releaseBlocks();
                     throw new IllegalStateException(
                         "_rowPosition channel [" + rowPositionChannel + "] at position [" + i + "] must hold exactly one non-null value"
                     );
@@ -290,26 +299,34 @@ public class ExternalFieldExtractOperator implements Operator {
             }
         }
 
-        Block[] deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
+        final Block[] deferredBlocks;
         try {
-            Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
+            deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
+        } catch (Throwable t) {
+            // Deferred extraction performs external reads on the driver thread, so classify here
+            // while the concrete failure type is still available and before any transport hop.
+            RuntimeException classified = ExternalFailures.classify(t);
+            if (datasetLabel != null && classified instanceof ExternalException ee) {
+                ee.setDatasetLabel(datasetLabel);
+            }
+            throw classified;
+        }
+        Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
+        try {
             int idx = 0;
             for (int ch : passThroughChannels) {
                 Block b = page.getBlock(ch);
                 b.incRef();
                 outBlocks[idx++] = b;
             }
-            for (Block d : deferredBlocks) {
-                outBlocks[idx++] = d;
-            }
-            page.releaseBlocks();
             for (int i = 0; i < deferredBlocks.length; i++) {
+                outBlocks[idx++] = deferredBlocks[i];
                 deferredBlocks[i] = null;
             }
             return new Page(positions, outBlocks);
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
+            Releasables.closeExpectNoException(outBlocks);
             Releasables.closeExpectNoException(deferredBlocks);
-            page.releaseBlocks();
             throw e;
         }
     }

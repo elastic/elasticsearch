@@ -12,15 +12,22 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.apm.internal.instrumentation.APMHttpServerInstrumentation;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.HttpServerInstrumentations;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.HttpServerTracing;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.RestRequestMetrics;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -28,13 +35,22 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
     private final APMLoggingService loggingService;
-    private final APMHttpServerInstrumentation apmHttpServerInstrumentation;
+    private final HttpServerInstrumentation httpServerInstrumentation;
 
-    public APMTelemetryProvider(Settings settings, Path diskBufferPath, Path configDir) {
-        apmMeterService = new APMMeterService(settings, diskBufferPath);
+    public APMTelemetryProvider(
+        Settings settings,
+        Path diskBufferPath,
+        Path configDir,
+        Collection<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider,
+        @Nullable MetricReaderProvider metricReaderProvider
+    ) {
+        apmMeterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
-        loggingService = new APMLoggingService(settings, configDir);
-        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
+        loggingService = new APMLoggingService(settings, configDir, filterProviders, logResourceProvider);
+        httpServerInstrumentation = new HttpServerInstrumentations(
+            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
+        );
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
@@ -42,7 +58,9 @@ public class APMTelemetryProvider implements TelemetryProvider {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
         this.loggingService = loggingService;
-        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
+        httpServerInstrumentation = new HttpServerInstrumentations(
+            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
+        );
     }
 
     @Override
@@ -61,7 +79,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     @Override
     public HttpServerInstrumentation getHttpServerInstrumentation() {
-        return apmHttpServerInstrumentation;
+        return httpServerInstrumentation;
     }
 
     @Override

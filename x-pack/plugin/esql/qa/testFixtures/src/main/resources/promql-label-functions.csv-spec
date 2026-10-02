@@ -1,0 +1,346 @@
+// PromQL label_replace / label_join over three ingest-shaped fixtures:
+// - prom-metrics-name: Prometheus labels.* including labels.__name__
+// - prom-metrics: remote-write labels.* passthrough (cpu/state)
+// - otel-metrics: OTel attributes.* passthrough (cpu/state)
+//
+// This version supports label_replace/label_join only when the derived destination is consumed by an enclosing by(...)
+// aggregation. The destination may be a new label or may overwrite a stored label (a dimension or __name__): the derived
+// label is materialized as a concrete column (never by rewriting the series-identity _timeseries blob), and grouping on
+// it with by(dst) turns it into a normal output column, shadowing any stored label of the same name. Bare
+// (non-aggregated) relabels, without(...) groupings, and other placements are rejected at analysis time; those rejections
+// are covered by PromqlVerifierTests.
+
+
+// label_replace derives a new `region` label from `zone` via $1 group expansion; by(region) exposes it as a column.
+label_replace_sum_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod="podA"}, "region", "$1", "zone", "(.+)")))
+| KEEP result, region
+| SORT result;
+
+result:double | region:keyword
+10.0          | eu
+;
+
+
+// RE2 named-group parity: (?P<name>) capture referenced as $name in the replacement.
+label_replace_named_group_re2
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod="podA"}, "region", "$zone", "zone", "(?P<zone>.+)")))
+| KEEP result, region
+| SORT result;
+
+result:double | region:keyword
+10.0          | eu
+;
+
+
+// Grouping on a derived label: distinct source series that map to distinct derived values stay in separate groups.
+label_replace_sum_by_derived_label_groups
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod=~"pod[AB]"}, "region", "$1", "zone", "(.+)")))
+| KEEP result, region
+| SORT result;
+
+result:double | region:keyword
+10.0          | eu
+20.0          | us
+;
+
+
+// label_join concatenates several source labels with a separator into a new `combo` label; by(combo) exposes it.
+label_join_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (combo) (label_join(metrics.requests{pod="podA"}, "combo", "-", "pod", "zone")))
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:keyword
+10.0          | podA-eu
+;
+
+
+// label_join with an empty separator concatenates the source values with nothing between them.
+label_join_empty_separator
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (combo) (label_join(metrics.requests{pod="podA"}, "combo", "", "pod", "zone")))
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:keyword
+10.0          | podAeu
+;
+
+
+// Overwriting a stored dimension: the destination `zone` shadows the stored `zone`, and by(zone) groups on the derived value.
+label_replace_overwrites_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(metrics.requests{pod="podA"}, "zone", "z-$1", "zone", "(.+)")))
+| KEEP result, zone
+| SORT result;
+
+result:double | zone:keyword
+10.0          | z-eu
+;
+
+
+// No-match leaves the destination unchanged (Prometheus semantics): the regex does not match `pod`, so the existing
+// stored `zone` value is preserved rather than being cleared to "".
+label_replace_no_match_preserves_existing
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(metrics.requests{pod="podA"}, "zone", "x", "pod", "nomatch")))
+| KEEP result, zone
+| SORT result;
+
+result:double | zone:keyword
+10.0          | eu
+;
+
+
+// Overwriting a stored dimension with a constant collapses distinct source series into a single group.
+label_replace_overwrite_collapses_groups
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(metrics.requests{pod=~"pod[AB]"}, "zone", "same", "zone", "(.+)")))
+| KEEP result, zone
+| SORT result;
+
+result:double | zone:keyword
+30.0          | same
+;
+
+
+// Reading __name__ as a source label into a new destination label.
+label_replace_reads_name_source
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (metric) (label_replace(metrics.requests{pod="podA"}, "metric", "$1", "__name__", "(.+)")))
+| KEEP result, metric
+| SORT result;
+
+result:double | metric:keyword
+10.0          | requests_total
+;
+
+
+// label_join overwriting a stored dimension: join `zone` and `pod` into `pod`, then group by the derived `pod`.
+label_join_overwrites_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (pod) (label_join(metrics.requests{zone="eu"}, "pod", "-", "zone", "pod")))
+| KEEP result, pod
+| SORT result;
+
+result:double | pod:keyword
+10.0          | eu-podA
+;
+
+
+// A selector matcher on the label that label_replace overwrites must filter on the STORED value, then relabel. Here
+// {zone="eu"} selects the source series by its stored zone, and only afterwards is `zone` rewritten to `z-eu`.
+label_replace_selector_matches_overwritten_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(metrics.requests{zone="eu"}, "zone", "z-$1", "zone", "(.+)")))
+| KEEP result, zone
+| SORT result;
+
+result:double | zone:keyword
+10.0          | z-eu
+;
+
+
+// label_join with no source labels is valid PromQL and yields dst="" (an empty join). It must plan and execute rather
+// than fail during translation; here dst="" is asserted via a boolean so the empty grouping key is unambiguous.
+label_join_zero_source_labels_yields_empty
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (dst) (label_join(metrics.requests{pod="podA"}, "dst", "-")))
+| EVAL dst_is_empty = dst == ""
+| KEEP result, dst_is_empty
+| SORT result;
+
+result:double | dst_is_empty:boolean
+10.0          | true
+;
+
+
+// An absent source label is read as "" and still matches (.*), so podC (zone absent) collapses into the same derived
+// `region` group as podA. Proves absent-source normalization on the collapse path, not just present-source matching.
+label_replace_absent_source_collapses
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod=~"pod[AC]"}, "region", "R", "zone", "(.*)")))
+| KEEP result, region
+| SORT result;
+
+result:double | region:keyword
+4.0           | R
+12.0          | R
+;
+
+
+// A label reference BELOW the relabel (the inner by(zone) grouping) must bind to the STORED zone, not the derived
+// destination that label_replace computes above it: PromQL evaluates bottom-up, so the inner sum groups by stored
+// zone (eu) and pod (podA), the relabel then rewrites zone to z-<pod>, and the outer sum groups by the derived zone.
+label_replace_below_relabel_grouping_uses_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(sum by (zone, pod) (metrics.requests{pod="podA"}), "zone", "z-$1", "pod", "(.+)")))
+| KEEP result, zone
+| SORT result;
+
+result:double | zone:keyword
+10.0          | z-podA
+;
+
+
+// label_join analogue: the inner by(zone) grouping below the relabel must bind to the STORED zone. label_join then sets
+// zone from the single source label pod (copied verbatim), and the outer sum groups by the derived zone.
+label_join_below_relabel_grouping_uses_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_join(sum by (zone, pod) (metrics.requests{pod="podA"}), "zone", "-", "pod")))
+| KEEP result, zone
+| SORT result;
+
+result:double | zone:keyword
+10.0          | podA
+;
+
+
+// Remote-write labels.* passthrough (prom-metrics): derive a new label from the short alias `state`.
+label_replace_remote_write_sum_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics step=1h result=(sum by (tier) (label_replace(metrics.cpu_time, "tier", "$1", "state", "(.+)")))
+| KEEP result, tier
+| SORT result;
+
+result:double | tier:keyword
+3.0           | idle
+15.0          | active
+;
+
+
+// Remote-write labels.*: join short-alias dimensions into a new label.
+label_join_remote_write_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics step=1h result=(sum by (combo) (label_join(metrics.cpu_time, "combo", "-", "cpu", "state")))
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:keyword
+1.0           | system-idle
+2.0           | user-idle
+5.0           | system-active
+10.0          | user-active
+;
+
+
+// Remote-write labels.*: overwrite a stored passthrough dimension; by(state) groups on the derived value.
+label_replace_remote_write_overwrites_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics step=1h result=(sum by (state) (label_replace(metrics.cpu_time, "state", "s-$1", "state", "(.+)")))
+| KEEP result, state
+| SORT result;
+
+result:double | state:keyword
+3.0           | s-idle
+15.0          | s-active
+;
+
+
+// OTel attributes.* passthrough (otel-metrics): derive a new label from the short alias `state`.
+label_replace_otel_sum_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(sum by (tier) (label_replace(metrics.cpu_time, "tier", "$1", "state", "(.+)")))
+| KEEP result, tier
+| SORT result;
+
+result:double | tier:keyword
+3.0           | idle
+15.0          | active
+;
+
+
+// OTel attributes.*: join short-alias dimensions into a new label.
+label_join_otel_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(sum by (combo) (label_join(metrics.cpu_time, "combo", "-", "cpu", "state")))
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:keyword
+1.0           | system-idle
+2.0           | user-idle
+5.0           | system-active
+10.0          | user-active
+;
+
+
+// OTel attributes.*: overwrite a stored passthrough dimension; by(state) groups on the derived value.
+label_replace_otel_overwrites_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(sum by (state) (label_replace(metrics.cpu_time, "state", "s-$1", "state", "(.+)")))
+| KEEP result, state
+| SORT result;
+
+result:double | state:keyword
+3.0           | s-idle
+15.0          | s-active
+;

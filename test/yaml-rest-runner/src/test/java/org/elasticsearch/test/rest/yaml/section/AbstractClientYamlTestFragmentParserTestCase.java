@@ -34,10 +34,6 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
         }
     }
 
-    public final void tearDown() throws Exception {
-        super.tearDown();
-    }
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return ExecutableSection.XCONTENT_REGISTRY;

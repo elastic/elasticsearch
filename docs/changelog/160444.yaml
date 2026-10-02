@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160444
+summary: Cap UNION_BY_NAME warning samples
+type: enhancement

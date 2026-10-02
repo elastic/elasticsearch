@@ -54,7 +54,7 @@ public class ExternalParquetHivePartitionFilterPushdownIT extends AbstractExtern
         writeSingleColumnIdParquet(root.resolve("p=b"), 2); // ids 0,1
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     private List<List<Object>> runDistributed(String query) {

@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
-import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -48,9 +48,11 @@ import java.util.Set;
  * Bail-out conditions (rule returns the plan unchanged):
  * <ul>
  *     <li>No {@link ExternalSourceExec} reachable below the TopN through a {@link UnaryExec} spine.</li>
- *     <li>{@link #supportsDeferredExtraction(String, ExternalOptimizerContext)} returns
- *         {@code false} for the source's format — the underlying reader does not implement
- *         {@link ColumnExtractorAware}.</li>
+ *     <li>{@link #resolveReader(String, ExternalOptimizerContext)} yields no reader for the source's format, or
+ *         one that does not implement {@link ColumnExtractorAware}.</li>
+ *     <li>The read drops rows on a coercion failure ({@code error_mode: skip_row} over declared column types):
+ *         the extract operator runs after the page shape is fixed and cannot drop rows, so the columnar iterator
+ *         has to do the filtering itself — see {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}.</li>
  *     <li>The TopN's limit is unknown or exceeds {@link #TOPN_EXTRACT_LIMIT_MAX}.</li>
  *     <li>Fewer than {@link #DEFERRED_COLUMN_MIN} columns would actually be deferred.</li>
  *     <li>One of the source's columns is already named {@value #ROW_POSITION_NAME} — we refuse to
@@ -103,7 +105,19 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             return topN;
         }
 
-        if (supportsDeferredExtraction(externalSource.sourceType(), ctx == null ? null : ctx.external()) == false) {
+        FormatReader reader = resolveReader(externalSource.sourceType(), ctx == null ? null : ctx.external());
+        if (reader instanceof ColumnExtractorAware == false) {
+            return topN;
+        }
+
+        // Don't insert ExternalFieldExtractExec when skip_row is active with declared-type coercion
+        // columns: the columnar iterator must filter rows at emit time (the extractor runs after the
+        // page shape is fixed and cannot drop rows that fail coercion). Checking here prevents a
+        // plan/factory mismatch where the factory would silently turn off deferredExtraction after
+        // the plan already carries an ExternalFieldExtractExec — surfacing as "extractor id [0] is
+        // out of range [0, 0)". Resolve the policy against the reader's own default, exactly as the
+        // factory does, so the two cannot reach different verdicts for the same read.
+        if (externalSource.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalSource.config(), reader))) {
             return topN;
         }
 
@@ -149,22 +163,6 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         }
 
         List<Attribute> sourceOutput = externalSource.output();
-        // When `_source` is projected, its synthesizer needs every file-resident data column at
-        // compose time. Deferring those columns would render `{}`. Pin every data attribute as
-        // eager in that case; the synthesizer runs on the producer thread before the TopN gate.
-        // Side effect: with `_source` projected the deferred set is empty by construction —
-        // the {@link VirtualAttribute} arm catches every metadata attribute ({@link
-        // ExternalMetadataAttribute} implements {@link VirtualAttribute}) and the data-column pin
-        // arm catches everything else. {@link #DEFERRED_COLUMN_MIN} then bails out, so TopN
-        // late-materialisation is disabled for `_source` queries (correctness preserves over the
-        // I/O optimisation).
-        boolean sourceProjected = false;
-        for (Attribute a : sourceOutput) {
-            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name())) {
-                sourceProjected = true;
-                break;
-            }
-        }
         // The second non-file-resident family: hive-style partition columns. Unlike {@code _file.*}
         // they carry no {@link VirtualAttribute} marker — they are surfaced as plain
         // {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s on purpose, so
@@ -188,9 +186,6 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             // {@code PARTITION_COLUMNS_KEY} stamp).
             if (a instanceof VirtualAttribute || eagerRefs.contains(a) || partitionColumns.contains(a.name())) {
                 eagerColumns.add(a);
-            } else if (sourceProjected && a instanceof ExternalMetadataAttribute == false) {
-                // File-resident data column under `_source` projection — must be eager.
-                eagerColumns.add(a);
             } else {
                 deferredColumns.add(a);
             }
@@ -208,7 +203,7 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
 
         // withDeferredExtraction is the operator factory's signal that this exec is paired with the
         // ExternalFieldExtractExec built below — _rowPosition presence alone is ambiguous, since
-        // InjectRowPositionForExternalId also injects it for plain _id composition.
+        // InjectRowPositionForRecordRef also injects it for plain _file.record_ref composition.
         ExternalSourceExec narrowedSource = externalSource.withAttributes(narrowedAttributes).withDeferredExtraction();
         // Rebuild the (TopN, …, ExternalSourceExec) spine with the narrowed source at the bottom.
         // Every intermediate node's children are unchanged except for the source-replacement at the
@@ -219,26 +214,20 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
     }
 
     /**
-     * Whether the configured external-source reader for the given {@code sourceType} can serve
-     * positional column reads after the forward scan — the precondition for inserting an
-     * {@link ExternalFieldExtractExec} above a TopN. Returns {@code false} when the rule has no
-     * way to verify the capability (no external context, no registry, source type unregistered),
-     * causing the rule to bail out and leave the plan unchanged.
+     * Resolves the configured reader for {@code sourceType}, or {@code null} when the rule has no way to look one
+     * up (no external context, no registry, source type unregistered) — every such case makes the rule bail out.
      * <p>
-     * Encapsulating the lookup here keeps the rule body free of {@link FormatReaderRegistry} and
-     * {@link FormatReader} mechanics; the rule expresses the plan-shape conditions and delegates
-     * the runtime-capability question to this single, replaceable predicate.
+     * Encapsulating the lookup here keeps the rule body free of {@link FormatReaderRegistry} mechanics. The rule
+     * needs the reader itself rather than a single capability predicate: it asks both whether the reader is
+     * {@link ColumnExtractorAware} and what its {@link FormatReader#defaultErrorPolicy()} is.
      */
-    static boolean supportsDeferredExtraction(String sourceType, ExternalOptimizerContext external) {
-        if (external == null) {
-            return false;
+    @Nullable
+    static FormatReader resolveReader(String sourceType, ExternalOptimizerContext external) {
+        if (external == null || sourceType == null) {
+            return null;
         }
         FormatReaderRegistry registry = external.formatReaderRegistry();
-        if (registry == null || sourceType == null) {
-            return false;
-        }
-        FormatReader reader = registry.findByName(sourceType);
-        return reader instanceof ColumnExtractorAware;
+        return registry != null ? registry.findByName(sourceType) : null;
     }
 
     private static Integer limitOf(TopNExec topN, LocalPhysicalOptimizerContext ctx) {

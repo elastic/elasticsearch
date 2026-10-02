@@ -681,14 +681,22 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testStrictColumnarModesRejectSubobjectsParam() {
+    public void testStrictColumnarModesRejectSubobjectsTrueAtRoot() {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(settings, topMapping(b -> b.field("subobjects", true)))
             );
-            assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
+            assertThat(e.getMessage(), containsString("subobjects [true] is not supported in columnar mode"));
+        }
+    }
+
+    public void testStrictColumnarModesAcceptSubobjectsFalseAtRootAsNoOp() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            final MapperService mapperService = createMapperService(settings, topMapping(b -> b.field("subobjects", false)));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
         }
     }
 

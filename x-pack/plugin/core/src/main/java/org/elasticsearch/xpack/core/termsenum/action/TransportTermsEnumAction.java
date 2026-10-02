@@ -579,13 +579,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
         public void start() {
             if (expectedOps == 0) {
-                // no shards
-                try {
-                    listener.onResponse(mergeResponses(request, new AtomicReferenceArray<>(0), true, nodeBundles));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-                // TODO or remove above try and instead just call finishHim() here? Helps keep return logic consistent
+                finishHim(true);
                 return;
             }
             // count the local operations, and perform the non local ones

@@ -444,3 +444,122 @@ ratio:double | step:datetime            | cluster:keyword
 0.568155     | 2024-05-10T01:00:00.000Z | prod
 0.518662     | 2024-05-10T01:00:00.000Z | staging
 ;
+
+// cross-metrics tests:
+// - OTel `k8s`: both metrics in one document.
+// - PRW `k8s-prometheus`: distinguish via `__name__`.
+
+chained_addition_metric_metric_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(network.eth0.tx + network.eth0.rx + network.eth0.tx)
+| SORT _timeseries, step;
+
+result:double | step:datetime            | _timeseries:keyword
+3386.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+2658.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+2669.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+4158.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+3586.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+4573.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+1832.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+3540.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+2944.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+nested_operands_on_both_sides_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=((network.eth0.tx - network.eth0.rx) - (network.eth0.tx + network.eth0.rx))
+| SORT _timeseries, step;
+
+result:double | step:datetime            | _timeseries:keyword
+-2176.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+-1604.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+-1470.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+-2796.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+-2208.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+-2282.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+-1340.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+-2244.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+-1996.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+scalar_arithmetic_in_or_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(network.eth0.tx / 1000 or network.eth0.rx / 1000)
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
+| SORT _timeseries, step;
+
+result:double | step:datetime            | _timeseries:keyword
+1.149         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+0.928         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+0.967         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+1.38          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+1.241         | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+1.716         | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+0.581         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+1.209         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+0.973         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+chained_addition_with_matchers_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(network.eth0.tx{pod="one"} + network.eth0.rx{pod="one"} + network.eth0.tx{pod="one"})
+| SORT _timeseries, step;
+
+result:double | step:datetime            | _timeseries:keyword
+3386.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+4158.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+1832.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+;
+
+nested_subtraction_with_matchers_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(network.eth0.tx{cluster="qa"} - network.eth0.rx{cluster="qa"} - (network.eth0.tx{cluster="qa"} + network.eth0.rx{cluster="qa"}))
+| SORT _timeseries, step;
+
+result:double | step:datetime            | _timeseries:keyword
+-2796.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+-2208.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+-2282.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+;
+
+aggregate_over_division_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(sum(network.eth0.tx / network.eth0.rx))
+| EVAL result = ROUND(result, 6), step = step
+| SORT step;
+
+result:double | step:datetime
+10.063636     | 2024-05-10T01:00:00.000Z
+;
+
+aggregate_ratio_over_division_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.eth0.tx) / sum by (cluster) (network.eth0.tx / network.eth0.rx))
+| EVAL result = ROUND(result, 6), step = step, cluster = cluster
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+862.611379    | 2024-05-10T01:00:00.000Z | prod
+1199.669423   | 2024-05-10T01:00:00.000Z | qa
+946.344952    | 2024-05-10T01:00:00.000Z | staging
+;
+
+sum_by_over_chained_subtraction_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.eth0.tx - network.eth0.rx - network.eth0.rx))
+| SORT cluster, step;
+
+result:double | step:datetime            | cluster:keyword
+-2206.0       | 2024-05-10T01:00:00.000Z | prod
+-2949.0       | 2024-05-10T01:00:00.000Z | qa
+-2817.0       | 2024-05-10T01:00:00.000Z | staging
+;

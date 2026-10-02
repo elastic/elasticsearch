@@ -320,22 +320,29 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
 
         @Override
         public Type type() {
-            // returns most negative decision
-            Decision.Type worst = Type.YES;
-            for (Single decision : decisions) {
-                final var next = decision.type();
-                if (next.compareToBetweenDecisions(worst) < 0) {
-                    worst = next;
-                }
-            }
-            return worst;
+            final Single worst = worstSingle();
+            return worst != null ? worst.type() : Type.YES;
         }
 
+        /**
+         * Returns the label of the most-negative decision in this multi-decision, consistent with {@link #type()}.
+         * Returns {@code null} if there are no decisions, or if the most-negative decision carries no label.
+         */
         @Override
         @Nullable
         public String label() {
-            // Multi decisions have no labels
-            return null;
+            final Single worst = worstSingle();
+            return worst != null ? worst.label() : null;
+        }
+
+        private Single worstSingle() {
+            Single worst = null;
+            for (Single s : decisions) {
+                if (worst == null || s.type().compareToBetweenDecisions(worst.type()) < 0) {
+                    worst = s;
+                }
+            }
+            return worst;
         }
 
         @Override

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -45,38 +45,35 @@ public class CohereResponseHandler extends BaseResponseHandler {
         var cohereProcessor = new CohereStreamingProcessor();
         flow.subscribe(ndProcessor);
         ndProcessor.subscribe(cohereProcessor);
-        return new StreamingChatCompletionResults(cohereProcessor);
+        return new StreamingCompletionResults(cohereProcessor);
     }
 
     /**
-     * Validates the status code throws an RetryException if not in the range [200, 300).
+     * Handles failure status codes by returning a RetryException.
+     * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * @param outboundRequest The http request
      * @param result  The http response and body
-     * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
+     * @return a RetryException describing the failure
      */
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
+            return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (isTextsArrayTooLarge(result)) {
-            throw new RetryException(false, buildError(TEXTS_ARRAY_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(TEXTS_ARRAY_ERROR_MESSAGE, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 

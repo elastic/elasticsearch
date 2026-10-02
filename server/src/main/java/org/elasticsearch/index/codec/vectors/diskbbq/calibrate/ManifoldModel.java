@@ -73,11 +73,19 @@ public final class ManifoldModel {
     private ManifoldModel() {}
 
     /**
-     * Estimate manifold parameters (alpha, invDim) using default sample sizes.
-     * Query buffers are sized from {@link CalibrationUtils#calibrationQueryDimension(int, boolean)}
-     * so cosine normalization and Neyshabur lift are supported.
+     * Parameters of the log-linear manifold model: {@code log(dist at rank k) = alpha + invDim * (log(k) - log(N))}.
+     *
+     * @param alpha  OLS intercept (log-scale)
+     * @param invDim OLS slope (approximates 1/intrinsic-dimension of the corpus)
      */
-    public static double[] estimateManifoldParameters(CalibrationSource source) throws IOException {
+    public record ManifoldParams(double alpha, double invDim) {}
+
+    /**
+     * Estimate manifold parameters (alpha, invDim) using default sample sizes.
+     * Query buffers are sized to {@link CalibrationSource#workingDim()}, which already incorporates
+     * any Neyshabur lift or cosine normalization applied when the source was built.
+     */
+    public static ManifoldParams estimateManifoldParameters(CalibrationSource source) throws IOException {
         return estimateManifoldParameters(source, ranksFromMultipliers(source.k()));
     }
 
@@ -96,13 +104,13 @@ public final class ManifoldModel {
      *
      * @param source    calibration context (similarity function, vectors, query set, target k)
      * @param ranksForK the rank values to sweep
-     * @return double[2] containing {log(alpha), invDim}
+     * @return {@link ManifoldParams} containing {log(alpha), invDim}
      */
-    static double[] estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
+    static ManifoldParams estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
         int nQueries = source.queryOrdinals().length;
         int nDocsTotal = source.corpusOrdinals().length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
-        int dimWork = CalibrationUtils.calibrationQueryDimension(source.baseDim(), source.neyshabur());
+        int dimWork = source.workingDim();
 
         int logCount = 0;
         double[] logRanks = new double[m];
@@ -133,7 +141,7 @@ public final class ManifoldModel {
 
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
-            topKs[qi] = new ManifoldTopK(source.similarityFunction(), 6 * source.k());
+            topKs[qi] = new ManifoldTopK(ManifoldModel.isDotLike(source.similarityFunction()), 6 * source.k());
         }
         float[] bulkDistances = new float[4];
 
@@ -191,7 +199,7 @@ public final class ManifoldModel {
             sampleStart = sampleEnd;
         }
         if (logCount < 2) {
-            return new double[] { 0, 0 };
+            return new ManifoldParams(0, 0);
         }
         // build regression variables
         // x = log(rank) - log(sampleSize) = log(k/N)
@@ -216,7 +224,7 @@ public final class ManifoldModel {
                 r2
             )
         );
-        return new double[] { res.beta0(), res.beta1() };
+        return new ManifoldParams(res.beta0(), res.beta1());
     }
 
     /**
@@ -224,15 +232,15 @@ public final class ManifoldModel {
      * {@link #ithDistance} sorts a reusable scratch buffer instead of cloning and draining a heap.
      */
     static final class ManifoldTopK {
-        private final VectorSimilarityFunction similarityFunction;
+        private final boolean isDotLike;
         private final int capacity;
         private final float[] buffer;
         private final float[] scratch;
         private int size;
         private int maxIndex;
 
-        ManifoldTopK(VectorSimilarityFunction similarityFunction, int capacity) {
-            this.similarityFunction = similarityFunction;
+        ManifoldTopK(boolean isDotLike, int capacity) {
+            this.isDotLike = isDotLike;
             this.capacity = capacity;
             this.buffer = new float[capacity];
             this.scratch = new float[capacity];
@@ -271,7 +279,7 @@ public final class ManifoldModel {
             System.arraycopy(buffer, 0, scratch, 0, size);
             Arrays.sort(scratch, 0, size);
             float val = scratch[Math.min(rank, size) - 1];
-            return isDotLike(similarityFunction) ? -val : val;
+            return isDotLike ? -val : val;
         }
     }
 
@@ -287,13 +295,11 @@ public final class ManifoldModel {
     ) {
         double logK = Math.log(k);
         double logN = Math.log(numDocs);
-        if (isDotLike(similarityFunction)) {
-            return -Math.exp(alpha + (logK - logN) * invDim);
-        }
-        return Math.exp(alpha + (logK - logN) * invDim);
+        double v = Math.exp(alpha + (logK - logN) * invDim);
+        return isDotLike(similarityFunction) ? -v : v;
     }
 
-    static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
+    public static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
         return similarityFunction == VectorSimilarityFunction.DOT_PRODUCT
             || similarityFunction == VectorSimilarityFunction.COSINE
             || similarityFunction == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;

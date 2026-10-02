@@ -40,7 +40,6 @@ public class ChatCompletionErrorResponseHandler {
         HttpResult result,
         UnifiedChatCompletionErrorResponse errorResponse
     ) {
-        assert outboundRequest.isStreaming() : "Only streaming requests support this format";
         var statusCode = result.response().getStatusLine().getStatusCode();
         var errorMessage = BaseResponseHandler.constructErrorMessage(message, outboundRequest, errorResponse, statusCode);
         var restStatus = toRestStatus(statusCode);
@@ -63,9 +62,9 @@ public class ChatCompletionErrorResponseHandler {
     }
 
     /**
-     * Builds a default {@link UnifiedChatCompletionException} for a streaming request.
+     * Builds a default {@link UnifiedChatCompletionException} for a chat completion request.
      * This method is used when an error response is received we were unable to parse it in the format we were expecting.
-     * Only streaming requests should use this method.
+     * Both streaming and non-streaming requests use this method.
      *
      * @param errorResponse the error response extracted from the HTTP result
      * @param errorMessage the error message to include in the exception

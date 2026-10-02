@@ -27,4 +27,9 @@ public class XLowerCaseTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         return new XLowerCaseTokenizer();
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

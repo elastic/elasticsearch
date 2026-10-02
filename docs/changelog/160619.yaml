@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 160619
+summary: Update jsoup to 1.23.2
+type: upgrade

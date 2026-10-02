@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -397,9 +398,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             assertHitCount(q, numDocsToKeep);
         }
         final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).setActiveOnly(false).get();
-        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
+        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(recoveryState -> recoveryState.getPrimary() == false)
             .findFirst()
             .get();
@@ -501,9 +503,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         }
 
         final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).setActiveOnly(false).get();
-        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
+        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(recoveryState -> recoveryState.getPrimary() == false)
             .findFirst()
             .get();

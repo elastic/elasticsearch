@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.
+Returns the maximum (end) value of a range. For a range [x, y), it returns y.
 

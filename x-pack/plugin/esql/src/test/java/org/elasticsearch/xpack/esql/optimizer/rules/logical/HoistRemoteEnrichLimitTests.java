@@ -24,6 +24,10 @@ import static org.hamcrest.Matchers.not;
 
 public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTests {
 
+    public HoistRemoteEnrichLimitTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * <pre>
      * Limit[10[INTEGER],true,false]

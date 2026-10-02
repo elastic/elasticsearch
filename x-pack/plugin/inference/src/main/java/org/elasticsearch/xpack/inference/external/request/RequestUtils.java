@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.external.request;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -48,6 +50,14 @@ public class RequestUtils {
 
     public static URI buildUri(String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
         return buildUri(null, service, uriBuilder);
+    }
+
+    /**
+     * Sets the {@code Content-Type} and {@code Authorization: Bearer} headers on the given request using the supplied API key.
+     */
+    public static void decorateWithAuthHeader(HttpPost request, SecureString apiKey) {
+        request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        request.setHeader(createAuthBearerHeader(apiKey));
     }
 
     private RequestUtils() {}

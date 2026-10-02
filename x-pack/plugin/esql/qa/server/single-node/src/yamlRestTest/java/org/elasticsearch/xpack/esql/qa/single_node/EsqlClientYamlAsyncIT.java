@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -20,7 +21,7 @@ import java.util.Map;
  * and it makes sure all the yaml tests work when within the timeout.
  */
 public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
-    public EsqlClientYamlAsyncIT(final ClientYamlTestCandidate testCandidate) {
+    public EsqlClientYamlAsyncIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

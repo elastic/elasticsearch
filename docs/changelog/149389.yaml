@@ -1,5 +1,0 @@
-area: Reindex
-issues: []
-pr: 149389
-summary: Track remote reindex HTTP response bytes in REQUEST circuit breaker
-type: enhancement

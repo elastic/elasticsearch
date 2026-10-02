@@ -3583,6 +3583,112 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    public void testGetRoleAppliesCloudLimitedByRoles() {
+        final String assignedRoleName = "assigned_role";
+        final String limitedByRoleName = "limited_by_role";
+        final RoleDescriptor assignedRole = new RoleDescriptor(
+            assignedRoleName,
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-a", "index-b").privileges("read").build() },
+            null
+        );
+        final RoleDescriptor limitedByRole = new RoleDescriptor(
+            limitedByRoleName,
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-a").privileges("read").build() },
+            null
+        );
+
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            Set<String> names = (Set<String>) invocationOnMock.getArguments()[0];
+            final Set<RoleDescriptor> descriptors = new HashSet<>();
+            if (names.contains(assignedRoleName)) {
+                descriptors.add(assignedRole);
+            }
+            if (names.contains(limitedByRoleName)) {
+                descriptors.add(limitedByRole);
+            }
+            return descriptors;
+        }).when(fileRolesStore).roleDescriptors(anySet());
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.success(Set.of()));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            spy(new ReservedRolesStore()),
+            mock(NativePrivilegeStore.class),
+            null,
+            mock(ApiKeyService.class),
+            mock(ServiceAccountService.class),
+            null,
+            null
+        );
+
+        final User user = new User("cloud-subject", assignedRoleName);
+        final Subject.Type subjectType = randomFrom(Subject.Type.CLOUD_SERVICE_ACCOUNT, Subject.Type.CLOUD_API_KEY, Subject.Type.USER);
+        final RealmRef realmRef = switch (subjectType) {
+            case CLOUD_SERVICE_ACCOUNT -> new RealmRef(
+                AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_NAME,
+                AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_TYPE,
+                "node"
+            );
+            case CLOUD_API_KEY -> new RealmRef(
+                AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+                AuthenticationField.CLOUD_API_KEY_REALM_TYPE,
+                "node"
+            );
+            case USER -> new RealmRef("cloud", "cloud", "node");
+            default -> throw new AssertionError("unexpected subject type: " + subjectType);
+        };
+
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("index-a").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
+            .put(IndexMetadata.builder("index-b").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
+            .build();
+
+        final Subject capped = new Subject(
+            user,
+            realmRef,
+            TransportVersion.current(),
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, List.of(limitedByRoleName))
+        );
+        final PlainActionFuture<Role> cappedFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRole(capped, cappedFuture);
+        final Role cappedRole = cappedFuture.actionGet();
+        assertThat(
+            cappedRole.authorize(TransportSearchAction.TYPE.name(), Set.of("index-a"), projectMetadata, cache).isGranted(),
+            is(true)
+        );
+        assertThat(
+            cappedRole.authorize(TransportSearchAction.TYPE.name(), Set.of("index-b"), projectMetadata, cache).isGranted(),
+            is(false)
+        );
+
+        final Subject uncapped = new Subject(user, realmRef, TransportVersion.current(), Map.of());
+        final PlainActionFuture<Role> uncappedFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRole(uncapped, uncappedFuture);
+        final Role uncappedRole = uncappedFuture.actionGet();
+        assertThat(
+            uncappedRole.authorize(TransportSearchAction.TYPE.name(), Set.of("index-a"), projectMetadata, cache).isGranted(),
+            is(true)
+        );
+        assertThat(
+            uncappedRole.authorize(TransportSearchAction.TYPE.name(), Set.of("index-b"), projectMetadata, cache).isGranted(),
+            is(true)
+        );
+    }
+
     public void testGetRolesForRunAs() {
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);

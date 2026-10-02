@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -17,11 +16,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -77,7 +75,7 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
     /** Byte-buffer reservations when the buffer is sized correctly up-front via an explicit byte hint. */
     private int countDirectHintedBuildReservations(List<BytesRef> values, long byteHint) {
         CountingBreaker breaker = new CountingBreaker();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service(breaker));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
         BlockFactory factory = BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
         breaker.reset();
         try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(values.size(), byteHint)) {
@@ -95,7 +93,7 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
     /** Byte-buffer reservations when the same column is emitted through the CSV reader. */
     private int countCsvReaderReservations(String csv, List<BytesRef> expected) throws IOException {
         CountingBreaker breaker = new CountingBreaker();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service(breaker));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
         BlockFactory factory = BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
         CsvFormatReader reader = new CsvFormatReader(factory);
         breaker.reset();
@@ -117,6 +115,11 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
     private static StorageObject storageObject(String csv) {
         byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);
@@ -145,25 +148,6 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return StoragePath.of("memory://test.csv");
-            }
-        };
-    }
-
-    private static CircuitBreakerService service(CircuitBreaker breaker) {
-        return new CircuitBreakerService() {
-            @Override
-            public CircuitBreaker getBreaker(String name) {
-                return breaker;
-            }
-
-            @Override
-            public AllCircuitBreakerStats stats() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public CircuitBreakerStats stats(String name) {
-                throw new UnsupportedOperationException();
             }
         };
     }

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,12 +20,12 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicToolUtils.extractText;
 
 /**
  * Builds the request body for the Anthropic Messages API
@@ -36,7 +35,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE
  * (no {@code anthropic_version} body field; that is sent as the {@code anthropic-version} HTTP header).
  *
  * <p>Anthropic requires {@code max_tokens} on every request. The value is taken from
- * {@link UnifiedCompletionRequest#maxCompletionTokens()} when supplied by the caller, otherwise from the
+ * {@link UnifiedCompletionRequestBody#maxCompletionTokens()} when supplied by the caller, otherwise from the
  * stored {@link AnthropicChatCompletionTaskSettings#maxTokens()} which is required at endpoint creation.
  */
 public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentObject {
@@ -48,7 +47,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
     private static final String TEXT_TYPE = "text";
     private static final String SYSTEM_ROLE = "system";
 
-    private final UnifiedCompletionRequest unifiedRequest;
+    private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
     private final String modelId;
     private final AnthropicChatCompletionTaskSettings taskSettings;
@@ -67,7 +66,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
     }
 
     public AnthropicUnifiedChatCompletionRequestEntity(
-        UnifiedCompletionRequest unifiedRequest,
+        UnifiedCompletionRequestBody unifiedRequest,
         boolean stream,
         String modelId,
         AnthropicChatCompletionTaskSettings taskSettings
@@ -100,15 +99,13 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
             for (var msg : systemMessages) {
                 builder.startObject();
                 builder.field(TYPE_FIELD, TEXT_TYPE);
-                if (msg.content() instanceof ContentString cs) {
-                    builder.field(TEXT_FIELD, cs.content());
-                }
+                builder.field(TEXT_FIELD, extractText(msg.content()));
                 builder.endObject();
             }
             builder.endArray();
         }
 
-        builder.field(MESSAGES_FIELD, nonSystemMessages);
+        AnthropicToolUtils.writeMessages(builder, nonSystemMessages);
 
         var stop = unifiedRequest.stop();
         if (stop != null && stop.isEmpty() == false) {
@@ -144,4 +141,5 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
         builder.endObject();
         return builder;
     }
+
 }

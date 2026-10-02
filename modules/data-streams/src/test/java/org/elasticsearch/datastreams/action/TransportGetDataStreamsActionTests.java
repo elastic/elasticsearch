@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -70,7 +70,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
-    private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
     private final DataStreamFailureStoreSettings emptyDataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
@@ -87,14 +87,13 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         metadataDataStreamsService = new MetadataDataStreamsService(
             clusterService,
             indicesService,
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
             IndexSettingProviders.EMPTY
         );
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdown() throws Exception {
         if (testThreadPool != null) {
             testThreadPool.shutdown();
         }
@@ -216,7 +215,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -250,7 +249,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -305,7 +304,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -346,7 +345,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -383,7 +382,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -394,14 +393,14 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
-        DataStreamGlobalRetentionSettings withGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+        DataStreamLifecycleSettings withGlobalRetentionSettings = DataStreamLifecycleSettings.create(
             ClusterSettings.createBuiltInClusterSettings(
                 Settings.builder()
                     .put(
-                        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
+                        DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
                         dataGlobalRetention.defaultRetention()
                     )
-                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
+                    .put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
             )
         );
@@ -440,7 +439,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -468,7 +467,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -496,7 +495,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             DataStreamFailureStoreSettings.create(
                 ClusterSettings.createBuiltInClusterSettings(
                     Settings.builder()
@@ -530,7 +529,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             IndexSettingProviders.of((additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
             null,
@@ -571,7 +570,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -604,7 +603,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -643,7 +642,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,

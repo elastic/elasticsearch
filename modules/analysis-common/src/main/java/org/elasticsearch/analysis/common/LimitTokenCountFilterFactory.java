@@ -24,14 +24,24 @@ public class LimitTokenCountFilterFactory extends AbstractTokenFilterFactory {
     private final int maxTokenCount;
     private final boolean consumeAllTokens;
 
+    private final Object sharingKey;
+
     LimitTokenCountFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         this.maxTokenCount = settings.getAsInt("max_token_count", DEFAULT_MAX_TOKEN_COUNT);
         this.consumeAllTokens = settings.getAsBoolean("consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS);
+        this.sharingKey = new Key(maxTokenCount, consumeAllTokens);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new LimitTokenCountFilter(tokenStream, maxTokenCount, consumeAllTokens);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int maxTokenCount, boolean consumeAllTokens) {}
 }

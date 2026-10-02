@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -35,7 +35,7 @@ import java.util.function.LongConsumer;
  */
 class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final LongConsumer breakerConsumer;
-    private final CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc;
+    private final CheckedFunction<LeafReaderContext, SortableBinaryDocValues, IOException> docValuesFunc;
     private ObjectArray<BytesRef> values;
     private ObjectArray<BytesRefBuilder> valueBuilders;
     private BytesRef currentValue;
@@ -44,7 +44,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         BigArrays bigArrays,
         LongConsumer breakerConsumer,
         MappedFieldType fieldType,
-        CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+        CheckedFunction<LeafReaderContext, SortableBinaryDocValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
         MissingOrder missingOrder,
@@ -165,12 +165,12 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        final SortedBinaryDocValues dvs = docValuesFunc.apply(context);
+        final SortableBinaryDocValues dvs = docValuesFunc.apply(context);
         final BinaryDocValues singleton = FieldData.unwrapSingleton(dvs);
         return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
     }
 
-    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues dvs, LeafBucketCollector next) {
+    private LeafBucketCollector getLeafCollector(SortableBinaryDocValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {

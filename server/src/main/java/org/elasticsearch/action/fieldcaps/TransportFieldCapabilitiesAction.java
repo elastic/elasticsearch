@@ -311,7 +311,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         curr.getIndexMappingHash(),
                         curr.get(),
                         true,
-                        curr.getIndexMode()
+                        curr.getIndexMode(),
+                        resp.getNumberOfShards()
                     );
                 }
             }
@@ -324,12 +325,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                     Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                     mergedCaps.putAll(b.get());
+                    // Same index, same shard count — keep a's count.
                     return new FieldCapabilitiesIndexResponse(
                         a.getIndexName(),
                         a.getIndexMappingHash(),
                         mergedCaps,
                         true,
-                        a.getIndexMode()
+                        a.getIndexMode(),
+                        a.getNumberOfShards()
                     );
                 });
             }
@@ -433,7 +436,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.getIndexMappingHash(),
                                 resp.get(),
                                 resp.canMatch(),
-                                resp.getIndexMode()
+                                resp.getIndexMode(),
+                                resp.getNumberOfShards()
                             )
                         );
                     }

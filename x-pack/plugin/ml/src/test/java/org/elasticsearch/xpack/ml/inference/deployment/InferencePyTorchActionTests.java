@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,6 +20,7 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -230,26 +232,37 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
             }
         });
-        InferencePyTorchAction action = new InferencePyTorchAction(
-            "test-model",
-            1,
-            TimeValue.MAX_VALUE,
-            processContext,
-            new PassThroughConfig(null, null, null),
-            NlpInferenceInput.fromText("foo"),
-            TrainedModelPrefixStrings.PrefixType.NONE,
-            tp,
-            cancellableTask,
-            randomBoolean(),
-            listener
-        );
-        action.init();
-        taskManager.cancel(cancellableTask, "test", () -> {});
+        try (var mockLog = MockLog.capture(InferencePyTorchAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "parent cancellation not WARN",
+                    InferencePyTorchAction.class.getCanonicalName(),
+                    Level.WARN,
+                    "*task cancelled*"
+                )
+            );
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.NONE,
+                tp,
+                cancellableTask,
+                randomBoolean(),
+                listener
+            );
+            action.init();
+            taskManager.cancel(cancellableTask, "test", () -> {});
 
-        action.doRun();
-        assertThat(listener.failureCounts, equalTo(1));
-        assertThat(listener.responseCounts, equalTo(0));
-        verify(resultProcessor, never()).registerRequest(anyString(), any());
+            action.doRun();
+            assertThat(listener.failureCounts, equalTo(1));
+            assertThat(listener.responseCounts, equalTo(0));
+            verify(resultProcessor, never()).registerRequest(anyString(), any());
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     @SuppressWarnings("unchecked")

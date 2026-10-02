@@ -1,0 +1,4 @@
+FROM employees
+| STATS max_salary = MAX(salary) BY hire_date
+| SORT max_salary DESC
+| LIMIT 20

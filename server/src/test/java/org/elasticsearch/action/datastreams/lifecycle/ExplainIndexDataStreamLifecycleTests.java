@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -196,6 +197,56 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
     }
 
     @SuppressWarnings("unchecked")
+    public void testFrozenTransitionXContent() throws IOException {
+        ExplainIndexDataStreamLifecycle withFrozen = new ExplainIndexDataStreamLifecycle(
+            "my-index",
+            true,
+            randomBoolean(),
+            System.currentTimeMillis(),
+            null,
+            null,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            null,
+            FrozenTransitionStatus.NOT_SUPPORTED
+        );
+        Map<String, Object> withFrozenMap = getXContentMap(withFrozen, null, null);
+        assertThat(withFrozenMap.get("frozen_transition_status"), is("not_supported"));
+        assertThat(withFrozenMap.containsKey("frozen"), is(false));
+
+        ExplainIndexDataStreamLifecycle withoutFrozen = new ExplainIndexDataStreamLifecycle(
+            "my-index",
+            true,
+            randomBoolean(),
+            System.currentTimeMillis(),
+            null,
+            null,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            null
+        );
+        Map<String, Object> withoutFrozenMap = getXContentMap(withoutFrozen, null, null);
+        assertThat(withoutFrozenMap.containsKey("frozen_transition_status"), is(false));
+    }
+
+    public void testOldTransportVersionDropsFrozenTransitionStatus() throws IOException {
+        ExplainIndexDataStreamLifecycle withFrozen = new ExplainIndexDataStreamLifecycle(
+            "my-index",
+            true,
+            randomBoolean(),
+            System.currentTimeMillis(),
+            null,
+            null,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            null,
+            FrozenTransitionStatus.RUNNING
+        );
+        ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
+            withFrozen,
+            TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_FROZEN_TRANSITION)
+        );
+        assertThat(roundTripped.getFrozenTransitionStatus(), is(nullValue()));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testToXContent() throws Exception {
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
@@ -259,7 +310,9 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
     protected ExplainIndexDataStreamLifecycle createTestInstance() {
         return createManagedIndexDataStreamLifecycleExplanation(
             System.nanoTime(),
-            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null,
+            randomBoolean(),
+            randomFrozenTransitionStatusOrNull()
         );
     }
 
@@ -267,8 +320,14 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
     protected ExplainIndexDataStreamLifecycle mutateInstance(ExplainIndexDataStreamLifecycle instance) throws IOException {
         return createManagedIndexDataStreamLifecycleExplanation(
             System.nanoTime(),
-            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null,
+            randomBoolean(),
+            randomFrozenTransitionStatusOrNull()
         );
+    }
+
+    private static FrozenTransitionStatus randomFrozenTransitionStatusOrNull() {
+        return randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null;
     }
 
     private static ExplainIndexDataStreamLifecycle createManagedIndexDataStreamLifecycleExplanation(
@@ -282,6 +341,15 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         long now,
         @Nullable DataStreamLifecycle lifecycle,
         boolean isSystemDataStream
+    ) {
+        return createManagedIndexDataStreamLifecycleExplanation(now, lifecycle, isSystemDataStream, null);
+    }
+
+    private static ExplainIndexDataStreamLifecycle createManagedIndexDataStreamLifecycleExplanation(
+        long now,
+        @Nullable DataStreamLifecycle lifecycle,
+        boolean isSystemDataStream,
+        @Nullable FrozenTransitionStatus frozenTransitionStatus
     ) {
         return new ExplainIndexDataStreamLifecycle(
             randomAlphaOfLengthBetween(10, 30),
@@ -298,7 +366,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                     System.currentTimeMillis(),
                     randomIntBetween(0, 30)
                 )
-                : null
+                : null,
+            frozenTransitionStatus
         );
     }
 

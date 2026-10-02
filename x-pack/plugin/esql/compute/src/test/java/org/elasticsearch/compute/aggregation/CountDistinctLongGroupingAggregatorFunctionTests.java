@@ -23,7 +23,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class CountDistinctLongGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new CountDistinctLongAggregatorFunctionSupplier(40000);

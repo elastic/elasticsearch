@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 160803
+pr: 160806
+summary: "[Inference API] Handle null rate limit settings"
+type: bug

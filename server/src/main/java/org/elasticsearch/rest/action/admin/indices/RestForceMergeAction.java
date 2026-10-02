@@ -67,7 +67,7 @@ public class RestForceMergeAction extends BaseRestHandler {
                 throw validationException;
             }
             final var responseListener = new SubscribableListener<BroadcastResponse>();
-            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseListener);
+            final var task = client.executeAndReturnTask(ForceMergeAction.INSTANCE, mergeRequest, responseListener);
             responseListener.addListener(new LoggingTaskListener<>(task));
             return sendTask(client.getLocalNodeId(), task);
         }

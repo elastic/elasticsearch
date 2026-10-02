@@ -7,13 +7,21 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
+import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthApiKeyHeader;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.decorateWithAuthHeader;
 import static org.hamcrest.Matchers.is;
 
 public class RequestUtilsTests extends ESTestCase {
@@ -42,5 +50,13 @@ public class RequestUtilsTests extends ESTestCase {
 
     public void testApiKey() {
         assertThat(apiKey(SECRET), is(APIKEY_PREFIX + SECRET));
+    }
+
+    public void testDecorateWithAuthHeader() throws URISyntaxException {
+        var httpPost = new HttpPost(new URI("https://example.com/v1/embeddings"));
+        decorateWithAuthHeader(httpPost, new SecureString(SECRET.toCharArray()));
+
+        assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", SECRET)));
     }
 }

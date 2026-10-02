@@ -1,0 +1,5 @@
+pr: 159825
+summary: Cut the I/O schema discovery performs on large datasets
+area: ES|QL
+type: enhancement
+issues: []

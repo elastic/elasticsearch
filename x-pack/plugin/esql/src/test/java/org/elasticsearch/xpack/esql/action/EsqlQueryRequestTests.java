@@ -758,7 +758,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(query, request.query());
         assertFalse(request.keepOnCompletion());
         assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
-        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+        // null means "use the async_search.default_keep_alive cluster setting"
+        assertNull(request.keepAlive());
     }
 
     public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {
@@ -1205,6 +1206,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertThat(request.get(QuerySettings.PROJECT_ROUTING), is("_alias:_origin"));
+    }
+
+    public void testProjectRoutingBuilder() {
+        EsqlQueryRequestBuilder builder = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(null).projectRouting("_alias:_origin");
+        assertThat(builder.request().get(QuerySettings.PROJECT_ROUTING), is("_alias:_origin"));
     }
 
     public void testApproximationNull() throws IOException {

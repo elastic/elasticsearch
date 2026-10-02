@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentString;
 import java.nio.charset.StandardCharsets;
 
 /**
- * A forward-only reader over an array in EIRF format.
+ * A forward-only reader over an array in the batch array format (see {@link SourceBatchEncodeHelper}).
  *
  * <p>Two formats (both byte-length-terminated, no element count):
  * <ul>

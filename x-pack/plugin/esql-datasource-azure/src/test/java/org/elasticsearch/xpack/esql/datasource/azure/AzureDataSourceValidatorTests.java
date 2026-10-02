@@ -106,7 +106,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
@@ -143,7 +143,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -154,7 +154,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
             )
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
@@ -223,10 +223,21 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
     }
 
     public void testValidateDatasetErrorBudget() {
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("max_errors", "100"))
+        );
+        // Budget with an explicit mode is accepted.
         assertEquals(
             "100",
-            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("max_errors", "100")).get("max_errors")
+            validator.validateDataset(
+                Map.of(),
+                "wasbs://c@a.blob.core.windows.net/p",
+                Map.of("max_errors", "100", "error_mode", "skip_row")
+            ).get("max_errors")
         );
+        // fail_fast combined with a budget is still refused.
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(

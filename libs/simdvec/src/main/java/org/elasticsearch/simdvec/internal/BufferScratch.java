@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec.internal;
 
+import java.util.function.IntFunction;
+
 /**
  * Reusable, lazily-grown {@code byte[]} scratch buffer. Holding
  * one instance per scorer avoids allocating a fresh {@code byte[]} on
@@ -16,7 +18,7 @@ package org.elasticsearch.simdvec.internal;
  *
  * <p>Not thread-safe; instances must not be shared across threads.
  */
-public final class BufferScratch {
+public final class BufferScratch implements IntFunction<byte[]> {
 
     private byte[] bytes;
 
@@ -26,7 +28,8 @@ public final class BufferScratch {
      * across calls); callers must respect their own {@code count} when
      * reading or writing.
      */
-    public byte[] get(int count) {
+    @Override
+    public byte[] apply(int count) {
         if (bytes == null || bytes.length < count) {
             bytes = new byte[count];
         }

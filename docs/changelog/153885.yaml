@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 97947
+pr: 153885
+summary: Roaring bitmap support for integer terms query
+type: feature

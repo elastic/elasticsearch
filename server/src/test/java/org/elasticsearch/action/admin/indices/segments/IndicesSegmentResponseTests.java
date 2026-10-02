@@ -33,8 +33,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting("foo", 0, "node_id", true, ShardRoutingState.STARTED);
         Segment segment = new Segment("my");
 
-        SortField sortField = new SortField("foo", SortField.Type.STRING);
-        sortField.setMissingValue(SortField.STRING_LAST);
+        SortField sortField = new SortField("foo", SortField.Type.STRING, false, SortField.STRING_LAST);
         segment.segmentSort = new Sort(sortField);
 
         ShardSegments shardSegments = new ShardSegments(shardRouting, Collections.singletonList(segment));
@@ -57,8 +56,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             routings.add(TestShardRouting.newShardRouting("index-" + i, 0, "node_id", true, ShardRoutingState.STARTED));
         }
         Segment segment = new Segment("my");
-        SortField sortField = new SortField("foo", SortField.Type.STRING);
-        sortField.setMissingValue(SortField.STRING_LAST);
+        SortField sortField = new SortField("foo", SortField.Type.STRING, false, SortField.STRING_LAST);
         segment.segmentSort = new Sort(sortField);
         AbstractChunkedSerializingTestCase.assertChunkCount(
             new IndicesSegmentResponse(

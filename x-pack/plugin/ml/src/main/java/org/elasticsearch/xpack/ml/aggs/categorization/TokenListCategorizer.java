@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -64,7 +65,6 @@ public class TokenListCategorizer implements Accountable {
 
     public static final int MAX_TOKENS = 100;
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenListCategorizer.class);
-    private static final long SHALLOW_SIZE_OF_ARRAY_LIST = shallowSizeOfInstance(ArrayList.class);
     private static final float EPSILON = 0.000001f;
     private static final Logger logger = LogManager.getLogger(TokenListCategorizer.class);
 
@@ -340,7 +340,7 @@ public class TokenListCategorizer implements Accountable {
             // method called for categoriesByNumMatches, getting the size of the contained objects from a different
             // variable.
             + alignObjectSize(
-                SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + categoriesByNumMatches.size() * NUM_BYTES_OBJECT_REF
+                RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE + NUM_BYTES_ARRAY_HEADER + categoriesByNumMatches.size() * NUM_BYTES_OBJECT_REF
                     + categoriesByNumMatchesContentsSize
             );
     }

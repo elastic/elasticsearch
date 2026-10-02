@@ -1,0 +1,2 @@
+TS exp_histo_sample
+| STATS count = COUNT(LAST_OVER_TIME(responseTime::tdigest), bucket) BY bucket = BUCKET(responseTime::tdigest, 42)

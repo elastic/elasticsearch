@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.unified;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.UnifiedCompletionRequest.INCLUDE_STREAM_OPTIONS_PARAM;
+import static org.elasticsearch.inference.UnifiedCompletionRequestBody.INCLUDE_STREAM_OPTIONS_PARAM;
 
 /**
  * Represents a unified chat completion request entity.
@@ -28,14 +28,14 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
     private static final String STREAM_OPTIONS_FIELD = "stream_options";
     private static final String INCLUDE_USAGE_FIELD = "include_usage";
 
-    private final UnifiedCompletionRequest unifiedRequest;
+    private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
 
     public UnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
         this(Objects.requireNonNull(unifiedChatInput).getRequest(), Objects.requireNonNull(unifiedChatInput).stream());
     }
 
-    public UnifiedChatCompletionRequestEntity(UnifiedCompletionRequest unifiedRequest, boolean stream) {
+    public UnifiedChatCompletionRequestEntity(UnifiedCompletionRequestBody unifiedRequest, boolean stream) {
         this.unifiedRequest = Objects.requireNonNull(unifiedRequest);
         this.stream = stream;
     }

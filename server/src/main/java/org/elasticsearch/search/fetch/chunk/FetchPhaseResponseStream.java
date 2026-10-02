@@ -10,7 +10,9 @@
 package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -44,6 +47,11 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(FetchPhaseResponseStream.class);
 
+    /**
+     * Keeps all chunked-fetch coordination memory under a single {@code fetch} sub-category.
+     */
+    private static final String FETCH_CHUNK_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[chunk]";
+
     private final int shardIndex;
     private final int expectedTotalDocs;
 
@@ -57,6 +65,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     // Counts raw bytes of intermediate chunks arriving from the data node via BytesTransportRequest.
     // Set to a no-op for local (same-node) requests where no bytes cross the wire.
     private volatile LongConsumer chunkBytesConsumer = l -> {};
+
+    private volatile Consumer<Exception> coordinatorTripListener = e -> {};
 
     /**
      * Creates a new response stream for accumulating hits from a single shard.
@@ -89,6 +99,29 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Registers how a trip is reported to the search. Must be called before any chunks arrive.
+     */
+    void setCoordinatorTripListener(Consumer<Exception> listener) {
+        this.coordinatorTripListener = listener;
+    }
+
+    /**
+     * Charges the breaker for hits this node is about to hold on to. Charging happens on the coordinator, so this
+     * is the one place that knows the memory ran out here rather than on the shard that sent the hits.
+     *
+     * @throws CircuitBreakingException if this node cannot hold the hits
+     */
+    void chargeRetainedBytes(long bytes) {
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, FETCH_CHUNK_BREAKER_LABEL);
+        } catch (CircuitBreakingException e) {
+            coordinatorTripListener.accept(e);
+            throw e;
+        }
+        totalBreakerBytes.addAndGet(bytes);
+    }
+
+    /**
      * Accumulates a chunk of hits into this stream.
      *
      * @param chunk the chunk containing hits to accumulate
@@ -97,10 +130,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
-            // Track memory usage
-            long bytesSize = chunk.getBytesLength();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-            totalBreakerBytes.addAndGet(bytesSize);
+            chargeRetainedBytes(chunk.estimatedRetainedBytes());
 
             chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
 
@@ -183,10 +213,13 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
-     * Tracks circuit breaker bytes without checking. Used when coordinator processes the embedded last chunk.
+     * Hands the charge accumulated here to the result that now owns the hits.
      */
-    void trackBreakerBytes(int bytes) {
-        totalBreakerBytes.addAndGet(bytes);
+    void transferBreakerBytesTo(FetchSearchResult result) {
+        long bytes = totalBreakerBytes.getAndSet(0);
+        if (bytes > 0L) {
+            result.setCoordinatorSearchHitsSizeBytes(bytes, circuitBreaker);
+        }
     }
 
     /**
@@ -210,7 +243,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
-            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
+            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get(), FETCH_CHUNK_BREAKER_LABEL);
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",

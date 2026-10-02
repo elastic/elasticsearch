@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -201,12 +202,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
-            request.source(),
-            request.getContentType(),
+            new BytesSource(request.source(), request.getContentType(), request.getIncludeSourceOnError()),
             request.routing(),
             request.getDynamicTemplates(),
             request.getDynamicTemplateParams(),
-            request.getIncludeSourceOnError(),
             XContentMeteringParserDecorator.NOOP,
             request.tsid()
         );

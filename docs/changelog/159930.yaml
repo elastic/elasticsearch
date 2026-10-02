@@ -1,0 +1,5 @@
+pr: 159930
+summary: Charge regex operators and list and map literals
+area: Infra/Scripting
+type: enhancement
+issues: []

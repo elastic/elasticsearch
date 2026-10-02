@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 

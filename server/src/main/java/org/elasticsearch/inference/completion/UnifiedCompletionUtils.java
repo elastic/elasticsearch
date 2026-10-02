@@ -31,6 +31,7 @@ public final class UnifiedCompletionUtils {
     public static final String CONTENT_FIELD = "content";
     public static final String CHOICES_FIELD = "choices";
     public static final String DELTA_FIELD = "delta";
+    public static final String MESSAGE_FIELD = "message";
     public static final String REFUSAL_FIELD = "refusal";
 
     public static final String TOOL_CALL_ID_FIELD = "tool_call_id";
@@ -79,8 +80,15 @@ public final class UnifiedCompletionUtils {
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
     public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
     public static final String CACHED_TOKENS_FIELD = "cached_tokens";
+    public static final String CACHE_WRITE_TOKENS_FIELD = "cache_write_tokens";
     public static final String COMPLETION_TOKENS_DETAILS_FIELD = "completion_tokens_details";
     public static final String REASONING_TOKENS_FIELD = "reasoning_tokens";
+
+    public static final String CACHE_CONTROL_FIELD = "cache_control";
+    public static final String CACHE_CONTROL_TYPE_FIELD = "type";
+    public static final String CACHE_CONTROL_TTL_FIELD = "ttl";
+
+    public static final String SESSION_ID_FIELD = "session_id";
 
     public static final TransportVersion INFERENCE_CACHED_TOKENS = TransportVersion.fromName("inference_cached_tokens");
 
@@ -94,6 +102,14 @@ public final class UnifiedCompletionUtils {
 
     public static final TransportVersion CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED = TransportVersion.fromName(
         "inference_api_chat_completion_reasoning_max_tokens_removed"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_cache_control_and_session_id_added"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_cache_write_tokens_added"
     );
 
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {

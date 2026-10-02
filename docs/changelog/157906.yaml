@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 157906
+summary: Cap `multi_terms` aggregation at 128 fields
+type: enhancement

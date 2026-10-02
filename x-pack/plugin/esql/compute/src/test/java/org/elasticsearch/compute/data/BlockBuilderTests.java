@@ -44,7 +44,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     private static boolean supportsVectors(ElementType type) {
         return switch (type) {
-            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE -> false;
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE -> false;
             default -> true;
         };
     }
@@ -302,10 +302,150 @@ public class BlockBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * An opened position entry with no values is empty: {@link AbstractBlockBuilder#endPositionEntry()} asserts, so
+     * the caller cancels and {@link Block.Builder#appendNull() appends a null} instead.
+     */
+    public void testCurrentPositionEntryIsEmptyUntilAValueIsAppended() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object value = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            AbstractBlockBuilder abb = (AbstractBlockBuilder) builder;
+            builder.beginPositionEntry();
+            assertThat(abb.currentPositionEntryIsEmpty(), is(true));
+            BlockTestUtils.append(builder, value);
+            assertThat(abb.currentPositionEntryIsEmpty(), is(false));
+            builder.endPositionEntry();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(block.isNull(0), is(false));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A cell whose second value is discovered only after the first was already appended as a single value: reopening
+     * the committed position and appending merges the two into one multivalue, rather than starting a second position.
+     */
+    public void testReopenLastPositionEntryWidensSingleValueToMultivalue() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object first = BlockTestUtils.randomValue(elementType);
+        Object second = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            BlockTestUtils.append(builder, first);
+            assertThat(((AbstractBlockBuilder) builder).reopenLastPositionEntry(), is(true));
+            BlockTestUtils.append(builder, second);
+            ((AbstractBlockBuilder) builder).endPositionEntry();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(block.getValueCount(0), equalTo(2));
+                int firstValueIndex = block.getFirstValueIndex(0);
+                assertThat(BlockTestUtils.valuesAtPositions(block, 0, 1).get(0), equalTo(List.of(first, second)));
+                assertThat(firstValueIndex, equalTo(0));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Reopening an already-multivalued position appends to it rather than replacing or restarting it. */
+    public void testReopenLastPositionEntryExtendsExistingMultivalue() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object first = BlockTestUtils.randomValue(elementType);
+        Object second = BlockTestUtils.randomValue(elementType);
+        Object third = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            builder.beginPositionEntry();
+            BlockTestUtils.append(builder, first);
+            BlockTestUtils.append(builder, second);
+            builder.endPositionEntry();
+            assertThat(((AbstractBlockBuilder) builder).reopenLastPositionEntry(), is(true));
+            BlockTestUtils.append(builder, third);
+            ((AbstractBlockBuilder) builder).endPositionEntry();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(BlockTestUtils.valuesAtPositions(block, 0, 1).get(0), equalTo(List.of(first, second, third)));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A null is a property of the whole position, not a member of its value list, so it cannot gain a value. The
+     * builder refuses the reopen and the caller must leave the position null.
+     */
+    public void testReopenLastPositionEntryRefusesNullPosition() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object value = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(2, blockFactory)) {
+            BlockTestUtils.append(builder, value);
+            builder.appendNull();
+            assertThat(((AbstractBlockBuilder) builder).reopenLastPositionEntry(), is(false));
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(2));
+                assertThat(block.isNull(0), is(false));
+                assertThat(block.isNull(1), is(true));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * There is nothing to reopen on an empty builder. Refused rather than asserted, so a caller that tracks
+     * "this column already has a value" outside the builder and gets that bit wrong loses a value instead of
+     * driving the position count negative, which assertions would catch only in development.
+     */
+    public void testReopenLastPositionEntryRefusesEmptyBuilder() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object value = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(1, blockFactory)) {
+            assertThat(((AbstractBlockBuilder) builder).reopenLastPositionEntry(), is(false));
+            BlockTestUtils.append(builder, value);
+            try (Block block = builder.build()) {
+                assertThat("the refused reopen left the builder usable", block.getPositionCount(), equalTo(1));
+                assertThat(BlockUtils.toJavaObject(block, 0), equalTo(value));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Only the last position is reopened: the positions before it keep their own values and offsets. */
+    public void testReopenLastPositionEntryLeavesEarlierPositionsIntact() {
+        assumeAbstractBlockBuilder();
+        assumeMultiValued();
+        Object zero = BlockTestUtils.randomValue(elementType);
+        Object two = BlockTestUtils.randomValue(elementType);
+        Object twoAgain = BlockTestUtils.randomValue(elementType);
+        try (Block.Builder builder = elementType.newBlockBuilder(3, blockFactory)) {
+            BlockTestUtils.append(builder, zero);
+            builder.appendNull();
+            BlockTestUtils.append(builder, two);
+            assertThat(((AbstractBlockBuilder) builder).reopenLastPositionEntry(), is(true));
+            BlockTestUtils.append(builder, twoAgain);
+            ((AbstractBlockBuilder) builder).endPositionEntry();
+            try (Block block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(3));
+                List<List<Object>> values = BlockTestUtils.valuesAtPositions(block, 0, 3);
+                assertThat(values.get(0), equalTo(List.of(zero)));
+                assertThat(block.isNull(1), is(true));
+                assertThat(values.get(2), equalTo(List.of(two, twoAgain)));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     private void assumeMultiValued() {
         assumeTrue(
             "Type must support multi-values",
-            elementType != ElementType.AGGREGATE_METRIC_DOUBLE && elementType != ElementType.LONG_RANGE
+            // TODO: DOUBLE_RANGE support
+            elementType != ElementType.AGGREGATE_METRIC_DOUBLE
+                && elementType != ElementType.LONG_RANGE
+                && elementType != ElementType.DOUBLE_RANGE
         );
     }
 

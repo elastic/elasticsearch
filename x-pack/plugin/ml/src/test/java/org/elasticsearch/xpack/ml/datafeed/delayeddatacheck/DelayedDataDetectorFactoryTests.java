@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -86,6 +89,29 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         delayedDataDetector = DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry());
         assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(2).millis()));
 
+    }
+
+    public void testNormalizedConfigShouldDemoteCpsIndicesOptionsOnDetector() {
+        Job job = createJob(TimeValue.timeValueSeconds(2));
+        IndicesOptions cpsOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        DatafeedConfig persisted = new DatafeedConfig.Builder("id", "jobId").setIndices(List.of("index1"))
+            .setIndicesOptions(cpsOptions)
+            .setProjectRouting("_alias:prod-*")
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)))
+            .build();
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", false).build()
+        );
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true);
+        DatafeedDelayedDataDetector detector = (DatafeedDelayedDataDetector) DelayedDataDetectorFactory.buildDetector(
+            job,
+            effective,
+            mock(Client.class),
+            xContentRegistry()
+        );
+        assertThat(detector.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
     private Job createJob(TimeValue bucketSpan) {

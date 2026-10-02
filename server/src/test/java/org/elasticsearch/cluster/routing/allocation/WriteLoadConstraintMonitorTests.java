@@ -994,7 +994,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         MetricRecorder<Instrument> metricRecorder = recordingMeterRegistry.getRecorder();
 
         List<Measurement> measuredHotspotCounts = metricRecorder.getMeasurements(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             HOTSPOT_NODES_COUNT_METRIC_NAME
         );
         List<Long> measuredHotspotCountValues = Measurement.getMeasurementValues(
@@ -1015,7 +1015,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         assertEquals(hotspotDurations, measuredHotspotDurationTable);
 
         List<Measurement> hotspotFlagMeasurements = metricRecorder.getMeasurements(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             HOTSPOT_NODES_FLAG_METRIC_NAME
         );
         Map<String, List<Long>> measuredHotspotFlags = Measurement.groupMeasurementsByAttribute(

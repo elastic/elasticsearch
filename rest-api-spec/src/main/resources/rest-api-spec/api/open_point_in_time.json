@@ -70,6 +70,12 @@
         "type": "int",
         "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
         "default": 5
+      },
+      "slice": {
+        "type": "string",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the point in time to that slice. Defaults to `_all` (all slices) when omitted on slice-enabled indices.",
+        "visibility": "feature_flag",
+        "feature_flag": "es.slice_indexing_feature_flag_enabled"
       }
     },
     "body": {

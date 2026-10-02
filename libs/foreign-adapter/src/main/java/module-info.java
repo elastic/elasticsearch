@@ -11,5 +11,7 @@
  * Adapts java.lang.foreign APIs that changed between JDK 21 and 22+.
  */
 module org.elasticsearch.foreign.adapter {
+    requires org.elasticsearch.base;
+
     exports org.elasticsearch.foreign.adapter;
 }

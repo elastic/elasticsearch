@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CsvRecordCappingInputStreamTests extends ESTestCase {
 
@@ -100,7 +103,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
                 in.readAllBytes();
             }
         });
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("max_record_size [" + max + "]"));
+        assertThat(ex.getMessage(), containsString("record exceeds [" + ByteSizeValue.ofBytes(max) + "]"));
     }
 
     public void testSingleByteReadEnforcesSameCap() throws IOException {
@@ -112,7 +115,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
                     // drain byte-by-byte to exercise the single-byte read path
                 }
             });
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("max_record_size [" + max + "]"));
+            assertThat(ex.getMessage(), containsString("record exceeds [" + ByteSizeValue.ofBytes(max) + "]"));
         }
     }
 
@@ -129,7 +132,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
             assertFalse(in.markSupported());
             in.mark(100); // no-op
             IOException ex = expectThrows(IOException.class, in::reset);
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("not supported"));
+            assertThat(ex.getMessage(), containsString("not supported"));
         }
     }
 
@@ -153,7 +156,7 @@ public class CsvRecordCappingInputStreamTests extends ESTestCase {
                 in.readAllBytes();
             }
         });
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(ex.getMessage(), containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /** Returns no more than two bytes per {@code read(byte[], off, len)} so cross-buffer carry paths get exercised. */

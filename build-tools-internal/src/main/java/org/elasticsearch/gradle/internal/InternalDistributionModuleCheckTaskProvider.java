@@ -53,6 +53,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.cli.terminal",
+        "org.elasticsearch.columnar",
         "org.elasticsearch.entitlement",
         "org.elasticsearch.exponentialhistogram",
         "org.elasticsearch.foreign",
@@ -61,15 +62,18 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.grok",
         "org.elasticsearch.iplocation.api",
         "org.elasticsearch.logging",
+        "org.elasticsearch.lucene.store",
         "org.elasticsearch.lz4",
         "org.elasticsearch.nativeaccess",
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.server",
+        "org.elasticsearch.simdjson",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
         "org.elasticsearch.useragent.api",
-        "org.elasticsearch.xcontent"
+        "org.elasticsearch.xcontent",
+        "org.elasticsearch.zstd"
     );
 
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");

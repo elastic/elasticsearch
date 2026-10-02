@@ -1,0 +1,50 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Mappings for eBPF Profiler hosts OTel data stream
+  managed: true
+template:
+  settings:
+    index:
+      auto_expand_replicas: "0-1"
+      refresh_interval: 10s
+      sort:
+        field:
+          - resource.attributes.host.id
+          - "@timestamp"
+      routing.allocation.include._tier_preference: data_hot
+    codec: best_compression
+  mappings:
+    _source:
+      enabled: true
+    dynamic: false
+    dynamic_templates:
+      - resource_attributes_as_keyword:
+          path_match: "resource.attributes.*"
+          match_mapping_type: string
+          mapping:
+            type: keyword
+            index: false
+    properties:
+      "@timestamp":
+        type: date
+        format: epoch_second
+      resource:
+        properties:
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 40
+            properties:
+              host.id:
+                type: keyword
+              host.arch:
+                type: keyword
+              host.type:
+                type: keyword
+              cloud.provider:
+                type: keyword
+              cloud.region:
+                type: keyword
+              os.type:
+                type: keyword

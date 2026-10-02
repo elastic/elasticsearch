@@ -8,12 +8,132 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.PathAndName;
 
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlTestUtilsTests extends ESTestCase {
+
+    public void testClasspathResourcesFromExplodedRootAndNestedDirectory() throws Exception {
+        Path root = createTempDir();
+        writeResource(root, "root-b.csv-spec");
+        writeResource(root, "root-a.csv-spec");
+        writeResource(root, "ignored.txt");
+        writeResource(root.resolve("datasources"), "nested-b.csv-spec");
+        writeResource(root.resolve("datasources"), "nested-a.csv-spec");
+        writeResource(root.resolve("datasources/deeper"), "not-immediate.csv-spec");
+
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(root))),
+            equalTo(List.of("root-a.csv-spec", "root-b.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(root))),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/nested-b.csv-spec"), List.of(root))),
+            equalTo(List.of("nested-b.csv-spec"))
+        );
+        assertThat(EsqlTestUtils.classpathResources(List.of("/missing/*.csv-spec"), List.of(root)), empty());
+        assertThat(EsqlTestUtils.classpathResources(List.of("/datasources/no-match*.csv-spec"), List.of(root)), empty());
+        assertThat(
+            resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*-a.csv-spec", "/datasources/*-b.csv-spec"), List.of(root))
+            ),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
+
+        expectThrows(
+            IllegalStateException.class,
+            anyOf(
+                containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+                containsString("Duplicate classpath resource [datasources/nested-b.csv-spec]")
+            ),
+            () -> resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(root))
+            )
+        );
+    }
+
+    public void testClasspathResourcesFromJarAreSortedAndNonRecursive() throws Exception {
+        Path jar = createTempFile("resources", ".jar");
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+            writeJarEntry(output, "datasources/nested-b.csv-spec");
+            writeJarEntry(output, "datasources/deeper/not-immediate.csv-spec");
+            writeJarEntry(output, "datasources/nested-a.csv-spec");
+            writeJarEntry(output, "root.csv-spec");
+        }
+
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(jar))),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/nested-a.csv-spec"), List.of(jar))),
+            equalTo(List.of("nested-a.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(jar))),
+            equalTo(List.of("root.csv-spec"))
+        );
+        expectThrows(
+            IllegalStateException.class,
+            anyOf(
+                containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+                containsString("Duplicate classpath resource [datasources/nested-b.csv-spec]")
+            ),
+            () -> resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(jar, jar))
+            )
+        );
+    }
+
+    public void testClasspathResourcesRejectDuplicateLogicalPathsWithBothOrigins() throws Exception {
+        Path first = createTempDir();
+        Path second = createTempDir();
+        writeResource(first.resolve("datasources"), "duplicate.csv-spec");
+        writeResource(second.resolve("datasources"), "duplicate.csv-spec");
+
+        expectThrows(
+            IllegalStateException.class,
+            containsString("Duplicate classpath resource [datasources/duplicate.csv-spec]"),
+            () -> EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(first, second))
+        );
+    }
+
+    public void testPathAndNameSplitsAtDirectoryBoundary() {
+        assertThat(PathAndName.from("datasources/file.csv-spec"), equalTo(new PathAndName("datasources", "file.csv-spec")));
+        assertThat(PathAndName.from("file.csv-spec"), equalTo(new PathAndName("", "file.csv-spec")));
+    }
+
+    private static void writeResource(Path directory, String name) throws IOException {
+        Files.createDirectories(directory);
+        Files.writeString(directory.resolve(name), "// test\n", StandardCharsets.UTF_8);
+    }
+
+    private static void writeJarEntry(JarOutputStream output, String name) throws IOException {
+        output.putNextEntry(new JarEntry(name));
+        output.write("// test\n".getBytes(StandardCharsets.UTF_8));
+        output.closeEntry();
+    }
+
+    private static List<String> resourceNames(List<URL> resources) {
+        return resources.stream().map(url -> EsqlTestUtils.PathAndName.from(url.getPath()).name()).toList();
+    }
 
     public void testPromQL() {
         assertThat(
@@ -181,6 +301,37 @@ public class EsqlTestUtilsTests extends ESTestCase {
             EsqlTestUtils.convertSubqueryToRemoteIndices("FROM employees, (FROM employees_incompatible | KEEP emp_no) | SORT emp_no"),
             equalTo("FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible | KEEP emp_no) | SORT emp_no")
         );
+    }
+
+    public void testConvertSubqueryToRemoteIndicesBothClusterIndexIsRemoteOnly() {
+        // `languages` is an enrich source index ingested into BOTH clusters, so its subquery source must be rewritten to the remote-only
+        // `*:languages` to avoid double-counting rows, while the regular `sample_data` index uses `*:sample_data,sample_data`,
+        // unmapped-load.loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported is an example of this pattern.
+        String in = "FROM (FROM languages | EVAL x = 1), (FROM sample_data | EVAL x = 2) | KEEP x";
+        String out = "FROM (FROM *:languages | EVAL x = 1), (FROM *:sample_data,sample_data | EVAL x = 2) | KEEP x";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("languages")), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesBothClusterIndexMixedInSameSubquery() {
+        // A both-cluster index (`languages`) alongside a single-cluster index (`employees`) inside the same subquery FROM: only
+        // `languages` becomes remote-only. unmapped-load.loadMultiIndexPartialMultiFieldInSubquery is an example of this pattern
+        String in = "FROM (FROM employees, languages | WHERE emp_no == 10001) | KEEP emp_no";
+        String out = "FROM (FROM *:employees,employees, *:languages | WHERE emp_no == 10001) | KEEP emp_no";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("languages")), equalTo(out));
+    }
+
+    public void testConvertWhereInSubqueryBothClusterIndexIsRemoteOnly() {
+        // A both-cluster index inside a WHERE IN subquery body is also rewritten to remote-only.
+        String in = "FROM sample_data | WHERE client_ip IN (FROM clientips | KEEP client_ip) | KEEP message";
+        String out = "FROM *:sample_data,sample_data | WHERE client_ip IN (FROM *:clientips | KEEP client_ip) | KEEP message";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("clientips")), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesWithoutBothClusterSetIsUnchanged() {
+        // Regression guard: with no both-cluster indices declared, every source keeps the *:index,index form.
+        String in = "FROM (FROM languages | EVAL x = 1), (FROM sample_data | EVAL x = 2) | KEEP x";
+        String out = "FROM (FROM *:languages,languages | EVAL x = 1), (FROM *:sample_data,sample_data | EVAL x = 2) | KEEP x";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
 
     public void testConvertSubqueryToRemoteIndicesTsSubquery() {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
 public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
@@ -87,7 +89,18 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
 
     private IpDataLookup activeLookup = createFoundLookup();
 
-    private final Warnings WARNINGS = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
+    private final DriverContext warningsContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        TestBlockFactory.getNonBreakingInstance(),
+        null
+    );
+
+    private void assertCollectedWarnings(String... expected) {
+        warningsContext.finish();
+        assertThat(warningsContext.warnings(), containsInAnyOrder(expected));
+    }
+
+    private final Warnings WARNINGS = warningsContext.createWarnings(new WarningSourceLocation() {
         @Override
         public int lineNumber() {
             return 1;
@@ -218,7 +231,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         } finally {
             Releasables.closeExpectNoException(targetBlocks);
         }
-        assertWarnings(
+        assertCollectedWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge$IpLocationDatabaseUnavailableException: "
                 + "IP location database ["
@@ -259,7 +272,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         } finally {
             Releasables.closeExpectNoException(targetBlocks);
         }
-        assertWarnings(
+        assertCollectedWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge$IpLocationDatabaseExpiredException: "
                 + "IP location database ["
@@ -297,7 +310,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         } finally {
             Releasables.closeExpectNoException(targetBlocks);
         }
-        assertWarnings(
+        assertCollectedWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.io.IOException: IP location lookup failed for database [" + DATABASE_FILE + "]"
         );
@@ -316,7 +329,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         List<String> input = List.of(KNOWN_IP, SECOND_IP);
         List<Object[]> expected = Collections.nCopies(fields.size(), new Object[] { null });
         evaluateAndCompare(input, fields, expected, WARNINGS);
-        assertWarnings(
+        assertCollectedWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );

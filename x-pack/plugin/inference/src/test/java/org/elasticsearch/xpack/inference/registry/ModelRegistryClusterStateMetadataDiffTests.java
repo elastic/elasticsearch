@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.MinimalServiceSettingsTests;
+import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
 import java.util.Map;
@@ -51,10 +51,10 @@ public class ModelRegistryClusterStateMetadataDiffTests extends SimpleDiffableWi
 
     private static ModelRegistryClusterStateMetadata mutateInstance(ModelRegistryClusterStateMetadata instance) {
         if (instance.isUpgraded() == false && randomBoolean()) {
-            return instance.withUpgradedModels(Map.of(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance()));
+            return instance.withUpgradedModels(Map.of(randomAlphaOfLength(10), EndpointClusterStateTests.randomInstance()));
         }
         if (randomBoolean() || instance.getModelMap().isEmpty()) {
-            return instance.withAddedModel(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance());
+            return instance.withAddedModel(randomAlphaOfLength(10), EndpointClusterStateTests.randomInstance());
         } else {
             return instance.withRemovedModel(Set.of(randomFrom(instance.getModelMap().keySet())));
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.IndexRoutingTestHelper;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -102,8 +103,9 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             // or when keepalive expires.
             // With `ISOLATE_NODE` disruption it is possible that a reader context is opened
             // to execute a search but not closed since the node is isolated and search failed on this shard.
-            // To prevent asserts for leaked reader contexts we shorten the keepalive.
-            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+            // To prevent asserts for leaked reader contexts we shorten both the keepalive and the reaper interval
+            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
     }
 
     @Override
@@ -737,7 +739,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             );
             var bulkRequest = client().prepareBulk();
             for (int shardId = 0; shardId < cleanupIndexShards; shardId++) {
-                String id = ReshardingTestHelpers.makeIdThatRoutesToShard(routing, shardId);
+                String id = IndexRoutingTestHelper.makeIdThatRoutesToShard(routing, shardId);
                 var indexRequest = client().prepareIndex(cleanupIndexName).setId(id).setSource(Map.of("random", "stuff"));
                 bulkRequest.add(indexRequest);
             }

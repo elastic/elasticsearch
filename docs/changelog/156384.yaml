@@ -1,0 +1,6 @@
+area: Search
+issues:
+  - 156333
+pr: 156384
+summary: Add Roaring bitmap aggregation
+type: feature

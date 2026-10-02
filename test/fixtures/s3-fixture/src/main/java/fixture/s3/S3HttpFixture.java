@@ -61,8 +61,8 @@ public class S3HttpFixture extends ExternalResource {
     private final boolean enabled;
     @Nullable // if using HTTP
     private final TestTlsCertificate tlsCertificate;
-    private final String bucket;
-    private final String basePath;
+    private final Supplier<String> bucketSupplier;
+    private final Supplier<String> basePathSupplier;
     private final BiPredicate<String, String> authorizationPredicate;
     private final Supplier<S3ConsistencyModel> consistencyModel;
 
@@ -70,8 +70,8 @@ public class S3HttpFixture extends ExternalResource {
         this(
             enabled,
             null,
-            "bucket",
-            "base_path_integration_tests",
+            () -> "bucket",
+            () -> "base_path_integration_tests",
             consistencyModel,
             fixedAccessKey("s3_test_access_key", ANY_REGION, "s3")
         );
@@ -80,21 +80,21 @@ public class S3HttpFixture extends ExternalResource {
     public S3HttpFixture(
         boolean enabled,
         @Nullable /* to use HTTP */ TestTlsCertificate tlsCertificate,
-        String bucket,
-        String basePath,
+        Supplier<String> bucketSupplier,
+        Supplier<String> basePathSupplier,
         Supplier<S3ConsistencyModel> consistencyModel,
         BiPredicate<String, String> authorizationPredicate
     ) {
         this.tlsCertificate = tlsCertificate;
         this.enabled = enabled;
-        this.bucket = bucket;
-        this.basePath = basePath;
+        this.bucketSupplier = bucketSupplier;
+        this.basePathSupplier = basePathSupplier;
         this.authorizationPredicate = authorizationPredicate;
         this.consistencyModel = consistencyModel;
     }
 
     protected HttpHandler createHandler() {
-        return new S3HttpHandler(bucket, basePath, consistencyModel.get()) {
+        return new S3HttpHandler(bucketSupplier.get(), basePathSupplier.get(), consistencyModel.get()) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {

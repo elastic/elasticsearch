@@ -21,11 +21,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -124,7 +125,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         );
         PARSER.declareFieldArray(
             KnnVectorQueryBuilder::addFilterQueries,
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+            (p, c) -> parseInnerQueryBuilder(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );
@@ -481,7 +482,14 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
-            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            // Carry the query-time oversample so the exact query scores inner hits with the same fidelity this
+            // approximate query uses; otherwise their scores disagree.
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(
+                queryVector,
+                fieldName,
+                vectorSimilarity,
+                rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
+            );
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {
@@ -568,14 +576,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
         String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
-        if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
-            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
-            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
-            // default strategy, but once materialized as a bitset on every execution they become
-            // significantly more expensive, making caching essential.
-            filterQuery = new CachingEnableFilterQuery(filterQuery);
-        }
-
+        // Filter caching now happens inside the mapper so that PostFilterKnnQuery receives the raw filter:
+        // it evaluates the filter against a small candidate set and must avoid an eager full-index bitset build.
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,
@@ -612,11 +614,22 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             return List.of();
         }
         final List<Query> autoPrefilters = new ArrayList<>();
-        for (QueryBuilder queryBuilder : context.autoPrefilteringScope().getPrefilters().stream().filter(f -> this != f).toList()) {
-            Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(queryBuilder, UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES);
+        for (ScopedPrefilter scopedPrefilter : context.autoPrefilteringScope().getPrefilters()) {
+            if (this == scopedPrefilter.query()) {
+                continue;
+            }
+            Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(
+                scopedPrefilter.query(),
+                UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES
+            );
             if (pruned.isPresent()) {
-                Query query = pruned.get().toQuery(context);
-                autoPrefilters.add(query);
+                // A prefilter is meant to be evaluated in the document space of the query that collected it, which may
+                // sit above this knn query's nested level. Building it here without unwinding would give block join
+                // queries - such as an exists query on a semantic_text field - a child level as their parent filter,
+                // leaving the prefilter matching nothing. The filters are joined down to child documents in doToQuery.
+                try (Releasable ignored = context.nestedScope().unwindTo(scopedPrefilter.nestedLevel())) {
+                    autoPrefilters.add(pruned.get().toQuery(context));
+                }
             }
         }
         return autoPrefilters;

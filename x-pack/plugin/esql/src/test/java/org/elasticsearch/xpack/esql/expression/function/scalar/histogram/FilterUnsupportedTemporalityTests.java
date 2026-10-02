@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -99,14 +100,25 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
                     DataType.KEYWORD,
                     "temporality"
                 );
-                boolean expectsNull = temporality == TemporalityParameter.INVALID;
+                boolean cumulativeTDigest = temporality == TemporalityParameter.CUMULATIVE && histoSupplier.type() == DataType.TDIGEST;
+                boolean expectsNull = temporality == TemporalityParameter.INVALID || cumulativeTDigest;
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(histogram, temporalityData),
                     getExpectedEvaluatorString(histoSupplier.type()),
                     histoSupplier.type(),
                     expectsNull ? nullValue() : equalTo(histogram.getValue())
                 );
-                if (temporality == TemporalityParameter.CUMULATIVE) {
+                if (cumulativeTDigest) {
+                    // cumulative T-Digests are skipped with a single, actionable warning instead of failing the query
+                    return result.withWarning(
+                        "Line 1:1 [source]: T-Digests with unsupported cumulative temporality were encountered and ignored."
+                            + " You are probably converting data stored as exponential_histogram using ::tdigest or TO_TDIGEST."
+                            + " Please use ::exponential_histogram or TO_EXPONENTIAL_HISTOGRAM instead."
+                            + " See "
+                            + ReferenceDocs.ESQL_HISTOGRAM_FIELDS_HISTORICAL_DATA
+                            + " for more information."
+                    );
+                } else if (temporality == TemporalityParameter.CUMULATIVE) {
                     return result.withExtra(IllegalArgumentException.class).withoutEvaluator();
                 } else if (temporality == TemporalityParameter.INVALID) {
                     result = result.withWarning(
@@ -134,12 +146,12 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
         return new FilterUnsupportedTemporality(source, args.get(0), args.get(1));
     }
 
+    /**
+     * Cumulative exponential histograms must fail the query. Cumulative T-Digests are skipped with a warning instead, which is
+     * covered by the parameterized test cases.
+     */
     public void testCumulativeTemporalityFailsQuery() {
-        List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = Stream.concat(
-            TestCaseSupplier.exponentialHistogramCases().stream(),
-            TestCaseSupplier.tdigestCases().stream()
-        ).toList();
-        for (TestCaseSupplier.TypedDataSupplier histoSupplier : histogramSuppliers) {
+        for (TestCaseSupplier.TypedDataSupplier histoSupplier : TestCaseSupplier.exponentialHistogramCases()) {
             TestCaseSupplier.TypedData histogram = histoSupplier.get();
             TestCaseSupplier.TypedData temporalityData = new TestCaseSupplier.TypedData(
                 Temporality.CUMULATIVE.bytesRef(),
@@ -157,14 +169,10 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
             try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
                 Page row = row(List.of(histogram.getValue(), temporalityData.getValue()));
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> evaluator.eval(row));
-                if (histoSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
-                    assertThat(
-                        e.getMessage(),
-                        equalTo("Cumulative temporality is not supported for the exponential_histogram type on all nodes")
-                    );
-                } else {
-                    assertThat(e.getMessage(), equalTo("Cumulative temporality is not supported for the tdigest type."));
-                }
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Cumulative temporality is not supported for the exponential_histogram type on all nodes")
+                );
                 row.releaseBlocks();
             }
         }

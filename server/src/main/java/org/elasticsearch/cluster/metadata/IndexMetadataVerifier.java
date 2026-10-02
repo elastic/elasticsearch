@@ -20,6 +20,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -58,6 +59,7 @@ public class IndexMetadataVerifier {
 
     private final Settings settings;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
@@ -67,6 +69,7 @@ public class IndexMetadataVerifier {
     public IndexMetadataVerifier(
         Settings settings,
         ClusterService clusterService,
+        FeatureService featureService,
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
@@ -75,6 +78,7 @@ public class IndexMetadataVerifier {
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
@@ -298,6 +302,7 @@ public class IndexMetadataVerifier {
             try (
                 MapperService mapperService = new MapperService(
                     clusterService,
+                    featureService,
                     indexSettings,
                     (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                     parserConfiguration,

@@ -24,8 +24,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SECRET_SETTINGS;
 
 /**
  * OpenAI OAuth2 secret settings: holds the {@code client_secret} for the
@@ -89,7 +89,13 @@ public class OpenAiOAuth2SecretsSettings extends OpenAiSecretSettings {
 
     @Override
     protected SecretSettings updated(Map<String, SecureString> provided) {
-        return updateExactlyOneField(SECRET_SETTINGS, CLIENT_SECRET_FIELD, clientSecret(), provided, OpenAiOAuth2SecretsSettings::new);
+        return updateExactlyOneField(
+            SECRET_SETTINGS.toString(),
+            CLIENT_SECRET_FIELD,
+            clientSecret(),
+            provided,
+            OpenAiOAuth2SecretsSettings::new
+        );
     }
 
     @Override

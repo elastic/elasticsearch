@@ -44,8 +44,7 @@ public class MonitoringServiceTests extends ESTestCase {
     private SSLService sslService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMonitoringServiceTestDeps() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();

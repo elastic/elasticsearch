@@ -287,9 +287,9 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
 
             assertBusy(() -> {
                 plugin.collect();
-                List<Measurement> queuedBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE);
-                List<Measurement> runningBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE);
-                List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+                List<Measurement> queuedBytes = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE);
+                List<Measurement> runningBytes = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE);
+                List<Measurement> queuedEstimated = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
                 assertThat(queuedBytes.stream().mapToLong(Measurement::getLong).sum(), greaterThanOrEqualTo(1L));
                 assertThat(runningBytes.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
                 assertThat(queuedEstimated.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
@@ -389,7 +389,7 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             .orElseThrow();
         assertBusy(() -> {
             plugin.collect();
-            List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+            List<Measurement> queuedEstimated = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
             assertThat(queuedEstimated.stream().mapToLong(Measurement::getLong).sum(), greaterThan(0L));
         });
 
@@ -399,7 +399,7 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
 
         assertBusy(() -> {
             plugin.collect();
-            List<Measurement> queuedEstimated = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
+            List<Measurement> queuedEstimated = plugin.getLongAsyncGaugeMeasurement(MergeMetrics.MERGE_QUEUED_ESTIMATED_MEMORY_SIZE);
             assertThat(queuedEstimated.getLast().getLong(), is(0L));
         });
 

@@ -10,8 +10,6 @@
 package org.elasticsearch.escf;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -22,61 +20,64 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Verifies the ESCF columnar-list {@link ArrayReader} ({@link ColumnarArrayReader}) iterates a row's
- * array identically to the EIRF inline reader ({@link org.elasticsearch.sourcebatch.InlineArrayReader}) for the
- * same source document — same element types and values, in order.
+ * Verifies that the ESCF columnar-list {@link ArrayReader} ({@link ColumnarArrayReader}) iterates a
+ * row's array with the correct element types and values, in order.
  */
 public class ArrayReaderTests extends ESTestCase {
 
-    public void testLongArrayParity() throws IOException {
-        assertReaderParity("{\"a\":[1,2,3,4]}", "a");
-    }
-
-    public void testDoubleArrayParity() throws IOException {
-        assertReaderParity("{\"a\":[1.5,2.5,-3.25]}", "a");
-    }
-
-    public void testStringArrayParity() throws IOException {
-        assertReaderParity("{\"a\":[\"x\",\"yy\",\"zzz\"]}", "a");
-    }
-
-    private static void assertReaderParity(String json, String path) throws IOException {
-        List<BytesReference> sources = List.of(new BytesArray(json));
-        try (
-            SourceBatch escf = EscfEncoder.encode(sources, XContentType.JSON);
-            SourceBatch eirf = EirfEncoder.encode(sources, XContentType.JSON)
-        ) {
-            ArrayReader escfReader = escf.row(0).getArrayValue(columnOf(escf, path));
-            ArrayReader eirfReader = eirf.row(0).getArrayValue(columnOf(eirf, path));
-            int count = 0;
-            while (true) {
-                boolean a = escfReader.next();
-                boolean b = eirfReader.next();
-                assertEquals("readers ended at different points after " + count + " elements", a, b);
-                if (a == false) {
-                    break;
-                }
-                count++;
-                byte type = escfReader.type();
-                // The EIRF reader may report the narrower INT/FLOAT element type; the ESCF columnar child
-                // upcasts to LONG/DOUBLE. Compare on the upcast value, which is what reconstruction emits.
-                switch (type) {
-                    case SourceValueType.LONG -> assertEquals(escfReader.longValue(), eirfLong(eirfReader));
-                    case SourceValueType.DOUBLE -> assertEquals(escfReader.doubleValue(), eirfDouble(eirfReader), 0.0);
-                    case SourceValueType.STRING -> assertEquals(escfReader.stringValue(), eirfReader.stringValue());
-                    default -> throw new AssertionError("unexpected ESCF array element type " + SourceValueType.name(type));
-                }
-            }
-            assertTrue("expected a non-empty array", count > 0);
+    public void testLongArray() throws IOException {
+        try (SourceBatch batch = encode("{\"a\":[1,2,3,4]}")) {
+            ArrayReader reader = batch.row(0).getArrayValue(columnOf(batch, "a"));
+            assertLong(reader, 1L);
+            assertLong(reader, 2L);
+            assertLong(reader, 3L);
+            assertLong(reader, 4L);
+            assertFalse("expected exactly 4 elements", reader.next());
         }
     }
 
-    private static long eirfLong(ArrayReader reader) {
-        return reader.type() == SourceValueType.INT ? reader.intValue() : reader.longValue();
+    public void testDoubleArray() throws IOException {
+        try (SourceBatch batch = encode("{\"a\":[1.5,2.5,-3.25]}")) {
+            ArrayReader reader = batch.row(0).getArrayValue(columnOf(batch, "a"));
+            assertDouble(reader, 1.5);
+            assertDouble(reader, 2.5);
+            assertDouble(reader, -3.25);
+            assertFalse("expected exactly 3 elements", reader.next());
+        }
     }
 
-    private static double eirfDouble(ArrayReader reader) {
-        return reader.type() == SourceValueType.FLOAT ? reader.floatValue() : reader.doubleValue();
+    public void testStringArray() throws IOException {
+        try (SourceBatch batch = encode("{\"a\":[\"x\",\"yy\",\"zzz\"]}")) {
+            ArrayReader reader = batch.row(0).getArrayValue(columnOf(batch, "a"));
+            assertString(reader, "x");
+            assertString(reader, "yy");
+            assertString(reader, "zzz");
+            assertFalse("expected exactly 3 elements", reader.next());
+        }
+    }
+
+    private static SourceBatch encode(String json) throws IOException {
+        return EscfEncoder.encode(List.of(new BytesArray(json)), XContentType.JSON);
+    }
+
+    private static void assertLong(ArrayReader reader, long expected) {
+        assertTrue("expected another element", reader.next());
+        // ESCF columnar arrays store integers as LONG.
+        assertEquals(SourceValueType.LONG, reader.type());
+        assertEquals(expected, reader.longValue());
+    }
+
+    private static void assertDouble(ArrayReader reader, double expected) {
+        assertTrue("expected another element", reader.next());
+        // ESCF columnar arrays store floating-point values as DOUBLE.
+        assertEquals(SourceValueType.DOUBLE, reader.type());
+        assertEquals(expected, reader.doubleValue(), 0.0);
+    }
+
+    private static void assertString(ArrayReader reader, String expected) {
+        assertTrue("expected another element", reader.next());
+        assertEquals(SourceValueType.STRING, reader.type());
+        assertEquals(expected, reader.stringValue());
     }
 
     private static int columnOf(SourceBatch batch, String path) {

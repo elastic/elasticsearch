@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.common;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -63,7 +63,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             downstream = subscriber;
             downstream.onSubscribe(subscription);
         } catch (Exception e) {
-            log.atDebug().withThrowable(e).log("Another publisher is already publishing to subscriber, canceling.");
+            log.debug("Another publisher is already publishing to subscriber, canceling.", e);
             subscription.cancel();
             downstream = null;
             throw e;
@@ -148,9 +148,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             if (downstream != null) {
                 downstream.onError(throwable);
             } else {
-                log.atDebug()
-                    .withThrowable(throwable)
-                    .log("onError was called before the downstream subscription, rethrowing to close listener.");
+                log.debug("onError was called before the downstream subscription, rethrowing to close listener.", throwable);
                 throw new IllegalStateException("onError was called before the downstream subscription", throwable);
             }
         }

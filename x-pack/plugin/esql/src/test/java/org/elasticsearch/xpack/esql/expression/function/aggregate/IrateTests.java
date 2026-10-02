@@ -41,12 +41,12 @@ public class IrateTests extends AbstractIrateTests {
                 }
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_KEEPS_TYPE);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Irate(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2));
+        return new Irate(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(2));
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

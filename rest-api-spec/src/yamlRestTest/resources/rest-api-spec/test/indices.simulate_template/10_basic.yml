@@ -224,3 +224,28 @@
   - match: {template.lifecycle.enabled: true}
   - match: {template.lifecycle.data_retention: "7d"}
   - is_true: template.lifecycle.rollover
+
+---
+"Simulate template with routing partition size":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: POST
+          path: /_index_template/_simulate
+          capabilities: [ simulate_template_shard_count_fix ]
+      reason: "simulate used to ignore the template's shard count when validating routing partition size"
+
+  - do:
+      indices.simulate_template:
+        body:
+          index_patterns: test
+          template:
+            settings:
+              index:
+                number_of_shards: 30
+                routing_partition_size: 2
+                number_of_replicas: 1
+
+  - match: {template.settings.index.number_of_shards: "30"}
+  - match: {template.settings.index.routing_partition_size: "2"}
+  - match: {template.settings.index.number_of_replicas: "1"}

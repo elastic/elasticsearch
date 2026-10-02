@@ -134,7 +134,6 @@ public abstract class BlockHashTestCase extends ESTestCase {
             }
         });
         if (blockHash instanceof LongLongBlockHash == false
-            && blockHash instanceof BytesRefLongBlockHash == false
             && blockHash instanceof BytesRef2BlockHash == false
             && blockHash instanceof BytesRef3BlockHash == false) {
             try (IntVector nonEmpty = blockHash.nonEmpty()) {

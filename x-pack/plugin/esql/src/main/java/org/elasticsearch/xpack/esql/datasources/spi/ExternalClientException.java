@@ -20,16 +20,33 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalClientException extends ExternalException {
 
-    public ExternalClientException(String message, Throwable cause) {
+    ExternalClientException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalClientException(Throwable cause, String message, Object... args) {
+    ExternalClientException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalClientException(String message, Object... args) {
+    ExternalClientException(String message, Object... args) {
         super(message, args);
+    }
+
+    public ExternalClientException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
+        super(condition, path, detailCode, remedy, cause);
+    }
+
+    public ExternalClientException(Condition condition, StoragePath path, String detailCode, String remedy) {
+        super(condition, path, detailCode, remedy);
+    }
+
+    private ExternalClientException(ExternalClientException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalClientException copyWithoutCause() {
+        return new ExternalClientException(this);
     }
 
     @Override

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159750
+summary: "ES|QL|DS: Reassign external splits when a data node is unreachable at dispatch"
+type: bug

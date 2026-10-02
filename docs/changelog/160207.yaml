@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 160203
+pr: 160207
+summary: Tolerate missing remote indices during the inference rewrite
+type: bug

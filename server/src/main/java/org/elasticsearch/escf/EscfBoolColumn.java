@@ -23,13 +23,13 @@ final class EscfBoolColumn extends EscfColumn {
      */
     private final FixedBitSet values;
 
-    EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
-        super(docCount, absent);
+    EscfBoolColumn(int docCount, FixedBitSet validity, FixedBitSet values) {
+        super(docCount, validity);
         this.values = values;
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.BOOL;
     }
 
@@ -39,7 +39,7 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     @Override
-    boolean getBooleanValue(int row) {
+    public boolean getBooleanValue(int row) {
         return bitSet(row);
     }
 
@@ -50,12 +50,12 @@ final class EscfBoolColumn extends EscfColumn {
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        return new EscfBoolColumn(count, windowBitSet(absent, from, count), windowBitSet(values, from, count));
+        return new EscfBoolColumn(count, windowValidity(validity, from, count), windowBitSet(values, from, count));
     }
 
     @Override
     EscfColumnData toColumnData() {
-        // absent and values are already windowed and zero-based; return them directly.
-        return EscfColumnData.ofBool(docCount, absent, values);
+        // validity and values are already windowed and zero-based; return them directly.
+        return EscfColumnData.ofBool(docCount, validity, values);
     }
 }

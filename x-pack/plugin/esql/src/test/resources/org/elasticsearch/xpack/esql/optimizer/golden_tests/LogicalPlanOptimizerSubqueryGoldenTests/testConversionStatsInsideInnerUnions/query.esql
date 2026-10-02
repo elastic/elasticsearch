@@ -1,0 +1,15 @@
+FROM (FROM
+        (ROW client_ip = "172.21.0.5"),
+        (ROW client_ip = "172.21.3.15")
+      | EVAL client_ip = client_ip::ip
+      | STATS cnt = COUNT(*) BY client_ip
+      | EVAL _subquery = 1),
+     (FROM
+        (ROW client_ip = "172.21.0.5"),
+        (ROW client_ip = "172.21.3.15")
+      | EVAL client_ip = client_ip::ip
+      | STATS cnt = COUNT(*) BY client_ip
+      | EVAL _subquery = 2)
+| WHERE _subquery == 1
+| DROP _subquery
+| LIMIT 10

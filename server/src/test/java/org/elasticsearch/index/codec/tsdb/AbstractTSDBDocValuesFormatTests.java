@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -29,22 +30,23 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesRangeIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.TSDBBinaryDocValues;
@@ -53,22 +55,24 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.between;
@@ -80,6 +84,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -110,15 +115,38 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     protected static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 128 * 1024;
     protected static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 1024;
 
+    /**
+     * Returns a codec guaranteed to have optimized merge enabled. Used by
+     * {@code testForceMergeWithOversizedBinaryValues} so the verbatim-copy assertion always fires.
+     * Subclasses whose main codec randomizes this flag must override to return a codec with the flag
+     * forced on.
+     */
+    protected Codec getCodecWithOptimizedMerge() {
+        return getCodec();
+    }
+
     static {
         LogConfigurator.configureESLogging();
     }
 
     protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
-        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField);
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField, getCodec());
+    }
+
+    protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField, codec);
     }
 
     protected IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, boolean multiValued, String timestampField) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, multiValued, timestampField, getCodec());
+    }
+
+    protected IndexWriterConfig getTimeSeriesIndexWriterConfig(
+        String hostnameField,
+        boolean multiValued,
+        String timestampField,
+        Codec codec
+    ) {
         var config = new IndexWriterConfig();
         if (hostnameField != null) {
             config.setIndexSort(
@@ -132,7 +160,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        config.setCodec(getCodec());
+        config.setCodec(codec);
         return config;
     }
 
@@ -2325,7 +2353,23 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
-    public void testRangeIteratorVsBruteForce() throws IOException {
+    public void testRandomDenseNumericIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(
+            doc -> doc.add(new NumericDocValuesField("num", random().nextLong())),
+            reader -> reader.getNumericDocValues("num"),
+            () -> true
+        );
+    }
+
+    public void testRangeIntoBitSet() throws IOException {
+        doTestRangeIntoBitSet(false);
+    }
+
+    public void testRangeIntoBitSetWithSkipper() throws IOException {
+        doTestRangeIntoBitSet(true);
+    }
+
+    private void doTestRangeIntoBitSet(boolean indexed) throws IOException {
         final String field = "dense_value";
         int numDocs = randomIntBetween(1, 4096 * 4);
         long currentTimestamp = BASE_TIMESTAMP;
@@ -2346,7 +2390,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
                 long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
                 values.add(v);
-                d.add(new SortedNumericDocValuesField(field, v));
+                d.add(indexed ? SortedNumericDocValuesField.indexedField(field, v) : new SortedNumericDocValuesField(field, v));
                 currentTimestamp += 1000L;
                 iw.addDocument(d);
                 if (i % 256 == 0) {
@@ -2361,126 +2405,179 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
-                assertRangeIterator(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
-                assertRangeIterator(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty match
+                if (indexed) {
+                    assertNotNull(leafReader.getDocValuesSkipper(field));
+                }
+                var searcher = new IndexSearcher(reader);
+                assertRangeIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, sampleValue, sampleValue);
+                assertRangeIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, maxValue + 1, Long.MAX_VALUE);
 
                 for (int i = 0; i < 5; i++) {
                     long a = randomLong();
                     long b = randomLong();
-                    assertRangeIterator(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
+                    long lower = Math.min(a, b);
+                    long upper = Math.max(a, b);
+                    assertRangeIntoBitSet(leafReader, field, numDocs, lower, upper);
+                    assertRangeQuerySearcher(leafReader, field, searcher, numDocs, lower, upper);
                 }
             }
         }
     }
 
-    public void testRangeIteratorIntoBitSet() throws IOException {
+    public void testRangeIntoBitSetRecomputesMatchesForCachedBlock() throws IOException {
         final String field = "dense_value";
-        int numDocs = randomIntBetween(1, 4096 * 4);
-        long currentTimestamp = BASE_TIMESTAMP;
-
-        List<Long> values = new ArrayList<>();
-        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
-        if (randomBoolean()) {
-            config.setIndexSort(
-                new Sort(
-                    new SortedNumericSortField(field, SortField.Type.LONG, false),
-                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-                )
-            );
-        }
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+        final int numDocs = 32;
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
-                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-                values.add(v);
-                d.add(new SortedNumericDocValuesField(field, v));
-                currentTimestamp += 1000L;
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i));
+                d.add(new SortedNumericDocValuesField(field, i - 16L));
                 iw.addDocument(d);
-                if (i % 256 == 0) {
-                    iw.commit();
-                }
             }
             iw.forceMerge(1);
 
-            long maxValue = Collections.max(values);
-            long sampleValue = randomFrom(values);
-
             try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
-                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
-                assertRangeIteratorIntoBitSet(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
+                var values = getBaseDenseNumericValues(leafReader, field);
+                var matches = new FixedBitSet(numDocs);
+                values.rangeIntoBitSet(0, 16, -8L, 8L, matches, 0);
+                values.rangeIntoBitSet(16, numDocs, -16L, -9L, matches, 0);
 
-                for (int i = 0; i < 5; i++) {
-                    long a = randomLong();
-                    long b = randomLong();
-                    assertRangeIteratorIntoBitSet(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
+                var expectedValues = getBaseDenseNumericValues(leafReader, field);
+                for (int doc = 0; doc < numDocs; doc++) {
+                    assertTrue(expectedValues.advanceExact(doc));
+                    long value = expectedValues.longValue();
+                    boolean expected = doc < 16 ? value >= -8L && value <= 8L : value >= -16L && value <= -9L;
+                    assertEquals("doc=" + doc, expected, matches.get(doc));
                 }
             }
         }
     }
 
-    /**
-     * Exercises the {@link TwoPhaseIterator} bulk overrides ({@code intoBitSet} / {@code docIDRunEnd})
-     * directly, the way Lucene's {@code ConstantScoreBulkScorer} drives them in production. Calling
-     * {@code intoBitSet} on the {@link DocIdSetIterator} returned by {@code tryRangeIterator} would go
-     * through the wrapper's default per-doc confirmation instead, so we unwrap the two-phase first and
-     * drive its overridden bulk methods so the SIMD/skipper dense path stays unit-tested.
-     */
-    public void testRangeIteratorTwoPhaseBulk() throws IOException {
+    public void testRangeIntoBitSetInterleavesWithIteratorMethods() throws IOException {
         final String field = "dense_value";
-        int numDocs = randomIntBetween(1, 4096 * 4);
-        long currentTimestamp = BASE_TIMESTAMP;
-
-        List<Long> values = new ArrayList<>();
-        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
-        if (randomBoolean()) {
-            config.setIndexSort(
-                new Sort(
-                    new SortedNumericSortField(field, SortField.Type.LONG, false),
-                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-                )
-            );
-        }
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+        final int numDocs = 5000;
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
-                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-                values.add(v);
-                d.add(new SortedNumericDocValuesField(field, v));
-                currentTimestamp += 1000L;
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, BASE_TIMESTAMP - i));
+                d.add(new SortedNumericDocValuesField(field, randomLongBetween(-100L, 100L)));
                 iw.addDocument(d);
-                if (i % 256 == 0) {
-                    iw.commit();
-                }
             }
             iw.forceMerge(1);
 
-            long maxValue = Collections.max(values);
-            long sampleValue = randomFrom(values);
-
             try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
                 var leafReader = reader.leaves().getFirst().reader();
-                assertRangeIteratorTwoPhaseBulk(leafReader, field, numDocs, sampleValue, sampleValue); // exact match
-                assertRangeIteratorTwoPhaseBulk(leafReader, field, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
+                long[] expectedValues = readSingleValued(leafReader, field, numDocs);
+                var values = getBaseDenseNumericValues(leafReader, field);
 
-                for (int i = 0; i < 5; i++) {
-                    long a = randomLong();
-                    long b = randomLong();
-                    assertRangeIteratorTwoPhaseBulk(leafReader, field, numDocs, Math.min(a, b), Math.max(a, b));
-                }
+                assertTrue(values.advanceExact(7));
+                assertEquals(expectedValues[7], values.longValue());
+
+                var matches = new FixedBitSet(numDocs);
+                values.rangeIntoBitSet(7, 1000, -50L, 50L, matches, 0);
+                assertRangeBits(expectedValues, matches, 7, 1000, -50L, 50L);
+
+                assertEquals(1000, values.advance(1000));
+                assertEquals(expectedValues[1000], values.longValue());
+                assertEquals(numDocs, values.docIDRunEnd());
+
+                var docsWithValues = new FixedBitSet(numDocs);
+                values.intoBitSet(1500, docsWithValues, 0);
+                assertEquals(1500, values.docID());
+                assertEquals(500, docsWithValues.cardinality());
+                assertEquals(1000, docsWithValues.nextSetBit(0));
+                assertEquals(1499, docsWithValues.prevSetBit(numDocs - 1));
+
+                values.rangeIntoBitSet(1500, 4500, -10L, 10L, matches, 0);
+                assertRangeBits(expectedValues, matches, 1500, 4500, -10L, 10L);
+
+                assertEquals(4500, values.advance(4500));
+                assertEquals(expectedValues[4500], values.longValue());
+                assertEquals(numDocs, values.docIDRunEnd());
             }
         }
     }
 
-    /**
-     * A conjunction of two doc-values range filters must return exactly the brute-force result. This drives the
-     * two-phase range iterators together through a conjunction scorer (where {@code docIDRunEnd()} is used without
-     * a per-doc match confirmation) over randomized data and ranges.
-     */
+    public void testRangeIntoBitSetWithLuceneIteratorMethods() throws IOException {
+        final String field = "dense_value";
+        // Lucene's default doc-values skip interval. Complete intervals force YES, MAYBE, and NO blocks for the range [1, 1].
+        final int skipBlockSize = 4096;
+        final int trailingDocs = randomIntBetween(1, skipBlockSize - 1);
+        final int numDocs = 3 * skipBlockSize + trailingDocs;
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, BASE_TIMESTAMP - i));
+                final long value;
+                if (i < skipBlockSize) {
+                    // YES block
+                    value = 1L;
+                } else if (i < 2 * skipBlockSize) {
+                    // MAYBE block
+                    value = i % 2 == 0 ? 1L : 2L;
+                } else if (i < 3 * skipBlockSize) {
+                    // NO block
+                    value = 2L;
+                } else {
+                    // Partial YES block
+                    value = 1L;
+                }
+                d.add(SortedNumericDocValuesField.indexedField(field, value));
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leafReader = reader.leaves().getFirst().reader();
+                assertNotNull(leafReader.getDocValuesSkipper(field));
+                Set<Integer> expected = matchingDocs(leafReader, field, 1L, 1L);
+                assertLuceneRangeIterator(leafReader, field, expected, 0);
+                int offset = randomIntBetween(1, skipBlockSize - 1);
+                assertLuceneRangeIterator(leafReader, field, expected, offset);
+            }
+        }
+    }
+
+    public void testRangeIntoBitSetFinalPartialBlock() throws IOException {
+        final String field = "dense_value";
+        final int numDocs = 130;
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i));
+                long value = randomLong();
+                d.add(new SortedNumericDocValuesField(field, value));
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leafReader = reader.leaves().getFirst().reader();
+                final int fromDoc = 129;
+                final int offset = 127;
+                final int upTo = 512;
+                var matches = new FixedBitSet(upTo - offset);
+                getBaseDenseNumericValues(leafReader, field).rangeIntoBitSet(
+                    fromDoc,
+                    upTo,
+                    Long.MIN_VALUE,
+                    Long.MAX_VALUE,
+                    matches,
+                    offset
+                );
+                assertEquals(Set.of(fromDoc), collectBitSet(matches, upTo - offset, offset));
+
+                assertEquals(
+                    numDocs,
+                    new IndexSearcher(reader).count(SortedNumericDocValuesField.newSlowRangeQuery(field, Long.MIN_VALUE, Long.MAX_VALUE))
+                );
+            }
+        }
+    }
+
     public void testConjunctionOfRangeFiltersMatchesBruteForce() throws IOException {
         final String field1 = "dense_value";
         final String field2 = "dense_value2";
@@ -2490,14 +2587,16 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
                 d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
-                d.add(new SortedNumericDocValuesField(field1, randomLongBetween(0, 16)));
-                d.add(new SortedNumericDocValuesField(field2, randomLongBetween(0, 16)));
+                d.add(SortedNumericDocValuesField.indexedField(field1, randomLongBetween(0, 16)));
+                d.add(SortedNumericDocValuesField.indexedField(field2, randomLongBetween(0, 16)));
                 ts += 1000L;
                 iw.addDocument(d);
             }
             iw.forceMerge(1);
             try (var reader = DirectoryReader.open(iw)) {
                 var leafReader = reader.leaves().getFirst().reader();
+                assertNotNull(leafReader.getDocValuesSkipper(field1));
+                assertNotNull(leafReader.getDocValuesSkipper(field2));
                 int maxDoc = leafReader.maxDoc();
                 long[] v1 = readSingleValued(leafReader, field1, maxDoc);
                 long[] v2 = readSingleValued(leafReader, field2, maxDoc);
@@ -2506,9 +2605,9 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     long lo1 = randomLongBetween(0, 16), hi1 = randomLongBetween(lo1, 16);
                     long lo2 = randomLongBetween(0, 16), hi2 = randomLongBetween(lo2, 16);
                     var query = new BooleanQuery.Builder().add(
-                        SortedNumericDocValuesRangeQuery.newRangeQuery(field1, lo1, hi1),
+                        SortedNumericDocValuesField.newSlowRangeQuery(field1, lo1, hi1),
                         BooleanClause.Occur.FILTER
-                    ).add(SortedNumericDocValuesRangeQuery.newRangeQuery(field2, lo2, hi2), BooleanClause.Occur.FILTER).build();
+                    ).add(SortedNumericDocValuesField.newSlowRangeQuery(field2, lo2, hi2), BooleanClause.Occur.FILTER).build();
 
                     int expected = 0;
                     for (int doc = 0; doc < maxDoc; doc++) {
@@ -2531,224 +2630,37 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         return values;
     }
 
-    /**
-     * Deterministic regression test for the {@code intoBitSet} position-contract bug: after {@code
-     * intoBitSet(upTo)}, {@code docID()} must be the first matching doc &ge; {@code upTo} (or
-     * {@code NO_MORE_DOCS}), not {@code upTo} unconditionally.
-     */
-    public void testIntoBitSetPositionContractHardcoded() throws IOException {
-        final String field = "dense_value";
-        final long matchValue = 1L;
-        final long nonMatchValue = 2L;
-
-        // Scenario A: [MATCH, NOMATCH, MATCH] — intoBitSet(upTo=1) must land on doc2, not doc1.
-        // @timestamp DESC sort means ascending insertion order becomes descending doc order.
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
-            long ts = BASE_TIMESTAMP;
-            for (long v : new long[] { matchValue, nonMatchValue, matchValue }) {
-                var d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
-                d.add(new SortedNumericDocValuesField(field, v));
-                iw.addDocument(d);
-                ts += 1000L;
-            }
-            iw.forceMerge(1);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                var leafReader = reader.leaves().getFirst().reader();
-                var ndv = getBaseDenseNumericValues(leafReader, field);
-                var iter = ndv.tryRangeIterator(matchValue, matchValue);
-                assertNotNull(iter);
-
-                assertEquals("first match must be doc0", 0, iter.nextDoc());
-                var bitSet = new FixedBitSet(3);
-                bitSet.set(0);
-                iter.intoBitSet(1, bitSet, 0); // upTo=1; doc1 is NOT in range
-
-                assertEquals("after intoBitSet(upTo=1), docID must be 2 (first match >= 1), not 1 (non-matching doc)", 2, iter.docID());
-                int runEnd = iter.docIDRunEnd();
-                assertTrue("docIDRunEnd=" + runEnd + " must be > docID=2", runEnd > 2);
-            }
-        }
-
-        // Scenario B: [MATCH, NOMATCH] — intoBitSet(upTo=1) must reach NO_MORE_DOCS, not doc1.
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
-            long ts = BASE_TIMESTAMP;
-            for (long v : new long[] { nonMatchValue, matchValue }) {
-                var d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
-                d.add(new SortedNumericDocValuesField(field, v));
-                iw.addDocument(d);
-                ts += 1000L;
-            }
-            iw.forceMerge(1);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                var leafReader = reader.leaves().getFirst().reader();
-                var ndv = getBaseDenseNumericValues(leafReader, field);
-                var iter = ndv.tryRangeIterator(matchValue, matchValue);
-                assertNotNull(iter);
-
-                assertEquals("first match must be doc0", 0, iter.nextDoc());
-                var bitSet = new FixedBitSet(2);
-                bitSet.set(0);
-                iter.intoBitSet(1, bitSet, 0); // upTo=1; doc1 is NOT in range, no further matches
-
-                assertEquals(
-                    "after intoBitSet(upTo=1) with no further matches, docID must be NO_MORE_DOCS, not 1 (non-matching doc)",
-                    DocIdSetIterator.NO_MORE_DOCS,
-                    iter.docID()
-                );
-            }
+    private static void assertRangeBits(long[] values, FixedBitSet matches, int fromDoc, int toDoc, long lower, long upper) {
+        for (int doc = fromDoc; doc < toDoc; doc++) {
+            assertEquals("doc=" + doc, values[doc] >= lower && values[doc] <= upper, matches.get(doc));
         }
     }
 
-    public void testRangeIteratorIntoBitSetUpToBeyondMaxDoc() throws IOException {
-        final String field = "dense_value";
-        final int numDocs = randomIntBetween(129, 2047);
+    private void assertLuceneRangeIterator(LeafReader leafReader, String field, Set<Integer> expected, int offset) throws IOException {
+        var values = getBaseDenseNumericValues(leafReader, field);
+        var skipper = leafReader.getDocValuesSkipper(field);
+        var iterator = DocValuesRangeIterator.forRange(values, skipper, 1L, 1L);
+        var approximation = iterator.approximation();
+        var matches = new FixedBitSet(leafReader.maxDoc() - offset);
 
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
-            long ts = BASE_TIMESTAMP;
-            for (int i = 0; i < numDocs; i++) {
-                final Document d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
-                d.add(new SortedNumericDocValuesField(field, i % 3 == 0 ? 1L : 2L));
-                ts += 1000L;
-                iw.addDocument(d);
-            }
-            iw.forceMerge(1);
-
-            try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                final LeafReader leafReader = reader.leaves().getFirst().reader();
-                final Set<Integer> expected = matchingDocs(leafReader, field, 1L, 1L);
-                final DocIdSetIterator iter = getBaseDenseNumericValues(leafReader, field).tryRangeIterator(1L, 1L);
-                assertNotNull(iter);
-                final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
-                assertNotNull(twoPhase);
-                twoPhase.approximation().nextDoc();
-
-                final FixedBitSet window = new FixedBitSet(4096);
-                twoPhase.intoBitSet(4096, window, 0);
-
-                final Set<Integer> actual = new HashSet<>();
-                window.forEach(0, 4096, 0, actual::add);
-                assertEquals(expected, actual);
-            }
-        }
-    }
-
-    public void testRangeQueryOnSmallSegmentViaIndexSearcherCount() throws IOException {
-        final String field = "dense_value";
-        final int numDocs = randomIntBetween(129, 2047);
-
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
-            long ts = BASE_TIMESTAMP;
-            int expectedCount = 0;
-            for (int i = 0; i < numDocs; i++) {
-                final Document d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
-                if (i % 3 == 0) {
-                    d.add(new SortedNumericDocValuesField(field, 1L));
-                    expectedCount++;
-                } else {
-                    d.add(new SortedNumericDocValuesField(field, 2L));
-                }
-                ts += 1000L;
-                iw.addDocument(d);
-            }
-            iw.forceMerge(1);
-
-            try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                final IndexSearcher searcher = new IndexSearcher(reader);
-                assertEquals(expectedCount, searcher.count(new SortedNumericDocValuesRangeQuery(field, 1L, 1L)));
-            }
-        }
-    }
-
-    public void testRangeIteratorIntoBitSetPhantomMatchesBeyondMaxDoc() throws IOException {
-        final String field = "dense_value";
-        final int numDocs = 4000;
-
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
-            long ts = BASE_TIMESTAMP;
-            for (int i = 0; i < numDocs; i++) {
-                final Document d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
-                d.add(new SortedNumericDocValuesField(field, i % 3 == 0 ? 1L : 2L));
-                ts += 1000L;
-                iw.addDocument(d);
-            }
-            iw.forceMerge(1);
-
-            try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                final LeafReader leafReader = reader.leaves().getFirst().reader();
-                final Set<Integer> expected = matchingDocs(leafReader, field, Long.MIN_VALUE, Long.MAX_VALUE);
-                final DocIdSetIterator iter = getBaseDenseNumericValues(leafReader, field).tryRangeIterator(Long.MIN_VALUE, Long.MAX_VALUE);
-                assertNotNull(iter);
-                final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
-                assertNotNull(twoPhase);
-                twoPhase.approximation().nextDoc();
-
-                final FixedBitSet window = new FixedBitSet(4096);
-                twoPhase.intoBitSet(4096, window, 0);
-
-                final Set<Integer> actual = new HashSet<>();
-                window.forEach(0, 4096, 0, actual::add);
-                assertEquals(expected, actual);
-            }
-        }
-    }
-
-    public void testRangeQueryViaIndexSearcher() throws IOException {
-        final String field = "dense_value";
-        int numDocs = randomIntBetween(1, 4096 * 4);
-        long currentTimestamp = BASE_TIMESTAMP;
-
-        List<Long> values = new ArrayList<>();
-        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
-        if (randomBoolean()) {
-            config.setIndexSort(
-                new Sort(
-                    new SortedNumericSortField(field, SortField.Type.LONG, false),
-                    new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
-                )
-            );
-        }
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            for (int i = 0; i < numDocs; i++) {
-                var d = new Document();
-                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, currentTimestamp));
-                long v = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-                values.add(v);
-                d.add(new SortedNumericDocValuesField(field, v));
-                currentTimestamp += 1000L;
-                iw.addDocument(d);
-                if (i % 256 == 0) {
-                    iw.commit();
+        for (int doc = approximation.advance(offset); doc != DocIdSetIterator.NO_MORE_DOCS; doc = approximation.docID()) {
+            assertEquals("doc=" + doc, expected.contains(doc), iterator.matches());
+            int runEnd = iterator.docIDRunEnd();
+            assertTrue("doc=" + doc + ", runEnd=" + runEnd, runEnd >= doc);
+            if (runEnd > doc) {
+                for (int runDoc = doc; runDoc < Math.min(runEnd, leafReader.maxDoc()); runDoc++) {
+                    assertTrue("doc=" + doc + ", runDoc=" + runDoc + ", runEnd=" + runEnd, expected.contains(runDoc));
                 }
             }
-            iw.forceMerge(1);
 
-            long maxValue = Collections.max(values);
-            long sampleValue = randomFrom(values);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                var leafReader = reader.leaves().getFirst().reader();
-                var searcher = new IndexSearcher(reader);
-
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, sampleValue, sampleValue); // exact match
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, maxValue + 1, Long.MAX_VALUE); // empty
-
-                for (int i = 0; i < 5; i++) {
-                    long a = randomLong();
-                    long b = randomLong();
-                    assertRangeQuerySearcher(leafReader, field, searcher, numDocs, Math.min(a, b), Math.max(a, b));
-                }
-            }
+            int upTo = Math.min(leafReader.maxDoc(), doc + 257);
+            iterator.intoBitSet(upTo, matches, offset);
+            assertTrue(approximation.docID() >= upTo);
         }
+
+        Set<Integer> expectedFromOffset = new HashSet<>(expected);
+        expectedFromOffset.removeIf(doc -> doc < offset);
+        assertEquals(expectedFromOffset, collectBitSet(matches, matches.length(), offset));
     }
 
     private Set<Integer> matchingDocs(LeafReader leafReader, String field, long lower, long upper) throws IOException {
@@ -2764,201 +2676,40 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         return expected;
     }
 
-    private void assertRangeIterator(LeafReader leafReader, String field, int numDocs, long lower, long upper) throws IOException {
-        Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
-
-        // Pass 1: nextDoc() correctness + docIDRunEnd() contract.
-        {
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            Set<Integer> actual = new HashSet<>();
-            int doc;
-            while ((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assertTrue("range [" + lower + "," + upper + "]: unexpected doc " + doc, expected.contains(doc));
-                actual.add(doc);
-
-                int runEnd = iter.docIDRunEnd();
-                assertTrue("docIDRunEnd " + runEnd + " must be > docID " + doc, runEnd > doc);
-                for (int d = doc + 1; d < runEnd; d++) {
-                    assertTrue(
-                        "doc " + d + " in run [" + doc + "," + runEnd + ") must match range [" + lower + "," + upper + "]",
-                        expected.contains(d)
-                    );
-                }
-            }
-            assertEquals("range [" + lower + "," + upper + "]", expected, actual);
-        }
-
-        // Pass 2: advance() to each matching doc in order.
-        if (expected.isEmpty() == false) {
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            List<Integer> sortedDocs = expected.stream().sorted().toList();
-            for (int expectedDoc : sortedDocs) {
-                assertEquals(
-                    "advance(" + expectedDoc + ") for range [" + lower + "," + upper + "]",
-                    expectedDoc,
-                    iter.advance(expectedDoc)
-                );
-            }
-        }
-
-        // Pass 3: advance past the segment → NO_MORE_DOCS.
-        {
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            assertEquals(DocIdSetIterator.NO_MORE_DOCS, iter.advance(numDocs));
-        }
-    }
-
-    private void assertRangeIteratorIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper)
-        throws IOException {
+    private void assertRangeIntoBitSet(LeafReader leafReader, String field, int numDocs, long lower, long upper) throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
         // Pass 1: single full window, offset=0
         {
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            int firstDoc = iter.nextDoc();
-            if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                assertTrue("no matches → expected set must be empty", expected.isEmpty());
-                return;
-            }
             var bitSet = new FixedBitSet(numDocs);
-            bitSet.set(firstDoc);
-            iter.intoBitSet(numDocs, bitSet, 0);
-            assertEquals("intoBitSet single window [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
+            getBaseDenseNumericValues(leafReader, field).rangeIntoBitSet(0, numDocs, lower, upper, bitSet, 0);
+            assertEquals("rangeIntoBitSet single window [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
         }
 
-        // Pass 2: repeated partial windows — also verifies the intoBitSet position contract:
-        // after intoBitSet(upTo), docID() must be the first matching doc >= upTo or NO_MORE_DOCS.
-        // Violating this (e.g. leaving iterDoc = upTo when upTo is not a match) causes
-        // DenseConjunctionBulkScorer to misinterpret docIDRunEnd() and collect false positives.
+        // Pass 2: repeated partial windows
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            int firstDoc = iter.nextDoc();
-            if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                return;
-            }
             var bitSet = new FixedBitSet(numDocs);
-            bitSet.set(firstDoc);
-            int doc = firstDoc;
-            for (int pos = firstDoc; pos < numDocs && doc != DocIdSetIterator.NO_MORE_DOCS;) {
-                int windowSize = randomIntBetween(1, numDocs - pos);
-                int upTo = pos + windowSize;
-                iter.intoBitSet(upTo, bitSet, 0);
-                doc = iter.docID();
-                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    assertTrue("after intoBitSet(upTo=" + upTo + "), docID=" + doc + " must be >= upTo", doc >= upTo);
-                    assertTrue(
-                        "after intoBitSet(upTo=" + upTo + "), docID=" + doc + " must be a match for range [" + lower + "," + upper + "]",
-                        expected.contains(doc)
-                    );
-                    int runEnd = iter.docIDRunEnd();
-                    assertTrue("docIDRunEnd=" + runEnd + " must be > docID=" + doc + " after intoBitSet(upTo=" + upTo + ")", runEnd > doc);
-                    for (int d = doc + 1; d < runEnd; d++) {
-                        assertTrue(
-                            "doc "
-                                + d
-                                + " in run ["
-                                + doc
-                                + ","
-                                + runEnd
-                                + ") must be a match for range ["
-                                + lower
-                                + ","
-                                + upper
-                                + "] after intoBitSet(upTo="
-                                + upTo
-                                + ")",
-                            expected.contains(d)
-                        );
-                    }
-                }
+            for (int pos = 0; pos < numDocs;) {
+                int upTo = pos + randomIntBetween(1, numDocs - pos);
+                ndv.rangeIntoBitSet(pos, upTo, lower, upper, bitSet, 0);
                 pos = upTo;
             }
-            assertEquals("intoBitSet partial windows [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
+            assertEquals("rangeIntoBitSet partial windows [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
         }
 
-        // Pass 3: non-zero offset — bitSet covers [offset, numDocs), iterator starts from offset
+        // Pass 3: non-zero offset — bitSet covers [offset, numDocs)
         if (numDocs > 1) {
             int offset = numDocs / 2;
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            int firstDoc = iter.advance(offset);
-            Set<Integer> expectedFromOffset = expected.stream().filter(d -> d >= offset).collect(Collectors.toSet());
-
-            if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                assertTrue("no docs at or after offset " + offset, expectedFromOffset.isEmpty());
-                return;
-            }
+            Set<Integer> expectedFromOffset = new HashSet<>(expected);
+            expectedFromOffset.removeIf(doc -> doc < offset);
             var bitSet = new FixedBitSet(numDocs - offset);
-            bitSet.set(firstDoc - offset);
-            iter.intoBitSet(numDocs, bitSet, offset);
+            getBaseDenseNumericValues(leafReader, field).rangeIntoBitSet(offset, numDocs, lower, upper, bitSet, offset);
             assertEquals(
-                "intoBitSet non-zero offset [" + lower + "," + upper + "]",
+                "rangeIntoBitSet non-zero offset [" + lower + "," + upper + "]",
                 expectedFromOffset,
                 collectBitSet(bitSet, numDocs - offset, offset)
             );
-        }
-    }
-
-    private void assertRangeIteratorTwoPhaseBulk(LeafReader leafReader, String field, int numDocs, long lower, long upper)
-        throws IOException {
-        Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
-
-        // Pass 1: drive the overridden intoBitSet window-by-window, exactly like ConstantScoreBulkScorer:
-        // position the approximation, collect each window, and require it to land on the first candidate
-        // doc >= windowMax afterwards.
-        {
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
-            assertNotNull("tryRangeIterator must return a TwoPhaseIterator-backed iterator", twoPhase);
-            DocIdSetIterator approximation = twoPhase.approximation();
-
-            var collected = new FixedBitSet(numDocs);
-            approximation.nextDoc();
-            while (approximation.docID() < numDocs) {
-                int windowBase = approximation.docID();
-                int windowMax = Math.min(numDocs, windowBase + randomIntBetween(1, 4096));
-                var windowMatches = new FixedBitSet(windowMax - windowBase);
-                twoPhase.intoBitSet(windowMax, windowMatches, windowBase);
-                windowMatches.forEach(0, windowMax - windowBase, windowBase, collected::set);
-                assertTrue(
-                    "intoBitSet(upTo=" + windowMax + ") must leave the approximation at the first candidate >= upTo",
-                    approximation.docID() >= windowMax
-                );
-            }
-            assertEquals("two-phase bulk intoBitSet [" + lower + "," + upper + "]", expected, collectBitSet(collected, numDocs, 0));
-        }
-
-        // Pass 2: docIDRunEnd() must report runs of consecutive matching docs. The wrapper's nextDoc
-        // confirms a match and positions the approximation, then we read the overridden docIDRunEnd.
-        {
-            var ndv = getBaseDenseNumericValues(leafReader, field);
-            var iter = ndv.tryRangeIterator(lower, upper);
-            assertNotNull(iter);
-            TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
-            assertNotNull(twoPhase);
-            for (int doc = iter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
-                int runEnd = twoPhase.docIDRunEnd();
-                assertTrue("docIDRunEnd " + runEnd + " must be > docID " + doc, runEnd > doc);
-                for (int d = doc; d < runEnd; d++) {
-                    assertTrue(
-                        "doc " + d + " in run [" + doc + "," + runEnd + ") must match [" + lower + "," + upper + "]",
-                        expected.contains(d)
-                    );
-                }
-            }
         }
     }
 
@@ -2972,8 +2723,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         throws IOException {
         Set<Integer> expected = matchingDocs(leafReader, field, lower, upper);
 
-        // Always test the ES pushdown implementation directly, regardless of the feature flag.
-        var query = new SortedNumericDocValuesRangeQuery(field, lower, upper);
+        var query = SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper);
         var topDocs = searcher.search(query, numDocs + 1);
         assertEquals("hit count for range [" + lower + "," + upper + "]", expected.size(), (int) topDocs.totalHits.value());
         Set<Integer> actual = new HashSet<>();
@@ -2981,14 +2731,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             actual.add(scoreDoc.doc);
         }
         assertEquals("hit set for range [" + lower + "," + upper + "]", expected, actual);
-    }
-
-    public void testRandomDenseNumericIntoBitSet() throws IOException {
-        doTestRandomIntoBitSet(
-            doc -> doc.add(new NumericDocValuesField("num", random().nextLong())),
-            reader -> reader.getNumericDocValues("num"),
-            () -> true
-        );
     }
 
     public void testRandomSparseNumericIntoBitSet() throws IOException {
@@ -3115,6 +2857,406 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         assertEquals(expectedBitSet, bitSet);
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Tests that the raw-block probe ({@link TSDBBinaryDocValues#rawSingleValueBlock}) correctly
+     * identifies single-doc blocks for oversized values, returns {@code null} for small values in
+     * multi-doc blocks, and does not disturb the decode state when interleaved with
+     * {@link org.apache.lucene.index.BinaryDocValues#binaryValue()} calls.
+     *
+     * <p>The interleave assertion is the key regression test for the probe/decode cursor isolation:
+     * if anyone routes the probe through {@code findAndUpdateBlock} (which mutates
+     * {@code startDocNumForBlock}/{@code limitDocNumForBlock} without advancing {@code lastBlockId}),
+     * a subsequent {@code binaryValue()} would return bytes from the wrong block.
+     */
+    public void testRawSingleDocBlockHandoff() throws IOException {
+        final int threshold = 512 * 1024;
+        final String binaryField = "binary_field";
+        final boolean sparse = randomBoolean();
+
+        // Build a value list: small | oversized | small | oversized | small (tail)
+        // The two oversized values should each land in a single-doc block (after the write-side
+        // pre-flush added by this change). Small values share a block.
+        List<String> values = new ArrayList<>();
+        int smallCount = randomIntBetween(3, 10);
+        for (int i = 0; i < smallCount; i++) {
+            values.add(sparse && randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+        // First oversized value: just above the threshold so it is a single-doc block.
+        values.add(randomAlphaOfLength(threshold + 1024));
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            values.add(sparse && randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+        }
+        // Second oversized value.
+        values.add(randomAlphaOfLength(threshold + 2048));
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            values.add(randomAlphaOfLengthBetween(1, 20));
+        }
+
+        // Map timestamp → expected value so we can verify exact bytes after the index sort
+        // has reordered docs within the segment (all docs share one hostname, so the secondary
+        // sort by timestamp DESC is what determines physical order).
+        Map<Long, String> expectedByTimestamp = new HashMap<>();
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) != null) {
+                expectedByTimestamp.put(BASE_TIMESTAMP + i * 1000L, values.get(i));
+            }
+        }
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            // Write everything in a single segment so we test the read-side probe on a flushed seg.
+            for (int i = 0; i < values.size(); i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i * 1000L));
+                if (values.get(i) != null) {
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(values.get(i))));
+                }
+                iw.addDocument(d);
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var tsdb = getTSDBBinaryValues(leaf, binaryField);
+                assertNotNull(tsdb);
+                // Read timestamp alongside binary DV to map back to expected values after sort.
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                assertNotNull(timestampDV);
+
+                // Iterate in doc order, probing each doc and asserting exact bytes.
+                Set<Integer> oversizedDocIds = new HashSet<>();
+                for (int doc = tsdb.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = tsdb.nextDoc()) {
+                    assertTrue(timestampDV.advanceExact(doc));
+                    long ts = timestampDV.longValue();
+                    String expectedStr = expectedByTimestamp.get(ts);
+                    assertNotNull("every doc with a binary value must have a timestamp mapping", expectedStr);
+
+                    // First probe — before calling binaryValue(). Pass the format threshold so
+                    // that small values do not return a raw block and trigger the size assertion.
+                    RawBinaryBlock raw = tsdb.rawSingleValueBlock(threshold);
+
+                    if (raw != null) {
+                        // This is an oversized value in its own block.
+                        assertThat("raw block must have positive uncompressed length", raw.uncompressedLength(), greaterThan(0));
+                        assertThat("raw block must meet minimum size", raw.uncompressedLength(), greaterThan(threshold - 1));
+                        oversizedDocIds.add(doc);
+                    }
+
+                    // Call binaryValue() — must work regardless of whether we probed.
+                    BytesRef actualValue = tsdb.binaryValue();
+                    assertNotNull(actualValue);
+                    assertEquals("bytes must round-trip through write and read", new BytesRef(expectedStr), actualValue);
+                    // If we got a raw block, verify the decoded length matches.
+                    if (raw != null) {
+                        assertEquals(
+                            "rawSingleValueBlock uncompressedLength must match binaryValue().length",
+                            actualValue.length,
+                            raw.uncompressedLength()
+                        );
+                    }
+
+                    // Probe again after binaryValue() — must still work and return the same answer.
+                    // This is the regression test for §1's decoder-state isolation: if rawSingleValueBlock
+                    // corrupted the decode cursor, the second probe would return stale state.
+                    RawBinaryBlock rawAgain = tsdb.rawSingleValueBlock(threshold);
+                    if (raw != null) {
+                        assertNotNull("second probe must also return non-null for the same oversized doc", rawAgain);
+                        assertEquals(raw.uncompressedLength(), rawAgain.uncompressedLength());
+                    } else {
+                        assertNull("second probe must also return null for a small/multi-doc value", rawAgain);
+                    }
+                }
+
+                // The two oversized values are threshold+1024 and threshold+2048 bytes, always above
+                // the gate; at least one must have been detected.
+                assertFalse("at least one oversized value should have been detected", oversizedDocIds.isEmpty());
+            }
+        }
+    }
+
+    /**
+     * Verifies that a force merge of multiple index-sorted segments containing oversized binary
+     * values produces correct results (exact byte equality), and that the verbatim-copy fast path
+     * actually fired.
+     *
+     * <p>The InfoStream assertion is the key observability check: zstd is deterministic at a fixed
+     * level, so a verbatim-copied and a re-compressed segment are byte-identical — we cannot observe
+     * the optimization from output bytes alone. The byte-equality check after merge is therefore not
+     * redundant with the InfoStream assertion: it catches wrong-doc copies (the failure mode of a
+     * probe that corrupted its cursor) that would also produce the InfoStream message.
+     */
+    public void testForceMergeWithOversizedBinaryValues() throws IOException {
+        final int threshold = 512 * 1024;
+        final String denseField = "binary_dense";
+        final String sparseField = "binary_sparse";
+        // Oversized values are just above the threshold to keep CI heap sane.
+        final int oversizedLen = threshold + 1024;
+        final int numSmall = randomIntBetween(5, 20);
+        final int numSegments = randomIntBetween(2, 4);
+
+        // Pre-generate all document values so we can verify exact bytes after the force merge
+        // has reordered docs across segments under the index sort.
+        // Segment seg uses timestamps BASE + seg, BASE + seg + numSegments, ...,
+        // BASE + seg + numSmall * numSegments. All segments share the same hostname so their
+        // timestamps interleave, which forces needsIndexSort=true during the merge.
+        final Map<Long, String> expectedDense = new HashMap<>();
+        final Map<Long, String> expectedSparse = new HashMap<>();
+        for (int seg = 0; seg < numSegments; seg++) {
+            for (int i = 0; i < numSmall; i++) {
+                long ts = BASE_TIMESTAMP + seg + (long) i * numSegments;
+                expectedDense.put(ts, randomAlphaOfLengthBetween(1, 20));
+                if (randomBoolean()) {
+                    expectedSparse.put(ts, randomAlphaOfLengthBetween(1, 20));
+                }
+            }
+            // The oversized value — must land in its own single-doc block after the write-side
+            // pre-flush. Highest timestamp per segment so it sorts to physical doc 0 (timestamp DESC).
+            long oversizedTs = BASE_TIMESTAMP + seg + (long) numSmall * numSegments;
+            expectedDense.put(oversizedTs, randomAlphaOfLength(oversizedLen));
+            expectedSparse.put(oversizedTs, randomAlphaOfLength(oversizedLen));
+        }
+
+        // Use a codec with optimized merge always enabled so the InfoStream assertion fires
+        // unconditionally, regardless of how the subclass's main codec randomizes that flag.
+        var baos = new ByteArrayOutputStream();
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD, getCodecWithOptimizedMerge());
+        config.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int seg = 0; seg < numSegments; seg++) {
+                for (int i = 0; i < numSmall; i++) {
+                    long ts = BASE_TIMESTAMP + seg + (long) i * numSegments;
+                    var d = new Document();
+                    d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                    d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, ts));
+                    d.add(new BinaryDocValuesField(denseField, new BytesRef(expectedDense.get(ts))));
+                    if (expectedSparse.containsKey(ts)) {
+                        d.add(new BinaryDocValuesField(sparseField, new BytesRef(expectedSparse.get(ts))));
+                    }
+                    iw.addDocument(d);
+                }
+                long oversizedTs = BASE_TIMESTAMP + seg + (long) numSmall * numSegments;
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, oversizedTs));
+                d.add(new BinaryDocValuesField(denseField, new BytesRef(expectedDense.get(oversizedTs))));
+                d.add(new BinaryDocValuesField(sparseField, new BytesRef(expectedSparse.get(oversizedTs))));
+                iw.addDocument(d);
+                iw.commit();
+            }
+
+            iw.forceMerge(1);
+
+            // Check values round-trip with exact byte equality.
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leaf = reader.leaves().getFirst().reader();
+
+                // Dense field: every doc has a value; verify exact bytes via timestamp lookup.
+                {
+                    var denseDV = leaf.getBinaryDocValues(denseField);
+                    assertNotNull(denseDV);
+                    var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                    while (denseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int doc = denseDV.docID();
+                        assertTrue(tsDV.advanceExact(doc));
+                        long ts = tsDV.longValue();
+                        assertEquals(
+                            "dense value must round-trip for doc " + doc,
+                            new BytesRef(expectedDense.get(ts)),
+                            denseDV.binaryValue()
+                        );
+                    }
+                }
+
+                // Dense field again: verify the length-reader path (exercises decodeLength).
+                {
+                    var denseDV = getTSDBBinaryValues(leaf, denseField);
+                    assertNotNull(denseDV);
+                    var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                    var lengthReader = denseDV.toLengthValues();
+                    while (denseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int doc = denseDV.docID();
+                        assertTrue(tsDV.advanceExact(doc));
+                        long ts = tsDV.longValue();
+                        int expectedLen = expectedDense.get(ts).length();
+                        assertTrue(lengthReader.advanceExact(doc));
+                        assertEquals("length must match via toLengthValues for doc " + doc, expectedLen, lengthReader.longValue());
+                    }
+                }
+
+                // Sparse field: verify exact bytes via timestamp lookup.
+                {
+                    var sparseDV = leaf.getBinaryDocValues(sparseField);
+                    assertNotNull(sparseDV);
+                    var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                    int sparseCount = 0;
+                    while (sparseDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int doc = sparseDV.docID();
+                        assertTrue(tsDV.advanceExact(doc));
+                        long ts = tsDV.longValue();
+                        assertNotNull("sparse doc " + doc + " must have an expected value", expectedSparse.get(ts));
+                        assertEquals(
+                            "sparse value must round-trip for doc " + doc,
+                            new BytesRef(expectedSparse.get(ts)),
+                            sparseDV.binaryValue()
+                        );
+                        sparseCount++;
+                    }
+                    assertTrue("sparse field should have values", sparseCount > 0);
+                }
+            }
+        }
+
+        // The InfoStream assertion: the verbatim-copy message must have fired at least once (one
+        // oversized single-doc block per source segment per field).
+        assertTrue("verbatim-copy must have fired during merge", baos.toString(StandardCharsets.UTF_8).contains("copied binary block of"));
+    }
+
+    /**
+     * Verifies the merge path when <em>every</em> value in a field is oversized — the case that
+     * catches a missed update to the three writer bookkeeping fields ({@code totalChunks},
+     * {@code maxUncompressedBlockLength}, {@code maxNumDocsInAnyBlock}) in
+     * {@code addRawBlock}. If any of those were omitted, every block would arrive via the verbatim
+     * path and none via {@code flushData}, so the field's metadata would be wrong and reads would
+     * fail or silently return corrupt bytes.
+     */
+    public void testMergeAllOversizedBinaryValues() throws IOException {
+        final int threshold = 512 * 1024;
+        final String binaryField = "binary_all_oversized";
+        final int oversizedLen = threshold + 1024;
+        final int numSegments = randomIntBetween(2, 4);
+        final int docsPerSegment = randomIntBetween(2, 5);
+
+        // Pre-generate all values so we can verify exact bytes after merge.
+        // Segment seg uses timestamps BASE + seg, BASE + seg + numSegments, ...,
+        // BASE + seg + (docsPerSegment-1) * numSegments. All segments share the same hostname so
+        // their timestamps interleave in sort order, forcing needsIndexSort=true during the merge.
+        final Map<Long, String> expectedByTimestamp = new HashMap<>();
+        for (int seg = 0; seg < numSegments; seg++) {
+            for (int doc = 0; doc < docsPerSegment; doc++) {
+                long ts = BASE_TIMESTAMP + seg + (long) doc * numSegments;
+                expectedByTimestamp.put(ts, randomAlphaOfLength(oversizedLen));
+            }
+        }
+
+        // Use a codec with optimized merge always enabled so the InfoStream assertion fires.
+        var baos = new ByteArrayOutputStream();
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD, getCodecWithOptimizedMerge());
+        config.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int seg = 0; seg < numSegments; seg++) {
+                for (int doc = 0; doc < docsPerSegment; doc++) {
+                    long ts = BASE_TIMESTAMP + seg + (long) doc * numSegments;
+                    var d = new Document();
+                    // All segments share host-1 so that their timestamps interleave in the index sort
+                    // (hostname ASC, timestamp DESC), which forces needsIndexSort=true at merge time.
+                    d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                    d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, ts));
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(expectedByTimestamp.get(ts))));
+                    iw.addDocument(d);
+                }
+                iw.commit();
+            }
+
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leaf = reader.leaves().getFirst().reader();
+                var tsDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                var binaryDV = leaf.getBinaryDocValues(binaryField);
+                assertNotNull(binaryDV);
+                int count = 0;
+                while (binaryDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    int doc = binaryDV.docID();
+                    assertTrue(tsDV.advanceExact(doc));
+                    long ts = tsDV.longValue();
+                    assertEquals(
+                        "all-oversized field: value must round-trip for doc " + doc,
+                        new BytesRef(expectedByTimestamp.get(ts)),
+                        binaryDV.binaryValue()
+                    );
+                    count++;
+                }
+                assertEquals("all docs must have a value", numSegments * docsPerSegment, count);
+            }
+        }
+
+        // Every value is oversized, so every source block is a single-doc block and every merge
+        // step goes through addRawBlock. The InfoStream must have fired at least once.
+        assertTrue(
+            "verbatim-copy must have fired for all-oversized field",
+            baos.toString(StandardCharsets.UTF_8).contains("copied binary block of")
+        );
+    }
+
+    /**
+     * Verifies that after the write-side pre-flush (flush pending block before an oversized value),
+     * an oversized value written to a fresh segment lands in a single-doc block — observable by
+     * {@link TSDBBinaryDocValues#rawSingleValueBlock} returning non-null for it.
+     */
+    public void testOversizedValueAlwaysLandsInSingleDocBlock() throws IOException {
+        final int threshold = 512 * 1024;
+        final String binaryField = "binary_field";
+        final int oversizedLen = threshold + 512;
+
+        var config = getTimeSeriesIndexWriterConfig(HOSTNAME_FIELD, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            // Mix small values with an oversized value in the middle. The oversized value must land
+            // alone regardless of what preceded it.
+            int smallBefore = randomIntBetween(2, 10);
+            for (int i = 0; i < smallBefore; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + i));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                iw.addDocument(d);
+            }
+            final String oversizedValue = randomAlphaOfLength(oversizedLen);
+            int oversizedDocIndex = smallBefore;
+            var od = new Document();
+            od.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+            od.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + oversizedDocIndex));
+            od.add(new BinaryDocValuesField(binaryField, new BytesRef(oversizedValue)));
+            iw.addDocument(od);
+            int smallAfter = randomIntBetween(1, 5);
+            for (int i = 0; i < smallAfter; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, BASE_TIMESTAMP + oversizedDocIndex + 1 + i));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 20))));
+                iw.addDocument(d);
+            }
+            iw.commit();
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var tsdb = getTSDBBinaryValues(leaf, binaryField);
+                assertNotNull(tsdb);
+
+                boolean foundOversized = false;
+                for (int doc = tsdb.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = tsdb.nextDoc()) {
+                    BytesRef val = tsdb.binaryValue();
+                    if (val.length == oversizedLen) {
+                        // This is the oversized value. It must be the sole doc in its block.
+                        RawBinaryBlock raw = tsdb.rawSingleValueBlock(threshold);
+                        assertNotNull(
+                            "Oversized value (length="
+                                + oversizedLen
+                                + ") must land in a single-doc block "
+                                + "and rawSingleValueBlock must return non-null",
+                            raw
+                        );
+                        assertEquals(oversizedLen, raw.uncompressedLength());
+                        foundOversized = true;
+                    }
+                }
+                assertTrue("Should have found the oversized value", foundOversized);
             }
         }
     }

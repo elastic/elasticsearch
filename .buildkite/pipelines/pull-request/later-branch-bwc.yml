@@ -1,0 +1,34 @@
+# Run the backwards compatibility tests of every branch ahead of the PR's target branch, against a
+# snapshot built from the PR itself. Catches a change that is green on its own branch but breaks the
+# bwc tests of a later branch.
+config:
+  # main: nothing is ahead of it, so there is nothing to test.
+  # 8.19: maintenance branch. It has three branches ahead of it and backports to this branch are
+  # limited in scope making the problem of later-branch breakages exceedingly rare
+  skip-target-branches:
+    - "main"
+    - "8.19"
+  skip-labels:
+    - ">test-mute"
+steps:
+  - group: later-branch-bwc
+    steps:
+      - label: "{{matrix.LATER_BRANCH}} / Part {{matrix.PART}} / later-branch-bwc"
+        key: "later-branch-bwc"
+        command: .buildkite/scripts/later-branch-bwc.sh
+        timeout_in_minutes: 300
+        env:
+          LATER_BRANCH: "{{matrix.LATER_BRANCH}}"
+          BWC_PART: "{{matrix.PART}}"
+        matrix:
+          setup:
+            LATER_BRANCH: $LATER_BRANCHES
+            PART: ["1", "2", "3", "4", "5", "6"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk

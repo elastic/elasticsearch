@@ -114,10 +114,16 @@ Abstracts access to storage systems (HTTP, S3, local filesystem, etc.):
 public interface StorageProvider extends Closeable {
     StorageObject newObject(StoragePath path);
     StorageIterator listObjects(StoragePath directory) throws IOException;
+    StorageChildren listChildren(StoragePath prefix, int limit) throws IOException; // null = no directory support
     boolean exists(StoragePath path) throws IOException;
     List<String> supportedSchemes();
 }
 ```
+
+`listChildren` is the directory-aware listing (files plus subdirectories, via a delimiter listing on
+blob stores) powering partition-pruned enumeration of `**` globs: `GlobExpander` walks the Hive tree and
+never lists `key=value` folders a partition filter excludes. Returning `null` (no directory support, or
+more than `limit` children) keeps the flat `listObjects` path.
 
 **Built-in Implementations:**
 - `HttpStorageProvider` - HTTP/HTTPS access with Range request support
@@ -205,13 +211,15 @@ StorageProvider provider = storageProviderRegistry.getProvider(path);
 FormatReader reader = formatReaderRegistry.getByExtension(path.objectName());
 
 // Create operator factory
-ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
     provider,
     reader,
     path,
     attributes,
-    1000  // batch size
-);
+    1000,   // batch size
+    maxBufferSize,
+    readExecutor
+).build();
 ```
 
 ### Example 2: Reading a Parquet file from S3
@@ -223,13 +231,15 @@ StoragePath path = StoragePath.of("s3://my-bucket/data/sales.parquet");
 StorageProvider provider = storageProviderRegistry.getProvider(path);  // S3StorageProvider
 FormatReader reader = formatReaderRegistry.getByExtension(".parquet"); // ParquetFormatReader
 
-ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
     provider,
     reader,
     path,
     attributes,
-    5000
-);
+    5000,
+    maxBufferSize,
+    readExecutor
+).build();
 ```
 
 ### Example 3: Reading an Iceberg table
@@ -414,7 +424,6 @@ The abstraction includes comprehensive tests:
 - `HttpStorageProviderTests` - Tests for HTTP/HTTPS access
 - `CsvFormatReaderTests` - Tests for CSV parsing
 - `DataSourceModuleTests` - Integration tests for plugin discovery
-- `ExternalSourceOperatorFactoryTests` - Integration tests
 
 Run tests:
 

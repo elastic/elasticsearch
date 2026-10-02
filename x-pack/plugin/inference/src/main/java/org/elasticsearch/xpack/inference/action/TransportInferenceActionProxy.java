@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -38,10 +36,6 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
-    public static final ElasticsearchStatusException CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION = new ElasticsearchStatusException(
-        "The [chat_completion] task type only supports streaming, please try again with the _stream API",
-        RestStatus.BAD_REQUEST
-    );
     private final ModelRegistry modelRegistry;
     private final Client client;
 
@@ -94,10 +88,6 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         var unifiedErrorFormatListener = listener.delegateResponse((l, e) -> l.onFailure(UnifiedChatCompletionException.fromThrowable(e)));
 
         try {
-            if (request.isStreaming() == false) {
-                throw CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION;
-            }
-
             UnifiedCompletionAction.Request unifiedRequest;
             try (
                 var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())
@@ -105,6 +95,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 unifiedRequest = UnifiedCompletionAction.Request.parseRequest(
                     request.getInferenceEntityId(),
                     request.getTaskType(),
+                    request.isStreaming(),
                     request.getTimeout(),
                     request.getContext(),
                     parser

@@ -1,5 +1,0 @@
-area: Infra/Scripting
-issues: []
-pr: 149346
-summary: Wire search-timeout cancellation to Painless script contexts
-type: enhancement

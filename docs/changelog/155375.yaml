@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155375
+summary: "Log circuit breaker trips at WARN, not ERROR"
+type: bug

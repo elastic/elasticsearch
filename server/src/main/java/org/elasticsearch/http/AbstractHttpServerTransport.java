@@ -255,7 +255,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             )
         );
         metricsToClose.add(
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.http.connections.current",
                 "number of inbound HTTP connections currently open",
                 "count",

@@ -1,0 +1,174 @@
+// The PromQL tests of `k8s-timeseries-delta.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
+// remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
+// `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
+// the labels under `labels`, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
+// source file.
+
+delta_of_double_no_grouping_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m cost_change=(sum(delta(network.cost[1m])))
+| EVAL cost_change = round(cost_change, 6)
+| KEEP cost_change, step
+| SORT cost_change DESC, step DESC | LIMIT 10;
+
+cost_change:double | step:datetime
+21.036058          | 2024-05-10T00:21:00.000Z
+13.259615          | 2024-05-10T00:14:00.000Z
+11.486895          | 2024-05-10T00:13:00.000Z
+11.066667          | 2024-05-10T00:22:00.000Z
+11.0625            | 2024-05-10T00:23:00.000Z
+10.491071          | 2024-05-10T00:16:00.000Z
+9.222489           | 2024-05-10T00:10:00.000Z
+5.833333           | 2024-05-10T00:11:00.000Z
+5.03125            | 2024-05-10T00:01:00.000Z
+2.25               | 2024-05-10T00:15:00.000Z
+;
+
+delta_of_double_no_grouping_promql_expanded
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m start="2024-05-10T00:09:00.000Z" end="2024-05-10T00:11:00.000Z" cost_change=(round(sum(delta(network.cost[1m])), 0.000001))
+| SORT step;
+
+cost_change:double | step:datetime
+0.416667 | 2024-05-10T00:09:00.000Z
+9.222489            | 2024-05-10T00:10:00.000Z
+5.833333            | 2024-05-10T00:11:00.000Z
+;
+
+delta_of_double_no_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m start="2024-05-10T00:09:00.000Z" end="2024-05-10T00:11:00.000Z" cost_change=(round(sum(delta(network.cost[1m])), 0.000001))
+| TS_COLLAPSE;
+
+cost_change:double                        | step:datetime
+[0.416667, 9.222489, 5.833333] | [2024-05-10T00:09:00.000Z, 2024-05-10T00:10:00.000Z, 2024-05-10T00:11:00.000Z]
+;
+
+// Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
+delta_of_integer_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m clients=(avg(delta(network.eth0.currently_connected_clients[1m])))
+| EVAL clients = round(clients, 6)
+| KEEP clients, step
+| SORT step | LIMIT 10;
+
+clients:double | step:datetime
+-910.0         | 2024-05-10T00:01:00.000Z
+-372.75        | 2024-05-10T00:03:00.000Z
+-268.212963    | 2024-05-10T00:04:00.000Z
+385.333333     | 2024-05-10T00:05:00.000Z
+-644.04065     | 2024-05-10T00:06:00.000Z
+201.098214     | 2024-05-10T00:07:00.000Z
+-254.0         | 2024-05-10T00:08:00.000Z
+-23.125        | 2024-05-10T00:09:00.000Z
+-90.111477     | 2024-05-10T00:10:00.000Z
+1083.333333    | 2024-05-10T00:11:00.000Z
+;
+
+// Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
+delta_of_integer_grouping_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m clients=(avg by (cluster) (delta(network.eth0.currently_connected_clients[1m])))
+| SORT step, cluster | LIMIT 10;
+
+clients:double     | step:datetime            | cluster:keyword
+-910.0             | 2024-05-10T00:01:00.000Z | prod
+-81.0              | 2024-05-10T00:03:00.000Z | prod
+-664.5             | 2024-05-10T00:03:00.000Z | staging
+140.3611111111111  | 2024-05-10T00:04:00.000Z | qa
+-472.5             | 2024-05-10T00:04:00.000Z | staging
+385.33333333333326 | 2024-05-10T00:05:00.000Z | qa
+-1203.0            | 2024-05-10T00:06:00.000Z | prod
+-85.08130081300806 | 2024-05-10T00:06:00.000Z | qa
+300.9464285714286  | 2024-05-10T00:07:00.000Z | qa
+101.25             | 2024-05-10T00:07:00.000Z | staging
+;
+
+// Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
+delta_with_filtering_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (delta(network.bytes_in{pod="one"}[10m])))
+| SORT step, cluster | LIMIT 10;
+
+tx:double          | step:datetime            | cluster:keyword
+-371.890099009901  | 2024-05-10T00:10:00.000Z | prod
+598.0              | 2024-05-10T00:10:00.000Z | qa
+138.21049382716058 | 2024-05-10T00:10:00.000Z | staging
+295.7746478873239  | 2024-05-10T00:20:00.000Z | prod
+78.35912698412699  | 2024-05-10T00:20:00.000Z | qa
+-684.622030237581  | 2024-05-10T00:20:00.000Z | staging
+-30.80685358255448 | 2024-05-10T00:30:00.000Z | prod
+-948.0             | 2024-05-10T00:30:00.000Z | qa
+-766.5             | 2024-05-10T00:30:00.000Z | staging
+;
+
+// Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
+eval_on_delta_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m avg_bytes=(avg by (cluster) (delta(network.bytes_in[10m])))
+| EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
+| EVAL avg_bytes = round(avg_bytes, 6), kb_minus_offset = round(kb_minus_offset, 6)
+| KEEP avg_bytes, step, cluster, kb_minus_offset
+| SORT step, cluster | LIMIT 10;
+
+avg_bytes:double | step:datetime            | cluster:keyword | kb_minus_offset:double
+-233.796649      | 2024-05-10T00:10:00.000Z | prod            | -0.333797
+-63.158276       | 2024-05-10T00:10:00.000Z | qa              | -0.163158
+-28.533474       | 2024-05-10T00:10:00.000Z | staging         | -0.128533
+417.04361        | 2024-05-10T00:20:00.000Z | prod            | 0.317044
+609.046001       | 2024-05-10T00:20:00.000Z | qa              | 0.509046
+0.524799         | 2024-05-10T00:20:00.000Z | staging         | -0.099475
+74.080807        | 2024-05-10T00:30:00.000Z | prod            | -0.025919
+-948.0           | 2024-05-10T00:30:00.000Z | qa              | -1.048
+-901.532463      | 2024-05-10T00:30:00.000Z | staging         | -1.001532
+;
+
+// Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
+delta_all_value_types_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m events=(sum by (pod) (delta(events_received[10m])))
+| SORT events DESC, pod, step | LIMIT 10;
+
+events:double       | step:datetime            | pod:keyword
+13.566666666666666  | 2024-05-10T00:20:00.000Z | three
+7.495494787573995   | 2024-05-10T00:10:00.000Z | one
+1.889033457249072   | 2024-05-10T00:20:00.000Z | two
+1.166666666666667   | 2024-05-10T00:30:00.000Z | three
+-1.0861445783132533 | 2024-05-10T00:30:00.000Z | two
+-1.301504688843842  | 2024-05-10T00:20:00.000Z | one
+-4.293876158949284  | 2024-05-10T00:10:00.000Z | three
+-4.558883513099027  | 2024-05-10T00:10:00.000Z | two
+-5.934579439252337  | 2024-05-10T00:30:00.000Z | one
+;

@@ -1,8 +1,0 @@
-area: Distributed
-issues:
- - 150311
- - 150213
- - 150206
-pr: 150551
-summary: Fix `RecoveryTarget` `hasReferences` assertion error
-type: bug

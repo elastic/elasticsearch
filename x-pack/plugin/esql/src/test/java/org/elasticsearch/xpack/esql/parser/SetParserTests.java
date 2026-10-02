@@ -213,12 +213,10 @@ public class SetParserTests extends AbstractStatementParserTests {
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
+        // The values the message goes on to list depend on the build, so QuerySettingsTests pins them for both snapshot and release.
         expectValidationError(
             "SET unmapped_fields=\"" + mode + "\"; row a = 1",
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
-                + mode
-                + "], must be one of "
-                + Arrays.toString(UnmappedResolution.values())
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [" + mode + "], must be one of "
         );
     }
 }

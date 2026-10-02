@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -23,6 +21,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -128,7 +128,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
                 // The exception will likely be a RetryException, so unwrap it to get to the real cause
                 var unwrappedException = ExceptionsHelper.unwrapCause(exception);
 
-                logger.atWarn().withThrowable(unwrappedException).log(FAILED_VALIDATION_LOG_MESSAGE);
+                logger.warn(FAILED_VALIDATION_LOG_MESSAGE, unwrappedException);
 
                 var restStatus = unwrappedException instanceof ElasticsearchStatusException statusException
                     ? statusException.status()

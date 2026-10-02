@@ -15,10 +15,10 @@ import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
@@ -37,7 +37,7 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
     public record RemoteIndexConfig(String indexName, Map<String, String> inferenceFields) {}
 
     public record RemoteClusterConfig(
-        Map<String, MinimalServiceSettings> inferenceEndpoints,
+        Map<String, EndpointClusterState> inferenceEndpoints,
         List<RemoteIndexConfig> indexConfigs,
         TransportVersion transportVersion
     ) {}

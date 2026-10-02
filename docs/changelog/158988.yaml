@@ -1,0 +1,5 @@
+pr: 158988
+summary: "ES|QL|DS: Datasets answer index metadata columns with null, and add `_class` and `_name`"
+area: ES|QL
+type: enhancement
+issues: []

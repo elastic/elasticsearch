@@ -16,7 +16,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -30,6 +30,9 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         if (in instanceof StoreMetricsIndexInput) {
             // annoyingly, source-only snapshots do this for linked files.
+            return in;
+        } else if (in instanceof SelfAccountingIndexInput selfAccounting) {
+            selfAccounting.accountBytesReadTo(metricHolder);
             return in;
         } else if (in instanceof RandomAccessInput) {
             return new RandomAccessIndexInput(resourceDescription, in, metricHolder);
@@ -100,10 +103,15 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-        throws IOException {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withMemorySegmentSlices(offsets, length, count, action);
+            return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
         }
         return false;
     }

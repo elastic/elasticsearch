@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -23,13 +24,16 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -40,9 +44,13 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         "inference_api_disable_eis_rate_limiting"
     );
     private static final String TEST_SERVICE_NAME = "test-service";
-    private static final String TEST_SCOPE = "some-scope";
+    private static final SettingsScope TEST_SCOPE = SERVICE_SETTINGS;
     private static final int TEST_REQUESTS_PER_MINUTE = 100;
     private static final String TEST_UNKNOWN_FIELD_NAME = "some-unknown-field";
+    private static final String NULL_REQUESTS_PER_MINUTE_JSON = Strings.format("""
+        {"%s": null}""", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD);
+    private static final String NULL_REQUESTS_PER_MINUTE_RATE_LIMIT_JSON = Strings.format("""
+        {"%s": %s}""", RateLimitSettings.FIELD_NAME, NULL_REQUESTS_PER_MINUTE_JSON);
 
     public static RateLimitSettings createRandom() {
         return new RateLimitSettings(randomLongBetween(1, 1000000));
@@ -131,6 +139,31 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
+    public void testOf_NullRateLimit_UsesDefaultValue() {
+        var validationException = new ValidationException();
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(RateLimitSettings.FIELD_NAME, null);
+        var defaultValue = createRandom();
+
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
+    public void testOf_NullRequestsPerMinute_UsesDefaultValue() {
+        var validationException = new ValidationException();
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        var settingsMap = new HashMap<String, Object>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap));
+        var defaultValue = createRandom();
+
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
     public void testCreateParser_RequestsPerMinutePresent_ReturnsParsedValue() throws IOException {
         var settings = parseRateLimit(
             Strings.format("{\"%s\": %d}", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE),
@@ -153,6 +186,36 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         var settings = parseRateLimit("{}", randomBoolean(), null);
 
         assertThat(settings, is(nullValue()));
+    }
+
+    public void testCreateParser_NullRequestsPerMinute_ReturnsDefaultValue() throws IOException {
+        var defaultValue = createRandom();
+
+        var settings = parseRateLimit(NULL_REQUESTS_PER_MINUTE_JSON, randomBoolean(), defaultValue);
+
+        assertThat(settings, sameInstance(defaultValue));
+    }
+
+    public void testCreateParser_NullRequestsPerMinute_NullDefault_ReturnsNull() throws IOException {
+        var settings = parseRateLimit(NULL_REQUESTS_PER_MINUTE_JSON, randomBoolean(), null);
+
+        assertNull(settings);
+    }
+
+    public void testCreateParser_BooleanRequestsPerMinute_Throws() {
+        var exception = expectThrows(XContentParseException.class, () -> parseRateLimit(Strings.format("""
+            {"%s": true}""", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD), randomBoolean(), createRandom()));
+
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                Strings.format(
+                    "[%s] %s doesn't support values of type: VALUE_BOOLEAN",
+                    RateLimitSettings.FIELD_NAME,
+                    RateLimitSettings.REQUESTS_PER_MINUTE_FIELD
+                )
+            )
+        );
     }
 
     private RateLimitSettings parseRateLimit(String json, boolean ignoreUnknownFields, @Nullable RateLimitSettings defaultValue)
@@ -348,6 +411,58 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
     }
 
+    public void testDeclareUnsupportedRateLimitField_RequestContext_ThrowsElasticsearchParseException() {
+        var taskType = randomFrom(TaskType.values());
+        var json = Strings.format("""
+            {"%s": {"%s": %d}}""", RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE);
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> parseWithRejectDeclare(json, taskType, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getCause(), instanceOf(ElasticsearchParseException.class));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                Strings.format(
+                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
+                    TEST_SCOPE,
+                    TEST_SERVICE_NAME,
+                    taskType.toString()
+                )
+            )
+        );
+    }
+
+    public void testDeclareUnsupportedRateLimitField_RequestContext_NoRateLimitField_DoesNotThrow() throws IOException {
+        var holder = parseWithRejectDeclare("{}", randomFrom(TaskType.values()), ConfigurationParseContext.REQUEST);
+
+        assertThat(holder.rateLimitSettings, nullValue());
+    }
+
+    public void testDeclareUnsupportedRateLimitField_PersistentContext_IgnoresRateLimitField() throws IOException {
+        var json = Strings.format("""
+            {"%s": {"%s": %d}}""", RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE);
+
+        var holder = parseWithRejectDeclare(json, randomFrom(TaskType.values()), ConfigurationParseContext.PERSISTENT);
+
+        assertThat(holder.rateLimitSettings, nullValue());
+    }
+
+    private RateLimitHolder parseWithRejectDeclare(String json, TaskType taskType, ConfigurationParseContext ctx) throws IOException {
+        // Mirrors production usage: the request parser is strict, the persistent parser tolerates unknown fields.
+        var parser = new ObjectParser<RateLimitHolder, ConfigurationParseContext>(
+            "test",
+            ctx == ConfigurationParseContext.PERSISTENT,
+            RateLimitHolder::new
+        );
+        RateLimitSettings.declareUnsupportedRateLimitField(parser, TEST_SCOPE, TEST_SERVICE_NAME, taskType, ctx);
+        try (var xParser = createParser(JsonXContent.jsonXContent, json)) {
+            return parser.parse(xParser, ctx);
+        }
+    }
+
     private static class RateLimitHolder {
         private RateLimitSettings rateLimitSettings;
 
@@ -396,6 +511,25 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         var holder = parseWithDeclare("{}", createRandom(), randomFrom(ConfigurationParseContext.values()));
 
         assertNull(holder.rateLimitSettings);
+    }
+
+    public void testDeclareRateLimitSettings_ExplicitNull_SetsDefaultValue() throws IOException {
+        var defaultValue = createRandom();
+        var holder = parseWithDeclare(Strings.format("""
+            {"%s": null}""", RateLimitSettings.FIELD_NAME), defaultValue, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(holder.rateLimitSettings, sameInstance(defaultValue));
+    }
+
+    public void testDeclareRateLimitSettings_NullRequestsPerMinute_SetsDefaultValue() throws IOException {
+        var defaultValue = createRandom();
+        var holder = parseWithDeclare(
+            NULL_REQUESTS_PER_MINUTE_RATE_LIMIT_JSON,
+            defaultValue,
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(holder.rateLimitSettings, sameInstance(defaultValue));
     }
 
     public void testDeclareRateLimitSettings_PersistentContext_IgnoresUnknownField() throws IOException {
@@ -497,6 +631,12 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
                     "%s": {}
                 }
             """, RateLimitSettings.FIELD_NAME));
+
+        assertTrue(holder.rateLimitSettings.isNull());
+    }
+
+    public void testDeclareUpdatableRateLimitSettings_NullRequestsPerMinute_SetsNull() throws IOException {
+        var holder = parseWithDeclareUpdatable(NULL_REQUESTS_PER_MINUTE_RATE_LIMIT_JSON);
 
         assertTrue(holder.rateLimitSettings.isNull());
     }

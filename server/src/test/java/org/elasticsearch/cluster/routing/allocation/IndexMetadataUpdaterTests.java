@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -20,15 +21,20 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -121,6 +127,78 @@ public class IndexMetadataUpdaterTests extends ESTestCase {
         assertThat(updatedMetadata.getProject(project2).index("index2").getInSyncAllocationIds().get(2), containsInAnyOrder(p2i2s2r));
         assertThat(updatedMetadata.getProject(project2).index("index2").getInSyncAllocationIds().get(0), containsInAnyOrder(p2i2s0p));
         assertThat(updatedMetadata.getProject(project3).index("index3").getInSyncAllocationIds().get(0), containsInAnyOrder(p3i3s0p));
+    }
+
+    /**
+     * When source and split-target primaries both initialize in the same allocation round,
+     * splitPrimaryTerm must run after the source term increment so target stays >= source
+     * regardless of HashMap iteration order in {@link IndexMetadataUpdater#applyChanges}.
+     */
+    public void testSplitPrimaryTermAfterSourceAndTargetBumpInSameRound() {
+        final IndexMetadataUpdater updater = new IndexMetadataUpdater();
+        final DiscoveryNode node = DiscoveryNodeUtils.create("n1");
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), 2, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            // NODE_LEFT shape: active source failed (term bumped), initializing target did not
+            .primaryTerm(0, 3)
+            .primaryTerm(1, 2)
+            .build();
+
+        final ShardId sourceShardId = new ShardId(indexMetadata.getIndex(), 0);
+        final ShardId targetShardId = new ShardId(indexMetadata.getIndex(), 1);
+        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test");
+
+        final ShardRouting sourceUnassigned = ShardRouting.newUnassigned(
+            sourceShardId,
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
+        final ShardRouting targetUnassigned = ShardRouting.newUnassigned(
+            targetShardId,
+            true,
+            new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
+        final ShardRouting sourceInitializing = sourceUnassigned.initialize(
+            node.getId(),
+            null,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+        );
+        final ShardRouting targetInitializing = targetUnassigned.initialize(
+            node.getId(),
+            null,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+        );
+
+        final RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(indexMetadata.getIndex())
+                    .addIndexShard(IndexShardRoutingTable.builder(sourceShardId).addShard(sourceInitializing))
+                    .addIndexShard(IndexShardRoutingTable.builder(targetShardId).addShard(targetInitializing))
+            )
+            .build();
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(routingTable)
+            .build();
+
+        updater.shardInitialized(sourceUnassigned, sourceInitializing);
+        updater.shardInitialized(targetUnassigned, targetInitializing);
+
+        final IndexMetadata updated = updater.applyChanges(clusterState.metadata(), clusterState.globalRoutingTable())
+            .getProject()
+            .index("test");
+
+        assertThat(updated.primaryTerm(1), greaterThanOrEqualTo(updated.primaryTerm(0)));
     }
 
     private static String startShard(

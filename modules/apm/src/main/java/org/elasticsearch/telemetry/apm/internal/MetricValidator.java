@@ -45,7 +45,8 @@ public class MetricValidator {
         "size",
         "utilization",
         "histogram",
-        "time"
+        "time",
+        "duration"
     );
 
     /**
@@ -105,7 +106,7 @@ public class MetricValidator {
          *
          * See https://opentelemetry.io/docs/specs/semconv/registry/attributes
          */
-        static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE);
+        static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE, "http.response.status_code");
 
         /**
          * Routing attribute consumed by apm-server to direct a datapoint to a specific data stream
@@ -239,6 +240,8 @@ public class MetricValidator {
             Map.entry("es.repositories.snapshots.shards.duration.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.queue_time.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.started.total", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.unsuccessful.histogram", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.unsuccessful.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.bytes.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.read_time.total", REPO_SNAPSHOT_ATTRIBUTES),
@@ -246,17 +249,29 @@ public class MetricValidator {
             Map.entry("es.repositories.throttles.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.throttles.total", REPO_ATTRIBUTES),
             Map.entry("es.search.coord.can_match.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.request.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.can_match.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.dfs.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.request.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.dfs.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.dfs_query.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.request.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.dfs_query.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.fetch.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.request.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.fetch.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.query.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.request.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.query.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.rank_feature.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.request.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.coord.rank_feature.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.query.aggregations.total", Set.of("aggregation_name", "values_source")),
             Map.entry("es.search_response.response_count.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.can_match.histogram", SEARCH_ATTRIBUTES),

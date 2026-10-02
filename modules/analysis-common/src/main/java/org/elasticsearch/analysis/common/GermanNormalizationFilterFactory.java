@@ -30,4 +30,8 @@ public class GermanNormalizationFilterFactory extends AbstractTokenFilterFactory
         return new GermanNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

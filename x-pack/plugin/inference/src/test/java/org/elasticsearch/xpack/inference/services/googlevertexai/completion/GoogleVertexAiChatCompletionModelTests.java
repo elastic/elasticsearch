@@ -11,7 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -61,7 +61,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null
         );
         var requestModelId = "gemini-flash";
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             requestModelId,
             null,
@@ -96,7 +96,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null,
             TEST_MAX_TOKENS
         );
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
@@ -272,7 +272,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             streamingUri,
             TEST_MAX_TOKENS
         );
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
@@ -298,6 +298,35 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getTaskSettings().maxTokens(), is(TEST_MAX_TOKENS));
         assertThat(overriddenModel.nonStreamingUri(), is(expectedNonStreamingUri));
         assertThat(overriddenModel.streamingURI(), is(expectedStreamingUri));
+    }
+
+    public void testOfUnifiedRequest_PreservesAuthHeaderDecorator() {
+        var model = createCompletionModel(
+            TEST_PROJECT_ID,
+            TEST_LOCATION,
+            TEST_MODEL_ID,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
+            EMPTY_THINKING_CONFIG,
+            null,
+            null,
+            null,
+            "Bearer test-token"
+        );
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, request);
+
+        assertThat(overriddenModel.authHeaderDecorator(), sameInstance(model.authHeaderDecorator()));
     }
 
     public static GoogleVertexAiChatCompletionModel createCompletionModel(

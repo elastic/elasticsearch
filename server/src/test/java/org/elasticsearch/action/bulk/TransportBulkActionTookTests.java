@@ -23,7 +23,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -57,7 +57,6 @@ import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -115,7 +114,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver();
-        ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
@@ -269,7 +268,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
     }

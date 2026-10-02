@@ -1,0 +1,2 @@
+org.elasticsearch.foreign:
+  - load_native_libraries

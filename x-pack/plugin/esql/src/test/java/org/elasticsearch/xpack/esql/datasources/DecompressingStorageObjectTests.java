@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.esql.datasources;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -22,10 +27,14 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -38,7 +47,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = gzip(original);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
 
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
         try (InputStream stream = decompressing.newStream()) {
@@ -66,7 +75,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = zstd(original);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.zst"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec();
+        DecompressionCodec codec = new ZstdDecompressionCodec();
 
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
         try (InputStream stream = decompressing.newStream()) {
@@ -91,7 +100,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
     public void testNewStreamPositionLengthThrows() throws IOException {
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> decompressing.newStream(0, 100));
@@ -101,7 +110,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
     public void testLengthThrows() throws IOException {
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, decompressing::length);
@@ -113,7 +122,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         Instant now = Instant.now();
         StoragePath path = StoragePath.of("file:///data.csv.gz");
         StorageObject rawObject = new BytesStorageObject(new byte[0], path, now, true);
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
         assertEquals(now, decompressing.lastModified());
@@ -129,13 +138,13 @@ public class DecompressingStorageObjectTests extends ESTestCase {
                 return snapshot;
             }
         };
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
         assertSame(snapshot, decompressing.metrics());
     }
 
     public void testNullDelegateThrows() {
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///x"));
         expectThrows(QlIllegalArgumentException.class, () -> new DecompressingStorageObject(null, codec));
     }
@@ -143,6 +152,134 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     public void testNullCodecThrows() {
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///x"));
         expectThrows(QlIllegalArgumentException.class, () -> new DecompressingStorageObject(rawObject, null));
+    }
+
+    // --- Decompression ratio guard ---
+
+    public void testHighRatioRefused() throws IOException {
+        // 64 MiB of a ten-byte NDJSON line, gzipped: compresses to ~130 KB, expands ~515:1
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz.write(line);
+            }
+        }
+        byte[] compressed = baos.toByteArray();
+
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///repetitive.ndjson.gz"));
+        DecompressionCodec codec = new GzipDecompressionCodec();
+        // ratio=200 means limit = ~130 KB × 200 = ~26 MB; the 64 MiB output exceeds it
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec, null, 200);
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (InputStream stream = decompressing.newStream()) {
+                stream.readAllBytes();
+            }
+        });
+        assertTrue(
+            "error message must name the setting, got: " + e.getMessage(),
+            e.getMessage().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey())
+        );
+    }
+
+    public void testHighRatioRefusedWhenSizeUnknown() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz.write(line);
+            }
+        }
+        byte[] compressed = baos.toByteArray();
+
+        // no known length: the guard must fall back to the compressed bytes consumed so far
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///repetitive.ndjson.gz")) {
+            @Override
+            public long knownLength() {
+                return READ_TO_END;
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec(), null, 200);
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (InputStream stream = decompressing.newStream()) {
+                stream.readAllBytes();
+            }
+        });
+        assertTrue(
+            "error message must name the setting, got: " + e.getMessage(),
+            e.getMessage().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey())
+        );
+        assertTrue("error message must describe the ratio, got: " + e.getMessage(), e.getMessage().contains("compressed bytes"));
+    }
+
+    public void testSkippedBytesCountTowardLimitOnNextRead() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz.write(line);
+            }
+        }
+        StorageObject rawObject = new BytesStorageObject(baos.toByteArray(), StoragePath.of("file:///repetitive.ndjson.gz"));
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec(), null, 200);
+
+        try (InputStream stream = decompressing.newStream()) {
+            // skip past the ~26 MB limit; skip itself does not check
+            long toSkip = 40L * 1024 * 1024;
+            while (toSkip > 0) {
+                long skipped = stream.skip(toSkip);
+                assertThat(skipped, Matchers.greaterThan(0L));
+                toSkip -= skipped;
+            }
+            expectThrows(ExternalClientException.class, stream::read);
+        }
+    }
+
+    public void testHighRatioPassesWithRatioZero() throws IOException {
+        // same input as above, but ratio=0 disables the check
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz.write(line);
+            }
+        }
+        byte[] compressed = baos.toByteArray();
+
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///repetitive.ndjson.gz"));
+        DecompressionCodec codec = new GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec, null, 0);
+
+        byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+        long expectedBytes = (long) (64 * 1024 * 1024 / line.length) * line.length;
+        long totalBytes;
+        try (InputStream stream = decompressing.newStream()) {
+            totalBytes = stream.transferTo(OutputStream.nullOutputStream());
+        }
+        assertEquals("ratio=0 must transfer all decompressed bytes", expectedBytes, totalBytes);
+    }
+
+    public void testOrdinaryInputPassesAtDefaultRatio() throws IOException {
+        // random bytes compress near 1:1 — nowhere near the 200:1 default limit
+        byte[] random = randomByteArrayOfLength(1024 * 1024); // 1 MiB
+        byte[] compressed = gzip(random);
+
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.ndjson.gz"));
+        DecompressionCodec codec = new GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            rawObject,
+            codec,
+            null,
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY)
+        );
+
+        byte[] decompressed;
+        try (InputStream stream = decompressing.newStream()) {
+            decompressed = stream.readAllBytes();
+        }
+        assertArrayEquals("ordinary input must be read in full", random, decompressed);
     }
 
     // --- Stream drain prevention through the decompressing wrapper ---
@@ -180,7 +317,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
         InputStream stream = decompressing.newStream();
@@ -204,6 +341,69 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * Public LIMIT / cancel path: callers close the decompressed stream (try-with-resources,
+     * iterator teardown) rather than calling {@code abortStream}. That close must abort the
+     * raw GET instead of draining it.
+     */
+    public void testCloseAfterPrefixReadAbortsRatherThanDrains() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            csv.append("id_").append(i).append(",name_").append(i).append(",value_").append(i * 1.5).append("\n");
+        }
+        byte[] original = csv.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        assertThat(
+            "compressed payload must be significantly larger than the prefix we read",
+            compressed.length,
+            Matchers.greaterThan(200_000)
+        );
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
+        DecompressionCodec codec = new GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+
+        try (InputStream stream = decompressing.newStream()) {
+            byte[] prefix = new byte[4096];
+            int n = stream.read(prefix);
+            assertThat("expected to read some decompressed bytes", n, Matchers.greaterThan(0));
+        }
+
+        assertTrue("prefix close() must abort the raw GET rather than drain it", tracking.aborted.get());
+        assertFalse("a prefix read must not be read to end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+        assertThat(
+            "close() after a prefix read must not drain the raw stream; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + compressed.length
+                + " raw bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
+    }
+
+    /**
+     * {@code InputStream.close()} is idempotent. A second close after a prefix read must not
+     * abort the raw stream again.
+     */
+    public void testCloseAfterPrefixReadIsIdempotent() throws IOException {
+        byte[] original = "id,name\n1,a\n".repeat(50_000).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec());
+
+        InputStream stream = decompressing.newStream();
+        byte[] prefix = new byte[1024];
+        assertThat(stream.read(prefix), Matchers.greaterThan(0));
+        stream.close();
+        stream.close();
+
+        assertEquals("second close must not abort again", 1, tracking.abortCalls.get());
+    }
+
+    /**
      * Regression guard: a normal {@code close()} on the wrapper stream returned by
      * {@link DecompressingStorageObject#newStream()} must close the underlying raw stream so
      * its connection is released. The decompressor itself sees an {@code UncloseableInputStream}
@@ -220,7 +420,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressionCodec codec = new GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
         try (InputStream stream = decompressing.newStream()) {
@@ -229,6 +429,176 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         }
 
         assertTrue("raw stream must be closed after the wrapper is closed (otherwise connection leaks)", tracking.closed.get());
+        // closed alone cannot tell a pooled release from a discarded connection: the fixture's abortStream closes too
+        assertTrue("a full read must reach end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+    }
+
+    /**
+     * The JDK gzip decoder reports end-of-stream after the member trailer without reading its input to {@code -1},
+     * so S3 (Apache HttpClient) still holds the connection when the release aborts it, and discards it. A fully
+     * decoded body must reach end-of-body first so the connection is pooled.
+     */
+    public void testFullGzipReadReachesEndOfBodyBeforeAbort() throws IOException {
+        assertFullReadReachesEndOfBodyBeforeAbort(new GzipDecompressionCodec(), DecompressingStorageObjectTests::gzip);
+    }
+
+    /** Zstd already reads its input to {@code -1}; guard that the release keeps that outcome. */
+    public void testFullZstdReadReachesEndOfBodyBeforeAbort() throws IOException {
+        assertFullReadReachesEndOfBodyBeforeAbort(new ZstdDecompressionCodec(), DecompressingStorageObjectTests::zstd);
+    }
+
+    private void assertFullReadReachesEndOfBodyBeforeAbort(DecompressionCodec codec, Compressor compressor) throws IOException {
+        byte[] original = ndjsonLines(between(1, 200_000));
+        byte[] compressed = compressor.compress(original);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(compressed, tracking),
+            codec
+        );
+
+        try (InputStream stream = decompressing.newStream()) {
+            assertArrayEquals(original, stream.readAllBytes());
+        }
+
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+        assertTrue("a fully decoded body must reach end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals(compressed.length, tracking.bytesConsumed.get());
+    }
+
+    /**
+     * Bytes after the decoder's end-of-stream (trailing padding, or gzip members the decoder did not detect) are read
+     * to the end of the body when they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the
+     * connection is still pooled.
+     */
+    public void testTrailingBytesWithinCapAreReadToEndOfBodyBeforeAbort() throws IOException {
+        byte[] original = ndjsonLines(between(1, 10_000));
+        byte[] compressed = withTrailingZeros(gzip(original), between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(compressed, tracking),
+            new GzipDecompressionCodec()
+        );
+
+        try (InputStream stream = decompressing.newStream()) {
+            assertArrayEquals(original, stream.readAllBytes());
+        }
+
+        assertEquals(1, tracking.abortCalls.get());
+        assertTrue(tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals(compressed.length, tracking.bytesConsumed.get());
+    }
+
+    /** A tail larger than the cap is not transferred: the release gives up and aborts, as for an early stop. */
+    public void testTrailingBytesBeyondCapAreAborted() throws IOException {
+        byte[] original = ndjsonLines(between(1, 10_000));
+        byte[] gzipped = gzip(original);
+        byte[] compressed = withTrailingZeros(gzipped, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * between(4, 16));
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(compressed, tracking),
+            new GzipDecompressionCodec()
+        );
+
+        try (InputStream stream = decompressing.newStream()) {
+            assertArrayEquals(original, stream.readAllBytes());
+        }
+
+        assertEquals(1, tracking.abortCalls.get());
+        assertFalse(tracking.endOfBodyReadBeforeAbort.get());
+        // What the decoder read ahead into its raw buffer (GzipDecompressionCodec's 64 KiB), plus the cap and the one
+        // byte past it that tells a longer tail apart.
+        long gzipRawBufferBytes = 64 * 1024;
+        assertThat(
+            tracking.bytesConsumed.get(),
+            Matchers.lessThanOrEqualTo(gzipped.length + gzipRawBufferBytes + DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 1)
+        );
+    }
+
+    /** The logical read already succeeded, so a failing end-of-body read must not fail close() or skip the abort. */
+    public void testTrailingReadFailureStillAborts() throws IOException {
+        byte[] original = ndjsonLines(between(1, 1_000));
+        byte[] gzipped = gzip(original);
+        AtomicInteger abortCalls = new AtomicInteger();
+        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+            @Override
+            public InputStream newStream() {
+                // Delivers the gzip bytes, then fails instead of returning -1, like a connection reset at end of body.
+                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        int n = super.read(b, off, len);
+                        if (n < 0) {
+                            throw new IOException("connection reset");
+                        }
+                        return n;
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                abortCalls.incrementAndGet();
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+
+        try (InputStream stream = decompressing.newStream()) {
+            assertArrayEquals(original, stream.readAllBytes());
+        }
+
+        assertEquals(1, abortCalls.get());
+    }
+
+    /** An {@link Error} from the end-of-body read is not swallowed, but it still must not skip the abort. */
+    public void testTrailingReadErrorStillAborts() throws IOException {
+        byte[] original = ndjsonLines(between(1, 1_000));
+        byte[] gzipped = gzip(original);
+        AtomicInteger abortCalls = new AtomicInteger();
+        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+            @Override
+            public InputStream newStream() {
+                // Delivers the gzip bytes, then throws an Error instead of returning -1.
+                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        int n = super.read(b, off, len);
+                        if (n < 0) {
+                            throw new AssertionError("simulated error at end of body");
+                        }
+                        return n;
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                abortCalls.incrementAndGet();
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+
+        InputStream stream = decompressing.newStream();
+        assertArrayEquals(original, stream.readAllBytes());
+        AssertionError e = expectThrows(AssertionError.class, stream::close);
+        assertEquals("simulated error at end of body", e.getMessage());
+        assertEquals(1, abortCalls.get());
+    }
+
+    @FunctionalInterface
+    private interface Compressor {
+        byte[] compress(byte[] input) throws IOException;
+    }
+
+    private static byte[] ndjsonLines(int lines) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines; i++) {
+            sb.append("{\"id\":").append(i).append(",\"url\":\"https://example.com/").append(i * 7919L).append("\"}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] withTrailingZeros(byte[] bytes, int zeros) {
+        return Arrays.copyOf(bytes, bytes.length + zeros);
     }
 
     private static byte[] gzip(byte[] input) throws IOException {
@@ -255,7 +625,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         return baos.toByteArray();
     }
 
-    private static class BytesStorageObject implements StorageObject {
+    private static class BytesStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final StoragePath path;
         private final Instant lastModified;
@@ -284,6 +654,11 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         @Override
         public long length() {
+            return data.length;
+        }
+
+        @Override
+        public long knownLength() {
             return data.length;
         }
 

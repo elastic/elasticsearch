@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -39,6 +40,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
 
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()
+            .name("rolling-upgrade-cluster")
             .distribution(DistributionType.DEFAULT)
             .version(getOldClusterVersion(), isOldClusterDetachedVersion())
             .nodes(NODE_NUM)

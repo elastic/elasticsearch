@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -51,12 +51,8 @@ public class AnthropicActionCreator implements AnthropicActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             COMPLETION_HANDLER,
-            (chatCompletionInput) -> new AnthropicChatCompletionRequest(
-                chatCompletionInput.getInputs(),
-                overriddenModel,
-                chatCompletionInput.stream()
-            ),
-            ChatCompletionInput.class
+            (completionInput) -> new AnthropicChatCompletionRequest(completionInput.getInputs(), overriddenModel, completionInput.stream()),
+            CompletionInput.class
         );
         return new SingleInputSenderExecutableAction(
             sender,

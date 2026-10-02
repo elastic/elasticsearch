@@ -451,7 +451,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, true);
+        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
     }
 
     public enum DebugMode {

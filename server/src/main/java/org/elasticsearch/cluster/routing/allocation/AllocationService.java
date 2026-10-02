@@ -93,12 +93,12 @@ public class AllocationService {
 
     /**
      * Whether allocation decisions should retain their decider label when not in debug mode. This supports metrics which attribute
-     * moves to the decider that caused them. It can be disabled if the cached labelled decisions cause problems. Changes apply to
-     * {@link RoutingAllocation} instances created after the change; an instance's value is fixed for its lifetime.
+     * moves to the decider that caused them. Changes apply to {@link RoutingAllocation} instances created after the change, an
+     * instance's value is fixed for its lifetime.
      */
     public static final Setting<Boolean> PRESERVE_DECISION_LABELS_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.preserve_decision_labels",
-        true,
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

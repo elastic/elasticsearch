@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -110,35 +109,6 @@ public class ExpandUnmappedFieldsOperatorTests extends ComputeTestCase {
                 nonNullRows(expanded),
                 contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2), matchesMap().entry(INT_ATTR, 3).entry("a", "x"))
             );
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testSlicedReplayBoundsEmittedPageSizeAndPreservesRows() {
-        BlockFactory bf = blockFactory();
-        int rows = randomIntBetween(5, 40);
-        int chunk = randomIntBetween(1, 4); // < rows, so the single input page is always replayed as several row chunks
-        List<List<Object>> input = new ArrayList<>(rows);
-        for (int i = 0; i < rows; i++) {
-            input.add(row(i, jsonObject("{'a':'v" + i + "'}")));
-        }
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, input)));
-
-        Result expanded = expand(result, bf, () -> {}, chunk);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a")));
-            // The wide input page is replayed in bounded row chunks, so with a one-iteration driver budget the driver re-dispatches at
-            // least every `chunk` rows rather than scanning the whole page in a single task.
-            for (Page page : expanded.pages()) {
-                assertThat(page.getPositionCount(), lessThanOrEqualTo(chunk));
-            }
-            assertThat(rowCount(expanded), equalTo(rows));
-            List<Map<String, Object>> expectedRows = new ArrayList<>(rows);
-            for (int i = 0; i < rows; i++) {
-                expectedRows.add(Map.of(INT_ATTR, i, "a", "v" + i));
-            }
-            assertThat(nonNullRows(expanded), equalTo(expectedRows));
         } finally {
             Releasables.close(expanded.pages());
         }
@@ -701,9 +671,7 @@ public class ExpandUnmappedFieldsOperatorTests extends ComputeTestCase {
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
 
         AtomicInteger polls = new AtomicInteger();
-        // Replay the whole page in one chunk: this pins the operator's own per-scan poll cadence, which is orthogonal to how the source
-        // chunks its input (slicing would reset the per-page row counter and inflate the count).
-        Result expanded = expand(result, bf, polls::incrementAndGet, Integer.MAX_VALUE);
+        Result expanded = expand(result, bf, polls::incrementAndGet);
         try {
             // 1024 mirrors the production ROWS_PER_CANCELLATION_CHECK, which is private to the operator.
             int perScan = (rows + 1023) / 1024;
@@ -744,17 +712,9 @@ public class ExpandUnmappedFieldsOperatorTests extends ComputeTestCase {
      * all released, matching the driver's abort-time clean-up, so the "does not leak" assertions hold.
      */
     private Result expand(Result result, BlockFactory blockFactory, Runnable earlyTerminationChecker) {
-        // Randomize the replay chunk so the whole suite exercises both whole-page pass-through and sliced row-chunk replay. The
-        // operator must yield the same rows however the source chunks its input - page boundaries are never asserted (nonNullRows and
-        // rowCount flatten across pages) - and must not leak under either path (the framework's end-of-test breaker check holds that).
-        int maxPageRows = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 16);
-        return expand(result, blockFactory, earlyTerminationChecker, maxPageRows);
-    }
-
-    private Result expand(Result result, BlockFactory blockFactory, Runnable earlyTerminationChecker, int maxPageRows) {
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         driverContext.initializeEarlyTerminationChecker(earlyTerminationChecker);
-        SourceOperator source = new PageListSourceOperator(result.pages(), maxPageRows);
+        SourceOperator source = new PageListSourceOperator(result.pages());
         ExpandUnmappedFieldsOperator operator = new ExpandUnmappedFieldsOperator(
             driverContext,
             result.schema(),

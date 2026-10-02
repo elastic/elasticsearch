@@ -24,7 +24,7 @@ import java.util.function.Predicate;
 /**
  * Discovers eligible recovery sources from a snapshot for the data recovery API.
  * <p>
- * It filters candidates (excluding system, backing, and incomplete indices/streams, and indices without metadata),
+ * It filters candidates (excluding system and backing indices, and indices without metadata), classifies source completeness,
  * applies a multi-target expression list, and returns a bounded result.
  */
 public final class RecoverySourceDiscovery {
@@ -35,7 +35,7 @@ public final class RecoverySourceDiscovery {
      * An eligible logical recovery source returned by the source-discovery API. Sources are ordered
      * deterministically by {@link #name()} and each name appears at most once in a result set.
      */
-    public record RecoverySource(String name, Type type) implements Comparable<RecoverySource> {
+    public record RecoverySource(String name, Type type, boolean complete) implements Comparable<RecoverySource> {
 
         /** Whether the source is a standalone index or a data stream. */
         public enum Type {
@@ -64,11 +64,34 @@ public final class RecoverySourceDiscovery {
      * @throws IllegalArgumentException if {@code size} is not positive
      */
     public static Result discover(SnapshotInfo snapshotInfo, ProjectMetadata projectMetadata, List<String> expressions, int size) {
+        return discover(snapshotInfo, projectMetadata, expressions, size, false);
+    }
+
+    /**
+     * Returns up to {@code size} recovery sources from a snapshot, ordered by name.
+     * Excludes system resources and backing/failure-store indices. Incomplete logical sources are included only when
+     * {@code includeIncompleteSources} is {@code true}, and their {@link RecoverySource#complete()} value is {@code false}.
+     * Expressions support wildcards and {@code -} negation; empty returns all eligible sources.
+     *
+     * @param snapshotInfo    the snapshot to evaluate
+     * @param projectMetadata project metadata captured in the snapshot
+     * @param expressions     multi-target expression list; empty means return all eligible sources
+     * @param size            maximum number of sources to return; must be positive
+     * @param includeIncompleteSources whether to include logical sources that were not completely captured
+     * @throws IllegalArgumentException if {@code size} is not positive
+     */
+    public static Result discover(
+        SnapshotInfo snapshotInfo,
+        ProjectMetadata projectMetadata,
+        List<String> expressions,
+        int size,
+        boolean includeIncompleteSources
+    ) {
         if (size <= 0) {
             throw new IllegalArgumentException("size must be positive, got [" + size + "]");
         }
 
-        SortedSet<RecoverySource> candidates = buildCandidates(snapshotInfo, projectMetadata);
+        SortedSet<RecoverySource> candidates = buildCandidates(snapshotInfo, projectMetadata, includeIncompleteSources);
 
         return filterAndCollect(size, candidates, buildMatcher(expressions));
     }
@@ -78,6 +101,14 @@ public final class RecoverySourceDiscovery {
      * Excludes system indices/streams, backing and failure-store indices, incomplete indices/streams, and indices without metadata.
      */
     static SortedSet<RecoverySource> buildCandidates(SnapshotInfo snapshotInfo, ProjectMetadata projectMetadata) {
+        return buildCandidates(snapshotInfo, projectMetadata, false);
+    }
+
+    static SortedSet<RecoverySource> buildCandidates(
+        SnapshotInfo snapshotInfo,
+        ProjectMetadata projectMetadata,
+        boolean includeIncompleteSources
+    ) {
         Map<String, DataStream> dataStreams = projectMetadata.dataStreams();
 
         Set<String> backingAndFailureIndexNames = new java.util.HashSet<>();
@@ -96,21 +127,40 @@ public final class RecoverySourceDiscovery {
             if (meta == null || meta.isSystem()) {
                 continue;
             }
-            if (snapshotInfo.isIndexComplete(indexName) == false) {
+            final boolean complete = snapshotInfo.isIndexComplete(indexName);
+            if (complete == false && includeIncompleteSources == false) {
                 continue;
             }
-            candidates.add(new RecoverySource(indexName, RecoverySource.Type.INDEX));
+            candidates.add(new RecoverySource(indexName, RecoverySource.Type.INDEX, complete));
         }
 
         for (String dsName : snapshotInfo.dataStreams()) {
             DataStream ds = dataStreams.get(dsName);
-            if (ds == null || ds.isSystem() || snapshotInfo.isDataStreamComplete(ds) == false) {
+            if (ds == null || ds.isSystem()) {
                 continue;
             }
-            candidates.add(new RecoverySource(dsName, RecoverySource.Type.DATA_STREAM));
+            final boolean complete = isDataStreamComplete(snapshotInfo, ds);
+            if (complete == false && includeIncompleteSources == false) {
+                continue;
+            }
+            candidates.add(new RecoverySource(dsName, RecoverySource.Type.DATA_STREAM, complete));
         }
 
         return candidates;
+    }
+
+    private static boolean isDataStreamComplete(SnapshotInfo snapshotInfo, DataStream dataStream) {
+        for (var index : dataStream.getIndices()) {
+            if (snapshotInfo.isIndexComplete(index.getName()) == false) {
+                return false;
+            }
+        }
+        for (var index : dataStream.getFailureIndices()) {
+            if (snapshotInfo.isIndexComplete(index.getName()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Predicate<String> buildMatcher(List<String> expressions) {

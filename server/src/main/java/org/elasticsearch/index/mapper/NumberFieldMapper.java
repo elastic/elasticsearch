@@ -2894,9 +2894,14 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
-        if (source.kind() == EscfColumnKind.ARRAY && offsetsFieldName != null && recordsOffsets == false) {
+        // Outside strict-columnar modes, a non-default synthetic_source_keep makes the row path keep arrays as-is, either as
+        // positional offsets or in _ignored_source, neither of which this path writes. Strict-columnar modes reject the setting.
+        // TODO: lift into FieldMapper once the columnar path honors synthetic_source_keep for every mapper, scalars included.
+        if (source.kind() == EscfColumnKind.ARRAY
+            && indexSettings.getMode().isStrictColumnar() == false
+            && sourceKeepMode().orElse(indexSettings.sourceKeepMode()) != SourceKeepMode.NONE) {
             throw new UnsupportedOperationException(
-                Strings.format("mapColumnBatch: field [%s] records array offsets outside a strict-columnar index mode", fullPath())
+                Strings.format("mapColumnBatch: field [%s] keeps array source outside a strict-columnar index mode", fullPath())
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;

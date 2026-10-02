@@ -1036,12 +1036,52 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
      * rule the columnar sidecar does not reproduce outside strict-columnar modes, so the batch falls back.
      */
     public void testLongField_tsdbKeepArraysArrayBailsOut() throws IOException {
-        final var mapperService = createMapperService(tsdbKeepArraysSettings(), mapping(tsdbLongMapping()));
+        assertTsdbKeepModeArrayBailsOut(tsdbKeepArraysSettings(), tsdbLongMapping());
+    }
+
+    /**
+     * A stored field records no offsets, so under {@code synthetic_source_keep: arrays} the row path keeps the
+     * array in {@code _ignored_source} instead, which the columnar path does not write.
+     */
+    public void testLongField_tsdbKeepArraysStoredArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(tsdbKeepArraysSettings(), b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("store", true).endObject();
+        });
+    }
+
+    /**
+     * As {@link #testLongField_tsdbKeepArraysStoredArrayBailsOut}, for a field-level keep mode on a field whose
+     * multi-field rules out offsets.
+     */
+    public void testLongField_tsdbFieldKeepArraysMultiFieldArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(tsdbSettings(), b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "arrays");
+            b.startObject("fields").startObject("sub").field("type", "long").endObject().endObject();
+            b.endObject();
+        });
+    }
+
+    /** Under {@code synthetic_source_keep: all} the row path keeps every value of the field in {@code _ignored_source}. */
+    public void testLongField_tsdbFieldKeepAllArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(tsdbSettings(), b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
+        });
+    }
+
+    private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)
+        throws IOException {
+        final var mapperService = createMapperService(settings, mapping(mapping));
         final UnsupportedOperationException ex = expectThrows(
             UnsupportedOperationException.class,
-            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[1,2]}")
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[3,1,3]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("records array offsets outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
     }
 
     /** TSDB settings naming both the keyword {@code dim} and the numeric {@code f} as index dimensions. */

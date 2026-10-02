@@ -506,3 +506,33 @@ emp_no:integer | language_name:keyword
 10004          | null
 10005          | English
 ;
+
+typedConversionFailureTreatedAsFailedMatch
+required_capability: grok_typed_conversion_warnings
+ROW s = "1.5"
+| GROK s "%{NUMBER:n:int}"
+;
+// ascii(%) == %25
+warning:Line 2:3: evaluation of [GROK s \"%25{NUMBER:n:int}\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.NumberFormatException: For input string: \"1.5\"
+
+s:keyword | n:integer
+1.5       | null
+;
+
+
+typedConversionFailureOnlyAffectsFailingRows
+required_capability: grok_typed_conversion_warnings
+ROW strs = ["10 x", "1.5 y", "20 z"]
+| MV_EXPAND strs
+| GROK strs "%{NUMBER:n:int} %{WORD:w}"
+;
+// ascii(%) == %25
+warning:Line 3:3: evaluation of [GROK strs \"%25{NUMBER:n:int} %25{WORD:w}\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.NumberFormatException: For input string: \"1.5\"
+
+strs:keyword | n:integer | w:keyword
+10 x         | 10        | x
+1.5 y        | null      | null
+20 z         | 20        | z
+;

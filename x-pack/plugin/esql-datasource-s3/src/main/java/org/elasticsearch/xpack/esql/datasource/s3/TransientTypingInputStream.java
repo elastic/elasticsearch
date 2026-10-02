@@ -61,7 +61,7 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     }
 
     private ExternalException wrap(Exception e) {
-        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "reading [" + path + "]");
+        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "reading [" + path.objectName() + "]");
         if (expired != null) {
             return expired;
         }
@@ -80,7 +80,15 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(
+            throttling ? ExternalException.Condition.STORE_THROTTLED : ExternalException.Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            throttling,
+            retryAfterMs,
+            e
+        );
     }
 
     @Override

@@ -393,8 +393,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
                     dataStream.getDataLifecycle()
                         .toXContent(builder, params, rolloverConfiguration, dataGlobalRetention, dataStream.isInternal());
-                }
-                if (lifecycleEnabledByDefault) {
+                } else if (lifecycleEnabledByDefault) {
                     builder.field(LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName(), lifecycleEnabledByDefault);
                 }
                 if (ilmPolicyName != null) {

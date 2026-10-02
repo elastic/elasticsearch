@@ -158,8 +158,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
                 lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternalDataStream);
-            }
-            if (lifecycleEnabledByDefault) {
+            } else if (lifecycleEnabledByDefault) {
                 builder.field(LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName(), lifecycleEnabledByDefault);
             }
             if (this.error != null) {

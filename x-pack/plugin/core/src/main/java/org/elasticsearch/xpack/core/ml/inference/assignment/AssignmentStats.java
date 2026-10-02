@@ -29,6 +29,9 @@ import java.util.Optional;
 public class AssignmentStats implements ToXContentObject, Writeable {
 
     public static final TransportVersion MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("assignment_stats_memory_stat");
+    // The peak native memory stat gated by this version has been removed, but the field is still read and written
+    // (as null) to stay wire-compatible with nodes that support this transport version.
+    public static final TransportVersion PEAK_MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("ml_runtime_native_memory_stats");
 
     public static class NodeStats implements ToXContentObject, Writeable {
         private final DiscoveryNode node;
@@ -271,6 +274,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             } else {
                 this.avgInferenceProcessMemoryRssBytes = null;
             }
+            if (in.getTransportVersion().supports(PEAK_MEMORY_STAT_TRANSPORT_VERSION)) {
+                in.readOptionalVLong(); // removed peak native memory stat
+            }
 
         }
 
@@ -432,6 +438,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             out.writeOptionalDouble(avgInferenceTimeExcludingCacheHit);
             if (out.getTransportVersion().supports(MEMORY_STAT_TRANSPORT_VERSION)) {
                 out.writeOptionalVLong(avgInferenceProcessMemoryRssBytes);
+            }
+            if (out.getTransportVersion().supports(PEAK_MEMORY_STAT_TRANSPORT_VERSION)) {
+                out.writeOptionalVLong(null); // removed peak native memory stat
             }
         }
 

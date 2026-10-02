@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,6 +20,10 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class TrainedModelSizeStats implements ToXContentObject, Writeable {
+
+    // The runtime and peak native memory stats gated by this version have been removed, but the fields are still read
+    // and written (as zero) to stay wire-compatible with nodes that support this transport version.
+    static final TransportVersion RUNTIME_NATIVE_MEMORY_STATS = TransportVersion.fromName("ml_runtime_native_memory_stats");
 
     private static final ParseField MODEL_SIZE_BYTES = new ParseField("model_size_bytes");
     private static final ParseField REQUIRED_NATIVE_MEMORY_BYTES = new ParseField("required_native_memory_bytes");
@@ -34,12 +39,20 @@ public class TrainedModelSizeStats implements ToXContentObject, Writeable {
     public TrainedModelSizeStats(StreamInput in) throws IOException {
         modelSizeBytes = in.readLong();
         requiredNativeMemoryBytes = in.readLong();
+        if (in.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
+            in.readVLong(); // removed runtime native memory
+            in.readVLong(); // removed peak runtime native memory
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(modelSizeBytes);
         out.writeLong(requiredNativeMemoryBytes);
+        if (out.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
+            out.writeVLong(0L); // removed runtime native memory
+            out.writeVLong(0L); // removed peak runtime native memory
+        }
     }
 
     @Override

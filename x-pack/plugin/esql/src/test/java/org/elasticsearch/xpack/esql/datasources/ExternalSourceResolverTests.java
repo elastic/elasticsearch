@@ -2503,14 +2503,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an implicit-nulls (footer) format must not carry a row-count-only dataset aggregate",
-            resolver.datasetAggregateKey(parquetListing, Map.of())
+            resolver.datasetAggregateKey(parquetListing, "", Map.of())
         );
 
         FileList textListing = GlobExpander.fileListOf(
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, Map.of());
+        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, "", Map.of());
         assertNotNull("a text-format listing must qualify (positive control)", textKey);
         assertEquals(
             "formatType is the registry name, not a last-dot suffix",
@@ -2533,7 +2533,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an unregistered extension must refuse the aggregate, not throw",
-            resolver.datasetAggregateKey(unknownListing, Map.of())
+            resolver.datasetAggregateKey(unknownListing, "", Map.of())
         );
     }
 
@@ -2550,7 +2550,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
-            resolver.datasetAggregateKey(ndjsonNamed, Map.of("format", "parquet"))
+            resolver.datasetAggregateKey(ndjsonNamed, "", Map.of("format", "parquet"))
         );
     }
 
@@ -2568,8 +2568,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("s3://bucket/data/a.csv", csvThenGz.path(0).toString());
         assertEquals("s3://bucket/data/b.csv.gz", gzThenCsv.path(0).toString());
         assertEquals(csvThenGz.fileSetFingerprint(), gzThenCsv.fileSetFingerprint());
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, Map.of());
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, Map.of());
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, "", Map.of());
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", Map.of());
         assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
         assertEquals(keyA, keyB);
         assertEquals("csv" + SchemaCacheKey.DATASET_AGGREGATE_MARKER, keyA.formatType());
@@ -2591,10 +2591,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("parquet", resolver.detectFormatType(parquetThenParq.path(0), Map.of()));
         assertEquals("parquet", resolver.detectFormatType(parqThenParquet.path(0), Map.of()));
         assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
-        assertEquals(resolver.datasetAggregateKey(parquetThenParq, Map.of()), resolver.datasetAggregateKey(parqThenParquet, Map.of()));
+        assertEquals(
+            resolver.datasetAggregateKey(parquetThenParq, "", Map.of()),
+            resolver.datasetAggregateKey(parqThenParquet, "", Map.of())
+        );
         assertNull(
             "parquet (including .parq) still refuses the row-count-only aggregate",
-            resolver.datasetAggregateKey(parquetThenParq, Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, "", Map.of())
         );
     }
 
@@ -2615,12 +2618,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "s3://b/file.parq",
             1L,
             resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()),
+            "",
             Map.of()
         );
         SchemaCacheKey parquetKey = SchemaCacheKey.build(
             "s3://b/file.parquet",
             1L,
             resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()),
+            "",
             Map.of()
         );
         assertNotEquals(parqKey, parquetKey);
@@ -2642,7 +2647,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String path = "s3://bucket/data/a.ndjson";
             FileList duplicated = GlobExpander.fileListOf(List.of(entry(path, 100), entry(path, 100)), path + "," + path);
-            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, Map.of());
+            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", Map.of());
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
                 null,
@@ -2659,7 +2664,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, "", Map.of());
             resolver.applyDatasetAggregate(
                 null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
@@ -2688,7 +2693,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
@@ -2736,7 +2741,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(
@@ -2807,9 +2812,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 // the dataset reader. Lookup keys must use that same map.
                 Map<String, Object> effectiveConfig = new HashMap<>(config);
                 effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
-                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), effectiveConfig);
+                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
-                String fingerprint = SchemaCacheKey.buildFormatConfig(effectiveConfig);
+                // Derived the one way production derives it, by asking the reader. Computing it a second way here
+                // would let the two drift and the test would pass while the warm path was dead.
+                String fingerprint = resolver.formatConfigIdentity(
+                    GlobExpander.fileListOf(listing, glob).path(0).objectName(),
+                    effectiveConfig
+                );
 
                 // Counts harvested under a different resolved read configuration measured a different set of rows;
                 // summing them for this dataset would be a wrong COUNT(*). Mtime and config fingerprint both match
@@ -4912,7 +4922,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             schemas.put(path, schema);
         }
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", config);
+            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", "", config);
             SchemaCacheEntry sentinel = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://other/keep.parquet"));
             cacheService.putSchema(sentinelKey, sentinel);
             ExternalSourceResolver resolver = createResolver(
@@ -4933,7 +4943,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             for (int i = 0; i < files; i++) {
                 String path = String.format(Locale.ROOT, "s3://bucket/data/part-%02d.parquet", i);
-                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", config);
+                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
                 assertNull("oversized fan-out must not retain " + path, cacheService.getSchemaIfPresent(key));
             }
             assertEquals(1, cacheService.usageStats().get("schema_cache.count"));
@@ -6944,7 +6954,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 if (config == null || config.isEmpty()) {
                     return Configured.empty(provider);
                 }
-                return new Configured<>(provider, Set.copyOf(config.keySet()));
+                // A storage provider identifies itself by the settings that name the store it reads, never by
+                // the coordinator's. Claiming every key here put schema_resolution and file_sort_by into the
+                // storage identity and fragmented the listing cache, which no real configuration can do.
+                return new Configured<>(
+                    provider,
+                    Set.copyOf(config.keySet()),
+                    Configured.identityOf(config, Set.of("endpoint", "region")),
+                    ""
+                );
             }
         };
     }
@@ -8641,21 +8659,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The resolver-level test ({@link #testDatasetAggregateKeyIsolatedByEndpointInDatasource}) pins the
      * end-to-end contract through {@link ExternalSourceResolver#datasetAggregateKey}.
      */
-    public void testListingCacheKeyDifferentiatesByDatasetCredentials() {
+    /**
+     * A listing is isolated by credential, and the value that isolates it comes from the provider rather than from
+     * this key reading the config. Both halves are asserted, because the second is the behavioural change: a key
+     * that scans a config for credential names is guessing which names those are, and the list it guessed with
+     * carried {@code access_key} but not {@code session_token}.
+     */
+    public void testListingCacheKeyDifferentiatesByTheCredentialIdentityTheProviderReports() {
         Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
         Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // Builder walks _datasource directly → credential difference visible even from raw config.
-        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", configA, "");
-        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", configB, "");
-        assertNotEquals("key builder walks _datasource directly → distinct credential hashes from raw config", rawA, rawB);
+        String secretsA = Configured.secretIdentityOf(ExternalSourceResolver.storageConfig(configA), Set.of("access_key"));
+        String secretsB = Configured.secretIdentityOf(ExternalSourceResolver.storageConfig(configB), Set.of("access_key"));
+        assertNotEquals("two credentials must not derive one secret identity", secretsA, secretsB);
+        assertNotEquals(
+            "distinct credential identities must address distinct listings",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", secretsA, configA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", secretsB, configB, "")
+        );
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configA), "");
-        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configB), "");
-        assertNotEquals("flattened config also exposes credentials → listing keys must differ", flatA, flatB);
+        assertEquals(
+            "this key must not derive a credential identity from the config itself: only the provider knows which "
+                + "of its fields are secret, and a list written here omitted session_token, role_arn and auth",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", configA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", configB, "")
+        );
     }
 
     public void testListingCacheKeyDifferentiatesByDatasetEndpoint() {
@@ -8664,15 +8694,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", configA, "");
-        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", configB, "");
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+        // Two things separate these listings now, and neither is this key reading the config for an endpoint.
+        // The provider reports what identifies the store it lists, and the definition version covers every stored
+        // setting including the endpoint — so they stay separated even when the provider reports nothing.
+        ListingCacheKey byProvider = ListingCacheKey.build(
+            "s3",
+            "bucket",
+            "prefix/",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            "",
+            configA,
+            ""
+        );
+        ListingCacheKey byOtherProvider = ListingCacheKey.build(
+            "s3",
+            "bucket",
+            "prefix/",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            "",
+            configB,
+            ""
+        );
+        assertNotEquals("distinct storage identities must address distinct listings", byProvider, byOtherProvider);
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configA), "");
-        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configB), "");
-        assertNotEquals("flattened config also exposes endpoint → listing keys must differ", flatA, flatB);
+        Map<String, Object> versionedA = new HashMap<>(configA);
+        versionedA.put(DefinitionVersion.CONFIG_KEY, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        Map<String, Object> versionedB = new HashMap<>(configB);
+        versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        assertNotEquals(
+            "two definitions differing in their endpoint must address distinct listings even with no provider report",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", versionedA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", versionedB, "")
+        );
     }
 
     public void testSchemaCacheKeyDifferentiatesByDatasetEndpoint() {
@@ -8682,15 +8735,26 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
         long mtime = 1000L;
 
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configA);
-        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configB);
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+        // The endpoint reaches this key by two routes, and neither is the key reading the config for it: the
+        // provider reports what identifies the object, and the definition version covers every stored setting.
+        String identityA = Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint"));
+        String identityB = Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint"));
+        assertNotEquals("two endpoints must not report one identity", identityA, identityB);
+        assertNotEquals(
+            "distinct storage identities must address distinct schema entries",
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityA, configA),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityB, configB)
+        );
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        SchemaCacheKey flatA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configA));
-        SchemaCacheKey flatB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configB));
-        assertNotEquals("flattened config also exposes endpoint → schema keys must differ", flatA, flatB);
+        Map<String, Object> versionedA = new HashMap<>(configA);
+        versionedA.put(DefinitionVersion.CONFIG_KEY, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        Map<String, Object> versionedB = new HashMap<>(configB);
+        versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        assertNotEquals(
+            "two definitions differing in their endpoint must separate even with no provider report",
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedA),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedB)
+        );
     }
 
     public void testSchemaCacheKeyIgnoresDatasetCredentials() {
@@ -8703,31 +8767,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long mtime = 1000L;
 
         // Raw config: credentials in _datasource are still ignored (schema is user-independent).
-        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configA);
-        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configB);
+        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configA);
+        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configB);
         assertEquals("schema keys differing only in _datasource credentials must be equal — cache is shared across users", rawA, rawB);
 
         // Same invariant holds after storageConfig flattening.
-        SchemaCacheKey flatA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configA));
-        SchemaCacheKey flatB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configB));
+        SchemaCacheKey flatA = SchemaCacheKey.build(
+            "s3://bucket/file.csv",
+            mtime,
+            "csv",
+            "",
+            ExternalSourceResolver.storageConfig(configA)
+        );
+        SchemaCacheKey flatB = SchemaCacheKey.build(
+            "s3://bucket/file.csv",
+            mtime,
+            "csv",
+            "",
+            ExternalSourceResolver.storageConfig(configB)
+        );
         assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
     }
 
-    public void testFileMetadataCacheKeyDifferentiatesByDatasetEndpoint() {
-        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
-        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
-        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
-        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
-
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        FileMetadataCacheKey rawA = FileMetadataCacheKey.build("s3://bucket/file.csv", configA);
-        FileMetadataCacheKey rawB = FileMetadataCacheKey.build("s3://bucket/file.csv", configB);
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
-
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        FileMetadataCacheKey flatA = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configA));
-        FileMetadataCacheKey flatB = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configB));
-        assertNotEquals("flattened config also exposes endpoint → file-metadata keys must differ", flatA, flatB);
+    public void testFileMetadataCacheKeyDifferentiatesByStorageIdentity() {
+        // The endpoint reaches this key one way, and it is not the key reading the config for it: the provider
+        // reports what identifies the objects it reads, and an endpoint is one of the settings it names.
+        FileMetadataCacheKey rawA = new FileMetadataCacheKey(
+            "s3://bucket/file.csv",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint"))
+        );
+        FileMetadataCacheKey rawB = new FileMetadataCacheKey(
+            "s3://bucket/file.csv",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint"))
+        );
+        assertNotEquals("distinct storage identities must address distinct file-metadata entries", rawA, rawB);
     }
 
     /**
@@ -8749,8 +8822,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(listing, configA);
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(listing, configB);
+        // The resolver folds the provider's report into the aggregate key, so give the two resolves the identities
+        // two providers over different endpoints would report.
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(
+            listing,
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            configA
+        );
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(
+            listing,
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            configB
+        );
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyA);
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyB);
         assertNotEquals("datasetAggregateKey must produce different keys for different _datasource.endpoint values", keyA, keyB);

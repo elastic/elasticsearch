@@ -474,6 +474,10 @@ public final class DatasetRewriter {
             );
         }
         Map<String, Object> merged = mergeSettings(parent, dataset);
+        // Everything cached about this dataset's files is derived from these two definitions, so it is
+        // addressed by a version of them. An edit to either takes the derived entries out of reach
+        // without anything having to notice the edit and invalidate them.
+        merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
         Literal path = Literal.keyword(source, dataset.resource());
         return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
     }

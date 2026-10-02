@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -222,7 +221,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     /**
      * Every key the reader consumes must either participate in the cache identity
-     * ({@link SchemaCacheKey#affectsIdentity}) or be declared inert here with a justification.
+     * (the identity this reader vends) or be declared inert here with a justification.
      * <ul>
      *   <li>{@code segment_size} — read segmentation only. The split-alignment protocol (leading partial record
      *       dropped, trailing partial record finished) makes the surviving record set, and therefore every
@@ -231,22 +230,6 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
      */
     private static final Set<String> IDENTITY_INERT_KEYS = Set.of(NdJsonFormatReader.CONFIG_SEGMENT_SIZE);
 
-    public void testEveryRecognizedKeyIsIdentityAffectingOrDeclaredInert() {
-        for (String key : NdJsonFormatReader.RECOGNIZED_KEYS) {
-            boolean affects = SchemaCacheKey.affectsIdentity(key);
-            boolean inert = IDENTITY_INERT_KEYS.contains(key);
-            assertTrue(
-                "key ["
-                    + key
-                    + "] is consumed by the reader but neither participates in the cache identity nor is declared "
-                    + "inert: add it to SchemaCacheKey's identity params, or declare it in IDENTITY_INERT_KEYS with "
-                    + "a justification that it cannot change which rows survive or what values they hold",
-                affects || inert
-            );
-            assertFalse("key [" + key + "] cannot be both identity-affecting and declared inert", affects && inert);
-        }
-    }
-
     public void testDeclaredInertKeysAreStillRecognized() {
         for (String key : IDENTITY_INERT_KEYS) {
             assertTrue(
@@ -254,5 +237,44 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
                 NdJsonFormatReader.RECOGNIZED_KEYS.contains(key)
             );
         }
+    }
+
+    /**
+     * The behavioural form of the pin above, against the value the reader actually vends. A declared key must
+     * move the identity and an inert one must not — which is what a cache addressing a record by this value
+     * depends on, and what a set-membership assertion cannot see: a reader that computed its identity by hand
+     * and forgot a key passes the membership check and fails this one.
+     */
+    public void testTheVendedIdentityMovesWithEveryDeclaredKeyAndNoInertOne() {
+        Map<String, Object> base = Map.of(
+            NdJsonFormatReader.CONFIG_SCHEMA_SAMPLE_SIZE,
+            "100",
+            NdJsonFormatReader.CONFIG_SEGMENT_SIZE,
+            "1mb",
+            NdJsonFormatReader.CONFIG_DATETIME_FORMAT,
+            "yyyy-MM-dd"
+        );
+        String baseIdentity = newReader().withConfigTrackingConsumedKeys(base).identity();
+
+        for (String key : NdJsonFormatReader.RECOGNIZED_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, differentValueFor(key));
+            String identity = newReader().withConfigTrackingConsumedKeys(altered).identity();
+            if (IDENTITY_INERT_KEYS.contains(key)) {
+                assertEquals("inert key [" + key + "] must not move the identity", baseIdentity, identity);
+            } else {
+                assertNotEquals("declared key [" + key + "] must move the identity", baseIdentity, identity);
+            }
+        }
+    }
+
+    private static String differentValueFor(String key) {
+        if (NdJsonFormatReader.CONFIG_SCHEMA_SAMPLE_SIZE.equals(key)) {
+            return "200";
+        }
+        if (NdJsonFormatReader.CONFIG_SEGMENT_SIZE.equals(key)) {
+            return "2mb";
+        }
+        return "dd-MM-yyyy";
     }
 }

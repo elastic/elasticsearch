@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -492,7 +491,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final ErrorPolicy effectivePolicy;
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config, as produced by
-     * {@link SchemaCacheKey#buildFormatConfig}. Used as the external-stats cache fingerprint. It is
+     * {@link Configured#identityOf}. Used as the external-stats cache fingerprint. It is
      * deliberately derived from the canonical config rather than the parsed options or the resolved
      * schema: a data node reads only the query's projected columns and an instance-local options
      * object, so a projection/options-derived fingerprint would differ from the coordinator's and the
@@ -1233,10 +1232,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
-        // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
+        // Pin the node-stable config identity from THIS query's WITH config. identityOf filters
         // to format-affecting params (dropping credentials, split keys, and any per-node augmentation),
         // so a coordinator and a data node configured from the same logical query derive the same value.
-        String canon = SchemaCacheKey.buildFormatConfig(config);
+        //
+        // The resolved error policy is folded in because it decides which rows survive: a skip_row scan's committed
+        // count is a survivor count and its column statistics describe null-filled cells, so they are a different
+        // measurement of the same bytes than a fail_fast read makes. Without this the two share a harvest
+        // fingerprint, and since a contribution is matched to an entry on path, mtime and that fingerprint alone,
+        // a lenient scan's count enriches a strict entry whose own scan aborts.
+        String canon = Configured.fold(Configured.identityOf(config, RECOGNIZED_KEYS), resolvedPolicy.readIdentity());
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,
@@ -1252,7 +1257,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.declaredProvenanceBinding,
             parsedOptions.configWarnings()
         );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
+        // The vended identity IS canon — the same string this reader stamps on a harvest. The coordinator seeds a
+        // cache entry with the former and the data node stamps the latter, and the reconcile gate enriches the entry
+        // only when they compare equal, so deriving them apart silently stops a strict dataset warming.
+        return Configured.fromKnownSubsetWithIdentity(result, config, RECOGNIZED_KEYS, canon);
     }
 
     @Override
@@ -1299,10 +1307,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
-     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * canonical string this reader derives from its own recognised keys, so a data
      * node's shipped-back contribution and the coordinator's cache entry compare equal across JVMs.
      */
     private String computeConfigFingerprint() {
+        return canonicalConfig;
+    }
+
+    /**
+     * The harvest fingerprint this reader stamps, for tests that must assert over the value production derives rather
+     * than a literal. Distinct from the {@link Configured#identity()} the reader vends: that names the reader's
+     * recognised keys, this additionally carries the resolved error policy, and it is this one that decides whether a
+     * contribution may enrich an entry.
+     */
+    String harvestFingerprintForTests() {
         return canonicalConfig;
     }
 

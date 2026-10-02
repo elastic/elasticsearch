@@ -15,10 +15,13 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -58,6 +61,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ul>
  */
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
+
+    private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
 
     private final HttpClient client;
     private final StoragePath path;
@@ -182,33 +187,33 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Maps a non-success HTTP status into the exception to surface to ES|QL. A retryable status
      * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
      * any other status becomes an {@link IOException}, which the external source operator classifies as
-     * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
-     * (a raw status alone is opaque; stores typically return a descriptive body). {@code retryAfterMs}
+     * a client-class 400. {@code detail} is an optional truncated error-response body: a store's error body
+     * routinely names the bucket or object in plain text (e.g. a GCS {@code {"error":{"message":"No such object:
+     * bucket/key"}}}), so it is logged here for the admin at DEBUG and never forwarded. {@code retryAfterMs}
      * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
      * synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
-        String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
+        if (detail != null && detail.isEmpty() == false) {
+            logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+        }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
             return new ExternalUnavailableException(
+                throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+                path,
+                "HTTP " + statusCode,
+                "",
                 throttling,
-                throttling ? retryAfterMs : 0L,
-                "HTTP store unavailable reading [{}] (HTTP {}){}",
-                HttpUrls.redact(path),
-                statusCode,
-                suffix
+                throttling ? retryAfterMs : 0L
             );
         }
         if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
-            return new ExternalObjectChangedException(
-                "Object changed during read of [{}] (HTTP {}){}",
-                HttpUrls.redact(path),
-                statusCode,
-                suffix
-            );
+            ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
+            ex.setDetail("HTTP " + statusCode);
+            return ex;
         }
-        return new IOException(context + " [" + HttpUrls.redact(path) + "] (HTTP " + statusCode + ")" + suffix);
+        return new IOException(context + " [" + path.objectName() + "] (HTTP " + statusCode + ")");
     }
 
     /**
@@ -307,7 +312,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + HttpUrls.redact(path));
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -318,7 +323,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + HttpUrls.redact(path));
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLastModified;
     }
@@ -592,10 +597,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             if (current != null) {
-                throw new ExternalObjectChangedException(
-                    "Object generation could not be verified during read of [{}]",
-                    HttpUrls.redact(path)
-                );
+                ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
+                ex.setDetail("generation could not be verified");
+                throw ex;
             }
             return;
         }
@@ -606,7 +610,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", HttpUrls.redact(path));
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -690,7 +694,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return client.send(request, bodyHandler);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + HttpUrls.redact(path), e);
+            throw new IOException("HTTP request interrupted for " + path.objectName(), e);
         } catch (IOException e) {
             throw typeTransportFailure(e);
         } catch (IllegalStateException e) {
@@ -710,8 +714,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * path-prefixed {@link IOException} wrapper.
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
-        // unwrapBreakerTrip renders the path it is handed into its message, so it gets the redacted form.
-        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", HttpUrls.redact(path));
+        // unwrapBreakerTrip renders the path it is handed into its message, so it gets the object name.
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path.objectName());
         if (breakerTrip != null) {
             return breakerTrip;
         }
@@ -723,11 +727,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof IOException || cause instanceof IllegalStateException) {
             return typeTransportFailure((Exception) cause);
         }
-        return new IOException("HTTP read failed for " + HttpUrls.redact(path), throwable);
+        return new IOException("HTTP read failed for " + path.objectName(), throwable);
     }
 
     private ExternalUnavailableException typeTransportFailure(Exception e) {
-        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", HttpUrls.redact(path));
+        return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L, e);
     }
 
     /**
@@ -742,7 +746,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // Extract Content-Length
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent() == false) {
-                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + HttpUrls.redact(path));
+                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path.objectName());
                 }
                 // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
                 // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
@@ -761,7 +765,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 cachedLength = 0L;
                 cachedLastModified = null;
             } else {
-                throw new IOException("HEAD request failed for " + HttpUrls.redact(path) + ", HTTP status: " + statusCode);
+                throw new IOException("HEAD request failed for " + path.objectName() + ", HTTP status: " + statusCode);
             }
             return null;  // Void return
         });

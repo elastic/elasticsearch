@@ -701,4 +701,49 @@ public class ErrorModelTests extends ESTestCase {
             lessThan(falseStd)
         );
     }
+
+    /** The conservative margin is a parameter: the anchored std scales with sqrt(varianceInflation), default 3.0. */
+    public void testVarianceInflationScalesTheMeasuredStd() throws IOException {
+        assertEquals(3.0, ErrorModel.DEFAULT_VARIANCE_INFLATION, 0.0);
+        CalibrationSource source = unitDotSource(2400, 64, 99L);
+        QuantizationErrorStdModel withMargin = ErrorModel.estimateMagnitudeFromRealResiduals(
+            0.1,
+            source,
+            false,
+            4,
+            2,
+            128,
+            ErrorModel.newRealResidualState(source)
+        );
+        QuantizationErrorStdModel noMargin = ErrorModel.estimateMagnitudeFromRealResiduals(
+            0.1,
+            source,
+            false,
+            4,
+            2,
+            128,
+            ErrorModel.newRealResidualState(source, 1.0)
+        );
+        int anchor = Math.min(ErrorModel.REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
+        double ratio = withMargin.errorStd(128, anchor) / noMargin.errorStd(128, anchor);
+        assertEquals(Math.sqrt(3.0), ratio, 1e-6);
+    }
+
+    private static CalibrationSource unitDotSource(int rows, int dim, long seed) throws IOException {
+        float[][] data = randomNormalizedRows(rows, dim, seed);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(data), null, dim);
+        return new CalibrationSource(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            dim,
+            fvv,
+            range(0, 64),
+            dim,
+            false,
+            false,
+            null,
+            range(64, rows - 64),
+            10,
+            fvv.size()
+        );
+    }
 }

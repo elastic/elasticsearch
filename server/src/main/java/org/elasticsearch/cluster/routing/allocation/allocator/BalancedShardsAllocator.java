@@ -1343,10 +1343,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 int comparison = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
-                    nodeId -> balancingWeights.createMoveComparatorForNode(
-                        allocation.routingNodes().node(nodeId),
-                        allocation.clusterInfo()
-                    )
+                    nodeId -> balancingWeights.createMoveComparatorForNode(allocation.routingNodes().node(nodeId), allocation.clusterInfo())
                 ).compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
                 return comparison < 0;

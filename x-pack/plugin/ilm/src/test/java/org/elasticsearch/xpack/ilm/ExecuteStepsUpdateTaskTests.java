@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -54,7 +55,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ExecuteStepsUpdateTaskTests extends ESTestCase {
@@ -411,8 +411,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     }
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = mock(DataStreamLifecycleSettings.class);
-        when(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()).thenReturn(enabled);
+        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
         return dataStreamLifecycleSettings;
     }
 }

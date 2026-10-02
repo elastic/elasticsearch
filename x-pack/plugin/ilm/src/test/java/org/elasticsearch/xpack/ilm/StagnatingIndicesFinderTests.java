@@ -377,8 +377,8 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     record IndexMetadataTestCase(String indexName, String policyName, LifecycleExecutionState ilmState) {}
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = mock(DataStreamLifecycleSettings.class);
-        when(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()).thenReturn(enabled);
+        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
         return dataStreamLifecycleSettings;
     }
 }

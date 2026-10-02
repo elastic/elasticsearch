@@ -1482,8 +1482,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     }
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = mock(DataStreamLifecycleSettings.class);
-        when(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()).thenReturn(enabled);
+        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
         return dataStreamLifecycleSettings;
     }
 }

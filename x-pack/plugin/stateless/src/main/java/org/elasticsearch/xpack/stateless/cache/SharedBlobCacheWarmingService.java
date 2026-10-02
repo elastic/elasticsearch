@@ -921,9 +921,6 @@ public class SharedBlobCacheWarmingService {
      * whether to race warming against a timeout; otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via
      * {@link ActionListener#noop()}).
      *
-     * <p>The {@code clusterStateSupplier} is called lazily each time the warming timeout is (re-)evaluated against the grace-period
-     * deadline, so callers should pass {@code clusterService::state} rather than a snapshot.
-     *
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(

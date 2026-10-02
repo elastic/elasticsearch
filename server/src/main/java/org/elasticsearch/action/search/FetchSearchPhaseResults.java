@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
@@ -23,9 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * so the charge is only given back when this collection is released at the end of the search.
  */
 final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchResult> {
-
-    // Holds the charge off the default path until the fetch paths this does not reach yet are accounted for.
-    static final FeatureFlag ACCOUNTING_FEATURE_FLAG = new FeatureFlag("coordinator_fetch_accounting");
 
     private static final long RELEASED = -1L;
 
@@ -41,13 +37,16 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
     }
 
     /**
-     * Charges the breaker for the hits a shard has just sent back. Called from {@link FetchSearchPhase} before the
-     * result is handed to the collector, so that a trip leaves the hits to the caller to release.
+     * Charges the breaker for the hits a shard has just sent back, unless they were assembled on this node and
+     * arrived charged. Called from {@link FetchSearchPhase} before the result is handed to the collector, so that
+     * a trip leaves the hits to the caller to release.
      *
      * @throws CircuitBreakingException if the coordinating node cannot hold these hits
      */
     void reserve(FetchSearchResult result) {
-        if (ACCOUNTING_FEATURE_FLAG.isEnabled() == false) {
+        // The chunked path handed over what it charged for these hits, and the result gives that back when it is
+        // released, so charging here again would hold them twice.
+        if (result.isChargedOnCoordinator()) {
             return;
         }
         long bytes = 0L;

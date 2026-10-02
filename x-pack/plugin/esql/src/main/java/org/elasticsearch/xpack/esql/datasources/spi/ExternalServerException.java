@@ -17,16 +17,41 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalServerException extends ExternalException {
 
-    public ExternalServerException(String message, Throwable cause) {
+    ExternalServerException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalServerException(Throwable cause, String message, Object... args) {
+    ExternalServerException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalServerException(String message, Object... args) {
+    ExternalServerException(String message, Object... args) {
         super(message, args);
+    }
+
+    /**
+     * Structured constructor: message built from {@code condition.render(path.objectName(), detailCode, remedy)}.
+     * Only the object name is embedded — the full URI never appears.
+     */
+    public ExternalServerException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
+        super(condition, path, detailCode, remedy, cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalServerException(Condition, StoragePath, String, String, Throwable)}.
+     */
+    public ExternalServerException(Condition condition, StoragePath path, String detailCode, String remedy) {
+        super(condition, path, detailCode, remedy);
+    }
+
+    private ExternalServerException(ExternalServerException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalServerException copyWithoutCause() {
+        return new ExternalServerException(this);
     }
 
     @Override

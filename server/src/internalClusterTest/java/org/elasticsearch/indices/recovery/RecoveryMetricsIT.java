@@ -30,7 +30,9 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
@@ -653,6 +656,71 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         );
         assertThat("Direct cancellation elapsed time measurements", cancellationsElapsedTime, hasSize(1));
         assertThat(cancellationsElapsedTime.getFirst().getLong(), greaterThanOrEqualTo(0L));
+    }
+
+    public void testQueueLatencyMetric() {
+        // Setting estimated_time_interval to 0 disables the clock cache so that absoluteTimeInMillis() calls System.currentTimeMillis()
+        // directly, so we can make a more precise assertion about the latency metric:
+        final var node = internalCluster().startNode(
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
+                .build()
+        );
+        final var telemetry = resetAndGetTelemetryPlugin(node);
+
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
+
+        // Block the first recovery, so that the second will stay in the queue:
+        final var firstRecoveryStarted = new CountDownLatch(1);
+        final var proceedWithFirstRecovery = new CountDownLatch(1);
+        final IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(indexOne)) {
+                    firstRecoveryStarted.countDown();
+                    safeAwait(proceedWithFirstRecovery);
+                }
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        // First recovery holds the only slot:
+        assertAcked(prepareCreate(indexOne).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        safeAwait(firstRecoveryStarted);
+
+        // Record wall-clock time just before the second recovery is enqueued, to bound the latency metric:
+        final long beforeEnqueueMillis = System.currentTimeMillis();
+
+        // Second recovery is queued behind the first:
+        assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+
+        // Sleep so the queued recovery accumulates measurable latency:
+        final long sleepMillis = randomLongBetween(50, 200);
+        safeSleep(sleepMillis);
+
+        telemetry.collect();
+        final long totalElapsedMillis = System.currentTimeMillis() - beforeEnqueueMillis;
+        final var measurements = telemetry.getLongAsyncGaugeMeasurement(RecoveryMetricsCollector.QUEUED_RECOVERY_LATENCY);
+        assertThat(measurements, hasSize(1));
+        final long latency = measurements.getFirst().getLong();
+        final long marginOfErrorMillis = 5L;
+        // The latency gauge must be at least the time that we slept for, and no more than the elapsed time between enqueuing the second
+        // recovery and collecting the metrics (within a small margin of error in case system time went backwards):
+        assertThat(
+            latency,
+            Matchers.allOf(
+                greaterThanOrEqualTo(sleepMillis - marginOfErrorMillis),
+                lessThanOrEqualTo(totalElapsedMillis + marginOfErrorMillis)
+            )
+        );
+
+        proceedWithFirstRecovery.countDown();
+        ensureGreen(indexOne, indexTwo);
+        disableAllocation();
     }
 
     private TestTelemetryPlugin resetAndGetTelemetryPlugin(String node) {

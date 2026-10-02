@@ -315,12 +315,14 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         syncRequest.setJsonEntity("{\"query\": \"FROM stream-test | EVAL x = unknown_function(value)\"}");
         ResponseException syncRe = expectThrows(ResponseException.class, () -> client().performRequest(syncRequest));
         @SuppressWarnings("unchecked")
-        Map<String, Object> syncBody = (Map<String, Object>) XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            syncRe.getResponse().getEntity().getContent(),
-            true
-        ).get("error");
+        Map<String, Object> syncBody = (Map<String, Object>) entityAsMap(syncRe.getResponse()).get("error");
         assertThat("streaming error type must match sync", error.get("type"), equalTo(syncBody.get("type")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> streamRoot = ((List<Map<String, Object>>) error.get("root_cause")).get(0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> syncRoot = ((List<Map<String, Object>>) syncBody.get("root_cause")).get(0);
+        assertThat("streaming root_cause type must match sync", streamRoot.get("type"), equalTo(syncRoot.get("type")));
+        assertThat("streaming root_cause reason must match sync", streamRoot.get("reason"), equalTo(syncRoot.get("reason")));
     }
 
     public void testOmittedBatchSizeDefaultsToHundred() throws IOException {

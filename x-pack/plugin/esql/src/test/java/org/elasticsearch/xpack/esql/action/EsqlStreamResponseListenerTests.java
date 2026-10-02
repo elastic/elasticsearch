@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +37,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,13 +49,16 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlStreamResponseListenerTests extends ESTestCase {
 
@@ -601,11 +606,16 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             cause
         );
         listener.onPreHeaderFailureFooter(footer);
-        listener.onFailure(cause);
+        listener.onFailure(new ElasticsearchStatusException("other", RestStatus.BAD_REQUEST));
 
         RestResponse restResponse = channel.capturedResponse();
         assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        assertThat(
+            "error must come from the supplied footer",
+            ((Map<String, Object>) line.get("error")).get("reason"),
+            equalTo("injected")
+        );
         assertThat("took must come from the supplied footer", line.get("took"), equalTo(12345));
         @SuppressWarnings("unchecked")
         List<String> warnings = (List<String>) line.get("warnings");
@@ -630,6 +640,44 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         List<String> warnings = (List<String>) line.get("warnings");
         assertThat("thread-context warning must appear in fallback footer", warnings, equalTo(List.of("limit added")));
         assertFalse("fallback footer must not carry stats keys", line.containsKey("documents_found"));
+    }
+
+    private static FakeRestRequest requestWithParams(Map<String, String> params) {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(new HashMap<>(params)).build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testErrorTraceAddsStackTrace() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(requestWithParams(Map.of("error_trace", "true")), true);
+        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(
+            new ElasticsearchStatusException("bad", RestStatus.BAD_REQUEST)
+        );
+        Map<String, Object> error = (Map<String, Object>) decodeLine(channel.capturedResponse().chunkedContent()).get("error");
+        assertThat(error, hasKey("stack_trace"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testErrorTraceSuppressedFor401AndHeadersCopied() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(requestWithParams(Map.of("error_trace", "true")), true);
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("no", RestStatus.UNAUTHORIZED);
+        e.addBodyHeader("WWW-Authenticate", "Basic realm=\"security\"");
+        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(e);
+
+        RestResponse response = channel.capturedResponse();
+        assertThat(response.status(), equalTo(RestStatus.UNAUTHORIZED));
+        assertThat(response.getHeaders().get("WWW-Authenticate"), equalTo(List.of("Basic realm=\"security\"")));
+        Map<String, Object> error = (Map<String, Object>) decodeLine(response.chunkedContent()).get("error");
+        assertThat(error, not(hasKey("stack_trace")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNonDetailedErrorsRenderTypeAndReasonOnly() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), false);
+        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(
+            new ElasticsearchException("wrapper", new ElasticsearchException("root"))
+        );
+        Map<String, Object> error = (Map<String, Object>) decodeLine(channel.capturedResponse().chunkedContent()).get("error");
+        assertThat(error.keySet(), equalTo(Set.of("type", "reason")));
     }
 
     @SuppressWarnings("unchecked")

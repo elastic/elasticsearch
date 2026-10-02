@@ -584,17 +584,19 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
     }
 
-    public void testTookMillisFallsBackToTimeSinceStartedOnFailure() {
+    public void testTookMillisFallsBackToTimeSinceStartedOnFailure() throws InterruptedException {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         assertNull("overallTook() must be null before markEndQuery()", executionInfo.overallTook());
+        Thread.sleep(10);
         long took = TransportEsqlStreamQueryAction.tookMillis(executionInfo);
-        assertTrue("fallback took must be non-negative", took >= 0);
+        assertTrue("fallback took must reflect time elapsed since the query started, got [" + took + "]", took > 0);
     }
 
-    public void testFailureFooterCarriesStatusTookAndError() {
+    public void testFailureFooterCarriesStatusTookAndError() throws InterruptedException {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ElasticsearchStatusException cause = new ElasticsearchStatusException("index missing", RestStatus.NOT_FOUND);
+        Thread.sleep(10);
 
         PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
             cause,
@@ -604,7 +606,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
 
         assertEquals("status must come from the exception", RestStatus.NOT_FOUND.getStatus(), footer.status());
-        assertTrue("took must be non-negative", footer.tookMillis() >= 0);
+        assertTrue("took must reflect time elapsed since the query started, got [" + footer.tookMillis() + "]", footer.tookMillis() > 0);
         assertSame("error must be the supplied exception", cause, footer.error());
         assertNull("stats must be omitted on failure", footer.completionInfo());
     }

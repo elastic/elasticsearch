@@ -605,7 +605,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             null,
             cause
         );
-        listener.onPreHeaderFailureFooter(footer);
+        listener.setPreHeaderFailureFooter(footer);
         listener.onFailure(new ElasticsearchStatusException("other", RestStatus.BAD_REQUEST));
 
         RestResponse restResponse = channel.capturedResponse();

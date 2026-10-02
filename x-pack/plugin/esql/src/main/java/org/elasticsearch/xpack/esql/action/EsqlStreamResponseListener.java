@@ -92,7 +92,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.threadContext = threadContext;
     }
 
-    void onPreHeaderFailureFooter(PageStreamPublisher.StreamFooter footer) {
+    void setPreHeaderFailureFooter(PageStreamPublisher.StreamFooter footer) {
         this.preHeaderFailureFooter = footer;
     }
 

@@ -32,7 +32,7 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
     private final ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener;
     private final boolean dropNullColumns;
     private final int batchSize;
-    private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterListener;
+    private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer;
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
@@ -48,21 +48,21 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
         ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener,
         boolean dropNullColumns,
         int batchSize,
-        Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterListener
+        Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer
     ) {
         super(source);
         this.resultStreamListener = resultStreamListener;
         this.dropNullColumns = dropNullColumns;
         this.batchSize = batchSize;
-        this.preHeaderFailureFooterListener = preHeaderFailureFooterListener;
+        this.preHeaderFailureFooterConsumer = preHeaderFailureFooterConsumer;
     }
 
     public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
         return resultStreamListener;
     }
 
-    public Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterListener() {
-        return preHeaderFailureFooterListener;
+    public Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer() {
+        return preHeaderFailureFooterConsumer;
     }
 
     public boolean dropNullColumns() {

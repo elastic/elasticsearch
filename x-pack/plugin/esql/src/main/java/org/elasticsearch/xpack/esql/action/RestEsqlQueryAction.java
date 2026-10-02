@@ -148,7 +148,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
                 resolvedBatchSize,
-                restListener::onPreHeaderFailureFooter
+                restListener::setPreHeaderFailureFooter
             );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,

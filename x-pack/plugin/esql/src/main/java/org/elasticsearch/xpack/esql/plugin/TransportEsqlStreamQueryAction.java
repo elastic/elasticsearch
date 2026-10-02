@@ -418,7 +418,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 if (streamStarted.get()) {
                     publisher.failStream(ex, footer);
                 } else {
-                    request.preHeaderFailureFooterListener().accept(footer);
+                    request.preHeaderFailureFooterConsumer().accept(footer);
                 }
                 listener.onFailure(ex);
             })

@@ -69,6 +69,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1171,16 +1172,28 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /// deterministically whether and when the "timeout" fires. Its cancellable always reports a successful cancellation, mimicking
     /// the real-life window in which a scheduled task's command has already been dispatched to its target executor but the JDK
     /// future is not yet marked done, so a concurrent cancel() still "wins" (see https://github.com/elastic/elasticsearch/issues/154033).
+    ///
+    /// Time is simulated: [#relativeTimeInMillis()] only advances by the delay of a captured command when the test runs it, so the
+    /// elapsed time seen by the code under test is deterministic.
     private static class CapturingScheduleThreadPool extends TestThreadPool {
         final AtomicReference<Runnable> scheduledCommand = new AtomicReference<>();
+        private final AtomicLong currentTimeMillis = new AtomicLong();
 
         CapturingScheduleThreadPool(String name) {
             super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
         }
 
         @Override
+        public long relativeTimeInMillis() {
+            return currentTimeMillis.get();
+        }
+
+        @Override
         public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-            assertTrue("expected a single scheduled task", scheduledCommand.compareAndSet(null, command));
+            assertTrue("expected a single scheduled task", scheduledCommand.compareAndSet(null, () -> {
+                currentTimeMillis.addAndGet(delay.millis());
+                command.run();
+            }));
             return new ScheduledCancellable() {
                 @Override
                 public long getDelay(TimeUnit unit) {
@@ -1212,14 +1225,23 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /// A `null` result from [#drainTask()] means no task was scheduled, i.e. the timeout fired rather than rescheduling.
     private static class ReEvaluationThreadPool extends TestThreadPool {
         private final AtomicReference<Runnable> pendingTask = new AtomicReference<>();
+        private final AtomicLong currentTimeMillis = new AtomicLong();
 
         ReEvaluationThreadPool(String name) {
             super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
         }
 
         @Override
+        public long relativeTimeInMillis() {
+            return currentTimeMillis.get();
+        }
+
+        @Override
         public ScheduledCancellable schedule(Runnable task, TimeValue delay, Executor executor) {
-            pendingTask.set(task);
+            pendingTask.set(() -> {
+                currentTimeMillis.addAndGet(delay.millis());
+                task.run();
+            });
             return new ScheduledCancellable() {
                 @Override
                 public long getDelay(TimeUnit unit) {

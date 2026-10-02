@@ -9,6 +9,7 @@
 
 package org.elasticsearch.backwards;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -19,7 +20,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+    public MixedClusterClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {    
         super(testCandidate);
     }
 

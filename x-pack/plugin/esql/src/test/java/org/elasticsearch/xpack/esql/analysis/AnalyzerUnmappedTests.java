@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Strings;
@@ -2146,16 +2147,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * Reproducer for #150375.
+     * Reproducer for #150375. {@code ::integer} accepts the unmapped keyword leg but not {@code ip}, so the mapped leg
+     * loads as null and the query succeeds.
      */
-    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
+    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeIsLenient() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        analyzer().addIndex(partialIpIndex())
-            .statementError(
-                setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
-                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
-            );
+        var plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(partialIpIndex())
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.dataType(), equalTo(DataType.INTEGER));
+        assertWarnings("Field [partial_ip] of type [ip] cannot be converted to [INTEGER] and will be null in those indices.");
     }
 
     /**

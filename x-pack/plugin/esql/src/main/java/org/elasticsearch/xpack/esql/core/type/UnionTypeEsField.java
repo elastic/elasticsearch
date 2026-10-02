@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeEsField, CompactMultiTypeEsField {
     public UnionTypeEsField(
@@ -55,11 +56,29 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
 
     record Resolution(DataType resolvedDataType, Map<DataType, Expression> typeToExpr) {}
 
+    /**
+     * Drops mapped conversions whose source type {@code supportedTypes} does not accept. The unmapped conversion is left for the caller.
+     * Indices or types that are dropped load as null.
+     */
+    public abstract UnionTypeEsField retainingSupportedSourceTypes(Set<DataType> supportedTypes);
+
+    /**
+     * {@code true} when {@code expression} converts a field whose type, widened for small numerics, is in {@code supportedTypes}.
+     */
+    static boolean sourceTypeSupported(Expression expression, Set<DataType> supportedTypes) {
+        return expression instanceof AbstractConvertFunction convertFunction
+            && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric());
+    }
+
     static Resolution resolve(TypeConflictedField field, Map<String, Expression> typesToConversionExpressions) {
         DataType resolvedDataType = DataType.UNSUPPORTED;
         Map<DataType, Expression> typeToExpr = new HashMap<>();
         for (String typeName : field.getTypesToIndices().keySet()) {
             Expression convertExpr = typesToConversionExpressions.get(typeName);
+            // A missing conversion is a lenient cast: that mapped type cannot convert and loads as null.
+            if (convertExpr == null) {
+                continue;
+            }
             if (resolvedDataType == DataType.UNSUPPORTED) {
                 resolvedDataType = convertExpr.dataType();
             } else if (resolvedDataType != convertExpr.dataType()) {

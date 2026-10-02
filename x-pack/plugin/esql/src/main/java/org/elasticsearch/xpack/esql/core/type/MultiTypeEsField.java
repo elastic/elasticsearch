@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * <p>
@@ -125,6 +126,24 @@ public final class MultiTypeEsField extends UnionTypeEsField {
 
     public @Nullable Expression getConversionExpressionForIndex(String indexName) {
         return indexToConversionExpressions.get(indexName);
+    }
+
+    @Override
+    public UnionTypeEsField retainingSupportedSourceTypes(Set<DataType> supportedTypes) {
+        Map<String, Expression> kept = new HashMap<>();
+        indexToConversionExpressions.forEach((index, expression) -> {
+            if (sourceTypeSupported(expression, supportedTypes)) {
+                kept.put(index, expression);
+            }
+        });
+        return new MultiTypeEsField(
+            getName(),
+            getDataType(),
+            isAggregatable(),
+            kept,
+            getTimeSeriesFieldType(),
+            potentiallyUnmappedExpression
+        );
     }
 
     @Override

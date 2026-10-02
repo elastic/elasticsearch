@@ -3941,15 +3941,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
-     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
-     * conversion function can't resolve every leg, so the field falls through to the generic
-     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
-     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
-     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
-     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
+     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). On a union, the keyword
+     * leg converts and the ip leg loads as null, with a warning. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
+     * for the fully-castable workaround of an explicit inner cast.
      */
-    public void testToTextOnNonStringUnionTypeFails() {
+    public void testToTextOnNonStringUnionTypeIsLenient() {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
@@ -3958,15 +3954,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
             List.of()
         );
         IndexResolution resolution = mergedResolution("foo,bar", caps);
-        analyzer().addIndex(resolution)
-            .error(
-                "FROM foo, bar | EVAL x = TO_TEXT(value)",
-                equalTo(
-                    "Found 1 problem\n"
-                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[ip] in [foo], [keyword] in [bar]"
-                )
-            );
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .query("FROM foo, bar | EVAL x = TO_TEXT(value)");
+        assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [TEXT] and will be null in those indices.");
     }
 
     public void testValidFuse() {
@@ -5794,15 +5785,17 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * Reproducer for #150375.
+     * Reproducer for #150375. {@code ::double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is
+     * nulled. {@code ::ip} accepts neither date type, so the cast still fails.
      */
-    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleType() {
         IndexResolution index = indexWithDateDateNanosUnionType();
-        analyzer().addIndex(index)
-            .error(
-                "FROM index* | EVAL x = date_and_date_nanos::double",
-                containsString("Mapped types [date_nanos] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
-            );
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(index)
+            .query("FROM index* | EVAL x = date_and_date_nanos::double");
+        assertWarnings(
+            "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null in those indices."
+        );
         analyzer().addIndex(index)
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::ip",

@@ -338,24 +338,35 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        Expression conversion = switch (unionTypes) {
+        // A mapped type omitted from the conversion map is a lenient cast: load nulls. Only a field that is actually
+        // unmapped in this shard uses the keyword-from-_source conversion.
+        record UnionConversion(Expression conversion, boolean mapped) {}
+        UnionConversion lookedUp = switch (unionTypes) {
             case CompactMultiTypeEsField compact -> {
                 MappedFieldType mft = shardContext.fieldType(fieldName);
                 // Match what field_caps reports on the coordinator: family type (e.g., constant_keyword -> keyword) rather than the
                 // concrete mapper type, so the lookup key here aligns with how typeToConversionExpressions was keyed upstream.
                 yield mft == null
-                    ? null
-                    : compact.getConversionExpressionForType(
-                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
+                    ? new UnionConversion(null, false)
+                    : new UnionConversion(
+                        compact.getConversionExpressionForType(
+                            EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
+                        ),
+                        true
                     );
             }
             case MultiTypeEsField legacy -> {
                 // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with cluster prefix
                 String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-                yield legacy.getConversionExpressionForIndex(indexName);
+                Expression forIndex = legacy.getConversionExpressionForIndex(indexName);
+                yield new UnionConversion(forIndex, forIndex != null || shardContext.fieldType(fieldName) != null);
             }
         };
+        Expression conversion = lookedUp.conversion();
         if (conversion == null) {
+            if (lookedUp.mapped()) {
+                return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            }
             Expression potentiallyUnmapped = unionTypes.getUnmappedConversionExpression();
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;

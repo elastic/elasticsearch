@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.action.job;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
@@ -63,8 +62,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -208,7 +205,10 @@ public class TransportPutJobActionTests extends ESTestCase {
         PutJobAction.Request request = embeddedDatafeedRequest();
         request.setCloudCredential(new CloudCredential(new SecureString(SECRET.toCharArray())));
         stubJobPutSucceeds();
-        ElasticsearchStatusException mintFailure = new ElasticsearchStatusException("Failed to grant cloud API key", RestStatus.UNAUTHORIZED);
+        ElasticsearchStatusException mintFailure = new ElasticsearchStatusException(
+            "Failed to grant cloud API key",
+            RestStatus.UNAUTHORIZED
+        );
         doAnswer(invocation -> {
             ActionListener<PutDatafeedAction.Response> listener = invocation.getArgument(4);
             listener.onFailure(mintFailure);

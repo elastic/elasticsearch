@@ -56,16 +56,16 @@ final class FieldCapsCache {
         return entry != null && entry.key.matches(key) ? entry.response : null;
     }
 
-    void put(Key key, FieldCapabilitiesIndexResponse response) {
-        if (response.canMatch() && response.get().size() <= 10 && response.getMappingVersion() > 0) {
+    void put(Key key, FieldCapabilitiesIndexResponse resp) {
+        if (resp.canMatch() && resp.get().size() <= MAX_FIELDS && resp.getMappingVersion() > 0 && resp.getIndexSettingsVersion() > 0) {
             Key responseKey = new Key(
                 key.indexUUID(),
-                response.getIndexSettingsVersion(),
-                response.getMappingVersion(),
+                resp.getIndexSettingsVersion(),
+                resp.getMappingVersion(),
                 key.fields(),
                 key.filters()
             );
-            entries[responseKey.slot()] = new Entry(responseKey, response);
+            entries[responseKey.slot()] = new Entry(responseKey, resp);
         }
     }
 }

@@ -55,6 +55,7 @@ These settings limit how much CPU and read-thread time a single compressed objec
 |---|---|---|
 | `esql.external.max_decompression_ratio` {applies_to}`stack: experimental 9.6+` | 200 | Maximum ratio of decompressed to compressed bytes for gzip and other stream-only codecs. A read fails with a 400 error if the object expands beyond this multiple of its compressed size. `0` disables the check. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 | `esql.external.max_decompression_ratio.zstd` {applies_to}`stack: experimental 9.6+` | 2000 | Maximum decompression ratio for zstd-compressed objects. Overrides `esql.external.max_decompression_ratio` for zstd, which can legitimately reach higher ratios than gzip. `0` disables the check for zstd. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.schema_max_fields` {applies_to}`stack: experimental 9.6+` | 1000 | Default maximum number of fields schema inference can create from a file, counting objects as well as leaf fields. If a file's inferred schema exceeds this limit, the query fails. A dataset overrides it with its `schema_max_fields` setting. Currently applies to NDJSON. Must be at least 1. Applied at node startup only. |
 
 ## Authentication
 

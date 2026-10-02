@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -82,7 +83,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
     /** The default cap follows {@code index.mapping.total_fields.limit}: 1000 fields infer, the next one is refused. */
     public void testMetadataAppliesTheDefaultFieldCap() throws IOException {
-        int limit = NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS;
+        int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
         NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
         assertEquals(limit, reader.metadata(new BytesObject(flatRecord(limit))).schema().size());
         expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
@@ -90,7 +91,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
     /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses a non-positive one. */
     public void testSchemaMaxFieldsConfiguresTheCap() throws IOException {
-        int limit = NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS;
+        int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
         FormatReader raised = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, limit + 1)
         ).value();
@@ -109,7 +110,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
     /** The node setting replaces the default, and a dataset's {@code schema_max_fields} still overrides it. */
     public void testNodeSettingSetsTheDefaultFieldCap() throws IOException {
-        Settings settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_MAX_FIELDS_SETTING.getKey(), 2).build();
+        Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), 2).build();
         NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
         assertEquals(2, reader.metadata(new BytesObject(flatRecord(2))).schema().size());
         expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));

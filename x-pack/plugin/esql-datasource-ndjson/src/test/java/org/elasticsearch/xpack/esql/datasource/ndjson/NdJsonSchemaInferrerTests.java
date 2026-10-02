@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.io.ByteArrayInputStream;
@@ -348,7 +349,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(
                 inputStream,
                 100,
-                NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS,
+                ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
                 custom,
                 new NoopCircuitBreaker("test")
             );
@@ -746,7 +747,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         // leaf, long before the dotted names are built.
         expectThrows(
             IllegalArgumentException.class,
-            () -> infer(deeplyNestedRecord(900, 36_000), NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS, breaker)
+            () -> infer(deeplyNestedRecord(900, 36_000), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS, breaker)
         );
         assertThat(breaker.getUsed(), equalTo(0L));
     }
@@ -800,7 +801,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(
                 inputStream,
                 100,
-                NdJsonFormatReader.DEFAULT_SCHEMA_MAX_FIELDS,
+                ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
                 null,
                 new NoopCircuitBreaker("test")
             );

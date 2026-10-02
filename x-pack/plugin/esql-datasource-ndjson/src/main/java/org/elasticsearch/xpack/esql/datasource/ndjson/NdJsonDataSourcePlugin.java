@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -41,16 +39,6 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
         return Set.of(
             new FormatSpec("ndjson", Set.of(".ndjson", ".jsonl", ".json"), FORMAT_CONFIG_KEYS, NdJsonFormatReader::validateConfig)
         );
-    }
-
-    /**
-     * The NDJSON read path only exists for external data sources, so its node settings follow the federation feature,
-     * as {@code CsvDataSourcePlugin} does: without the feature, a node whose {@code elasticsearch.yml} carries the key
-     * fails to start with the standard {@code unknown setting} error.
-     */
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Federation.isRegistered() ? List.of(NdJsonFormatReader.SCHEMA_MAX_FIELDS_SETTING) : List.of();
     }
 
     @Override

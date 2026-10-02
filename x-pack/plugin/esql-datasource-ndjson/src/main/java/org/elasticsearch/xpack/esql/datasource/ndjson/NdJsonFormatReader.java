@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,6 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -93,22 +93,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     static final String CONFIG_DATETIME_FORMAT = "datetime_format";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
 
-    /** Default for {@link #SCHEMA_MAX_FIELDS_SETTING}, matching the default of {@code index.mapping.total_fields.limit}. */
-    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
-
-    /**
-     * Fields schema inference may create before it refuses the file, counting every object and leaf field the way
-     * {@code index.mapping.total_fields.limit} does. A flattened nested field is named by its whole dotted path, so a
-     * small file can otherwise infer a schema far larger than itself. This is the node-wide default; a dataset
-     * overrides it with {@code schema_max_fields}, as an index overrides its mapping limit.
-     */
-    public static final Setting<Integer> SCHEMA_MAX_FIELDS_SETTING = Setting.intSetting(
-        "esql.external.ndjson.schema_max_fields",
-        DEFAULT_SCHEMA_MAX_FIELDS,
-        1,
-        Setting.Property.NodeScope
-    );
-
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         CONFIG_SCHEMA_SAMPLE_SIZE,
@@ -151,7 +135,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             resolvedSchema,
             schemaSampleSize(settings),
-            SCHEMA_MAX_FIELDS_SETTING.get(settings == null ? Settings.EMPTY : settings),
+            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings == null ? Settings.EMPTY : settings),
             segmentSize(settings),
             null,
             "",
@@ -439,7 +423,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             parseSegmentSize(segmentSize, DEFAULT_SEGMENT_SIZE.getBytes());
         }
         parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), null);
-        parseSchemaMaxFields(config.get(CONFIG_SCHEMA_MAX_FIELDS), DEFAULT_SCHEMA_MAX_FIELDS);
+        parseSchemaMaxFields(config.get(CONFIG_SCHEMA_MAX_FIELDS), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS);
     }
 
     @Override

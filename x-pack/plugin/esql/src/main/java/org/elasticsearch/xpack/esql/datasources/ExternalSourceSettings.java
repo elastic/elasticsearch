@@ -398,6 +398,23 @@ public final class ExternalSourceSettings {
         Setting.Property.Dynamic
     );
 
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for every format; a dataset overrides it with its {@code schema_max_fields} key, as an
+     * index overrides its mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
      * were unified under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
@@ -591,6 +608,7 @@ public final class ExternalSourceSettings {
             MAX_GLOB_EXPANSION,
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

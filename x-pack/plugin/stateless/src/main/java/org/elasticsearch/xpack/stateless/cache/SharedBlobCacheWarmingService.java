@@ -232,7 +232,6 @@ public class SharedBlobCacheWarmingService {
             queue.add(new BlobRange(blobLocation, position, length, timestampMillis, listener));
             return counter.incrementAndGet() == 1;
         }
-
     }
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheWarmingService.class);

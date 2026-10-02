@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -323,6 +324,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         );
 
         assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
+        assertThat(resultingState.metadata().indexMetadata(index).mapping().source().string(), containsString("\"field\""));
         // The success-path finally block in execute() closes and clears the cache map.
         assertTrue(preflightCache.isEmpty());
     }
@@ -425,7 +427,11 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final Index index = indexService.index();
         final IndexMetadata indexMetadata = clusterService.state().metadata().indexMetadata(index);
-        final String newMapping = """
+        // The stale cache entry uses a different field name than the request so we can confirm the
+        // stale entry was discarded and the request mapping was applied from a fresh service.
+        final String staleMapping = """
+            { "properties": { "stale_field": { "type": "keyword" }}}""";
+        final String requestMapping = """
             { "properties": { "field": { "type": "keyword" }}}""";
 
         final Map<Index, PreflightCacheEntry> preflightCache = new HashMap<>();
@@ -434,7 +440,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             buildCacheEntry(
                 indicesService,
                 indexMetadata,
-                newMapping,
+                staleMapping,
                 indexMetadata.getMappingVersion() + mappingVersionDelta,
                 indexMetadata.getSettingsVersion() + settingsVersionDelta
             )
@@ -442,7 +448,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            newMapping,
+            requestMapping,
             false,
             index
         );
@@ -454,6 +460,9 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         );
 
         assertThat(resultingState.metadata().indexMetadata(index).getMappingVersion(), equalTo(indexMetadata.getMappingVersion() + 1));
+        final String appliedMapping = resultingState.metadata().indexMetadata(index).mapping().source().string();
+        assertThat(appliedMapping, containsString("\"field\""));
+        assertThat(appliedMapping, not(containsString("\"stale_field\"")));
         assertTrue(preflightCache.isEmpty());
     }
 

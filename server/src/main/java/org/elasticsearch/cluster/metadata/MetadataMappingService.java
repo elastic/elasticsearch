@@ -108,13 +108,7 @@ public class MetadataMappingService {
     private sealed interface PreflightResult permits PreflightResult.Noop, PreflightResult.NeedsUpdate {
         record Noop() implements PreflightResult {}
 
-        final class NeedsUpdate implements PreflightResult {
-            final Map<Index, PreflightCacheEntry> cache;
-
-            private NeedsUpdate(Map<Index, PreflightCacheEntry> cache) {
-                this.cache = cache;
-            }
-        }
+        record NeedsUpdate(Map<Index, PreflightCacheEntry> cache) implements PreflightResult {}
     }
 
     record PutMappingClusterStateUpdateTask(
@@ -190,7 +184,6 @@ public class MetadataMappingService {
                                 throw new IllegalStateException("index [" + index.getName() + "] not found in cluster state");
                             }
                             if (indexMapperServices.containsKey(index)) {
-                                // Already loaded by a prior task in this batch; reuse from the committed map.
                                 taskServices.put(index, indexMapperServices.get(index));
                             } else {
                                 taskServices.put(index, loadService(task, index, indexMetadata, activeEntries));
@@ -200,13 +193,11 @@ public class MetadataMappingService {
                         taskContext.success(task);
                         indexMapperServices.putAll(taskServices);
                     } catch (Exception e) {
-                        // Close task-private services that were not promoted to the committed map.
                         for (var entry : taskServices.entrySet()) {
                             if (indexMapperServices.containsKey(entry.getKey()) == false) {
                                 IOUtils.closeWhileHandlingException(entry.getValue());
                             }
                         }
-                        // task.onFailure closes and clears the remaining preflightCache entries.
                         taskContext.onFailure(e);
                     }
                 }
@@ -237,15 +228,12 @@ public class MetadataMappingService {
             if (cached != null
                 && cached.mappingVersion() == indexMetadata.getMappingVersion()
                 && cached.settingsVersion() == indexMetadata.getSettingsVersion()) {
-                // Cache hit: mapping and settings unchanged since pre-flight.
                 activeEntries.put(index, cached.preUpdateSource());
                 return cached.mergedService();
             }
-            // Cache miss or stale (concurrent mapping/settings update); close the stale entry if present.
             IOUtils.closeWhileHandlingException(cached);
             MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
             try {
-                // add mappings for all types, we need them for cross-type validation
                 mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
             } catch (Exception e) {
                 IOUtils.closeWhileHandlingException(mapperService);
@@ -359,19 +347,16 @@ public class MetadataMappingService {
             return;
         }
 
-        if (preflightResult instanceof PreflightResult.Noop) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
         // TODO: instead of considering the whole request as a no-op, we could filter out indices that don't need an update and only
         // apply the update to the remaining ones.
-        final var needsUpdate = (PreflightResult.NeedsUpdate) preflightResult;
-        taskQueue.submitTask(
-            "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            new PutMappingClusterStateUpdateTask(request, listener, needsUpdate.cache),
-            MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
-        );
+        switch (preflightResult) {
+            case PreflightResult.Noop() -> listener.onResponse(AcknowledgedResponse.TRUE);
+            case PreflightResult.NeedsUpdate(var cache) -> taskQueue.submitTask(
+                "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
+                new PutMappingClusterStateUpdateTask(request, listener, cache),
+                MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
+            );
+        }
     }
 
     private PreflightResult isWholeRequestNoop(final PutMappingClusterStateUpdateRequest request) throws IOException {
@@ -413,9 +398,7 @@ public class MetadataMappingService {
                 // might add or remove certain default values, which would make the simple comparison fail even though the effective
                 // mapping is the same.
                 // The pre-update source is captured after MAPPING_RECOVERY (normalized) rather than from mappingMetadata.source()
-                // (stored). Comparing against the post-RECOVERY source is consistent with how applyRequest determines existingSource
-                // and is more correct: a mapping with an unnormalized stored source that normalizes to the same value after RECOVERY
-                // is treated as a real update rather than a silent noop.
+                // (stored). Comparing against the post-RECOVERY source is consistent with how applyRequest determines existingSource.
                 final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                 try {
                     mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);

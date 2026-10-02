@@ -157,10 +157,10 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertThat(updated, is(new ElasticInferenceServiceDocumentExtractionTaskSettings("text")));
     }
 
-    public void testUpdatedTaskSettings_WithImmutableMap_ReplacesCssSettingsAndKeepsOutputFormat() {
+    public void testUpdatedTaskSettings_ReplacesCssSettingsAndKeepsOutputFormat() {
         var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), null));
 
-        var updated = settings.updatedTaskSettings(Map.of(CSS, Map.of(REMOVE, List.of("nav"))));
+        var updated = settings.updatedTaskSettings(new HashMap<>(Map.of(CSS, Map.of(REMOVE, List.of("nav")))));
 
         assertThat(
             updated,
@@ -171,7 +171,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
     public void testUpdatedTaskSettings_WithEmptyMap_KeepsSettings() {
         var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), null));
 
-        assertThat(settings.updatedTaskSettings(Map.of()), is(settings));
+        assertThat(settings.updatedTaskSettings(new HashMap<>()), is(settings));
     }
 
     public void testIsEmpty() {

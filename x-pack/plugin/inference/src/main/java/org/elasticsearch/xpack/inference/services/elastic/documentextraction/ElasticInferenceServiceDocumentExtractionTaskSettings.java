@@ -123,8 +123,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        // Copy the map as fromMap removes the fields it recognizes and the caller may hold an immutable map
-        return of(this, fromMap(newSettings == null ? null : new HashMap<>(newSettings)));
+        return of(this, fromMap(newSettings));
     }
 
     @Override

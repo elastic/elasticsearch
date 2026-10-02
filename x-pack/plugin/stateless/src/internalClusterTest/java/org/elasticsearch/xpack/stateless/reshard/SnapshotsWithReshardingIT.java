@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.reshard;
 
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
@@ -38,6 +40,7 @@ import static org.elasticsearch.cluster.routing.IndexRoutingTestHelper.makeIdTha
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
+import static org.hamcrest.Matchers.empty;
 
 public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestCase {
     public void testShardSnapshotIsFailedWhenReshardingMetadataIsPresent() {
@@ -478,6 +481,97 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                 assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
             }
         );
+    }
+
+    // Restoring over an open index while it is actively being resharded used to be rejected outright. The restore now discards the
+    // resharding metadata and the extra target shards along with everything else, the same as any other in-place restore to a
+    // different shard count. IndicesClusterStateService#isRestoreHistoryUuidTransition tears down and recreates every shard of the
+    // index, which safely unwinds the in-progress split too.
+    public void testRestoreOverOpenIndexWhileResharding() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = between(1, 5);
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        // Need at least one search replica so the restored index is searchable.
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        // Snapshot before resharding starts, so we have something with the pre-split shard count to restore back to.
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        var preSplitSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, preSplitSnapshot.getSnapshotInfo().state());
+
+        var index = resolveIndex(indexName);
+
+        // Block the split's completion so that resharding metadata is still present when the restore is submitted.
+        var latch = new CountDownLatch(1);
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE
+                            && latch.getCount() > 0) {
+                            latch.await();
+                        }
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
+
+        awaitClusterState(indexNode, state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null);
+        ensureGreen(indexName);
+
+        try {
+            // Restore over the open, actively-resharding index, back to its pre-split shard count.
+            var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                .restoreOverExisting(true)
+                .waitForCompletion(true);
+            var restoreResponse = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+
+            assertEquals(shards, restoreResponse.getRestoreInfo().totalShards());
+            assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
+            assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+        } finally {
+            latch.countDown();
+        }
+
+        ensureGreen(indexName);
+
+        var restoredMetadata = clusterService().state().metadata().indexMetadata(resolveIndex(indexName));
+        assertEquals(shards, restoredMetadata.getNumberOfShards());
+        assertNull(restoredMetadata.getReshardingMetadata());
+
+        assertResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true).setAllowPartialSearchResults(false),
+            searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value())
+        );
+
+        // The abandoned split must leave no state behind on either service, or it leaks memory.
+        final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
+        final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        assertBusy(() -> {
+            assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
+            assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
+        });
     }
 
     @Override

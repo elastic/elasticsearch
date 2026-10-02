@@ -991,6 +991,24 @@ public class RestoreServiceTests extends ESTestCase {
         );
     }
 
+    /**
+     * A snapshot never captures an index's resharding metadata (shard snapshots fail while resharding is in progress, and
+     * {@code BlobStoreRepository#adjustIndexMetadataIfNeeded} strips it at finalize time otherwise), so restoring over an
+     * index that is being resharded must discard the current resharding metadata rather than carry it forward.
+     */
+    public void testRestoreOverExistingIndexDiscardsReshardingMetadata() {
+        final IndexMetadata current = IndexMetadata.builder("target")
+            .settings(indexSettings(IndexVersion.current(), 4, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
+            .build();
+        final IndexMetadata snapshotIndexMetadata = IndexMetadata.builder("source")
+            .settings(indexSettings(IndexVersion.current(), 2, 0))
+            .build();
+        final IndexMetadata restored = RestoreService.restoreOverExistingIndex(snapshotIndexMetadata, current).build();
+        assertEquals(2, restored.getNumberOfShards());
+        assertNull(restored.getReshardingMetadata());
+    }
+
     // ---- restore-over-open-index guard tests ---------------------------------------------
 
     /**
@@ -1360,11 +1378,12 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * This tests that a restore over an open index that is being resharded is rejected. Restoring while resharding is happening would fail.
-     * Plus, you can't close an index that is resharding, so we are not losing any functionality a user had previously by explicitly closing
-     * an index and then restoring.
+     * This tests that a restore over an open index that is being resharded is accepted. Restoring discards the index's resharding
+     * metadata along with everything else in {@link RestoreService#restoreOverExistingIndex}, and
+     * {@code IndicesClusterStateService#isRestoreHistoryUuidTransition} already tears down and recreates every shard of the index as
+     * part of any open-index restore, which safely unwinds the in-progress split too.
      */
-    public void testRestoreOverOpenIndexRejectsReshardingIndex() {
+    public void testRestoreOverOpenIndexAllowsReshardingIndex() {
         final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
             .settings(indexSettings(IndexVersion.current(), 2, 0))
             .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
@@ -1375,10 +1394,7 @@ public class RestoreServiceTests extends ESTestCase {
             .build();
         final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
 
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
-            () -> RestoreService.validateExistingOpenIndexForRestore(snapshot, state, ProjectId.DEFAULT, currentIndexMetadata, index, false)
-        );
-        assertThat(e.getMessage(), containsString("being resharded"));
+        // Does not throw, even though the index is actively being resharded.
+        RestoreService.validateExistingOpenIndexForRestore(snapshot, state, ProjectId.DEFAULT, currentIndexMetadata, index, false);
     }
 }

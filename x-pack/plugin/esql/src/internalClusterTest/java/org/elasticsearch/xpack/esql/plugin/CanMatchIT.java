@@ -362,13 +362,9 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             Exception.class,
             containsString("index [logs] has no active shard copy"),
-            () -> run("from events,logs | KEEP timestamp,message")
+            () -> run("from events,logs | KEEP times*,message")
         );
-        expectThrows(
-            Exception.class,
-            containsString("index [logs] has no active shard copy"),
-            () -> run("from * | KEEP timestamp,message")
-        );
+        expectThrows(Exception.class, containsString("index [logs] has no active shard copy"), () -> run("from * | KEEP timestamp,mess*"));
         try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("from events,logs | KEEP timestamp,message").allowPartialResults(true))) {
             assertTrue(resp.isPartial());
             EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);

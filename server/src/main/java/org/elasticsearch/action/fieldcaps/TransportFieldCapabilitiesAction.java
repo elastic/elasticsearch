@@ -54,6 +54,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -115,6 +116,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final FieldCapsCache cache = new FieldCapsCache();
+    private volatile boolean cacheEnabled;
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -145,6 +148,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
+        // _id aggregate depends on this setting
+        clusterService.getClusterSettings()
+            .initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> this.cacheEnabled = v == false);
     }
 
     @Override
@@ -388,7 +394,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         })) {
             // local cluster
-            final RequestDispatcher requestDispatcher = new RequestDispatcher(
+            RequestDispatcher.dispatch(
                 clusterService,
                 transportService,
                 projectResolver,
@@ -398,12 +404,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 localIndices,
                 nowInMillis,
                 concreteLocalIndices,
+                canCache(request, concreteLocalIndices) ? cache : null,
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
                 refs.acquire()::close
             );
-            requestDispatcher.execute();
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.
@@ -498,6 +504,26 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }
         }
+    }
+
+    private boolean canCache(FieldCapabilitiesRequest request, String[] concreteLocalIndices) {
+        if (concreteLocalIndices.length > 5) {
+            return false;
+        }
+        if (cacheEnabled == false) {
+            return false;
+        }
+        if (request.cacheable() == false) {
+            return false;
+        }
+        final Function<String, FieldPredicate> fieldFilter = indicesService.getFieldFilter();
+        for (String index : concreteLocalIndices) {
+            // disable cache with field-level security
+            if (fieldFilter.apply(index) != FieldPredicate.ACCEPT_ALL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ResolvedIndexExpression createResolvedIndexExpression(String original, String[] concreteIndexNames) {

@@ -152,6 +152,19 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             }""").replaceAll("\\s+", ""), xContent);
     }
 
+    public void testCacheableEsqlRequest() {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().fields("_index").filters("-nested").includeUnmapped(true);
+        assertTrue(request.cacheable());
+        request.filters("-nested", "+dimension");
+        assertTrue(request.cacheable());
+        request.filters("-metadata");
+        assertTrue(request.cacheable());
+        request.filters("x".repeat(50));
+        assertTrue(request.cacheable());
+        request.filters("x".repeat(51));
+        assertFalse(request.cacheable());
+    }
+
     public void testFromXContent() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"fields\" : [\"FOO\"] }")) {
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();

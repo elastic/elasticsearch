@@ -964,6 +964,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
     }
 
+    public void testFieldCapsCacheWithFieldLevelSecurity() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        assertOK(runESQLCommand("test-admin", query));
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+    }
+
+    public void testFieldCapsCacheWithFieldLevelSecurityThenUnrestricted() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+
+        assertOK(runESQLCommand("test-admin", query));
+    }
+
     public void testFieldLevelSecurityAllowPartial() throws Exception {
         Request request = new Request("GET", "/index*/_field_caps");
         setUser(request, "fls_user");

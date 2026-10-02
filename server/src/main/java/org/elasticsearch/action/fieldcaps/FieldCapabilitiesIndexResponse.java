@@ -28,6 +28,7 @@ import java.util.Objects;
 public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     private static final TransportVersion NUMBER_OF_SHARDS_VERSION = TransportVersion.fromName("field_caps_number_of_shards");
+    public static final TransportVersion FIELD_CAPS_INDEX_VERSIONS = TransportVersion.fromName("field_caps_index_versions");
 
     private final String indexName;
     @Nullable
@@ -37,6 +38,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private final transient TransportVersion originVersion;
     private final IndexMode indexMode;
     private final int numberOfShards;  // 0 indicates that the value is unavailable
+    private final long settingsVersion;
+    private final long mappingVersion;
 
     public FieldCapabilitiesIndexResponse(
         String indexName,
@@ -56,6 +59,19 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         IndexMode indexMode,
         int numberOfShards
     ) {
+        this(indexName, indexMappingHash, responseMap, canMatch, indexMode, numberOfShards, 0, 0);
+    }
+
+    public FieldCapabilitiesIndexResponse(
+        String indexName,
+        @Nullable String indexMappingHash,
+        Map<String, IndexFieldCapabilities> responseMap,
+        boolean canMatch,
+        IndexMode indexMode,
+        int numberOfShards,
+        long settingsVersion,
+        long mappingVersion
+    ) {
         this.indexName = indexName;
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
@@ -63,6 +79,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.originVersion = TransportVersion.current();
         this.indexMode = indexMode;
         this.numberOfShards = numberOfShards;
+        this.settingsVersion = settingsVersion;
+        this.mappingVersion = mappingVersion;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -73,6 +91,13 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.indexMappingHash = in.readOptionalString();
         this.indexMode = IndexMode.readFrom(in);
         this.numberOfShards = in.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION) ? in.readVInt() : 0;
+        if (in.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
+            this.settingsVersion = in.readVLong();
+            this.mappingVersion = in.readVLong();
+        } else {
+            this.settingsVersion = 0;
+            this.mappingVersion = 0;
+        }
     }
 
     @Override
@@ -85,9 +110,21 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         if (out.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION)) {
             out.writeVInt(numberOfShards);
         }
+        if (out.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
+            out.writeVLong(settingsVersion);
+            out.writeVLong(mappingVersion);
+        }
     }
 
-    private record CompressedGroup(String[] indices, int[] numberOfShardsPerIndex, IndexMode indexMode, String mappingHash, int[] fields) {}
+    private record CompressedGroup(
+        String[] indices,
+        int[] numberOfShardsPerIndex,
+        long[] settingsVersionPerIndex,
+        long[] mappingVersionPerIndex,
+        IndexMode indexMode,
+        String mappingHash,
+        int[] fields
+    ) {}
 
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
         final int ungrouped = input.readVInt();
@@ -108,9 +145,26 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             final int[] numberOfShardsPerIndex = (input.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION))
                 ? input.readIntArray()
                 : new int[indices.length];
+            final long[] settingsVersionPerIndex;
+            final long[] mappingVersionPerIndex;
+            if (input.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
+                settingsVersionPerIndex = input.readVLongArray();
+                mappingVersionPerIndex = input.readVLongArray();
+            } else {
+                settingsVersionPerIndex = new long[indices.length];
+                mappingVersionPerIndex = new long[indices.length];
+            }
             final IndexMode indexMode = IndexMode.readFrom(input);
             final String mappingHash = input.readString();
-            compressedGroups[i] = new CompressedGroup(indices, numberOfShardsPerIndex, indexMode, mappingHash, input.readIntArray());
+            compressedGroups[i] = new CompressedGroup(
+                indices,
+                numberOfShardsPerIndex,
+                settingsVersionPerIndex,
+                mappingVersionPerIndex,
+                indexMode,
+                mappingHash,
+                input.readIntArray()
+            );
         }
 
         final IndexFieldCapabilities[] ifcLookup = input.readArray(IndexFieldCapabilities::readFrom, IndexFieldCapabilities[]::new);
@@ -128,7 +182,9 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                         ifc,
                         true,
                         compressedGroup.indexMode,
-                        compressedGroup.numberOfShardsPerIndex[j]
+                        compressedGroup.numberOfShardsPerIndex[j],
+                        compressedGroup.settingsVersionPerIndex[j],
+                        compressedGroup.mappingVersionPerIndex[j]
                     )
                 );
             }
@@ -157,6 +213,10 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             if (output.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION)) {
                 o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeInt(r.numberOfShards));
+            }
+            if (output.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
+                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.settingsVersion));
+                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.mappingVersion));
             }
             var first = fieldCapabilitiesIndexResponses.get(0);
             IndexMode.writeTo(first.indexMode, o);
@@ -212,6 +272,20 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         return numberOfShards;
     }
 
+    /**
+     * Settings version of the index metadata this response was computed from, or {@code 0} if unavailable.
+     */
+    public long getSettingsVersion() {
+        return settingsVersion;
+    }
+
+    /**
+     * Mapping version of the index metadata this response was computed from, or {@code 0} if unavailable.
+     */
+    public long getMappingVersion() {
+        return mappingVersion;
+    }
+
     TransportVersion getOriginVersion() {
         return originVersion;
     }
@@ -223,6 +297,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
         return canMatch == that.canMatch
             && numberOfShards == that.numberOfShards
+            && settingsVersion == that.settingsVersion
+            && mappingVersion == that.mappingVersion
             && Objects.equals(indexName, that.indexName)
             && Objects.equals(indexMappingHash, that.indexMappingHash)
             && Objects.equals(responseMap, that.responseMap);
@@ -230,6 +306,6 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMappingHash, responseMap, canMatch, numberOfShards);
+        return Objects.hash(indexName, indexMappingHash, responseMap, canMatch, numberOfShards, settingsVersion, mappingVersion);
     }
 }

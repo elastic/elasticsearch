@@ -43,7 +43,9 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                     randomFieldCaps(),
                     randomBoolean(),
                     randomFrom(IndexMode.availableModes()),
-                    between(1, 100)
+                    between(1, 100),
+                    randomLongBetween(1, Long.MAX_VALUE),
+                    randomLongBetween(1, Long.MAX_VALUE)
                 )
             );
         }
@@ -55,6 +57,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         in.setTransportVersion(TransportVersion.current());
         List<FieldCapabilitiesIndexResponse> result = FieldCapabilitiesIndexResponse.readList(in);
 
+        assertThat(result, equalTo(responses));
         assertThat(result.size(), equalTo(responses.size()));
         Map<String, Integer> expected = responses.stream()
             .collect(Collectors.toMap(FieldCapabilitiesIndexResponse::getIndexName, FieldCapabilitiesIndexResponse::getNumberOfShards));
@@ -73,9 +76,31 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         IndexMode indexMode = randomFrom(IndexMode.availableModes());
         int shards1 = between(1, 10);
         int shards2 = shards1 + between(1, 10); // guaranteed different
+        long settingsVersion1 = randomLongBetween(1, Long.MAX_VALUE);
+        long settingsVersion2 = randomValueOtherThan(settingsVersion1, () -> randomLongBetween(1, Long.MAX_VALUE));
+        long mappingVersion1 = randomLongBetween(1, Long.MAX_VALUE);
+        long mappingVersion2 = randomValueOtherThan(mappingVersion1, () -> randomLongBetween(1, Long.MAX_VALUE));
         List<FieldCapabilitiesIndexResponse> responses = List.of(
-            new FieldCapabilitiesIndexResponse("index_a", mappingHash, sharedFieldCaps, true, indexMode, shards1),
-            new FieldCapabilitiesIndexResponse("index_b", mappingHash, sharedFieldCaps, true, indexMode, shards2)
+            new FieldCapabilitiesIndexResponse(
+                "index_a",
+                mappingHash,
+                sharedFieldCaps,
+                true,
+                indexMode,
+                shards1,
+                settingsVersion1,
+                mappingVersion1
+            ),
+            new FieldCapabilitiesIndexResponse(
+                "index_b",
+                mappingHash,
+                sharedFieldCaps,
+                true,
+                indexMode,
+                shards2,
+                settingsVersion2,
+                mappingVersion2
+            )
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -86,6 +111,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         in.setTransportVersion(TransportVersion.current());
         List<FieldCapabilitiesIndexResponse> result = FieldCapabilitiesIndexResponse.readList(in);
 
+        assertThat(result, equalTo(responses));
         assertThat(result.size(), equalTo(2));
         Map<String, Integer> actual = result.stream()
             .collect(Collectors.toMap(FieldCapabilitiesIndexResponse::getIndexName, FieldCapabilitiesIndexResponse::getNumberOfShards));
@@ -114,6 +140,8 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
 
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0).getNumberOfShards(), equalTo(0));
+        assertThat(result.get(0).getSettingsVersion(), equalTo(0L));
+        assertThat(result.get(0).getMappingVersion(), equalTo(0L));
     }
 
     static Map<String, IndexFieldCapabilities> randomFieldCaps() {

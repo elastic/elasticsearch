@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
@@ -421,5 +422,28 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    boolean cacheable() {
+        return fields.length < 10
+            && types.length == 0
+            && includeEmptyFields
+            && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
+            && runtimeFields.isEmpty()
+            && cacheableFilters();
+    }
+
+    private boolean cacheableFilters() {
+        if (filters.length >= 3) {
+            return false;
+        }
+        int length = 0;
+        for (String filter : filters) {
+            length += filter.length();
+            if (length > 50) {
+                return false;
+            }
+        }
+        return true;
     }
 }

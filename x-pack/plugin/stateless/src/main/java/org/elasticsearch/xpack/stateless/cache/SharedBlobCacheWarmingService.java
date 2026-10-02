@@ -398,7 +398,7 @@ public class SharedBlobCacheWarmingService {
     /// to-be-relocated shards to relocate. Enabling this setting should reduce blob store cache misses after shard relocations.
     public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

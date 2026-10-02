@@ -1601,7 +1601,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    /** Membership overrides naming conventions, while unattached indices retain their names. */
+    /** Membership overrides naming conventions, while standalone indices retain their names. */
     public void testDataStreamMembershipLookup() {
         String clusterPrefix = randomBoolean() ? "remote_cluster:" : "";
         String customIndex = clusterPrefix + "custom-backing-index";

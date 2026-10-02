@@ -256,7 +256,7 @@ If `HIGHLIGHT` can't use a field's mapped analyzer, it analyzes the field with t
 `standard` analyzer instead, and the response includes a warning. This happens
 when:
 
-* The queried indices map the field with different analyzers.
+* The queried indices map the field with different analyzers and `HIGHLIGHT` can't determine which index supplied the field value, for example after `STATS` or `DEDUP`, or for a `LOOKUP JOIN` field.
 * The analyzer is defined in the index settings, such as a custom analyzer or a
   custom default analyzer.
 * The analyzer isn't registered on the coordinating node, for example because the

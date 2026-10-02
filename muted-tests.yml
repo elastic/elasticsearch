@@ -490,3 +490,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/160826
+- class: org.elasticsearch.indices.IndicesRequestCacheTests
+  method: testWaitingThreadsDoNotInheritLoaderCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/160827

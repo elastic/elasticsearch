@@ -408,8 +408,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             return;
         }
 
-        // Copy the map as fromMap removes the fields it recognizes and the request may hold an immutable map
-        var requestTaskSettings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(new HashMap<>(request.taskSettings()));
+        var requestTaskSettings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(request.taskSettings());
         var overriddenModel = ElasticInferenceServiceDocumentExtractionModel.of(
             elasticInferenceServiceDocumentExtractionModel,
             ElasticInferenceServiceDocumentExtractionTaskSettings.of(

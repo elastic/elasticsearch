@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +46,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * ]</pre>
  *
  * @param inputs       The list of {@link InferenceString} documents to extract content from
- * @param taskSettings The map of task settings specific to this request
+ * @param taskSettings The map of task settings specific to this request. It must be mutable, as services remove the settings they
+ *                     recognize while parsing it
  */
 public record DocumentExtractionRequest(List<InferenceString> inputs, Map<String, Object> taskSettings)
     implements
@@ -95,7 +97,7 @@ public record DocumentExtractionRequest(List<InferenceString> inputs, Map<String
      */
     public DocumentExtractionRequest(List<InferenceString> inputs, @Nullable Map<String, Object> taskSettings) {
         this.inputs = Objects.requireNonNull(inputs);
-        this.taskSettings = Objects.requireNonNullElse(taskSettings, Map.of());
+        this.taskSettings = Objects.requireNonNullElseGet(taskSettings, HashMap::new);
         validateDataTypes(inputs);
     }
 

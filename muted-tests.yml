@@ -452,9 +452,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testCancelUnnecessaryRequests
   issue: https://github.com/elastic/elasticsearch/issues/158868
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/158668
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/158911
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
@@ -630,9 +627,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/160379
-- class: org.elasticsearch.columnar.substrate.ChunkedBytesTests
-  method: testWritesNothingButItsTwoFiles
-  issue: https://github.com/elastic/elasticsearch/issues/160409
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/160410
@@ -669,3 +663,12 @@ tests:
 - class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
   method: testRandomValueIndexing
   issue: https://github.com/elastic/elasticsearch/issues/160716
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testCancelOnExpiry
+  issue: https://github.com/elastic/elasticsearch/issues/160823
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationContinuesAfterMasterFailover
+  issue: https://github.com/elastic/elasticsearch/issues/160824
+- class: org.elasticsearch.columnar.string.StringMatchTests
+  method: testWindowedCollectionOnAMultiValuedDictionary
+  issue: https://github.com/elastic/elasticsearch/issues/160837

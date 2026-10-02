@@ -15,6 +15,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -59,6 +61,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ul>
  */
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
+
+    private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
 
     private final HttpClient client;
     private final StoragePath path;
@@ -183,17 +187,19 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Maps a non-success HTTP status into the exception to surface to ES|QL. A retryable status
      * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
      * any other status becomes an {@link IOException}, which the external source operator classifies as
-     * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
-     * (a raw status alone is opaque; stores typically return a descriptive body). {@code retryAfterMs}
+     * a client-class 400. {@code detail} is an optional truncated error-response body: a store's error body
+     * routinely names the bucket or object in plain text (e.g. a GCS {@code {"error":{"message":"No such object:
+     * bucket/key"}}}), so it is logged here for the admin at DEBUG and never forwarded. {@code retryAfterMs}
      * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
      * synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
-        String bodyDetail = (detail == null || detail.isEmpty()) ? null : "body: " + detail;
-        String suffix = bodyDetail == null ? "" : ", " + bodyDetail;
+        if (detail != null && detail.isEmpty() == false) {
+            logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+        }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
-            ExternalUnavailableException ex = new ExternalUnavailableException(
+            return new ExternalUnavailableException(
                 throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
                 path,
                 "HTTP " + statusCode,
@@ -201,17 +207,13 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 throttling,
                 throttling ? retryAfterMs : 0L
             );
-            if (bodyDetail != null) {
-                ex.setDetail(bodyDetail);
-            }
-            return ex;
         }
         if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
             ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
-            ex.setDetail("HTTP " + statusCode + suffix);
+            ex.setDetail("HTTP " + statusCode);
             return ex;
         }
-        return new IOException(context + " [" + path.objectName() + "] (HTTP " + statusCode + ")" + suffix);
+        return new IOException(context + " [" + path.objectName() + "] (HTTP " + statusCode + ")");
     }
 
     /**

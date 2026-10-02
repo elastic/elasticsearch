@@ -256,6 +256,31 @@ public class ExternalFailuresTests extends ESTestCase {
      * The user never sees a client failure's detail, so the first one of a read is logged at WARN. The failures
      * that only get suppressed under it are logged at DEBUG, or a read over many objects floods the log.
      */
+    /**
+     * A row excerpt is user data, not a location, and can legitimately look like one (a URL or an absolute
+     * path in a column). {@code rowError} must not assert it's free of storage-URI schemes or paths: under
+     * {@code -ea} that assert is an {@link AssertionError}, which a row-processing loop does not catch and
+     * {@code ElasticsearchUncaughtExceptionHandler} treats as fatal, halting the node instead of returning 400.
+     */
+    public void testRowErrorAcceptsRowDataThatLooksLikeALocation() {
+        for (String row : new String[] {
+            "Row [3] of [x.csv]: expected 2 columns, got 3; row: 1,/api/users,extra",
+            "Row [3] of [x.csv]: expected 2 columns, got 3; row: 1,https://example.com/a",
+            "Row [3] of [x.csv]: expected 2 columns, got 3; row: 1,s3://not-a-real-bucket/k" }) {
+            ExternalClientException result = ExternalFailures.rowError(null, row);
+            assertEquals(row, result.getMessage());
+        }
+    }
+
+    /**
+     * {@code rowError}'s cause may be any throwable a caller passes; a location leaked through its cause
+     * chain must still trip the assert, even though the message itself is never checked.
+     */
+    public void testRowErrorStillAssertsOnALeakedCause() {
+        IOException leaking = new IOException("failed reading s3://secret-bucket/k");
+        expectThrows(AssertionError.class, () -> ExternalFailures.rowError(leaking, "Row [3] of [x.csv]: malformed"));
+    }
+
     public void testOnlyTheFirstClientFailureIsLoggedAtWarn() {
         for (Throwable clientFailure : new Throwable[] { new IOException("truncated"), new IllegalArgumentException("bad page") }) {
             MockLog.assertThatLogger(

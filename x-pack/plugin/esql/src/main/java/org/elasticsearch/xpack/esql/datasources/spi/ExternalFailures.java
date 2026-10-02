@@ -127,8 +127,17 @@ public final class ExternalFailures {
      * user-facing exception message.
      */
     static boolean noStoragePathLeaked(RuntimeException e) {
-        Throwable current = e;
-        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+        return chainNamesNoLocation(e);
+    }
+
+    /**
+     * Walks {@code start} and its cause chain, checking each message and its suppressed failures for a location.
+     * {@code null} is accepted and trivially passes: used by {@link #rowError}, where only the cause (not the
+     * caller-supplied top message, which is row data) must be checked.
+     */
+    private static boolean chainNamesNoLocation(Throwable start) {
+        Throwable current = start;
+        for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
             if (containsStoragePath(current.getMessage())) {
                 return false;
             }
@@ -188,15 +197,17 @@ public final class ExternalFailures {
      * message is already self-descriptive (e.g. {@code "Row [N] of [file.csv]: ..."}) and the
      * structured {@link ExternalException.Condition#MALFORMED_DATA} prefix would be redundant.
      *
-     * @param cause the parse exception that triggered the row failure; {@code null} is accepted.
-     *     Verified by assertion via {@link #noStoragePathLeaked} (which walks the full cause chain).
-     * @param safeMessage a caller-controlled message verified to be free of storage-URI schemes
+     * @param cause the parse exception that triggered the row failure; {@code null} is accepted. Its chain is
+     *     verified by assertion (see {@link #chainNamesNoLocation}); {@code safeMessage} is not, since it is
+     *     caller-supplied row content, not a location, and can legitimately look like one (e.g. a row holding a URL
+     *     or an absolute path). Asserting on it would make a malformed-row failure throw an {@link AssertionError}
+     *     under {@code -ea} instead of returning its intended HTTP 400.
+     * @param safeMessage a caller-controlled message naming only the object (never the full path), plus row content
      */
     public static ExternalClientException rowError(Throwable cause, String safeMessage) {
         Exception e = cause instanceof Exception ex ? ex : null;
         ExternalClientException result = new ExternalClientException(e, "{}", safeMessage);
-        assert containsStoragePath(safeMessage) == false : "storage path in row error message: " + safeMessage;
-        assert noStoragePathLeaked(result) : "storage path leaked via row error cause chain: " + result.getMessage();
+        assert chainNamesNoLocation(cause) : "storage path leaked via row error cause chain: " + result.getMessage();
         return result;
     }
 

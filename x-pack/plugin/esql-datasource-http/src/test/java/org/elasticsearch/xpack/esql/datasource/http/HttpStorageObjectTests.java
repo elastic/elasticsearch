@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -15,6 +16,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -622,6 +625,41 @@ public class HttpStorageObjectTests extends ESTestCase {
             () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED).newStream(1, 2)
         );
         assertSafeMessage(changed.getMessage());
+    }
+
+    /**
+     * A store's error body routinely names the bucket or object in plain text, with no storage-URI scheme and no
+     * absolute path for {@code safeForUserMessage} to catch. It must never reach the exception message; it is
+     * logged at DEBUG for the admin instead.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the DEBUG body log")
+    public void testErrorBodyIsLoggedNotForwarded() throws Exception {
+        String body = "{\"error\":{\"code\":404,\"message\":\"No such object: my-bucket/tenant-a/x.csv\"}}";
+
+        MockLog.assertThatLogger(() -> {
+            IOException e = expectThrows(IOException.class, () -> objectAnsweringWithBody(HttpStatus.SC_NOT_FOUND, body).newStream());
+            assertEquals("Failed to read object from [b.csv] (HTTP 404)", e.getMessage());
+            assertThat(e.getMessage(), not(containsString("my-bucket")));
+        },
+            HttpStorageObject.class,
+            new MockLog.SeenEventExpectation(
+                "error body",
+                HttpStorageObject.class.getCanonicalName(),
+                Level.DEBUG,
+                "*my-bucket/tenant-a/x.csv*"
+            )
+        );
+    }
+
+    /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with {@code body}. */
+    private static HttpStorageObject objectAnsweringWithBody(int statusCode, String body) throws Exception {
+        HttpResponse<InputStream> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(statusCode);
+        when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+        when(response.body()).thenReturn(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(response).when(mockClient).send(any(), any());
+        return new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());
     }
 
     /** Both {@code observeEtag} failures name the object by its safe name (last path segment). */

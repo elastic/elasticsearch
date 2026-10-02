@@ -27,8 +27,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;

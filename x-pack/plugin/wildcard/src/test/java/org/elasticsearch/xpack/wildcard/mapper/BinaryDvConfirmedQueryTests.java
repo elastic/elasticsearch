@@ -27,8 +27,10 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

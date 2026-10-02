@@ -36,6 +36,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -44,7 +45,6 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
-import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
@@ -52,10 +52,10 @@ import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
@@ -322,11 +322,10 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
                 long expected = RamUsageEstimator.shallowSizeOf(query) + realDecodeBytes;
                 assertEquals(
-                    "a confirmed real per-field decode size must be used instead of the fixed fallback constant",
+                    "a confirmed real per-field decode size must be used instead of a fallback estimate",
                     expected,
                     visitor.getEstimatedBytes()
                 );
-                assertThat(realDecodeBytes, lessThan(BinaryDocValuesScanCost.PER_CLAUSE_DECODE_BYTES_ESTIMATE));
             }
         }
     }
@@ -387,6 +386,28 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
                 long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
                 assertEquals(expected, visitor.getEstimatedBytes());
+            }
+        }
+    }
+
+    public void testIOExceptionWhileProbingThrowsUnchecked() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> {
+                throw new IOException("simulated failure");
+            })) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                expectThrows(UncheckedIOException.class, () -> query.visit(visitor));
             }
         }
     }
@@ -453,8 +474,11 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         }
     }
 
-    private static DirectoryReader wrapBinaryDocValues(DirectoryReader reader, String field, IntFunction<BinaryDocValues> perLeafValues)
-        throws IOException {
+    private static DirectoryReader wrapBinaryDocValues(
+        DirectoryReader reader,
+        String field,
+        IOFunction<Integer, BinaryDocValues> perLeafValues
+    ) throws IOException {
         AtomicInteger nextLeafIndex = new AtomicInteger();
         return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
             @Override

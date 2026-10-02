@@ -13,11 +13,11 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Marks a query whose {@code matches()} opens a decoder over a field's binary doc values and decompresses whole
@@ -30,10 +30,6 @@ import java.io.IOException;
  */
 public interface BinaryDocValuesScanCost {
 
-    /** Fallback for a genuine I/O error while probing; see {@link #realDecodeBytes}. */
-    long PER_CLAUSE_DECODE_BYTES_ESTIMATE = ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_BYTES_LARGE + (long) Integer.BYTES
-        * (ES95TSDBDocValuesFormatFactory.BINARY_BLOCK_COUNT_LARGE + 1);
-
     /**
      * @return the field this query reads binary doc values from.
      */
@@ -42,9 +38,7 @@ public interface BinaryDocValuesScanCost {
     /**
      * @param reader reader to probe for the field's real decode-block size via {@link BlockLoader.OptionalDecodeMemoryUsageEstimator},
      *               or {@code null} when unavailable.
-     * @return the real per-field bound when {@code reader} is available, otherwise {@link TrackingBinaryDocValues#ESTIMATED_SIZE}
-     *         — without a reader to probe, {@link #PER_CLAUSE_DECODE_BYTES_ESTIMATE} would overcharge the common case
-     *         badly enough to reject queries that would otherwise have run fine.
+     * @return the real per-field bound when {@code reader} is available, otherwise {@link TrackingBinaryDocValues#ESTIMATED_SIZE}.
      */
     static long estimateDecodeBytes(String field, @Nullable IndexReader reader) {
         // reader is null when building a query with no live searcher, e.g. percolator query indexing.
@@ -54,8 +48,9 @@ public interface BinaryDocValuesScanCost {
     /**
      * @return the max decode bytes for {@code field} across {@code reader}'s leaves: the real bound where the leaf's
      *         codec reports one, {@link TrackingBinaryDocValues#ESTIMATED_SIZE} otherwise (e.g. plain Lucene doc
-     *         values), or {@code 0} if the field is absent everywhere. An I/O error falls back to the fully
-     *         conservative {@link #PER_CLAUSE_DECODE_BYTES_ESTIMATE}.
+     *         values), or {@code 0} if the field is absent everywhere.
+     * @throws UncheckedIOException if a leaf fails to read its binary doc values — a genuine problem (e.g. a
+     *                               corrupt segment), not a "don't know" case we can safely estimate around.
      */
     private static long realDecodeBytes(String field, IndexReader reader) {
         long max = 0;
@@ -64,8 +59,7 @@ public interface BinaryDocValuesScanCost {
             try {
                 values = leaf.reader().getBinaryDocValues(field);
             } catch (IOException e) {
-                // Genuine read failure (e.g. corrupt segment), not a normal "don't know" case; stay conservative.
-                return PER_CLAUSE_DECODE_BYTES_ESTIMATE;
+                throw new UncheckedIOException(e);
             }
             if (values == null) {
                 continue;

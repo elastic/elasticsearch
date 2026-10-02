@@ -18,8 +18,10 @@ public record InferenceProcessStats(long memoryRss) implements ToXContentObject 
 
     private static final ParseField MEMORY_RSS = new ParseField("memory_rss");
 
+    // Lenient, because pytorch_inference may report more stats than are used here (e.g. memory_max_rss).
     public static final ConstructingObjectParser<InferenceProcessStats, Void> PARSER = new ConstructingObjectParser<>(
         "inference_process_stats",
+        true,
         a -> new InferenceProcessStats((long) a[0])
     );
 

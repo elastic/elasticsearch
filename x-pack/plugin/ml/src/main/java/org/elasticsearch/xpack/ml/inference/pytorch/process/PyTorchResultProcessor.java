@@ -117,6 +117,8 @@ public class PyTorchResultProcessor {
                     processAcknowledgement(result);
                 } else if (result.errorResult() != null) {
                     processErrorResult(result);
+                } else if (result.processStats() != null) {
+                    // Ignore the periodic process-stats message from pytorch_inference; it's not tied to a request.
                 } else {
                     // will should only get here if the native process
                     // has produced a partially valid result, one that

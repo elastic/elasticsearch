@@ -583,6 +583,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
+        return minRequiredTransportVersion(esqlQuery);
+    }
+
+    private static Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion(@Nullable String esqlQuery) {
         if (esqlQuery != null) {
             return Optional.of(
                 new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses an ES|QL query, which requires support for ES|QL datafeeds")
@@ -1475,6 +1479,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         public String getEsqlQuery() {
             return this.esqlQuery;
+        }
+
+        /**
+         * Same as {@link DatafeedConfig#minRequiredTransportVersion()}, for a config that has not been built yet.
+         */
+        public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
+            return DatafeedConfig.minRequiredTransportVersion(esqlQuery);
         }
 
         public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {

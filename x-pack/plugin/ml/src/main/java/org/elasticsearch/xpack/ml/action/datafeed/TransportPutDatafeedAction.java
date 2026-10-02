@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -79,17 +77,16 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        Optional<String> unsupportedReason = checkClusterSupportsDatafeedConfig(request.getDatafeed(), state);
-        if (unsupportedReason.isPresent()) {
-            listener.onFailure(unsupportedDatafeedConfigException(request.getDatafeed(), unsupportedReason.get()));
-            return;
-        }
-        if (request.getDatafeed().getEsqlQuery() != null && MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled() == false) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_ESQL_CREATE_DISABLED, request.getDatafeed().getId())
-                )
-            );
+        DatafeedConfig datafeed = request.getDatafeed();
+        Optional<Exception> rejection = DatafeedEsqlGates.createRejection(
+            datafeed.getId(),
+            datafeed.minRequiredTransportVersion(),
+            datafeed.getEsqlQuery() != null,
+            state,
+            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
+        );
+        if (rejection.isPresent()) {
+            listener.onFailure(rejection.get());
             return;
         }
         datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
@@ -108,15 +105,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         return DatafeedEsqlGates.unsupportedReason(datafeed.minRequiredTransportVersion(), state);
     }
 
-    private static Exception unsupportedDatafeedConfigException(DatafeedConfig datafeed, String unsupportedReason) {
-        return ExceptionsHelper.badRequestException(
-            "Cannot create datafeed [{}] while a cluster upgrade is in progress ({}); "
-                + "wait for the cluster to finish upgrading and try again.",
-            datafeed.getId(),
-            unsupportedReason
-        );
-    }
-
     @Override
     protected ClusterBlockException checkBlock(PutDatafeedAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
@@ -127,7 +115,9 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
         Optional<String> unsupportedReason = checkClusterSupportsDatafeedConfig(request.getDatafeed(), clusterService.state());
         if (unsupportedReason.isPresent()) {
-            releasingListener.onFailure(unsupportedDatafeedConfigException(request.getDatafeed(), unsupportedReason.get()));
+            releasingListener.onFailure(
+                DatafeedEsqlGates.unsupportedCreateException(request.getDatafeed().getId(), unsupportedReason.get())
+            );
             return;
         }
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {

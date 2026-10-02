@@ -11,8 +11,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 
 import java.util.List;
 import java.util.Map;
@@ -38,8 +40,10 @@ import java.util.function.BooleanSupplier;
  *        not data columns that happen to share a metadata name. This binding is relation-wide
  *        and must not be reinterpreted based on each file's physical schema.
  * @param retainedPartitionKeys keys to keep on each survivor's partition map after filter
- *        evaluation. {@code null} means the projection is unknown, so the full Hive and
- *        {@code _file.*} map is kept. A non-null set, including empty, is authoritative.
+ *        evaluation. {@code null} means the projection is unknown, so hive values plus
+ *        {@code _file.size} and {@code _file.modified} are kept. {@code _file.path},
+ *        {@code _file.name}, and {@code _file.directory} are never stored. A non-null set,
+ *        including empty, is authoritative, except those three location keys are still dropped.
  *        {@link org.elasticsearch.xpack.esql.datasources.ExternalSchema#EMPTY} does not imply an
  *        empty set: an empty schema means "do not narrow the file read", not "keep nothing".
  */
@@ -59,7 +63,15 @@ public record SplitDiscoveryContext(
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
     DeclaredReadSpec declaredReadSpec,
     Set<String> metadataColumnNames,
-    @Nullable Set<String> retainedPartitionKeys
+    @Nullable Set<String> retainedPartitionKeys,
+    // How many rows the query needs from this relation, or FormatReader.NO_LIMIT when the commands above it make no
+    // promise about that count. A provider may use it to stop producing splits once the demand is covered; one that
+    // ignores it produces them all, which every provider but FileSplitProvider does.
+    int rowLimit,
+    // Reserves heap for the listing this query performs when the schema's listing was a prefix of the dataset.
+    // Null when nothing is accounting for the query (tests, and providers reached outside a query). Live like
+    // isCancelled rather than data: it draws on the query's own reservation and must not outlive it.
+    @Nullable PlanningMemory listingMemory
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -103,6 +115,73 @@ public record SplitDiscoveryContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             DeclaredReadSpec.NONE
+        );
+    }
+
+    /**
+     * The same context over the query's own file set: what a provider resolved the files to be, when the listing
+     * it was handed answered the schema rather than the scan. Every reader downstream takes the file set from the
+     * context, so replacing it once here is what keeps them all on the same answer.
+     * <p>
+     * Two things were derived per file from the listing this replaces, and both move with it. Partition values
+     * key off the path, so a file the old listing never saw had no value for any partition column and read as
+     * null on all of them; the columns themselves stay as resolution decided them, because the plan's attributes
+     * carry that answer already ({@link PartitionMetadata#valuedOver}). Per-file schema info keys off the path
+     * too, and a file with no entry is read under its own schema rather than the dataset's
+     * ({@link SchemaReconciliation#pinnedOver}).
+     */
+    public SplitDiscoveryContext withScanFileSet(FileList resolved) {
+        return new SplitDiscoveryContext(
+            metadata,
+            resolved,
+            SchemaReconciliation.pinnedOver(schemaMap, resolved),
+            config,
+            partitionInfo == null ? null : partitionInfo.valuedOver(resolved, PartitionConfig.fromConfig(config)),
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            rowLimit,
+            listingMemory
+        );
+    }
+
+    /** Without a row demand: the shape every caller had before a limit could reach split discovery. */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        Set<String> metadataColumnNames,
+        @Nullable Set<String> retainedPartitionKeys
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            FormatReader.NO_LIMIT,
+            null
         );
     }
 
@@ -195,7 +274,8 @@ public record SplitDiscoveryContext(
         isCancelled = isCancelled != null ? isCancelled : () -> false;
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
         metadataColumnNames = Set.copyOf(metadataColumnNames);
-        // null stays null: unknown projection keeps today's full map. A provided set is authoritative.
+        // null stays null: unknown projection keeps hive, size, and modified. Location keys are dropped
+        // when the survivor map is frozen. A provided set is authoritative aside from those three keys.
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
     }
 }

@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -20,8 +22,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -146,6 +150,75 @@ public final class SchemaReconciliation {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
             this(fileSchema, mapping, statistics, null);
         }
+    }
+
+    /**
+     * A per-file schema map covering every file in {@code files}, given one keyed by whichever listing resolution
+     * held.
+     * <p>
+     * The map tells each file's reader what schema to parse it under, and a file with no entry is read under its
+     * own instead. Where the dataset's schema came from one file — an anchor under {@code first_file_wins}, a
+     * declared mapping under {@code strict} — that is the wrong answer twice over: the pin is the point of those
+     * modes, and a file whose columns differ from the anchor would be read in its own shape and emitted into
+     * blocks the plan built in the anchor's. Resolution cannot key an entry for a file it never listed, so the
+     * gap is filled here, once the scan knows which files those are.
+     * <p>
+     * Both modes that can answer a schema from part of a dataset build every entry from one read contract — one
+     * file schema, one mapping — and differ per file only in the harvest each carries: statistics and footer
+     * types, cache-derived, absent on a miss. So an unlisted file reads under that same contract with no harvest,
+     * and a map whose entries disagree about the contract cannot have come from a listing that was a prefix,
+     * which is why that is an error rather than a fallback.
+     */
+    public static Map<StoragePath, FileSchemaInfo> pinnedOver(Map<StoragePath, FileSchemaInfo> known, FileList files) {
+        if (known.isEmpty()) {
+            // No map at all: no file is pinned, so there is no contract to extend to the ones resolution missed.
+            return known;
+        }
+        List<StoragePath> unlisted = new ArrayList<>(0);
+        for (int i = 0; i < files.fileCount(); i++) {
+            StoragePath path = files.path(i);
+            if (known.containsKey(path) == false) {
+                unlisted.add(path);
+            }
+        }
+        if (unlisted.isEmpty()) {
+            return known;
+        }
+        FileSchemaInfo pin = sharedReadContract(known);
+        Map<StoragePath, FileSchemaInfo> pinned = Maps.newHashMapWithExpectedSize(known.size() + unlisted.size());
+        pinned.putAll(known);
+        for (StoragePath path : unlisted) {
+            pinned.put(path, pin);
+        }
+        return Collections.unmodifiableMap(pinned);
+    }
+
+    /**
+     * The one read contract every entry of {@code known} was built from, carrying no harvest: statistics and
+     * footer types are the individual file's, and a file nobody listed has neither.
+     */
+    private static FileSchemaInfo sharedReadContract(Map<StoragePath, FileSchemaInfo> known) {
+        Iterator<FileSchemaInfo> entries = known.values().iterator();
+        FileSchemaInfo first = entries.next();
+        while (entries.hasNext()) {
+            FileSchemaInfo other = entries.next();
+            if (sameContract(first, other) == false) {
+                throw new IllegalStateException(
+                    "["
+                        + known.size()
+                        + "] files were resolved under per-file read schemas, so there is no dataset-wide schema to "
+                        + "read the files resolution did not list under"
+                );
+            }
+        }
+        return new FileSchemaInfo(first.fileSchema(), first.mapping(), null, null);
+    }
+
+    private static boolean sameContract(FileSchemaInfo a, FileSchemaInfo b) {
+        // The rails that build one contract put the same two instances in every entry, so identity answers first
+        // and the equality walk over attribute lists is the fallback rather than the cost of each comparison.
+        return (a.fileSchema() == b.fileSchema() || a.fileSchema().equals(b.fileSchema()))
+            && (a.mapping() == b.mapping() || Objects.equals(a.mapping(), b.mapping()));
     }
 
     /**

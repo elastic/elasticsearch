@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverEarlyTerminationException;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
@@ -26,6 +28,7 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -815,5 +818,72 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * The early-termination check runs on the read executor, so its exception travels as a failed
+     * {@link ExternalFieldExtractOperator.Result} and is rethrown from {@code getOutput()} on the driver thread.
+     * The Driver only winds down cleanly if it sees the exact {@link DriverEarlyTerminationException} (LIMIT
+     * reached, exchange sink closed) or {@link TaskCancelledException}; wrapping either would fail the query.
+     * The extractor throws if called, so this also proves the check runs before materialization.
+     */
+    public void testEarlyTerminationOnExecutorReachesDriverUnchanged() {
+        RuntimeException termination = randomBoolean()
+            ? new DriverEarlyTerminationException("exchange sink is closed")
+            : new TaskCancelledException("cancelled");
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        driverContext.initializeEarlyTerminationChecker(() -> { throw termination; });
+        SourceExtractors registry = new SourceExtractors();
+        int id = registry.register(new ThrowingExtractor(new AssertionError("materialize must not run after early termination")));
+        try (
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                driverContext,
+                null,
+                Runnable::run
+            )
+        ) {
+            op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
+            RuntimeException thrown = expectThrows(RuntimeException.class, op::getOutput);
+            assertSame(termination, thrown);
+        } finally {
+            driverContext.finish();
+        }
+        assertEquals(0, registry.size());
+    }
+
+    /**
+     * An executor rejection must fail the operator, not just release the registry ref: the rejection has to
+     * surface from {@code getOutput()} so the driver fails instead of silently producing no rows.
+     */
+    public void testExecutorRejectionSurfacesFromGetOutput() {
+        SourceExtractors registry = new SourceExtractors();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        EsRejectedExecutionException rejection = new EsRejectedExecutionException("simulated rejection");
+        try (
+            ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+                1,
+                List.of(0, 2),
+                List.of("col"),
+                List.of(DataType.INTEGER),
+                registry,
+                driverContext,
+                null,
+                command -> {
+                    throw rejection;
+                }
+            )
+        ) {
+            int id = registry.register(new IntListExtractor(new int[] { 10 }));
+            op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
+            assertSame(rejection, expectThrows(EsRejectedExecutionException.class, op::getOutput));
+        } finally {
+            driverContext.finish();
+        }
+        assertEquals(0, registry.size());
     }
 }

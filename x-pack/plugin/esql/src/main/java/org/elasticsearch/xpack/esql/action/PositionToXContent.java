@@ -262,15 +262,13 @@ public abstract class PositionToXContent {
                     XContentType sourceType = XContentHelper.xContentType(bytes);
                     if (sourceType == null) {
                         // Not recognisable as xcontent, e.g. a compressed _source. Leave it to the general-purpose parser
-                        // factory, which either decompresses it or fails the same way this code always has.
+                        // factory.
                         return copyStructure(builder, bytes);
                     }
                     /*
-                     * _source is already a serialised document, so copying its bytes straight into the response is a lot
-                     * cheaper than parsing it and re-emitting every token. This is the same shortcut the search API takes for
-                     * its hits' _source. The builder only takes it when it is safe - a format that allows raw writes (JSON),
-                     * the same content type, no pretty printing, no filtering - and otherwise falls back to the token-by-token
-                     * copy itself. Both paths produce the same document; only the raw copy also preserves its original formatting.
+                     * _source is already serialised, so copy its bytes into the response instead of parsing and
+                     * re-emitting every token. rawValue only does the raw copy when the output is JSON of the same content
+                     * type, without pretty printing or filtering; otherwise it falls back to a token-by-token copy.
                      */
                     return builder.rawValue(bytes.streamInput(), sourceType);
                 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.test.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -14,7 +15,7 @@ import org.junit.Before;
 
 public class XPackRestIT extends AbstractXPackRestTest {
 
-    public XPackRestIT(ClientYamlTestCandidate testCandidate) {
+    public XPackRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

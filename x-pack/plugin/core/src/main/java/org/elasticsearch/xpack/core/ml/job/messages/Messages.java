@@ -19,6 +19,9 @@ public final class Messages {
 
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
         "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
+        "A job configured with a datafeed with an esql_query and delayed_data_check_config enabled must set "
+            + "summary_count_field_name; the field must be produced as a column by the esql_query";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =
@@ -30,6 +33,36 @@ public final class Messages {
         "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD = "{0} cannot be used in combination with esql_query";
+    public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
+    public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
+        "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
+    public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
+        "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
+    public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED =
+        "grouping_interval must be a fixed time value (for example 1h or 30m); calendar intervals such as 1w or 1M are not supported";
+    public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
+        "grouping_interval [{0}] must equal the job bucket_span [{1}]";
+    public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
+        "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
+            + "wait for every node to support ES|QL datafeeds before previewing it.";
+    public static final String DATAFEED_ESQL_PREVIEW_DISABLED =
+        "Cannot preview ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS =
+        "Cannot start ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
+            + "wait for every node to support ES|QL datafeeds before restoring or starting it.";
+    public static final String DATAFEED_ESQL_START_DISABLED =
+        "Cannot start ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_CREATE_DISABLED =
+        "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
+        "Recreate datafeed [{0}] to change its query shape. The update API only supports operational settings: "
+            + "query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
+    public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
+        "You cannot add [esql_query] to non-ES|QL datafeed [{0}] using the update API.";
+    public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
+        "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
+            + "depend on it; do not set chunking_config.mode to off";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";

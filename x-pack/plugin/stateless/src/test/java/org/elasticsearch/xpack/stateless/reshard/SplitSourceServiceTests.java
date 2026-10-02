@@ -209,7 +209,7 @@ public class SplitSourceServiceTests extends ESTestCase {
         SplitSourceService.RefCountedAcquirer acquirer = new SplitSourceService.RefCountedAcquirer(listener -> {
             acquired.incrementAndGet();
             throw new IllegalStateException("oops");
-        }, nowInMillis::incrementAndGet, duration -> assertEquals(1, duration));
+        }, nowInMillis::incrementAndGet, duration -> fail("blocked duration recorded"));
 
         acquirer.acquire(runAndRelease(withResource::incrementAndGet));
         acquirer.acquire(runAndRelease(withResource::incrementAndGet));
@@ -245,6 +245,30 @@ public class SplitSourceServiceTests extends ESTestCase {
             () -> splitSourceService.setupTargetShard(null, new ShardId(indexMetadata.getIndex(), 0), 1L, 1L, ActionListener.noop())
         );
         assertThat(exception.getMessage(), containsString("No split is in progress"));
+    }
+
+    public void testRefCountedAcquirerRecordsDurationFromAcquireStart() {
+        final var clock = new AtomicLong(1000);
+        final var recordedDuration = new AtomicLong(-1);
+        final long waitMillis = randomLongBetween(1, 1000);
+        final long holdMillis = randomLongBetween(1, 1000);
+
+        var refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(listener -> {
+            clock.addAndGet(waitMillis);
+            listener.onResponse(() -> {});
+        }, clock::get, recordedDuration::set);
+
+        var done = new PlainActionFuture<Void>();
+        refCountedAcquirer.acquire(ActionListener.wrap(releasable -> {
+            // Still waiting to release
+            assertThat(recordedDuration.get(), equalTo(-1L));
+            clock.addAndGet(holdMillis);
+            releasable.close();
+            done.onResponse(null);
+        }, done::onFailure));
+        done.actionGet(SAFE_AWAIT_TIMEOUT);
+
+        assertThat(recordedDuration.get(), equalTo(waitMillis + holdMillis));
     }
 
     private ActionListener<Releasable> runAndRelease(Runnable runnable) {

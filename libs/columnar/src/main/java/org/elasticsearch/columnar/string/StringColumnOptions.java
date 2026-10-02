@@ -20,17 +20,18 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * than it was today.
  *
  * @param dictionary when the column's values are named by ordinals rather than stored
+ * @param summary    how much of what the column held it summarises for a later merge
  * @param chunkCodec what compresses the chunks the values are written in
  * @param sizes      the units the column's streams are written in
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkCodec, Sizes sizes) {
+public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
 
     /**
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
      * the streams that are compressed.
      *
-     * @param valuesPerBlock              values behind one offset in a stream of byte values, which a read
-     *                                    of one value walks the lengths of
+     * @param valuesPerBlock              values a read takes as one unit: one span of a plain column's bytes,
+     *                                    or the values behind one offset in a stream of byte values
      * @param plainChunks                 what closes a chunk of a plain column's values
      * @param escapeChunks                what closes a chunk of the values no term names
      * @param packedOrdinalBlockSize      ordinals a block holds when they are stored packed
@@ -39,6 +40,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      *                                    ordinals a read counts to learn how many values escaped before one
      * @param slotCountsBlockSize         documents a block of slot counts holds, and so how many of them a
      *                                    read sums to reach a document outside the block it last read
+     * @param lengthBlockSize             lengths a block of a plain column's lengths holds, and so how many
+     *                                    of them a read sums to place a value; no smaller than valuesPerBlock
      */
     public record Sizes(
         int valuesPerBlock,
@@ -47,7 +50,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         int packedOrdinalBlockSize,
         int compressedOrdinalBlockSize,
         int escapeRankBlockSize,
-        int slotCountsBlockSize
+        int slotCountsBlockSize,
+        int lengthBlockSize
     ) {
 
         public Sizes {
@@ -56,6 +60,13 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
             blockSize("compressedOrdinalBlockSize", compressedOrdinalBlockSize);
             blockSize("escapeRankBlockSize", escapeRankBlockSize);
             blockSize("slotCountsBlockSize", slotCountsBlockSize);
+            blockSize("lengthBlockSize", lengthBlockSize);
+            if (valuesPerBlock > lengthBlockSize) {
+                // A block of values is placed by the block of lengths it falls in.
+                throw new IllegalArgumentException(
+                    "valuesPerBlock [" + valuesPerBlock + "] must not exceed lengthBlockSize [" + lengthBlockSize + "]"
+                );
+            }
             if (plainChunks == null || escapeChunks == null) {
                 throw new IllegalArgumentException("chunk bounds are required");
             }
@@ -89,8 +100,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
     public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     /**
-     * Values behind one offset in a stream of byte values. Larger trades a longer walk on random access for
-     * a smaller offset table.
+     * Values a read takes as one unit. Larger trades more bytes read on random access for fewer, larger
+     * reads on a scan.
      */
     public static final int DEFAULT_VALUES_PER_BLOCK = 128;
 
@@ -145,6 +156,9 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      */
     public static final int DEFAULT_SLOT_COUNTS_BLOCK_SIZE = 128;
 
+    /** Lengths a block of a plain column's length column holds; reaching one value decodes its block. */
+    public static final int DEFAULT_LENGTH_BLOCK_SIZE = 128;
+
     public static final Sizes DEFAULT_SIZES = new Sizes(
         DEFAULT_VALUES_PER_BLOCK,
         DEFAULT_PLAIN_CHUNKS,
@@ -152,14 +166,31 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
         DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
         DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-        DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+        DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+        DEFAULT_LENGTH_BLOCK_SIZE
     );
 
-    public static final StringColumnOptions DEFAULT = new StringColumnOptions(DEFAULT_DICTIONARY, ChunkCodec.ZSTD, DEFAULT_SIZES);
+    /**
+     * How much of what a column held it summarises for a later merge, when a field names nothing of its own.
+     *
+     * <p>The same half a megabyte the dictionary is capped at, since what a merge may name is bounded by that
+     * cap too: a summary larger than it describes terms no merged dictionary could hold.
+     */
+    public static final SummaryPolicy DEFAULT_SUMMARY = new SummaryPolicy(DEFAULT_DICTIONARY.maxBytes());
+
+    public static final StringColumnOptions DEFAULT = new StringColumnOptions(
+        DEFAULT_DICTIONARY,
+        DEFAULT_SUMMARY,
+        ChunkCodec.ZSTD,
+        DEFAULT_SIZES
+    );
 
     public StringColumnOptions {
         if (dictionary == null) {
             throw new IllegalArgumentException("a dictionary policy is required; use DictionaryPolicy.NONE to store the values");
+        }
+        if (summary == null) {
+            throw new IllegalArgumentException("a summary policy is required; use SummaryPolicy.NONE to summarise nothing");
         }
         if (chunkCodec == null) {
             throw new IllegalArgumentException("a chunk codec is required; use ChunkCodec.IDENTITY to store the bytes as they are");
@@ -169,13 +200,17 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         }
     }
 
-    /** These options with a different dictionary policy, for a field that should decide it differently. */
-    public StringColumnOptions withDictionary(DictionaryPolicy policy) {
-        return new StringColumnOptions(policy, chunkCodec, sizes);
+    /**
+     * These options under different policies, for a field that should decide differently. Both are given,
+     * since what a column names and what it summarises are chosen together: a field that wants neither says
+     * so twice rather than setting one and inheriting the other.
+     */
+    public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, chunkCodec, other);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other);
     }
 }

@@ -41,25 +41,15 @@ import java.util.stream.Collectors;
  * chance to act on it. Only active when {@link SharedCacheCapacityAllocationDecider#CAN_REMAIN_ENABLED_SETTING} is also enabled, since
  * otherwise the decider's {@code canRemain} check would never see the reroute.
  *
- * <p>Two mechanisms avoid repeatedly rerouting for pressure that a reroute cannot relieve:
- * <ul>
- *     <li>A reroute is suppressed when every over-committed node holds a shard whose requirement alone exceeds the high watermark of
- *     every search node, since such a shard cannot be placed anywhere even on an empty node. This is a deliberate approximation: such
- *     a node might still shed its other shards, but the largest shard is taken as the cause of the pressure. If shard requirement
- *     data is absent from {@link ClusterInfo#getShardCacheRequirements()} (for example in a stateful cluster), the check fails open
- *     and the reroute fires as before.</li>
- *     <li>Consecutive retries that bring no relief to any over-committed node back off exponentially, up to
- *     {@code 2^MAX_RETRY_BACKOFF_SHIFT} times the configured interval, since other deciders may be blocking every move.</li>
- * </ul>
+ * <p>A reroute is suppressed when every over-committed node holds a shard whose requirement alone exceeds the high watermark of
+ * every search node, since such a shard cannot be placed anywhere even on an empty node. This is a deliberate approximation: such a
+ * node might still shed its other shards, but the largest shard is taken as the cause of the pressure. If shard requirement data is
+ * absent from {@link ClusterInfo#getShardCacheRequirements()} (for example in a stateful cluster), the check fails open and the
+ * reroute fires as before.
  */
 public class SharedCacheCapacityMonitor {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityMonitor.class);
-
-    /**
-     * Caps the exponential retry back-off at {@code 2^MAX_RETRY_BACKOFF_SHIFT} times the configured reroute interval.
-     */
-    private static final int MAX_RETRY_BACKOFF_SHIFT = 3;
 
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
@@ -74,8 +64,6 @@ public class SharedCacheCapacityMonitor {
 
     private Map<DiscoveryNode, NodeCacheSizeAndCommitments> lastNodeCommitments = Map.of();
     private long lastRerouteTimeMillis = 0;
-    private Map<DiscoveryNode, Long> overHighWatermarkCommitmentsAtLastReroute = Map.of();
-    private int ineffectiveRetries = 0;
 
     public SharedCacheCapacityMonitor(
         ClusterSettings clusterSettings,
@@ -109,8 +97,7 @@ public class SharedCacheCapacityMonitor {
     /**
      * Receives a copy of the latest {@link ClusterInfo} whenever the {@link org.elasticsearch.cluster.ClusterInfoService} collects it.
      * Compares each search node's cache commitment against the commitment recorded on the previous call and reroutes as decided by
-     * {@link #decideReroute}. Only the retry case is throttled by {@link #minimumRerouteInterval}, backing off exponentially while
-     * retries bring no relief.
+     * {@link #decideReroute}. Only the retry case is throttled by {@link #minimumRerouteInterval}.
      */
     public void onNewInfo(ClusterInfo clusterInfo) {
         final ClusterState state = clusterStateSupplier.get();
@@ -122,7 +109,6 @@ public class SharedCacheCapacityMonitor {
         if (enabled == false || canRemainEnabled == false) {
             logger.debug("skipping monitor as the shared cache capacity decider or its canRemain check is disabled");
             lastNodeCommitments = Map.of();
-            resetRetryBackoff();
             return;
         }
 
@@ -139,7 +125,7 @@ public class SharedCacheCapacityMonitor {
 
         // Snapshot the clock right before it's used, so successive calls compare against a consistent reading.
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        final boolean intervalElapsed = (currentTimeMillis - lastRerouteTimeMillis) >= retryIntervalMillis();
+        final boolean intervalElapsed = (currentTimeMillis - lastRerouteTimeMillis) >= minimumRerouteInterval.millis();
 
         final RerouteDecision rerouteDecision = decideReroute(
             state.getRoutingNodes(),
@@ -150,56 +136,10 @@ public class SharedCacheCapacityMonitor {
         );
         lastNodeCommitments = currentSearchNodeCommitments;
 
-        final Set<DiscoveryNode> nodesOverHighWatermark = rerouteDecision.transitions().nodesOverHighWatermark();
-        if (nodesOverHighWatermark.isEmpty()) {
-            resetRetryBackoff();
-        } else if (rerouteDecision.shouldReroute()) {
-            final Map<DiscoveryNode, Long> overHighWatermarkCommitments = nodesOverHighWatermark.stream()
-                .collect(
-                    Collectors.toUnmodifiableMap(
-                        node -> node,
-                        node -> accountingMode.getCurrentCommitmentBytes(currentSearchNodeCommitments.get(node))
-                    )
-                );
-            updateRetryBackoff(rerouteDecision.reason(), overHighWatermarkCommitments);
-            overHighWatermarkCommitmentsAtLastReroute = overHighWatermarkCommitments;
+        if (rerouteDecision.shouldReroute()) {
             lastRerouteTimeMillis = currentTimeMillis;
             reroute(rerouteDecision.reason());
         }
-    }
-
-    /**
-     * The minimum time between retries, doubled for each consecutive retry that brought no relief, up to
-     * {@code 2^MAX_RETRY_BACKOFF_SHIFT} times {@link #minimumRerouteInterval}.
-     */
-    private long retryIntervalMillis() {
-        final long baseIntervalMillis = minimumRerouteInterval.millis();
-        return baseIntervalMillis > (Long.MAX_VALUE >> ineffectiveRetries) ? Long.MAX_VALUE : baseIntervalMillis << ineffectiveRetries;
-    }
-
-    /**
-     * A retry that fires with the same nodes over the high watermark and none of their commitments lower than when the previous
-     * reroute fired means that reroute achieved nothing, so back off. Any other reroute reason is driven by new information, and
-     * restarts the back-off.
-     */
-    private void updateRetryBackoff(String reason, Map<DiscoveryNode, Long> overHighWatermarkCommitments) {
-        if (reason.equals(RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON) && madeNoProgress(overHighWatermarkCommitments)) {
-            ineffectiveRetries = Math.min(ineffectiveRetries + 1, MAX_RETRY_BACKOFF_SHIFT);
-        } else {
-            ineffectiveRetries = 0;
-        }
-    }
-
-    private boolean madeNoProgress(Map<DiscoveryNode, Long> overHighWatermarkCommitments) {
-        return overHighWatermarkCommitments.keySet().equals(overHighWatermarkCommitmentsAtLastReroute.keySet())
-            && overHighWatermarkCommitments.entrySet()
-                .stream()
-                .noneMatch(entry -> entry.getValue() < overHighWatermarkCommitmentsAtLastReroute.get(entry.getKey()));
-    }
-
-    private void resetRetryBackoff() {
-        ineffectiveRetries = 0;
-        overHighWatermarkCommitmentsAtLastReroute = Map.of();
     }
 
     /**

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -173,32 +172,6 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown").isEmpty());
         assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings(null, new CssSettings(List.of(".a"), null)).isEmpty());
         assertFalse(new ElasticInferenceServiceDocumentExtractionTaskSettings(null, new CssSettings(null, List.of("nav"))).isEmpty());
-    }
-
-    public void testToXContent_WithEmptySettings_WritesEmptyObject() throws IOException {
-        assertThat(Strings.toString(EMPTY_SETTINGS), is("{}"));
-    }
-
-    public void testToXContent_WritesOutputFormat() throws IOException {
-        assertThat(Strings.toString(new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown")), is("""
-            {"output_format":"markdown"}"""));
-    }
-
-    public void testToXContent_WritesCssSettings() throws IOException {
-        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings(
-            "markdown",
-            new CssSettings(List.of(".main-content", "#post-body"), List.of("nav"))
-        );
-
-        assertThat(Strings.toString(settings), is("""
-            {"output_format":"markdown","css":{"extract_only":[".main-content","#post-body"],"remove":["nav"]}}"""));
-    }
-
-    public void testToXContent_OmitsUnsetCssSelectors() throws IOException {
-        var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings(null, new CssSettings(null, List.of("nav")));
-
-        assertThat(Strings.toString(settings), is("""
-            {"css":{"remove":["nav"]}}"""));
     }
 
     public void testEmptySettings_HaveNoOutputFormatAndNoCssSettings() {

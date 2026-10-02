@@ -8,14 +8,10 @@
 package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -29,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ElasticInferenceServiceDocumentExtractionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+public class ElasticInferenceServiceDocumentExtractionServiceSettingsTests extends AbstractBWCSerializationTestCase<
     ElasticInferenceServiceDocumentExtractionServiceSettings> {
 
     @Override
@@ -48,18 +44,6 @@ public class ElasticInferenceServiceDocumentExtractionServiceSettingsTests exten
     ) throws IOException {
         String modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(10));
         return new ElasticInferenceServiceDocumentExtractionServiceSettings(modelId);
-    }
-
-    public void testFromMap() {
-        var modelId = "my-model-id";
-
-        var serviceSettings = ElasticInferenceServiceDocumentExtractionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-            ConfigurationParseContext.REQUEST
-        );
-
-        assertThat(serviceSettings, is(new ElasticInferenceServiceDocumentExtractionServiceSettings(modelId)));
-        assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
     public void testFromMap_MissingModelId_ThrowsValidationException() {
@@ -128,18 +112,6 @@ public class ElasticInferenceServiceDocumentExtractionServiceSettingsTests exten
         assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
     }
 
-    public void testToXContent_WritesAllFields() throws IOException {
-        var modelId = "jina-ocr";
-        var serviceSettings = new ElasticInferenceServiceDocumentExtractionServiceSettings(modelId);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {"model_id":"%s"}""", modelId))));
-    }
-
     public static ElasticInferenceServiceDocumentExtractionServiceSettings createRandom() {
         return new ElasticInferenceServiceDocumentExtractionServiceSettings(randomAlphaOfLength(10));
     }
@@ -150,5 +122,10 @@ public class ElasticInferenceServiceDocumentExtractionServiceSettingsTests exten
         TransportVersion version
     ) {
         return instance;
+    }
+
+    @Override
+    protected ElasticInferenceServiceDocumentExtractionServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return ElasticInferenceServiceDocumentExtractionServiceSettings.fromMap(parser.map(), ConfigurationParseContext.PERSISTENT);
     }
 }

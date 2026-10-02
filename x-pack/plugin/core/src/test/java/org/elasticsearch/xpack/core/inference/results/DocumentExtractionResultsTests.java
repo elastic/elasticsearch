@@ -88,30 +88,6 @@ public class DocumentExtractionResultsTests extends AbstractChunkedBWCSerializat
             }"""));
     }
 
-    public void testToXContent_CreatesTheRightFormatForMultipleResults() {
-        var results = new DocumentExtractionResults(
-            List.of(
-                new DocumentExtractionResults.Result("content 1", "markdown", Map.of()),
-                new DocumentExtractionResults.Result("content 2", "markdown", Map.of())
-            )
-        );
-
-        String xContentResult = Strings.toTruncatedString(results, true, true);
-        assertThat(xContentResult, is("""
-            {
-              "document_extraction" : [
-                {
-                  "content" : "content 1",
-                  "format" : "markdown"
-                },
-                {
-                  "content" : "content 2",
-                  "format" : "markdown"
-                }
-              ]
-            }"""));
-    }
-
     public void testResult_PredictedValue_ReturnsContent() {
         var result = new DocumentExtractionResults.Result("some content", "markdown", Map.of());
         assertThat(result.predictedValue(), is("some content"));

@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -31,57 +32,11 @@ import static org.elasticsearch.inference.DocumentExtractionRequest.SUPPORTED_DO
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class DocumentExtractionRequestTests extends AbstractBWCSerializationTestCase<DocumentExtractionRequest> {
-
-    public void testParser_WithSingleContentInput() throws IOException {
-        var requestJson = Strings.format("""
-            {
-                "input": [
-                    {
-                        "content": {"type": "pdf", "format": "base64", "value": "%s"}
-                    }
-                ]
-            }
-            """, TEST_DATA_URI);
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = DocumentExtractionRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, TEST_DATA_URI))));
-            assertThat(request.taskSettings(), anEmptyMap());
-        }
-    }
-
-    public void testParser_WithMultipleContentInputs() throws IOException {
-        var requestJson = Strings.format("""
-            {
-                "input": [
-                    {
-                        "content": {"type": "pdf", "format": "base64", "value": "%s"}
-                    },
-                    {
-                        "content": {"type": "image", "format": "base64", "value": "%s"}
-                    }
-                ]
-            }
-            """, TEST_DATA_URI, TEST_DATA_URI);
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = DocumentExtractionRequest.PARSER.apply(parser, null);
-            assertThat(
-                request.inputs(),
-                is(
-                    List.of(
-                        new InferenceString(DataType.PDF, DataFormat.BASE64, TEST_DATA_URI),
-                        new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI)
-                    )
-                )
-            );
-            assertThat(request.taskSettings(), anEmptyMap());
-        }
-    }
 
     public void testParser_WithUnspecifiedFormat_UsesDefault() throws IOException {
         var requestJson = Strings.format("""
@@ -96,43 +51,6 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = DocumentExtractionRequest.PARSER.apply(parser, null);
             assertThat(request.inputs(), is(List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, TEST_DATA_URI))));
-        }
-    }
-
-    public void testParser_WithTaskSettings() throws IOException {
-        var requestJson = Strings.format("""
-            {
-                "input": [
-                    {
-                        "content": {"type": "pdf", "format": "base64", "value": "%s"}
-                    }
-                ],
-                "task_settings": {
-                    "output_format": "markdown"
-                }
-            }
-            """, TEST_DATA_URI);
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = DocumentExtractionRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, TEST_DATA_URI))));
-            assertThat(request.taskSettings(), is(Map.of("output_format", "markdown")));
-        }
-    }
-
-    public void testParser_WithEmptyTaskSettings() throws IOException {
-        var requestJson = Strings.format("""
-            {
-                "input": [
-                    {
-                        "content": {"type": "pdf", "format": "base64", "value": "%s"}
-                    }
-                ],
-                "task_settings": {}
-            }
-            """, TEST_DATA_URI);
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = DocumentExtractionRequest.PARSER.apply(parser, null);
-            assertThat(request.taskSettings(), anEmptyMap());
         }
     }
 
@@ -256,7 +174,11 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
     }
 
     public static DocumentExtractionRequest createRandom() {
-        return new DocumentExtractionRequest(randomInputs(), Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8)));
+        return new DocumentExtractionRequest(randomInputs(), randomTaskSettings());
+    }
+
+    private static Map<String, Object> randomTaskSettings() {
+        return randomMap(0, 3, () -> new Tuple<String, Object>(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8)));
     }
 
     private void assertRequestNotBackwardsCompatible(List<TransportVersion> preUrlVersions, DocumentExtractionRequest urlRequest) {
@@ -294,10 +216,7 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
         var taskSettings = instance.taskSettings();
         switch (randomInt(1)) {
             case 0 -> inputs = randomValueOtherThan(inputs, DocumentExtractionRequestTests::randomInputs);
-            case 1 -> taskSettings = randomValueOtherThan(
-                taskSettings,
-                () -> Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))
-            );
+            case 1 -> taskSettings = randomValueOtherThan(taskSettings, DocumentExtractionRequestTests::randomTaskSettings);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new DocumentExtractionRequest(inputs, taskSettings);

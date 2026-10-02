@@ -248,15 +248,6 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /**
-     * Result of encoding a single (vector, centroid) pair.
-     *
-     * @param xEnc quantized code in latent space, shape (nDims,)
-     * @param scale scale factor applied at scoring time (norm / codeNorm)
-     * @param offset additive correction term for dot product reconstruction
-     */
-    public record EncodedVector(float[] xEnc, float scale, float offset) {}
-
-    /**
      * A vector with its precomputed squared norm
      * @param vector    The vector
      * @param normSq    Squared norm
@@ -319,49 +310,6 @@ public final class AsymmetricHashingQuantizer {
         float[] centroidProjected = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid);
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new VectorAndNorm(centroidProjected, centroidNormSq);
-    }
-
-    private static final ThreadLocal<float[]> XLATENT_ARRAY = new ThreadLocal<>();
-
-    private static float[] getXLatentArray(int length) {
-        float[] array = XLATENT_ARRAY.get();
-        if (array == null || array.length != length) {
-            array = new float[length];
-            XLATENT_ARRAY.set(array);
-        }
-        return array;
-    }
-
-    /**
-     * Fast single-vector encoding using precomputed centroid values and transposed W.
-     * This avoids recomputing centroid @ W and ||centroid||^2 for every vector in a posting list.
-     *
-     * @param vector the input vector, length originalDim
-     * @param centroid the centroid (needed for centering), length originalDim
-     * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
-     * @param precomputed precomputed centroid projection and norm
-     * @return xEnc/scale/offset for this (vector, centroid) pair
-     */
-    public EncodedVector encode(float[] vector, float[] centroid, float[] wT, VectorAndNorm precomputed) {
-        int originalDim = centroid.length;
-        int nDims = wT.length / originalDim;
-
-        // Center and compute norm
-        VectorAndNorm centered = centralizeVector(vector, centroid);
-
-        // Project using transposed W
-        float[] xLatent = getXLatentArray(nDims);
-        ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector(), xLatent);
-
-        // Quantize
-        AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
-        float[] xEnc = qr.centeredCode();
-        float codeNorm = qr.codeNorm();
-
-        float scale = computeScale(centered.normSq(), codeNorm);
-        float offset = computeOffset(ESVectorUtil.dotProduct(vector, centroid), scale, xEnc, precomputed);
-
-        return new EncodedVector(xEnc, scale, offset);
     }
 
     /**

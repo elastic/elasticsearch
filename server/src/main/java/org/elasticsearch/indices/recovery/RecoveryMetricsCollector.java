@@ -48,6 +48,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String QUEUED_PEER_RECOVERIES_AS_TARGET = "es.recovery.peer.target.queued.current";
     public static final String CURRENT_STORE_RECOVERIES = "es.recovery.store.active.current";
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
+    public static final String QUEUED_RECOVERY_LATENCY = "es.recovery.queue.latency.current";
 
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
     public static final String RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC = "es.recovery.shard.directcancellations.work.time";
@@ -57,7 +58,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC = "es.recovery.gate.blocked.time.current";
     public static final String RECOVERY_GATE_NAME_ATTRIBUTE_KEY = "es_recovery_gate_name";
 
-    public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP, () -> null, () -> 0L);
+    public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(
+        TelemetryProvider.NOOP,
+        () -> null,
+        () -> 0L,
+        () -> 0L
+    );
 
     private final LongCounter shardRecoveryTotalMetric;
     private final LongHistogram shardRecoveryTotalTimeMetric;
@@ -70,6 +76,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedPeerRecoveriesAsTargetMetric;
     private final LongUpDownCounter activeStoreRecoveriesMetric;
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
+    private final LongAsyncGauge queuedRecoveryLatencyMetric;
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
     private final LongHistogram shardRecoveryDirectCancellationsWorkTimeMetric;
@@ -81,10 +88,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     /// @param telemetryProvider telemetry provider
     /// @param blockedState supplies the current recovery blocked state, or null when unblocked
+    /// @param queueLatencyMillis supplies the current queue latency in milliseconds
     /// @param relativeTimeInMillis supplies relative time in milliseconds; must use the same clock as [BlockedState#sinceRelativeMillis()]
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,
         Supplier<BlockedState> blockedState,
+        LongSupplier queueLatencyMillis,
         LongSupplier relativeTimeInMillis
     ) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -137,6 +146,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             QUEUED_STORE_RECOVERIES,
             "Number of currently queued non-peer recoveries",
             "unit"
+        );
+        queuedRecoveryLatencyMetric = meterRegistry.registerLongAsyncGauge(
+            QUEUED_RECOVERY_LATENCY,
+            "The maximum time any recovery currently on the queue has been there",
+            "ms",
+            () -> new LongWithAttributes(queueLatencyMillis.getAsLong())
         );
         shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
             RECOVERY_DIRECT_CANCELLATIONS_METRIC,
@@ -320,7 +335,11 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     @Override
     public void close() {
         // Only the asynchronous gauges are closeable; the synchronous counters and histograms need no cleanup.
-        Releasables.close(recoveryGateBlockedCurrentMetric::close, recoveryGateBlockedCurrentDurationMetric::close);
+        Releasables.close(
+            queuedRecoveryLatencyMetric::close,
+            recoveryGateBlockedCurrentMetric::close,
+            recoveryGateBlockedCurrentDurationMetric::close
+        );
     }
 
     private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {

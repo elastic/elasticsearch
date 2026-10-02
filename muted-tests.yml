@@ -191,7 +191,7 @@ tests:
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/terms/Double test}
+  method: test {yaml=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
@@ -449,7 +449,7 @@ tests:
   method: testHivePartitionShadowWarningReachesClient
   issue: https://github.com/elastic/elasticsearch/issues/160177
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/157942
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/240_base_conversion/numeric_family, first argument, unsigned_long not a string}
@@ -479,7 +479,7 @@ tests:
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/150_tsdb/created the data stream}
+  method: test {yaml=data_stream/150_tsdb/created the data stream}
   issue: https://github.com/elastic/elasticsearch/issues/160822
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testCreatesEisChatCompletionEndpoint

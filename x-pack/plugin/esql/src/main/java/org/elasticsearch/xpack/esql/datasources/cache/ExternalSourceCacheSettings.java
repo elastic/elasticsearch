@@ -246,6 +246,18 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Kill switch for coalescing concurrent {@link ParsedFooterCache#getOrLoadAsync} loads. When
+     * true (the default), concurrent queries over the same columnar file share one footer GET/parse.
+     * Restart-only: the parsed-footer cache is built from node settings when the format reader is
+     * first constructed. The raw {@link FooterByteCache} is unaffected.
+     */
+    public static final Setting<Boolean> FOOTER_COALESCE = Setting.boolSetting(
+        "esql.external.cache.footer.coalesce",
+        true,
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             CACHE_SIZE,
@@ -259,7 +271,8 @@ public final class ExternalSourceCacheSettings {
             STRIPE_COLUMNS,
             FOOTER_CACHE_SIZE,
             FOOTER_PARSED_CACHE_SIZE,
-            FOOTER_CACHE_TTL
+            FOOTER_CACHE_TTL,
+            FOOTER_COALESCE
         );
     }
 }

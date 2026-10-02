@@ -76,9 +76,9 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * Besides the flat estimate, the reader accounts for the bound the doc values report for their private block buffer, which can be as large
-     * as the segment's largest block, and gives all of it back on close. Without this, a query that reads many fields holds one such
-     * buffer per field while the breaker only sees the flat estimate.
+     * Besides the flat estimate, the reader accounts for the bound the doc values report for their private block buffer, which can be
+     * as large as the segment's largest block, and gives all of it back on close. Without this, a query that reads many fields holds
+     * one such buffer per field while the breaker only sees the flat estimate.
      */
     public void testAccountsForTheBlockBufferBoundAndReleasesItOnClose() throws IOException {
         withIndex(1000, 2048, (mapperService, ctx) -> {
@@ -103,9 +103,9 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
 
     /**
      * A reader that has already opened its doc values is built even if the block bound it then accounts for does not fit in the breaker, so
-     * the breaker ends up over its limit and the next reader fails while accounting for its own flat estimate with a {@link CircuitBreakingException},
-     * before any block is decompressed. A query that reads many fields therefore stops after the first reader that goes over, and
-     * everything accounted for is given back on close.
+     * the breaker ends up over its limit and the next reader fails while accounting for its own flat estimate with
+     * a {@link CircuitBreakingException}, before any block is decompressed. A query that reads many fields therefore stops after the
+     * first reader that goes over, and everything accounted for is given back on close.
      */
     public void testCircuitBreaksTheNextReaderWhenTheBlockBufferBoundExceedsTheBreaker() throws IOException {
         // Each value is 2MB, so the segment's largest block cannot fit in a 1MB breaker.
@@ -122,8 +122,8 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * The reader accounts for its flat estimate before it opens the doc values, so a failure to open them must give it back: the constructor never
-     * returns, so {@code close} is never called.
+     * The reader accounts for its flat estimate before it opens the doc values, so a failure to open them must give it back:
+     * the constructor never returns, so {@code close} is never called.
      */
     public void testReleasesWhatWasAccountedForWhenOpeningTheDocValuesFails() throws IOException {
         withIndex(3, (mapperService, ctx) -> {

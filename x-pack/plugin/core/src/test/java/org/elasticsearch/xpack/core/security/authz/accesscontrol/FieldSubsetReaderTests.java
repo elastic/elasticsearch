@@ -1086,8 +1086,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     /**
      * The decoder that holds the decompressed blocks of {@code _ignored_source} sits behind the field-level-security wrapper, so the
      * wrapper has to pass on what the decoder reports it can allocate; callers such as ES|QL's fallback synthetic source reader use it to
-     * account for it in their circuit breaker, and would otherwise see {@code 0} for every index with field-level security. The index here is not
-     * written with the TSDB format, so a doc values wrapper that reports a known estimate stands in for the decoder.
+     * account for it in their circuit breaker, and would otherwise see {@code 0} for every index with field-level security.
+     * The index here is not written with the TSDB format, so a doc values wrapper that reports a known estimate stands in for the decoder.
      */
     public void testIgnoredSourceDocValuesPassOnTheDecodeEstimate() throws Exception {
         IndexVersion indexVersion = IndexVersion.current();

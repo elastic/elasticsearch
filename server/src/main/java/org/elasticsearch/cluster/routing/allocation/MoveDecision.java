@@ -285,7 +285,6 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     /**
      * Returns the labeled {@code canAllocate} decision for the winning target node when a move was attempted.
-     * Only populated when {@link #getAllocationDecision()} is {@link AllocationDecision#NOT_PREFERRED}; null otherwise.
      * Not included in XContent — used internally to label metrics.
      */
     @Nullable

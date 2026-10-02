@@ -39,6 +39,13 @@ public final class ErrorModel {
 
     static final int N_QUERY_CLUSTERS = 32;
 
+    /**
+     * Factor the measured quantization-error <em>variance</em> is multiplied by before it reaches the recall model.
+     * A deliberately conservative margin covering what the model does not represent (manifold shape error under extrapolation,
+     * IVF probe loss, per-query heterogeneity).
+     */
+    public static final double DEFAULT_VARIANCE_INFLATION = 1.0;
+
     static final int[] SAMPLE_SIZES_SCALING = { 4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360 };
 
     static final int[] SAMPLE_SIZES_MAGNITUDE = { 2048, 3072, 4096 };
@@ -65,6 +72,35 @@ public final class ErrorModel {
         HierarchicalKMeans<float[]> kmeans,
         float[][] warmStartQueryCentroids,
         QuantizedErrorScratch scratch
+    ) throws IOException {
+        return quantizedRepErrorStd(
+            source,
+            usePreconditioned,
+            nDocs,
+            docAssignments,
+            docCentroids,
+            qbits,
+            dbits,
+            kmeans,
+            warmStartQueryCentroids,
+            scratch,
+            DEFAULT_VARIANCE_INFLATION
+        );
+    }
+
+    /** As above with an explicit {@code varianceInflation} (see {@link #DEFAULT_VARIANCE_INFLATION}). */
+    static QuantizedQueryErrorResult quantizedRepErrorStd(
+        CalibrationSource source,
+        boolean usePreconditioned,
+        int nDocs,
+        int[] docAssignments,
+        float[][] docCentroids,
+        int qbits,
+        int dbits,
+        HierarchicalKMeans<float[]> kmeans,
+        float[][] warmStartQueryCentroids,
+        QuantizedErrorScratch scratch,
+        double varianceInflation
     ) throws IOException {
         VectorSimilarityFunction sim = source.similarityFunction();
         int dimWork = source.workingDim();
@@ -266,7 +302,7 @@ public final class ErrorModel {
             }
         }
 
-        return new QuantizedQueryErrorResult(Math.sqrt(3.0 * moments.sampleVariance()), queryCentroids);
+        return new QuantizedQueryErrorResult(Math.sqrt(varianceInflation * moments.sampleVariance()), queryCentroids);
     }
 
     private record QuantizedQueryErrorResult(double std, float[][] queryCentroids) {}
@@ -285,6 +321,35 @@ public final class ErrorModel {
         float[][] warmStartDocCentroids,
         float[][] warmStartQueryCentroids,
         QuantizedErrorScratch scratch
+    ) throws IOException {
+        return quantizedRepErrorStdWithCentroids(
+            source,
+            usePreconditioned,
+            nDocs,
+            nDocsPerCluster,
+            qbits,
+            dbits,
+            kmeans,
+            warmStartDocCentroids,
+            warmStartQueryCentroids,
+            scratch,
+            DEFAULT_VARIANCE_INFLATION
+        );
+    }
+
+    /** As above with an explicit variance inflation. */
+    static QuantizedErrorComputeResult quantizedRepErrorStdWithCentroids(
+        CalibrationSource source,
+        boolean usePreconditioned,
+        int nDocs,
+        int nDocsPerCluster,
+        int qbits,
+        int dbits,
+        HierarchicalKMeans<float[]> kmeans,
+        float[][] warmStartDocCentroids,
+        float[][] warmStartQueryCentroids,
+        QuantizedErrorScratch scratch,
+        double varianceInflation
     ) throws IOException {
         KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(source.vectors(), source.corpusOrdinals(), nDocs);
         var docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
@@ -316,7 +381,8 @@ public final class ErrorModel {
             dbits,
             kmeans,
             warmStartQueryCentroids,
-            scratch
+            scratch,
+            varianceInflation
         );
 
         return new QuantizedErrorComputeResult(queryError.std(), docCentroids, queryError.queryCentroids());
@@ -535,10 +601,12 @@ public final class ErrorModel {
         private final QuantizedErrorScratch scratch;
         private final HierarchicalKMeans<float[]> kmeans;
         private final int nDocs;
+        private final double varianceInflation;
         private QuantizedErrorComputeResult shared;
         private boolean sharedPreconditioned; // whether {@link #shared} was computed with {@code usePreconditioned=true}
 
-        private RealResidualState(CalibrationSource source) {
+        private RealResidualState(CalibrationSource source, double varianceInflation) {
+            this.varianceInflation = varianceInflation;
             this.nDocs = Math.min(REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
             this.kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.workingDim());
             this.scratch = new QuantizedErrorScratch(
@@ -555,9 +623,14 @@ public final class ErrorModel {
         }
     }
 
-    /** Creates the shared state for a real-residual magnitude sweep over {@code source}. */
+    /** Creates the shared state for a real-residual magnitude sweep over {@code source}, with the default margin. */
     public static RealResidualState newRealResidualState(CalibrationSource source) {
-        return new RealResidualState(source);
+        return new RealResidualState(source, DEFAULT_VARIANCE_INFLATION);
+    }
+
+    /** As {@link #newRealResidualState(CalibrationSource)} with an explicit variance inflation ({@code 1.0} = none). */
+    public static RealResidualState newRealResidualState(CalibrationSource source, double varianceInflation) {
+        return new RealResidualState(source, varianceInflation);
     }
 
     /**
@@ -566,8 +639,8 @@ public final class ErrorModel {
      * not recomputed per encoding.
      * <p>
      * Measures OSQ error once at {@link #REAL_RESIDUAL_SAMPLE} and anchors the intercept at that sample
-     * size. The manifold slope is used as the scaling exponent, sign-corrected for dot-like similarities, so evaluating at the
-     * real corpus size {@code N} extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDimEffective}.
+     * size. The manifold slope is used as the scaling exponent, so evaluating at the real corpus size {@code N}
+     * extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}.
      */
     public static QuantizationErrorStdModel estimateMagnitudeFromRealResiduals(
         double invDim,
@@ -595,17 +668,19 @@ public final class ErrorModel {
             state.kmeans,
             warmDoc,
             warmQuery,
-            state.scratch
+            state.scratch,
+            state.varianceInflation
         );
         if (state.shared == null) {
             state.shared = r;
             state.sharedPreconditioned = usePreconditionedQueries;
         }
-        // 1/d is negative for similarities like cosine, so use -invDim
-        double invDimEffective = ManifoldModel.isDotLike(source.similarityFunction()) ? -invDim : invDim;
-        // single measurement anchored at state.nDocs, so evaluating at N gives measuredStd × (state.nDocs / N)^invDimEffective
-        double beta0 = Math.log(Math.max(r.std(), 1e-38)) - invDimEffective * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
-        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDimEffective, 0, 0, 0, 0));
+        double measured = r.std();
+        // The manifold is fit in distance units for every metric (see ManifoldModel), so invDim is positive
+        // throughout and needs no sign correction for dot-like similarities any more.
+        // single measurement anchored at state.nDocs, so evaluating at N gives measuredStd × (state.nDocs / N)^invDim
+        double beta0 = Math.log(Math.max(measured, 1e-38)) - invDim * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
+        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDim, 0, 0, 0, 0));
     }
 
     /**

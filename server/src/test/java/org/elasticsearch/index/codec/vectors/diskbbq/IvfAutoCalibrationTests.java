@@ -37,6 +37,8 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.ErrorModel;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -555,6 +557,46 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         IvfAutoCalibration selector = new IvfAutoCalibration(VPC);
 
         IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
+
+        assertThat(config.osqEncoding(), notNullValue());
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));
+        assertTrue(Float.isFinite(config.rescoreOversample()));
+        assertTrue(config.rescoreOversample() > 0f);
+    }
+
+    /**
+     * The benchmark resolver reads its knobs from system properties; with none set it must calibrate exactly like the
+     * production constructor, otherwise a benchmark run silently measures a different model than production ships.
+     */
+    public void testBenchmarkDefaultsMatchProductionDefaults() {
+        assumeTrue("bench.calibration.* set in this JVM", System.getProperty("bench.calibration.variance_inflation") == null);
+        assertEquals(ErrorModel.DEFAULT_VARIANCE_INFLATION, IvfAutoCalibration.BENCH_VARIANCE_INFLATION, 0.0);
+    }
+
+    /** A custom variance inflation (here none) must run end to end and land on a swept candidate. */
+    public void testCalibrateWithNoInflation() throws IOException {
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION + 500,
+            8,
+            32,
+            50L
+        );
+        VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
+        int block = ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
+        IvfAutoCalibration selector = new IvfAutoCalibration(
+            VPC,
+            block,
+            IvfAutoCalibration.DEFAULT_TARGET_RECALL,
+            IvfAutoCalibration.DEFAULT_K,
+            1.0
+        );
+
+        IvfSegmentConfig config = selector.calibrate(
+            vectors,
+            similarityFunction,
+            vectors.size(),
+            IvfAutoCalibration.CalibrationMode.FAST
+        );
 
         assertThat(config.osqEncoding(), notNullValue());
         assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));

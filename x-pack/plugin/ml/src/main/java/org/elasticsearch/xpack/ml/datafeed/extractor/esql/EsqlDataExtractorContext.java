@@ -1,0 +1,23 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
+
+import java.util.Map;
+
+record EsqlDataExtractorContext(
+    String jobId,
+    String esqlQuery,
+    String sourceTimeField,
+    String emittedTimeField,
+    long groupingIntervalMillis,
+    long start,
+    long end,
+    Map<String, String> headers,
+    String requiredSummaryCountField,
+    String projectRouting
+) {}

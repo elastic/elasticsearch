@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -658,6 +659,64 @@ public class DataExtractorFactoryTests extends ESTestCase {
             timingStatsReporter,
             listener
         );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryRoutesToChunkedEsqlFactory() {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").setChunkingConfig(ChunkingConfig.newAuto()).build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryBypassesRollupCheck() {
+        givenAggregatableRollup("myField", "max", 5, "termField");
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig datafeedConfig = esqlDatafeedBuilder("esql-datafeed", "foo").build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+        builder.setEsqlQuery("FROM myIndex");
+        builder.setSourceTimeField("time");
+        builder.setGroupingInterval(TimeValue.timeValueHours(1));
+        return builder;
     }
 
     private void givenAggregatableRollup(String field, String type, int minuteInterval, String... groupByTerms) {

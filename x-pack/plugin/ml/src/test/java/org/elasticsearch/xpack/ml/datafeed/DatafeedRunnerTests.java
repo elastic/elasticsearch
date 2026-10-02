@@ -198,6 +198,12 @@ public class DatafeedRunnerTests extends ESTestCase {
         assertThat(datafeedRunner.countDatafeedsWithUnavailableProjects(), equalTo(1L));
     }
 
+    // NOTE: MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG is fixed for the process lifetime (unlike the
+    // Setting it replaced), so it can no longer flip from enabled to disabled while a datafeed is running.
+    // The dynamic ClusterChangedEvent-driven auto-stop this exercised (DatafeedRunner#stopEsqlDatafeedsDisabledBySetting)
+    // was removed as dead code; the remaining startup-time check is covered indirectly by the ES|QL datafeed
+    // start/preview/put tests in TransportStartDatafeedActionTests etc.
+
     private static LinkedClusterState available(String alias) {
         return new LinkedClusterState(alias, LinkedClusterState.Status.AVAILABLE, null, 10L);
     }
@@ -259,6 +265,32 @@ public class DatafeedRunnerTests extends ESTestCase {
 
         verify(threadPool, times(11)).schedule(any(), any(), any(Executor.class));
         verify(auditor, times(1)).warning(eq(JOB_ID), anyString());
+    }
+
+    public void testStart_noCompleteBucketExceptionShouldNeitherCountAsEmptyDataNorStopDatafeed() throws Exception {
+        currentTime = 6000000;
+        int[] counter = new int[] { 0 };
+        doAnswer(invocationOnMock -> {
+            if (counter[0]++ < 20) {
+                Runnable r = (Runnable) invocationOnMock.getArguments()[0];
+                currentTime += 600000;
+                r.run();
+            }
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(threadPool).schedule(any(), any(), any(Executor.class));
+
+        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenReturn(1L);
+        when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.NoCompleteBucketException(0L));
+        when(datafeedJob.getMaxEmptySearches()).thenReturn(1);
+
+        Consumer<Exception> handler = mockConsumer();
+        DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, null);
+        datafeedRunner.run(task, false, handler);
+
+        verify(threadPool, times(21)).schedule(any(), any(), any(Executor.class));
+        verify(auditor, never()).warning(eq(JOB_ID), anyString());
+        verify(auditor, never()).info(eq(JOB_ID), anyString());
+        assertThat(datafeedRunner.isRunning(task), is(true));
     }
 
     public void testRealTime_GivenStoppingAnalysisProblem() throws Exception {
@@ -574,7 +606,12 @@ public class DatafeedRunnerTests extends ESTestCase {
     public void testStoppedTaskStateUpdateFailureShouldCompleteGracefully() {
         enableSynchronousRetryScheduling();
         DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, 60000L);
-        when(task.getStoppedOrIsolated()).thenReturn(DatafeedTask.StoppedOrIsolated.NEITHER, DatafeedTask.StoppedOrIsolated.STOPPED);
+        when(task.getStoppedOrIsolated()).thenReturn(
+            DatafeedTask.StoppedOrIsolated.NEITHER,
+            DatafeedTask.StoppedOrIsolated.NEITHER,
+            DatafeedTask.StoppedOrIsolated.NEITHER,
+            DatafeedTask.StoppedOrIsolated.STOPPED
+        );
         doAnswer(invocationOnMock -> {
             ActionListener<PersistentTask<?>> listener = invocationOnMock.getArgument(1);
             listener.onFailure(new MasterNotDiscoveredException());

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
@@ -384,6 +385,32 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Number of ranged reads kept in flight per open gzip or zstd text stream. These codecs cannot be entered in
+     * the middle, so without read-ahead the whole object arrives over one connection, which over a long round
+     * trip bounds the scan far below the link. Each range in flight takes a per-query and a node concurrency
+     * permit and a breaker-charged buffer of {@link #COMPRESSED_READ_AHEAD_RANGE_SIZE}. {@code 0} keeps the
+     * single whole-object stream.
+     */
+    public static final Setting<Integer> COMPRESSED_READ_AHEAD_RANGES = Setting.intSetting(
+        "esql.external.compressed_read_ahead.ranges",
+        4,
+        0,
+        64,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Size of each ranged read behind {@link #COMPRESSED_READ_AHEAD_RANGES}. */
+    public static final Setting<ByteSizeValue> COMPRESSED_READ_AHEAD_RANGE_SIZE = Setting.byteSizeSetting(
+        "esql.external.compressed_read_ahead.range_size",
+        ByteSizeValue.ofMb(8),
+        ByteSizeValue.ofMb(1),
+        ByteSizeValue.ofMb(64),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Maximum decompression ratio for zstd-compressed objects; overrides {@link #MAX_DECOMPRESSION_RATIO}
      * for zstd. Default 2000: zstd can legitimately reach 583:1 on the DuckDB genome CSV at ultra compression,
      * while highly compressible repeated input reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
@@ -591,6 +618,8 @@ public final class ExternalSourceSettings {
             MAX_GLOB_EXPANSION,
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
+            COMPRESSED_READ_AHEAD_RANGES,
+            COMPRESSED_READ_AHEAD_RANGE_SIZE,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

@@ -556,6 +556,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
             formatReaderRegistry::setMaxDecompressionRatioZstd
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.COMPRESSED_READ_AHEAD_RANGES,
+            formatReaderRegistry::setCompressedReadAheadRanges
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.COMPRESSED_READ_AHEAD_RANGE_SIZE,
+            formatReaderRegistry::setCompressedReadAheadRangeSize
+        );
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader

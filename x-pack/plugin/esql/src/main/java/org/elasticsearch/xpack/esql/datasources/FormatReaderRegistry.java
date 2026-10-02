@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -48,6 +49,11 @@ public class FormatReaderRegistry {
     private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
     private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
+    private volatile int compressedReadAheadRanges = ExternalSourceSettings.COMPRESSED_READ_AHEAD_RANGES.getDefault(Settings.EMPTY);
+    private volatile int compressedReadAheadRangeBytes = (int) ExternalSourceSettings.COMPRESSED_READ_AHEAD_RANGE_SIZE.getDefault(
+        Settings.EMPTY
+    ).getBytes();
+
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
         this.codecRegistry = codecRegistry;
     }
@@ -58,6 +64,18 @@ public class FormatReaderRegistry {
 
     public void setMaxDecompressionRatioZstd(int ratio) {
         this.maxDecompressionRatioZstd = ratio;
+    }
+
+    public void setCompressedReadAheadRanges(int ranges) {
+        this.compressedReadAheadRanges = ranges;
+    }
+
+    public void setCompressedReadAheadRangeSize(ByteSizeValue size) {
+        this.compressedReadAheadRangeBytes = (int) size.getBytes();
+    }
+
+    private DecompressingStorageObject.ReadAhead compressedReadAhead() {
+        return new DecompressingStorageObject.ReadAhead(compressedReadAheadRanges, compressedReadAheadRangeBytes);
     }
 
     private int maxDecompressionRatio(DecompressionCodec codec) {
@@ -441,7 +459,7 @@ public class FormatReaderRegistry {
                 "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
             );
         }
-        return new CompressionDelegatingFormatReader(inner, codec, () -> maxDecompressionRatio(codec));
+        return new CompressionDelegatingFormatReader(inner, codec, () -> maxDecompressionRatio(codec), this::compressedReadAhead);
     }
 
     /**

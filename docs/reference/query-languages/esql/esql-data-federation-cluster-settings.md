@@ -56,6 +56,17 @@ These settings limit how much CPU and read-thread time a single compressed objec
 | `esql.external.max_decompression_ratio` {applies_to}`stack: experimental 9.6+` | 200 | Maximum ratio of decompressed to compressed bytes for gzip and other stream-only codecs. A read fails with a 400 error if the object expands beyond this multiple of its compressed size. `0` disables the check. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 | `esql.external.max_decompression_ratio.zstd` {applies_to}`stack: experimental 9.6+` | 2000 | Maximum decompression ratio for zstd-compressed objects. Overrides `esql.external.max_decompression_ratio` for zstd, which can legitimately reach higher ratios than gzip. `0` disables the check for zstd. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 
+## Compressed read-ahead
+
+A gzip or zstd text file (CSV, TSV, or NDJSON) can't be entered in the middle, so each object is decompressed as one sequential stream. Reading it over a single connection limits throughput when the node is far from the bucket, for example across regions. These settings feed the decompressor from several concurrent ranged reads, delivered in order. They apply only when a query scans a compressed object with parallel parsing. A query with a `LIMIT` reads one stream as before.
+
+Each range in flight holds one per-query and one node request permit, plus a buffer of `range_size` charged to the circuit breaker. Each open compressed stream therefore holds up to `ranges` × `range_size` of breaker memory: 32 MiB with the defaults.
+
+| Setting | Default | Description |
+|---|---|---|
+| `esql.external.compressed_read_ahead.ranges` {applies_to}`stack: experimental 9.6+` | 4 | Number of ranged reads kept in flight for each open gzip or zstd text stream. `0` disables read-ahead and reads each object over one connection. Range 0–64. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.compressed_read_ahead.range_size` {applies_to}`stack: experimental 9.6+` | 8mb | Size of each ranged read. Range 1mb–64mb. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+
 ## Authentication
 
 These settings control which authentication modes data sources can use.

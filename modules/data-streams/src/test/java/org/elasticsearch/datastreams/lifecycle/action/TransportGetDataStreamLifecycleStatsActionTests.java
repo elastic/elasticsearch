@@ -14,18 +14,15 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,8 +52,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         mock(ThreadPool.class),
         mock(ActionFilters.class),
         dataStreamLifecycleService,
-        TestProjectResolvers.alwaysThrow(),
-        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
+        TestProjectResolvers.alwaysThrow()
     );
     private Long lastRunDuration;
     private Long timeBetweenStarts;
@@ -72,10 +68,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
     }
 
     public void testEmptyClusterState() {
-        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(
-            ProjectMetadata.builder(randomUniqueProjectId()).build(),
-            randomBoolean()
-        );
+        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(ProjectMetadata.builder(randomUniqueProjectId()).build());
         assertThat(response.getRunDuration(), is(lastRunDuration));
         assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
         assertThat(response.getDataStreamStats().isEmpty(), is(true));
@@ -141,8 +134,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         }
         ProjectMetadata project = builder.build();
         when(errorStore.getAllIndices(project.id())).thenReturn(indicesInError);
-        // none of the data streams are time series, so the default lifecycle for time series has no effect
-        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(project, randomBoolean());
+        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(project);
         assertThat(response.getRunDuration(), is(lastRunDuration));
         assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
         assertThat(response.getDataStreamStats().size(), is(2));
@@ -155,83 +147,6 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
                 assertThat(stats.backingIndicesInTotal(), is(1));
                 assertThat(stats.backingIndicesInError(), is(0));
             }
-        }
-    }
-
-    /**
-     * Time series data streams without a configured lifecycle are managed by the default lifecycle only when the default lifecycle for
-     * time series is enabled, so they should only be reported in the stats in that case. Whether the default lifecycle applies depends
-     * on the index mode of the data stream, so the backing indices use the standard index mode to avoid having to configure
-     * non-overlapping time series ranges.
-     */
-    public void testTimeSeriesDataStreamsWithoutLifecycle() {
-        Set<Index> indicesInError = new HashSet<>();
-        int numBackingIndices = 3;
-        long now = Clock.systemUTC().millis();
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        DataStream tsdsWithoutLifecycle = createDataStream(
-            builder,
-            "tsds-without-lifecycle",
-            numBackingIndices,
-            settings(IndexVersion.current()),
-            null,
-            now
-        ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
-        indicesInError.add(tsdsWithoutLifecycle.getIndices().get(randomInt(numBackingIndices - 1)));
-        builder.put(tsdsWithoutLifecycle);
-        // the backing indices have an ILM policy, and ILM is preferred, so none of them are managed by the default lifecycle
-        DataStream tsdsWithIlm = createDataStream(
-            builder,
-            "tsds-with-ilm",
-            numBackingIndices,
-            settings(IndexVersion.current()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"),
-            null,
-            now
-        ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
-        builder.put(tsdsWithIlm);
-        // a configured lifecycle takes precedence over the default lifecycle
-        DataStream tsdsWithDisabledLifecycle = createDataStream(
-            builder,
-            "tsds-with-disabled-lifecycle",
-            numBackingIndices,
-            settings(IndexVersion.current()),
-            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build(),
-            now
-        ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
-        builder.put(tsdsWithDisabledLifecycle);
-        // the default lifecycle applies only to time series data streams
-        DataStream standardWithoutLifecycle = createDataStream(
-            builder,
-            "standard-without-lifecycle",
-            numBackingIndices,
-            settings(IndexVersion.current()),
-            null,
-            now
-        );
-        builder.put(standardWithoutLifecycle);
-        ProjectMetadata project = builder.build();
-        when(errorStore.getAllIndices(project.id())).thenReturn(indicesInError);
-
-        {
-            GetDataStreamLifecycleStatsAction.Response response = action.collectStats(project, false);
-            assertThat(response.getRunDuration(), is(lastRunDuration));
-            assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
-            assertThat(response.getDataStreamStats().isEmpty(), is(true));
-        }
-
-        {
-            GetDataStreamLifecycleStatsAction.Response response = action.collectStats(project, true);
-            assertThat(response.getRunDuration(), is(lastRunDuration));
-            assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
-            assertThat(
-                response.getDataStreamStats(),
-                is(
-                    List.of(
-                        new GetDataStreamLifecycleStatsAction.Response.DataStreamStats("tsds-with-ilm", 0, 0),
-                        new GetDataStreamLifecycleStatsAction.Response.DataStreamStats("tsds-without-lifecycle", numBackingIndices, 1)
-                    )
-                )
-            );
         }
     }
 }

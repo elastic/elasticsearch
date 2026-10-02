@@ -107,6 +107,40 @@ public class AssignmentPlanTests extends ESTestCase {
         assertThat(m.findOptimalAllocations(10, m.minimumMemoryRequiredBytes()), greaterThan(0));
     }
 
+    public void testFindOptimalAllocations_TopUp_DoesNotRechargeFixedCost() {
+        long perDeployment = ByteSizeValue.ofMb(200).getBytes();
+        long perAllocation = ByteSizeValue.ofMb(500).getBytes();
+        long modelBytes = ByteSizeValue.ofMb(100).getBytes();
+        // Fixed per-deployment overhead = perDeployment + modelBytes = 300 MB; the linear branch dominates from one
+        // allocation on (200 + 500 + 100 = 800 MB > baseSize 240 + 2 * 100 = 440 MB). currentAllocationsByNodeId records
+        // that the deployment already runs one allocation on node_1, i.e. an existing-node top-up rather than a fresh placement.
+        Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            "m_1",
+            modelBytes,
+            10,
+            1,
+            Map.of("node_1", 1),
+            0,
+            null,
+            perDeployment,
+            perAllocation
+        );
+
+        long leftover = ByteSizeValue.ofMb(1000).getBytes();
+
+        // Fresh placement (nothing running yet): the fixed cost must still be paid, so floor((1000 - 300) / 500) = 1.
+        assertThat(m.findOptimalAllocations(10, leftover, 0), equalTo(1));
+
+        // Top-up with one allocation already running: preservation has already reserved that deployment's full memory on the
+        // node, so this leftover budget only has to cover the per-allocation cost of the new slots -> floor(1000 / 500) = 2.
+        // Charging the fixed cost a second time would wrongly return 1 (the regression this guards against).
+        assertThat(m.findOptimalAllocations(10, leftover, 1), equalTo(2));
+
+        // The two-argument overload is just the fresh-placement case.
+        assertThat(m.findOptimalAllocations(10, leftover), equalTo(m.findOptimalAllocations(10, leftover, 0)));
+    }
+
     public void testFindAllocations_NoMemoryBound_WhenPerAllocationMemoryIsZero() {
         Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", 40, 10, 1, Map.of(), 0, null, 0, 0);
         // Without a per-allocation memory figure there is nothing to bound by, so the requested maximum is returned

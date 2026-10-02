@@ -135,29 +135,46 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {
-            // As soon as we know the per-allocation memory (whether from model metadata or from observed runtime memory)
-            // we can bound the number of allocations by the memory available on the node. A zero per-deployment base is fine.
-            if (perAllocationMemoryBytes > 0) {
-                // Guard first: if the node cannot afford even a single allocation (including MEMORY_OVERHEAD and the
-                // model-zip transient), the division below would over-count because fixedCostBytes only covers
-                // perDeploymentMemoryBytes + memoryBytes and omits MEMORY_OVERHEAD.
-                if (availableMemoryBytes < minimumMemoryRequiredBytes()) {
-                    return 0;
-                }
-                // Subtract the fixed per-deployment overhead (present once any allocations are running) before
-                // dividing by the per-allocation cost. This mirrors the fixed terms of the linear branch of
-                // estimateMemoryUsageBytes: perDeploymentMemoryBytes plus memoryBytes. The latter is the model
-                // definition size, reserved as transient startup headroom to hold the model zip in memory while
-                // pytorch_inference loads it (see estimateMemoryUsageBytes) rather than retained for the deployment's
-                // lifetime; either way it is paid once, independently of the allocation count. estimateMemoryUsageBytes(0)
-                // is always 0, so we use these terms directly rather than calling it.
-                long fixedCostBytes = perDeploymentMemoryBytes + memoryBytes;
-                return (int) Math.max(
-                    Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - fixedCostBytes, perAllocationMemoryBytes)),
-                    0
-                );
+            return findOptimalAllocations(maxAllocations, availableMemoryBytes, 0);
+        }
+
+        /**
+         * Returns the largest number of <em>additional</em> allocations (capped at {@code maxAllocations}) whose incremental
+         * memory cost fits within {@code availableMemoryBytes}, given that {@code currentAllocations} of this deployment are
+         * already running on the node under consideration.
+         * <p>
+         * Sizing is based on the incremental cost ({@link #estimateAdditionalMemoryUsageBytes}) rather than the absolute cost,
+         * so a top-up onto a node that already runs this deployment is not charged the fixed per-deployment overhead a second
+         * time. That overhead - the per-deployment base plus the model-zip startup transient - is paid once: either reserved on
+         * the node when the existing allocations were preserved, or accounted for by an earlier assignment in this planning
+         * round. Charging it again would undercount the top-up (e.g. with a 300 MB fixed cost, 500 MB per allocation and 1000 MB
+         * of leftover memory, two further allocations fit, not one). For a fresh assignment ({@code currentAllocations == 0}) the
+         * incremental cost is the full first-allocation cost, so this also enforces the minimum-memory requirement and the
+         * base-size-dominated regime (where several allocations share the {@code MEMORY_OVERHEAD + 2 * modelBytes} floor) with no
+         * special casing. Keeping the hint on the same incremental basis as {@link Builder#getDeploymentMemoryRequirement} - which
+         * charges the identical cost when the assignment is actually made - avoids both undercounting top-ups and over-sizing a
+         * node the planner would then reject.
+         */
+        int findOptimalAllocations(int maxAllocations, long availableMemoryBytes, int currentAllocations) {
+            if (maxAllocations <= 0) {
+                return 0;
             }
-            return maxAllocations;
+            // Without a per-allocation memory figure there is nothing to bound by, so the requested maximum is returned.
+            if (perAllocationMemoryBytes == 0) {
+                return maxAllocations;
+            }
+            // The incremental cost is monotonic in the number of added allocations, so binary-search the largest count that fits.
+            int low = 0;
+            int high = maxAllocations;
+            while (low < high) {
+                int mid = low + (high - low + 1) / 2;
+                if (estimateAdditionalMemoryUsageBytes(currentAllocations, currentAllocations + mid) <= availableMemoryBytes) {
+                    low = mid;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            return low;
         }
 
         int findExcessAllocations(int maxAllocations, long availableMemoryBytes) {
@@ -504,7 +521,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return this;
         }
 
-        private int getAssignedAllocations(Deployment deployment, Node node) {
+        int getAssignedAllocations(Deployment deployment, Node node) {
             return assignments.get(deployment).get(node);
         }
 

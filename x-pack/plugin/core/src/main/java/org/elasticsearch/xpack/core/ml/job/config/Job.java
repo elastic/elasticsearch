@@ -1023,7 +1023,9 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
          * @return The job builder.
          */
         public Builder setDatafeedIndicesOptionsIfRequired(IndicesOptions indicesOptions) {
-            if (this.datafeedConfig != null && this.datafeedConfig.getIndicesOptions() == null) {
+            if (this.datafeedConfig != null
+                && this.datafeedConfig.getIndicesOptions() == null
+                && this.datafeedConfig.getEsqlQuery() == null) {
                 this.datafeedConfig.setIndicesOptions(indicesOptions);
             }
             return this;

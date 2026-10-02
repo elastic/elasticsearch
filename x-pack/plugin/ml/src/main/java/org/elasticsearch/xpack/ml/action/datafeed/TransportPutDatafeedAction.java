@@ -26,9 +26,13 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+
+import java.util.Optional;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
@@ -73,7 +77,32 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        DatafeedConfig datafeed = request.getDatafeed();
+        Optional<Exception> rejection = DatafeedEsqlGates.createRejection(
+            datafeed.getId(),
+            datafeed.minRequiredTransportVersion(),
+            datafeed.getEsqlQuery() != null,
+            state,
+            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
+        );
+        if (rejection.isPresent()) {
+            listener.onFailure(rejection.get());
+            return;
+        }
         datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
+    }
+
+    /**
+     * Rejects datafeed creation when the datafeed requires a minimum transport version that the
+     * cluster has not yet reached. This guards against a datafeed being created while a rolling
+     * upgrade is still in progress — a datafeed with such a requirement must never be routed to a
+     * node that predates the feature it depends on.
+     *
+     * @return the reason the datafeed requires a newer transport version, or empty if the cluster
+     * already supports it
+     */
+    static Optional<String> checkClusterSupportsDatafeedConfig(DatafeedConfig datafeed, ClusterState state) {
+        return DatafeedEsqlGates.unsupportedReason(datafeed.minRequiredTransportVersion(), state);
     }
 
     @Override
@@ -84,6 +113,13 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     @Override
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
+        Optional<String> unsupportedReason = checkClusterSupportsDatafeedConfig(request.getDatafeed(), clusterService.state());
+        if (unsupportedReason.isPresent()) {
+            releasingListener.onFailure(
+                DatafeedEsqlGates.unsupportedCreateException(request.getDatafeed().getId(), unsupportedReason.get())
+            );
+            return;
+        }
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
             if (callerCredential != null) {

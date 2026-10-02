@@ -10,9 +10,12 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class NodeCacheSizeAndCommitmentsTests extends AbstractWireSerializingTestCase<NodeCacheSizeAndCommitments> {
 
@@ -46,6 +49,35 @@ public class NodeCacheSizeAndCommitmentsTests extends AbstractWireSerializingTes
             );
             default -> throw new AssertionError("unexpected branch");
         };
+    }
+
+    public void testSpareCapacityBytes() {
+        final long cacheSize = 1000L;
+        final RatioValue watermark = RatioValue.ofPercent(75);
+        final long threshold = (long) (cacheSize * watermark.getAsRatio()); // 750
+
+        // Below the threshold: spare equals the gap.
+        final var belowThreshold = new NodeCacheSizeAndCommitments(cacheSize, 500L, 0L);
+        assertThat(belowThreshold.spareCapacityBytes(500L, watermark), equalTo(250L));
+
+        // Exactly at the threshold: spare is zero.
+        final var atThreshold = new NodeCacheSizeAndCommitments(cacheSize, threshold, 0L);
+        assertThat(atThreshold.spareCapacityBytes(threshold, watermark), equalTo(0L));
+
+        // Above the threshold: spare is clamped to zero, never negative.
+        final var aboveThreshold = new NodeCacheSizeAndCommitments(cacheSize, threshold + 1, 0L);
+        assertThat(aboveThreshold.spareCapacityBytes(threshold + 1, watermark), equalTo(0L));
+
+        // Consistency with exceedsWatermark: a node that does not exceed the watermark has positive spare; one that
+        // does has zero spare.
+        final var instance = randomNodeCacheSizeAndCommitments();
+        final long commitmentBytes = randomNonNegativeLong();
+        final long spare = instance.spareCapacityBytes(commitmentBytes, watermark);
+        if (instance.exceedsWatermark(commitmentBytes, watermark)) {
+            assertThat(spare, equalTo(0L));
+        } else {
+            assertThat(spare, greaterThanOrEqualTo(0L));
+        }
     }
 
     public void testRejectsNegativeValues() {

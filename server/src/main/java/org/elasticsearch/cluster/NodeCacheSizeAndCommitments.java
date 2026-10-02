@@ -46,6 +46,14 @@ public record NodeCacheSizeAndCommitments(long cacheSizeInBytes, long boostedCac
         return commitmentBytes > (long) (cacheSizeInBytes * watermark.getAsRatio());
     }
 
+    /**
+     * The bytes of spare capacity below the given watermark threshold, clamped to zero if the commitment already meets or exceeds it.
+     * Uses the same threshold formula as {@link #exceedsWatermark}, so the two methods are consistent.
+     */
+    public long spareCapacityBytes(long commitmentBytes, RatioValue watermark) {
+        return Math.max(0L, (long) (cacheSizeInBytes * watermark.getAsRatio()) - commitmentBytes);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(cacheSizeInBytes);

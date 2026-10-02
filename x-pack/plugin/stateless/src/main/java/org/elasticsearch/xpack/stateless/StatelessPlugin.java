@@ -75,6 +75,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecProvider;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.SegmentStatsCollector;
+import org.elasticsearch.index.codec.SegmentStatsCollectors;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -579,7 +582,7 @@ public class StatelessPlugin extends Plugin
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
 
-    private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
+    private final SetOnce<SegmentStatsCollectors> segmentStatsCollectors = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollector> searchShardSizeCollector = new SetOnce<>();
     private final SetOnce<WarmingRatioProviderFactory> warmingRatioProviderFactoryRef = new SetOnce<>();
@@ -1868,27 +1871,36 @@ public class StatelessPlugin extends Plugin
         registrator.accept(StatelessPlugin.NAME, metricHolder);
     }
 
-    protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
-        var factory = codecProviderFactory.get();
-        if (factory != null) {
-            return factory.getCodecProvider(engineConfig);
-        }
-        return engineConfig.getCodecProvider();
-    }
-
     protected org.apache.lucene.index.MergePolicy getMergePolicy(EngineConfig engineConfig) {
         return engineConfig.getMergePolicy();
     }
 
+    /**
+     * Returns the codec provider for the given engine. With {@link SegmentStatsCollector}s registered through
+     * {@link SegmentStatsCollectorProvider}, the codecs writing this engine's segments notify them; otherwise the default
+     * provider is used as is.
+     */
+    protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
+        SegmentStatsCollectors collectors = segmentStatsCollectors.get();
+        if (collectors == null || collectors.size() == 0) {
+            return engineConfig.getCodecProvider();
+        }
+        return new CodecService(
+            engineConfig.getMapperService(),
+            engineConfig.getTranslogConfig().getBigArrays(),
+            // as in IndexShard: the thread pool is only passed on if merges run on the merge thread pool
+            engineConfig.getThreadPoolMergeExecutorService() == null ? null : engineConfig.getThreadPool(),
+            collectors
+        );
+    }
+
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        var factories = loader.loadExtensions(CodecProviderFactory.class);
-
-        if (factories.size() > 1) {
-            throw new IllegalStateException(CodecProviderFactory.class + " may not have multiple implementations");
-        } else if (factories.size() == 1) {
-            codecProviderFactory.set(factories.get(0));
+        List<SegmentStatsCollector> collectors = new ArrayList<>();
+        for (SegmentStatsCollectorProvider provider : loader.loadExtensions(SegmentStatsCollectorProvider.class)) {
+            collectors.addAll(provider.getSegmentStatsCollectors());
         }
+        this.segmentStatsCollectors.set(SegmentStatsCollectors.of(collectors));
 
         this.statelessServicesConsumerProviders.set(loader.loadExtensions(StatelessExtensionProvider.class));
 

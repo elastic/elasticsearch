@@ -18,6 +18,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -42,6 +44,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.ElasticsearchCodec;
+import org.elasticsearch.index.codec.SegmentStatsCollector;
+import org.elasticsearch.index.codec.SegmentStatsCollectors;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
@@ -1052,10 +1057,23 @@ public class IndexEngine extends InternalEngine {
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
         return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
             private volatile boolean isComplete = false;
+            // Only accessed from the merge thread
+            private SegmentStatsCollector.MergeCollector mergeCollector;
 
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                return oneMerge.wrapForMerge(reader);
+                // Let inner merge policies (soft deletes retention, pruning etc.) wrap the reader first, so that collectors
+                // observe the documents that are actually merged.
+                CodecReader wrapped = oneMerge.wrapForMerge(reader);
+                SegmentCommitInfo mergeInfo = getMergeInfo();
+                if (mergeInfo == null) {
+                    return wrapped;
+                }
+                if (mergeCollector == null) {
+                    mergeCollector = startSegmentStatsCollectors(mergeInfo.info);
+                }
+                mergeCollector.onSource(wrapped);
+                return wrapped;
             }
 
             @Override
@@ -1087,6 +1105,18 @@ public class IndexEngine extends InternalEngine {
 
     private boolean shouldSkipMerge() {
         return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
+    }
+
+    /**
+     * Starts the {@link SegmentStatsCollectors} registered for this index that apply to its current mapping, for a merge
+     * producing {@code mergedSegment}. Applicability is re-evaluated per merge, so that mapping updates are picked up.
+     */
+    private SegmentStatsCollector.MergeCollector startSegmentStatsCollectors(SegmentInfo mergedSegment) {
+        // Resolve through the codec writing this index's segments, exactly like the flush path does
+        SegmentStatsCollectors collectors = engineConfig.getCodec() instanceof ElasticsearchCodec codec
+            ? codec.getSegmentStatsCollectors()
+            : SegmentStatsCollectors.NONE;
+        return collectors.onMergeStart(mergedSegment);
     }
 
     final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {

@@ -46,7 +46,7 @@ DRA_WORKFLOW="${DRA_WORKFLOW:-snapshot}"
 
 case "$DRA_WORKFLOW" in
   snapshot) BUCKET="snapshots.elastic.co" ;;
-  staging)  BUCKET="artifacts.elastic.co" ;;
+  staging)  BUCKET="staging.elastic.co" ;;
   *) echo "unsupported DRA_WORKFLOW='$DRA_WORKFLOW'" >&2; exit 2 ;;
 esac
 

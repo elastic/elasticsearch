@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.Phase2Reservation;
@@ -350,7 +351,11 @@ public class ComputeService {
                 return;
             }
             chargeResolvedExternalSources(plan, run);
-            Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+            Executor ioExecutor = ExternalIoExecutors.restoring(
+                threadPool.executor(EsqlPlugin.externalBlobStorePool()),
+                threadPool.getThreadContext().newRestorableContext(true),
+                null
+            );
             SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
                 plan,
                 operatorFactoryRegistry.sourceFactories(),
@@ -847,7 +852,11 @@ public class ComputeService {
             return;
         }
         Map<FragmentExec, List<SettledListing>> settled = new IdentityHashMap<>();
-        Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+        Executor ioExecutor = ExternalIoExecutors.restoring(
+            threadPool.executor(EsqlPlugin.externalBlobStorePool()),
+            threadPool.getThreadContext().newRestorableContext(true),
+            null
+        );
         discoverFragmentWork(
             workItems,
             0,

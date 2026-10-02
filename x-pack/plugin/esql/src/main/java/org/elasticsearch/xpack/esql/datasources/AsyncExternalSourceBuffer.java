@@ -12,9 +12,14 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,7 +32,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -41,10 +45,19 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class AsyncExternalSourceBuffer {
 
+    private static final Logger logger = LogManager.getLogger(AsyncExternalSourceBuffer.class);
+
     /**
      * Default byte limit for the buffer, preserving the original "10 normal-sized pages" intent.
      */
     public static final long DEFAULT_MAX_BUFFER_BYTES = 10L * Operator.TARGET_PAGE_SIZE;
+
+    /**
+     * Published bytes_read view: committed total plus, while {@code object} is tracked, the live
+     * delta on that object's metrics. One volatile write replaces the record; overlapping
+     * read-then-publish calls can lose an update, so production writers must not overlap.
+     */
+    private record BytesView(long committed, long baseline, @Nullable StorageObject object) {}
 
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
@@ -136,11 +149,7 @@ public final class AsyncExternalSourceBuffer {
 
     private volatile FormatReaderStatus formatReaderStatus = null;
     private final ExternalReadCounters readCounters = new ExternalReadCounters();
-    // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
-    // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
-    // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
-    // single consumer counter and stays AtomicLong.
-    private final LongAdder bytesRead = new LongAdder();
+    private volatile BytesView bytesView = new BytesView(0L, 0L, null);
     private volatile int splitsTotal = 0;
     private final AtomicInteger splitsProcessed = new AtomicInteger();
     private volatile int currentSplit = 0;
@@ -528,11 +537,84 @@ public final class AsyncExternalSourceBuffer {
         this.formatReaderStatus = snapshot;
     }
 
-    /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */
+    /**
+     * Adds {@code delta} to the committed total. This is the non-tracking path: it must not run
+     * while {@link #trackStorageObject} is following an object. Mixing the two would publish
+     * {@code object=null} and drop that object's live in-flight delta. Slice-queue and multi-file
+     * producers track; single-file producers also track now and fold via {@link #finishInFlightBytes}.
+     */
     public void addBytesRead(long delta) {
-        if (delta > 0) {
-            bytesRead.add(delta);
+        if (delta <= 0) {
+            return;
         }
+        BytesView view = bytesView;
+        assert view.object() == null : "addBytesRead is the single-file path; it must not overlap tracking";
+        bytesView = new BytesView(view.committed() + delta, view.baseline(), null);
+    }
+
+    /**
+     * Starts following {@code object}'s live {@code metrics().bytesRead()} after folding any
+     * previously tracked object into committed bytes. Must run before that object is read.
+     */
+    void trackStorageObject(StorageObject object) {
+        finishInFlightBytes();
+        long baseline = 0L;
+        try {
+            StorageObjectMetrics metrics = object.metrics();
+            if (metrics != null) {
+                baseline = metrics.bytesRead();
+            }
+        } catch (Exception e) {
+            baseline = 0L;
+        }
+        BytesView view = bytesView;
+        bytesView = new BytesView(view.committed(), baseline, object);
+    }
+
+    /**
+     * Folds the live delta into committed bytes while keeping the same object tracked. A throw or
+     * null metrics snapshot is a no-op so a failed read cannot reset the baseline.
+     */
+    void commitInFlightBytes() {
+        BytesView view = bytesView;
+        StorageObject object = view.object();
+        if (object == null) {
+            return;
+        }
+        try {
+            StorageObjectMetrics metrics = object.metrics();
+            if (metrics == null) {
+                logger.trace("telemetry: bytesRead snapshot failed");
+                return;
+            }
+            long current = metrics.bytesRead();
+            long delta = Math.max(0L, current - view.baseline());
+            bytesView = new BytesView(view.committed() + delta, current, object);
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
+        }
+    }
+
+    /**
+     * Folds the live delta into committed bytes and drops the tracked object so later increments
+     * on that object are not counted.
+     */
+    void finishInFlightBytes() {
+        BytesView view = bytesView;
+        StorageObject object = view.object();
+        long delta = 0L;
+        if (object != null) {
+            try {
+                StorageObjectMetrics metrics = object.metrics();
+                if (metrics != null) {
+                    delta = Math.max(0L, metrics.bytesRead() - view.baseline());
+                }
+            } catch (Exception e) {
+                logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
+                delta = 0L;
+            }
+        }
+        bytesView = new BytesView(view.committed() + delta, 0L, null);
     }
 
     /** Sets the total number of splits the producer expects to process; callable once when known. */
@@ -560,9 +642,26 @@ public final class AsyncExternalSourceBuffer {
         return readCounters;
     }
 
-    /** Returns cumulative pre-decompression bytes read from the storage layer. */
+    /**
+     * Returns cumulative pre-decompression bytes read from the storage layer. While an object is
+     * tracked this includes the live delta on that object's metrics, so a LIMIT close can copy a
+     * non-zero value before the producer commits.
+     */
     public long bytesRead() {
-        return bytesRead.sum();
+        BytesView view = bytesView;
+        StorageObject object = view.object();
+        if (object == null) {
+            return view.committed();
+        }
+        try {
+            StorageObjectMetrics metrics = object.metrics();
+            if (metrics == null) {
+                return view.committed();
+            }
+            return view.committed() + Math.max(0L, metrics.bytesRead() - view.baseline());
+        } catch (Exception e) {
+            return view.committed();
+        }
     }
 
     /** Returns the total number of splits the producer expects to process. */

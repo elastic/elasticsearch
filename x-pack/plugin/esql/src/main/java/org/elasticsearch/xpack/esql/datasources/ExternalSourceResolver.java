@@ -577,11 +577,10 @@ public class ExternalSourceResolver {
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
         this.restorableContext = threadContext == null ? null : threadContext.newRestorableContext(true);
-        // Install the query cancellation signal as the ambient StorageRetryCancellation scope for every footer read
-        // dispatched to the executor, so an executor-backed synchronous read's backoff aborts promptly on cancel.
-        this.metadataReadExecutor = command -> executor.execute(
-            () -> StorageRetryCancellation.runWithCancellation(this::isCancelled, command::run)
-        );
+        // Restore the captured request ThreadContext and install cancellation on every metadata-read
+        // task so footer-load waiters and per-file continuations see the caller's headers, and so a
+        // pool rejection still reaches AbstractRunnable.onRejection.
+        this.metadataReadExecutor = ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled);
     }
 
     /**

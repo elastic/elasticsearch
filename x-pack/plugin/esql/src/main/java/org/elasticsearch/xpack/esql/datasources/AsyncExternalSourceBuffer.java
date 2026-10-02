@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -469,9 +470,7 @@ public final class AsyncExternalSourceBuffer {
     public void onFailure(Throwable t) {
         synchronized (failureLock) {
             if (failure != null) {
-                if (failure != t) {
-                    failure.addSuppressed(t);
-                }
+                SuppressedFailures.attach(failure, t);
                 return;
             }
             failure = t;

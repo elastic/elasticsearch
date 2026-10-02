@@ -304,6 +304,24 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
     }
 
+    /**
+     * A later failure that already suppresses the first one (because both are shared with another split that attached
+     * them in the opposite order) must not be suppressed back onto it. The first failure is still the one surfaced, so
+     * the operator classifies it by its own type.
+     */
+    public void testSecondFailureDoesNotCreateACycle() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException a = new CircuitBreakingException("[parquet reader]", CircuitBreaker.Durability.TRANSIENT);
+        CircuitBreakingException b = new CircuitBreakingException("[parquet sliding window]", CircuitBreaker.Durability.TRANSIENT);
+        b.addSuppressed(a);
+
+        buffer.onFailure(a);
+        buffer.onFailure(b);
+
+        assertSame(a, buffer.failure());
+        assertArrayEquals("b already reaches a, so suppressing it onto a would loop", new Throwable[0], a.getSuppressed());
+    }
+
     public void testConcurrentOnFailureSelectsExactlyOneFirstFailure() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         int failureCount = 10;

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -401,8 +402,8 @@ final class CoalescedRangeReader {
             }
         } else {
             Exception first = firstFailure.get();
-            if (first != null && first != e) {
-                first.addSuppressed(e);
+            if (first != null) {
+                SuppressedFailures.attach(first, e);
             }
         }
     }

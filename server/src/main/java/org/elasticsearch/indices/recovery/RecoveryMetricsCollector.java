@@ -287,8 +287,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, Stage stage, long elapsedTimeMillis) {
-        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED, stage));
         shardRecoveryDirectCancellationsWorkTimeMetric.record(elapsedTimeMillis);
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED, stage));
     }
 
     @Override

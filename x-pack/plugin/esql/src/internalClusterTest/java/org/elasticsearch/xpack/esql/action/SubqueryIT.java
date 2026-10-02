@@ -430,7 +430,6 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testThreeLevelNestedSubqueriesAtDifferentParallelDegrees() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                ( FROM test | WHERE id == 1 ),
@@ -454,7 +453,6 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNestedSubqueryProfileUsesHierarchicalNames() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                ( FROM test | WHERE id == 1 ),
@@ -482,7 +480,6 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNestedSubqueryOuterLimitWithQueuedLeaves() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                ( FROM test ),

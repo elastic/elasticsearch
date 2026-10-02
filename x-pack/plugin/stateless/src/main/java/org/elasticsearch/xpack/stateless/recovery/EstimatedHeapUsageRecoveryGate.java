@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryGate;
@@ -20,7 +19,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
@@ -57,7 +56,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
     private final long maxHeapBytes;
     private final EstimatedHeapSettings heapSettings;
     private final SingleObjectCache<Long> estimateCache;
-    private final LongGaugeMetric estimatedHeapUsageMetric;
+    private final LongGauge estimatedHeapUsageMetric;
     private volatile double estimatedHeapUsageDeltaPercentage;
     private final DoubleAsyncGauge estimatedHeapUsageDeltaPercentageMetric;
     private final LongHistogram estimatedHeapComputationTimeMetric;
@@ -105,8 +104,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
         assert maxHeapBytes >= 0 : "negative max heap size: " + maxHeapBytes;
         this.maxHeapBytes = maxHeapBytes;
         this.heapSettings = heapSettings;
-        this.estimatedHeapUsageMetric = LongGaugeMetric.create(
-            meterRegistry,
+        this.estimatedHeapUsageMetric = meterRegistry.registerLongGauge(
             ESTIMATED_HEAP_USAGE_METRIC,
             "Estimated heap usage used by the recovery gate",
             "bytes"
@@ -187,7 +185,6 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
 
     @Override
     public void close() {
-        // Only the asynchronous gauges are closeable; the synchronous histogram needs no cleanup.
-        Releasables.close(estimatedHeapUsageMetric.gauge()::close, estimatedHeapUsageDeltaPercentageMetric::close);
+        estimatedHeapUsageDeltaPercentageMetric.close();
     }
 }

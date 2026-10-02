@@ -108,7 +108,7 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     }
 
     @Override
-    public StoredFieldsReader getMergeInstance() {
+    public StoredFieldsReader getMergeInstance() throws IOException {
         return new TSDBSyntheticIdStoredFieldsReader(
             directory,
             segmentInfo,

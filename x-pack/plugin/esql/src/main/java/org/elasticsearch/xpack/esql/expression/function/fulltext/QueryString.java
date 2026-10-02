@@ -162,7 +162,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                         + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "allow_wildcard",
+                    name = "analyze_wildcard",
                     type = "boolean",
                     valueHint = { "false", "true" },
                     description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false."

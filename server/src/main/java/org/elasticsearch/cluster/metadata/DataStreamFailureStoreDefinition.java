@@ -39,8 +39,6 @@ public class DataStreamFailureStoreDefinition {
         IndexMetadata.SETTING_INDEX_HIDDEN,
         INDEX_FAILURE_STORE_VERSION_SETTING_NAME,
         IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
         // Different recovery implementations may be provided on the index which need to be preserved.
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()
@@ -64,6 +62,7 @@ public class DataStreamFailureStoreDefinition {
             // Always start with the hidden settings for a backing index.
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
 
         try {

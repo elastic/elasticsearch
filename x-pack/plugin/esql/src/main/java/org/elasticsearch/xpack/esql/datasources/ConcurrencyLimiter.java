@@ -11,7 +11,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
@@ -30,7 +33,7 @@ class ConcurrencyLimiter {
 
     private static final Logger logger = LogManager.getLogger(ConcurrencyLimiter.class);
 
-    static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(60_000L);
+    static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
 
     private final Semaphore semaphore;
     private final String scheme;
@@ -49,7 +52,7 @@ class ConcurrencyLimiter {
     }
 
     ConcurrencyLimiter(String scheme, ExternalSourceSettings.BlobStoreConcurrency concurrency) {
-        this(scheme, concurrency, 60_000L);
+        this(scheme, concurrency, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
     }
 
     ConcurrencyLimiter(String scheme, ExternalSourceSettings.BlobStoreConcurrency concurrency, long acquireTimeoutMs) {
@@ -80,7 +83,17 @@ class ConcurrencyLimiter {
         try {
             acquire();
         } catch (TimeoutException e) {
-            throw new ExternalUnavailableException(e.getMessage(), e);
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L,
+                e
+            );
+            ex.setDetail(e.getMessage());
+            throw ex;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring a concurrency permit");

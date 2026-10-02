@@ -136,7 +136,6 @@ public class AshPostingsListWriter {
         // Procrustes refinement iterations to re-fit the rotation to the merged set (skips PCA).
         // - flush: full LEARNED training but on a reduced training sample.
         // - otherwise: full cold training (PCA + Procrustes).
-        final float[] wT;
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
         if (pretrainedWT != null) {
@@ -165,13 +164,12 @@ public class AshPostingsListWriter {
             // LEARNED runs full PCA + Procrustes on the (possibly reduced) training sample.
             trained = ashQuantizer.train(vectors, nVectors, originalDim, centroidGetter);
         }
-        wT = trained.wT();
 
         // Store the projection matrix for later serialization. The quantizer reports whether W was
         // genuinely learned or a random orthonormal fallback (degenerate tiny segments); only a learned
         // W may be inherited/warm-started at merge time, so a random one is marked learned=false
         // to stop merge inheriting a random rotation.
-        this.ashProjectionMatrix = new AshProjectionMatrix(wT, originalDim, nDims, trained.learned());
+        this.ashProjectionMatrix = new AshProjectionMatrix(trained.wT(), originalDim, nDims, trained.learned());
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);
@@ -179,7 +177,8 @@ public class AshPostingsListWriter {
         return writePostingLists(
             vectors,
             ashQuantizer,
-            wT,
+            trained.w(),
+            trained.wT(),
             originalDim,
             centroidSupplier,
             floatVectorValues,
@@ -199,6 +198,7 @@ public class AshPostingsListWriter {
     private PostingsOffsetAndLength writePostingLists(
         CheckedIntFunction<float[], IOException> vectors,
         AsymmetricHashingQuantizer ashQuantizer,
+        float[] w,
         float[] wT,
         int originalDim,
         CentroidSupplier centroidSupplier,
@@ -212,7 +212,7 @@ public class AshPostingsListWriter {
         boolean skipDocIds
     ) throws IOException {
         int nClusters = assignmentsByCluster.length;
-        int nDims = wT.length / originalDim;
+        int nDims = w.length / originalDim;
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final int bitsPerDim = ashConfig.bitsPerDim();
@@ -228,7 +228,7 @@ public class AshPostingsListWriter {
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
         // per vector. Created here and reused for every posting list, since W does not change.
-        final AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(wT, originalDim, BULK_SIZE);
+        final AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, BULK_SIZE);
         final float[] blockVecCentroidSqDists = new float[BULK_SIZE];
         DocIdsWriter idsWriter = new DocIdsWriter();
 

@@ -96,6 +96,8 @@ import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.analysis.th.ThaiNormalizationFilter;
+import org.apache.lucene.analysis.th.ThaiRepeatFilter;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
@@ -331,6 +333,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
         filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
         filters.put("stemmer", StemmerTokenFilterFactory::new);
+        filters.put("thai_normalization", ThaiNormalizationFilterFactory::new);
+        filters.put("thai_repeat", ThaiRepeatFilterFactory::new);
         // It doesn't really matter which child circuit breaker we use in the synonym filters because we only use them to trip on real
         // memory usage, which is only checked by the parent circuit breaker
         filters.put(
@@ -374,6 +378,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("html_strip", HtmlStripCharFilterFactory::new);
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceCharFilterFactory::new));
         filters.put("mapping", requiresAnalysisSettings(MappingCharFilterFactory::new));
+        filters.put("thai", ThaiCharFilterFactory::new);
         return filters;
     }
 
@@ -578,6 +583,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("snowball", false, input -> new SnowballFilter(input, "English")));
         filters.add(PreConfiguredTokenFilter.singleton("sorani_normalization", true, SoraniNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("stemmer", false, PorterStemFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("thai_normalization", true, ThaiNormalizationFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("thai_repeat", false, ThaiRepeatFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.add(
             PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))

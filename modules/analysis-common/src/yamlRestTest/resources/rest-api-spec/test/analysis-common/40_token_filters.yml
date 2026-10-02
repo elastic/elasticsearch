@@ -1166,6 +1166,70 @@
     - match:  { tokens.0.token: ی }
 
 ---
+"thai_normalization":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_thai_normalization:
+                    type: thai_normalization
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      เเปลก
+            tokenizer: keyword
+            filter:    [my_thai_normalization]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: แปลก }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      เเปลก
+            tokenizer: keyword
+            filter:    [thai_normalization]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: แปลก }
+
+---
+"thai_repeat":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_thai_repeat:
+                    type: thai_repeat
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      เร็วๆ
+            tokenizer: keyword
+            filter:    [my_thai_repeat]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: เร็ว }
+    - match:  { tokens.1.token: เร็ว }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      เร็วๆ
+            tokenizer: keyword
+            filter:    [thai_repeat]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: เร็ว }
+    - match:  { tokens.1.token: เร็ว }
+
+---
 "cjk_width":
     - do:
         indices.create:

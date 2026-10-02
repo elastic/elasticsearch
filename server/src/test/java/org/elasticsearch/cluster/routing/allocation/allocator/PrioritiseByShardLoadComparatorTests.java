@@ -53,16 +53,11 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
         // We create single-shard indices for simplicity's sake and to make it clear the shards are independent of each other
         final var indices = new ArrayList<IndexMetadata.Builder>();
         for (int i = 0; i < totalShards; i++) {
-            indices.add(anIndex("index-" + i));
+            indices.add(anIndex("index-" + i).numberOfShards(1).numberOfReplicas(0));
         }
 
         final var nodeId = randomIdentifier();
-        final var clusterState = createStateWithIndices(
-            List.of(nodeId),
-            shardId -> nodeId,
-            randomBoolean(),
-            indices.toArray(IndexMetadata.Builder[]::new)
-        );
+        final var clusterState = createStateWithIndices(List.of(nodeId), shardId -> nodeId, indices.toArray(IndexMetadata.Builder[]::new));
 
         final var allShards = clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
         final var shardWriteLoads = new HashMap<ShardId, Double>();

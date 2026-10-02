@@ -32,8 +32,6 @@ final class FieldCapsCache {
     record Key(String indexUUID, long settingsVersion, long mappingVersion, String[] fields, String[] filters) {
         int slot() {
             int h = indexUUID.hashCode();
-            h = 31 * h + Long.hashCode(settingsVersion);
-            h = 31 * h + Long.hashCode(mappingVersion);
             h = 31 * h + Arrays.hashCode(fields);
             h = 31 * h + Arrays.hashCode(filters);
             return BitMixer.mix(h) & MASK;

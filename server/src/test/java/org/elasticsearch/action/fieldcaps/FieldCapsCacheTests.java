@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class FieldCapsCacheTests extends ESTestCase {
 
     public void testKey() {
@@ -38,6 +40,26 @@ public class FieldCapsCacheTests extends ESTestCase {
 
         assertNull(cache.get(key));
         assertSame(response, cache.get(new FieldCapsCache.Key("uuid", 2, 3, key.fields(), key.filters())));
+    }
+
+    public void testNewerVersionReplacesStaleEntry() {
+        FieldCapsCache cache = new FieldCapsCache();
+        String[] fields = new String[] { "_index", "message" };
+        String[] filters = new String[] { "-nested" };
+        FieldCapsCache.Key oldKey = new FieldCapsCache.Key("uuid", 1, 1, fields, filters);
+        FieldCapabilitiesIndexResponse oldResponse = response(1, 1);
+        cache.put(oldKey, oldResponse);
+        assertSame(oldResponse, cache.get(oldKey));
+
+        long newSettingsVersion = randomBoolean() ? 1 : 2;
+        long newMappingVersion = newSettingsVersion == 1 ? 2 : randomIntBetween(1, 2);
+        FieldCapsCache.Key newKey = new FieldCapsCache.Key("uuid", newSettingsVersion, newMappingVersion, fields, filters);
+        assertThat(newKey.slot(), equalTo(oldKey.slot()));
+        FieldCapabilitiesIndexResponse newResponse = response(newSettingsVersion, newMappingVersion);
+        cache.put(newKey, newResponse);
+
+        assertSame(newResponse, cache.get(newKey));
+        assertNull(cache.get(oldKey));
     }
 
     private static FieldCapabilitiesIndexResponse response(long settingsVersion, long mappingVersion) {

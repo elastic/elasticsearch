@@ -32,7 +32,7 @@
       "timeout": {
         "type": "time",
         "description": "Specifies the amount of time to wait for the inference request to complete.",
-        "default": "30s"
+        "default": "120s"
       }
     }
   }

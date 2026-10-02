@@ -90,7 +90,7 @@ public class PutJobActionRequestTests extends AbstractBWCWireSerializationTestCa
 
         request.close();
 
-        expectThrows(IllegalStateException.class, secret::toString);
+        expectThrows(IllegalStateException.class, secret::length);
     }
 
 }

@@ -53,14 +53,14 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### Caching
 
-{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (30 seconds by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
+{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (5 minutes by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
 
 ### File discovery limits
 
 A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. These cluster settings bound file discovery:
 
 - `esql.external.max_listed_objects` (default 1,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list. {applies_to}`stack: experimental 9.6+`
-- `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
+- `esql.external.max_discovered_files` (default 25,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
 If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.
@@ -103,7 +103,7 @@ You can also send it in the `_query` request body as `"settings": {"wildcards_ma
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
-| `_score` | null |
+| `_score` {applies_to}`stack: preview 9.6` | `0.0`, or a real per-row value under a scoring `MATCH`/`MATCH_PHRASE`. See [Use search functions](#use-search-functions). (Returns null in 9.5.) |
 | `_index` {applies_to}`stack: experimental 9.6+` | null |
 | `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 
@@ -160,7 +160,7 @@ The limitations below include operations that require structures available only 
 | A file column whose name matches a requested `METADATA` name {applies_to}`stack: experimental 9.6` | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the dropped column. |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |
-| Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
+| Snapshot and restore | {applies_to}`stack: experimental 9.6` Data sources and datasets are included in snapshots when `include_global_state=true`. After a restore, data source configuration (non-credential settings) and datasets are recovered, but credentials must be re-entered because they are stripped from the snapshot blob. Data sources and datasets that were not present at snapshot time are removed when global state is restored. | |
 | Archived S3 storage classes | Objects in the S3 Glacier Flexible Retrieval or S3 Glacier Deep Archive storage classes cannot be read in real time. The same applies to objects that have transitioned to the Archive Access or Deep Archive Access tiers within S3 Intelligent-Tiering. Objects in other Intelligent-Tiering tiers are not affected. A `GetObject` call to archived objects returns `InvalidObjectState` until the object is restored. Restore the objects before querying. S3 Glacier Instant Retrieval is also not affected because it supports real-time access. | |
 | Parquet MAP, nested LIST, and VARIANT | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
 | `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
@@ -179,7 +179,7 @@ Slow queries
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
 New files not appearing in query results
-:   {{es}} caches file listings for each dataset. If you recently added files to your bucket, they might not appear until the listing cache expires. The default listing cache TTL is 30 seconds. Refer to [cluster settings](esql-data-federation-cluster-settings.md) to adjust it.
+:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. The default listing cache TTL is 5 minutes. Lower `esql.external.cache.listing.ttl` when new or removed files must be visible sooner. Refer to [cluster settings](esql-data-federation-cluster-settings.md).
 
 Columns with unexpected types or missing values
 :   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. Use dataset [mappings](esql-data-federation-datasets.md#declare-a-dataset-mapping) to declare column types explicitly, or adjust the [`datetime_format`](esql-data-federation-datasets.md#csv-and-tsv-settings) setting. If some rows have null values for a column that exists in other files, check the dataset's [`schema_resolution`](esql-data-federation-datasets.md#schema-merge-strategies) setting.

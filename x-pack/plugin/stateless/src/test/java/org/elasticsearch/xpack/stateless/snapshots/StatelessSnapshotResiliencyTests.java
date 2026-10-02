@@ -74,6 +74,7 @@ import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -431,6 +432,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
+            res.add(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
             return Set.copyOf(res);
         }
 
@@ -643,7 +646,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     EmptyClusterInfoService.INSTANCE,
                     snapshotsInfoService,
                     new StatelessShardRoutingRoleStrategy(),
-                    MeterRegistry.NOOP
+                    MeterRegistry.NOOP,
+                    createBuiltInClusterSettings(settings)
                 );
                 allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
                 return allocationService;

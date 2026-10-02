@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1089,6 +1090,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static class ResolveAndVerifyPromqlRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+        private static final Logger log = LogManager.getLogger(ResolveAndVerifyPromqlRefs.class);
+
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -1295,6 +1298,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+        private static final Logger log = LogManager.getLogger(ResolveRefs.class);
+
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -4664,6 +4669,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (convertFunctionsToAttributes.isEmpty() == false) {
                 planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(
                     planWithConvertFunctionsPushedDown,
+                    null,
                     context.unmappedResolution().loadsAllUnmappedFields()
                 );
             }
@@ -4687,7 +4693,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     : unionAll
             );
 
-            // Finally update the attributes referencing the updated UnionAll output
+            // Update attributes that reference an output changed by a cast pushed into the branches.
             return updatedUnionAllOutput.isEmpty()
                 ? planWithImplicitCasting
                 : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting, updatedUnionAllOutput);
@@ -4837,6 +4843,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
          * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         * Preserve encounter order for each field's conversions because it determines the synthetic column order in the branches and union.
          * <p>
          * Walks <em>upward</em> from the {@code UnionAll} using a pre-built child→parent map (identity-keyed),
          * visiting only nodes on the direct path from the {@code UnionAll} to the root. Stops after visiting
@@ -4865,7 +4872,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             .stream()
                             .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
                             .findFirst()
-                            .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+                            .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new LinkedHashSet<>()).add(f));
                     }
                 });
                 if (current instanceof Aggregate) {
@@ -4967,6 +4974,75 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
+        }
+
+        /**
+         * Carry synthetic {@code $$<field>$converted_to$<type>} attributes through {@link Project} nodes that were resolved before those
+         * attributes existed (typically {@code KEEP}, {@code RENAME}, or {@code DROP}), without widening a {@link MergePlan} branch that
+         * does not already own them. Callers start at the root with {@code null}. Conversions that belong on a merge are added to both its
+         * output and its branch projections by {@link #rebuildUnionAll} before this method runs.
+         * <p>
+         * Conversion inside a nested union stays on that union:
+         * <pre>{@code
+         * FROM
+         *   (FROM
+         *      (ROW client_ip = "172.21.0.5"),
+         *      (ROW client_ip = "172.21.3.15")
+         *    | EVAL client_ip = client_ip::ip),
+         *   (ROW client_ip = TO_IP("172.21.2.162"))
+         * }</pre>
+         * The inner {@code ::ip} produces {@code $$client_ip$converted_to$ip} on the inner {@link UnionAll}. The outer merge's alignment
+         * {@link Project} must not append that column: the outer output is only {@code client_ip}.
+         * <p>
+         * Conversion above nested unions must still pass through {@code KEEP}:
+         * <pre>{@code
+         * FROM
+         *   (FROM (ROW client_ip = "a"), (ROW client_ip = "b") | KEEP client_ip ),
+         *   (ROW client_ip = "c")
+         * | EVAL client_ip = client_ip::ip
+         * }</pre>
+         * {@link #rebuildUnionAll} adds {@code $$client_ip$converted_to$ip} to the outer {@link UnionAll}. The {@code KEEP}
+         * {@link Project} is not a direct merge child, so the synthetic is appended there. The outer alignment {@link Project} is a
+         * direct merge child, but the name is already in the merge output, so it is allowed through.
+         * <p>
+         * When {@code preserveResolvingProject} is true ({@code LOAD_ALL}), appended synthetics use {@link Project#withProjections} so a
+         * {@link ResolvingProject} keeps its original KEEP/DROP/RENAME command.
+         */
+        private static LogicalPlan carryOverSyntheticAttributesThroughProjects(
+            LogicalPlan plan,
+            @Nullable Set<String> mergeOutputNames,
+            boolean preserveResolvingProject
+        ) {
+            Set<String> childMergeOutputNames = plan instanceof MergePlan ? plan.outputSet().names() : null;
+            List<LogicalPlan> children = null;
+            for (int i = 0; i < plan.children().size(); i++) {
+                LogicalPlan child = plan.children().get(i);
+                LogicalPlan updated = carryOverSyntheticAttributesThroughProjects(child, childMergeOutputNames, preserveResolvingProject);
+                if (child.equals(updated) == false) {
+                    if (children == null) {
+                        children = new ArrayList<>(plan.children());
+                    }
+                    children.set(i, updated);
+                }
+            }
+            LogicalPlan result = children == null ? plan : plan.replaceChildren(children);
+            if (result instanceof Project project && project.expressionsResolved()) {
+                List<NamedExpression> projections = new ArrayList<>(project.projections());
+                for (Attribute attr : project.inputSet()) {
+                    if (attr.synthetic()
+                        && project.outputSet().contains(attr) == false
+                        && (mergeOutputNames == null || mergeOutputNames.contains(attr.name()))) {
+                        projections.add(attr);
+                    }
+                }
+                if (projections.size() != project.projections().size()) {
+                    // LOAD_ALL KEEP/DROP is a ResolvingProject whose original pattern must survive. Default KEEP is a plain Project.
+                    return preserveResolvingProject
+                        ? project.withProjections(projections)
+                        : new Project(project.source(), project.child(), projections);
+                }
+            }
+            return result;
         }
 
         /**
@@ -5270,16 +5346,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Update the attributes referencing the updated UnionAll output.
          * <p>
-         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a union-output attribute),
-         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
+         * {@link #collectAliasesNeedingTypeUpdate} only <em>collects</em>: it records {@code aliasOutput.id() →}
+         * {@code aliasOutput.withDataType(newType)} so the map value already has the consumer's name and {@link NameId}.
+         * That covers {@code RENAME} / {@code EVAL ts = @timestamp} and function aliases whose type follows a widened field
+         * ({@code MAX}, {@code BUCKET}, {@code DATE_TRUNC}, \ldots). It does not rewrite the plan. Bottom-up visit order registers
+         * {@code x = DATE_TRUNC(..., @timestamp)} before {@code y = DATE_TRUNC(..., x)}.
          * <p>
-         * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
-         * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
-         * {@code x AS y, y AS z} are picked up in order. We register the alias output whenever it is resolved (i.e. without comparing the
-         * alias' current child type against the map entry), because the alias may have been re-resolved with the updated child type
-         * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
-         * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
-         * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
+         * {@link #updateAttributesInExpressions} then replaces each consumer with the mapped attribute. That repairs stale
+         * {@link Alias#toAttribute()} snapshots, including {@code KEEP m} after {@code STATS m = MAX(...)} and the grouping-key
+         * attribute stored in {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate#aggregates()}.
+         * <p>
+         * A {@link MergePlan} caches its output outside its branch expressions and assigns that output its own {@link NameId NameIds}.
+         * Consequently, neither the inner union output map nor the first expression walk can update it directly.
+         * {@link #alignMergeOutputTypes} installs a reconciled type on the merge output only when every child already has that
+         * type for the name, preserving the merge output id.
+         * <p>
+         * Finally, cascade the newly registered output ids through aliases above the merge and run a second expression walk. This updates
+         * downstream consumers, including the final projection and response metadata, to the same reconciled types seen by the branches.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -5287,8 +5370,141 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
             updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
+            // Collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            collectAliasesNeedingTypeUpdate(plan, idToUpdatedAttr);
+            LogicalPlan updatedPlan = updateAttributesInExpressions(plan, idToUpdatedAttr);
+            // MergePlan cache output under their own ids, so the expression walk above cannot update them.
+            LogicalPlan planWithUpdatedMergeOutputs = alignMergeOutputTypes(updatedPlan, idToUpdatedAttr);
+            // Those output ids were not in the map during the first walk. Collect them through aliases, then update consumers.
+            collectAliasesNeedingTypeUpdate(planWithUpdatedMergeOutputs, idToUpdatedAttr);
+            return updateAttributesInExpressions(planWithUpdatedMergeOutputs, idToUpdatedAttr);
+        }
 
-            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+        /**
+         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children.
+         */
+        private static LogicalPlan alignMergeOutputTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
+            List<LogicalPlan> children = plan.children();
+            List<LogicalPlan> newChildren = null;
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan updated = alignMergeOutputTypes(children.get(i), idToUpdatedAttr);
+                if (updated != children.get(i)) {
+                    if (newChildren == null) {
+                        newChildren = new ArrayList<>(children);
+                    }
+                    newChildren.set(i, updated);
+                }
+            }
+            LogicalPlan current = newChildren == null ? plan : plan.replaceChildren(newChildren);
+            if (current instanceof MergePlan merge && merge.resolved()) {
+                return alignMergeOutputToChildren(merge, idToUpdatedAttr);
+            }
+            return current;
+        }
+
+        /**
+         * For each output attribute whose name matches a branch attribute that was widened, installs that type under the output's own id
+         * unless the children disagree on that name's type.
+         * If every child output for that name is an {@link UnsupportedAttribute}, the merge output is replaced with that unsupported
+         * attribute (same id) so a stale supported type is not left on the merge.
+         * An {@link UnsupportedAttribute} output is kept: its branch value is a null filler with a different id, not the widened attribute.
+         */
+        private static MergePlan alignMergeOutputToChildren(MergePlan merge, Map<NameId, Attribute> idToUpdatedAttr) {
+            Map<String, Attribute> updatedBranchOutputByName = new HashMap<>();
+            for (LogicalPlan child : merge.children()) {
+                for (Attribute attr : child.output()) {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null) {
+                        updatedBranchOutputByName.putIfAbsent(attr.name(), updated);
+                    }
+                }
+            }
+            if (updatedBranchOutputByName.isEmpty()) {
+                return merge;
+            }
+            boolean changed = false;
+            List<Attribute> updatedOutput = new ArrayList<>(merge.output().size());
+            for (Attribute attr : merge.output()) {
+                UnsupportedAttribute childUa = unsupportedIfAllChildrenUnsupported(merge, attr.name());
+                if (childUa != null) {
+                    if (attr instanceof UnsupportedAttribute) {
+                        updatedOutput.add(attr);
+                        continue;
+                    }
+                    Attribute updatedMergeOutput = childUa.withId(attr.id());
+                    idToUpdatedAttr.put(updatedMergeOutput.id(), updatedMergeOutput);
+                    updatedOutput.add(updatedMergeOutput);
+                    changed = true;
+                    continue;
+                }
+                Attribute updated = updatedBranchOutputByName.get(attr.name());
+                if (updated == null
+                    || attr instanceof UnsupportedAttribute
+                    || attr.resolved() == false
+                    || attr.dataType() == updated.dataType()
+                    || childrenDisagreeOnType(merge, attr.name(), idToUpdatedAttr)) {
+                    updatedOutput.add(attr);
+                    continue;
+                }
+                Attribute updatedMergeOutput = updated.withId(attr.id());
+                idToUpdatedAttr.put(updatedMergeOutput.id(), updatedMergeOutput);
+                updatedOutput.add(updatedMergeOutput);
+                changed = true;
+            }
+            return changed ? merge.replaceSubPlansAndOutput(merge.children(), updatedOutput) : merge;
+        }
+
+        /**
+         * The child's {@link UnsupportedAttribute} when every child has {@code name} and each is unsupported; otherwise {@code null}.
+         */
+        private static UnsupportedAttribute unsupportedIfAllChildrenUnsupported(MergePlan merge, String name) {
+            UnsupportedAttribute first = null;
+            for (LogicalPlan child : merge.children()) {
+                Attribute childAttr = null;
+                for (Attribute attr : child.output()) {
+                    if (attr.name().equals(name)) {
+                        childAttr = attr;
+                        break;
+                    }
+                }
+                if (childAttr instanceof UnsupportedAttribute ua) {
+                    if (first == null) {
+                        first = ua;
+                    }
+                } else {
+                    return null;
+                }
+            }
+            return first;
+        }
+
+        /**
+         * {@code true} if a child is missing {@code name}, unresolved, or the children's effective types for that name differ.
+         */
+        private static boolean childrenDisagreeOnType(MergePlan merge, String name, Map<NameId, Attribute> idToUpdatedAttr) {
+            DataType common = null;
+            for (LogicalPlan child : merge.children()) {
+                Attribute childAttr = null;
+                for (Attribute attr : child.output()) {
+                    if (attr.name().equals(name)) {
+                        childAttr = attr;
+                        break;
+                    }
+                }
+                if (childAttr == null || childAttr.resolved() == false) {
+                    return true;
+                }
+                Attribute effective = idToUpdatedAttr.getOrDefault(childAttr.id(), childAttr);
+                if (common == null) {
+                    common = effective.dataType();
+                } else if (common != effective.dataType()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static void collectAliasesNeedingTypeUpdate(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             plan.forEachExpressionUp(Alias.class, alias -> {
                 if (alias.child() instanceof Attribute childAttr) {
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
@@ -5300,9 +5516,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
                         }
                     }
+                    return;
+                }
+                // the alias child can be an expression/function, check each attribute in the expression to see if it has been updated,
+                // and if so, update the alias output attribute to the new data type
+                if (alias.resolved() == false) {
+                    return;
+                }
+                Attribute aliasOutput = alias.toAttribute();
+                if (aliasOutput.resolved() == false) {
+                    return;
+                }
+                Holder<Attribute> substituted = new Holder<>();
+                Expression rewritten = alias.child().transformUp(Attribute.class, attr -> {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null && attr.resolved() && attr.dataType() != updated.dataType()) {
+                        substituted.set(updated);
+                        return updated;
+                    }
+                    return attr;
+                });
+                if (substituted.get() != null
+                    && rewritten.resolved()
+                    && rewritten.dataType() != aliasOutput.dataType()
+                    && rewritten.dataType() == substituted.get().dataType()) {
+                    idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(rewritten.dataType()));
                 }
             });
+        }
 
+        private static LogicalPlan updateAttributesInExpressions(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.resolved() && expr.dataType() != updated.dataType()) ? updated : expr;
@@ -5363,8 +5606,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * the {@link Project} would have no binding and the optimizer's plan consistency check would later
      * fail with missing references.
      *
-     * <p>Used by both {@code ResolveUnionTypes} (for multi-typed EsRelation fields) and
-     * {@code ResolveUnionTypesInUnionAll} (for type conflicts across {@link UnionAll} branches).
+     * <p>Used by {@code ResolveUnionTypes} for multi-typed EsRelation fields. {@code ResolveUnionTypesInUnionAll} uses a merge-aware
+     * overload that also gates synthetics against the enclosing {@link MergePlan} output.
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
         return plan.transformUp(Project.class, p -> {

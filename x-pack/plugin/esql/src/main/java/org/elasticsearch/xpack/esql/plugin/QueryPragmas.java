@@ -515,6 +515,15 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public ByteSizeValue aggregationPartitioningMemoryThreshold(ByteSizeValue defaultThreshold) {
+        final String key = PlannerSettings.AGG_PARTITIONING_MEMORY_THRESHOLD.getKey();
+        if (settings.hasValue(key)) {
+            // allow smaller value for the threshold in tests than the min setting in the production
+            return ByteSizeValue.parseBytesSizeValue(settings.get(key), key);
+        }
+        return defaultThreshold;
+    }
+
     public int timeSeriesTargetChunkRows(int defaultChunkRows) {
         if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
             return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);

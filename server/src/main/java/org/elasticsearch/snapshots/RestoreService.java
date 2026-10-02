@@ -72,7 +72,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -1606,10 +1605,9 @@ public final class RestoreService implements ClusterStateApplier {
 
         final ProjectState projectState = currentState.projectState(projectId);
         final Set<Index> indexAsSet = Set.of(expectedIndex);
-        final Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(projectState, indexAsSet);
-        if (reshardingIndices.isEmpty() == false) {
-            throw new SnapshotRestoreException(snapshot, "cannot restore index [" + expectedIndex + "] because it is being resharded");
-        }
+        // An index being resharded is not rejected here. Restoring over it discards its resharding metadata along with everything
+        // else (see restoreOverExistingIndex), and IndicesClusterStateService#isRestoreHistoryUuidTransition already tears down and
+        // recreates every shard of the index as part of any open-index restore, which safely unwinds the in-progress split too.
         // Preserve the existing close-index safety rule: an index being snapshotted cannot be restored over in place either, and this
         // restore must not cancel or otherwise interfere with that snapshot.
         final Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(projectState, indexAsSet);

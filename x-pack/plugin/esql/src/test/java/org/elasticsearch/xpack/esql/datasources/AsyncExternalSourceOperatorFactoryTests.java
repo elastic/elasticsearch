@@ -265,7 +265,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
-        assertTrue(description.contains("file:///data/test.csv"));
+        assertTrue(description.contains("test.csv"));
         assertTrue(description.contains("500"));
         assertTrue(description.contains("maxBufferBytes="));
     }
@@ -301,7 +301,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
-        assertTrue(description.contains("s3://bucket/data.parquet"));
+        assertTrue(description.contains("data.parquet"));
     }
 
     public void testAccessors() {
@@ -1218,8 +1218,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
             }
         });
-        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
-        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
+        assertNull("the read failure must not be chained to prevent caused_by leaks", readFailure.getCause());
+        assertTrue(readFailure.getMessage().contains("Simulated read error"));
 
         assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
@@ -1627,8 +1627,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             assertEquals(0, onCloseCalls.get());
 
             RuntimeException firstFailure = expectThrows(RuntimeException.class, first::getOutput);
-            assertThat(firstFailure.getCause(), Matchers.instanceOf(IOException.class));
-            assertTrue(firstFailure.getCause().getMessage().contains("injected first-read failure"));
+            assertNull("the read failure must not be chained to prevent caused_by leaks", firstFailure.getCause());
+            assertTrue(firstFailure.getMessage().contains("injected first-read failure"));
 
             while (second.isFinished() == false) {
                 Page page = second.getOutput();
@@ -4536,7 +4536,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             int call = callCount.incrementAndGet();
             if (call >= 2) {
-                throw new IOException("Simulated read error on file: " + object.path());
+                throw new IOException("Simulated read error on file: " + object.path().objectName());
             }
             Page page = createTestPage();
             return new CloseableIterator<>() {

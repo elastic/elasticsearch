@@ -71,6 +71,7 @@ toc:
       - file: analysis-stop-tokenfilter.md
       - file: analysis-synonym-tokenfilter.md
       - file: analysis-synonym-graph-tokenfilter.md
+      - file: analysis-thai-repeat-tokenfilter.md
       - file: analysis-trim-tokenfilter.md
       - file: analysis-truncate-tokenfilter.md
       - file: analysis-unique-tokenfilter.md
@@ -82,4 +83,5 @@ toc:
       - file: analysis-htmlstrip-charfilter.md
       - file: analysis-mapping-charfilter.md
       - file: analysis-pattern-replace-charfilter.md
+      - file: analysis-thai-charfilter.md
   - file: normalizers.md

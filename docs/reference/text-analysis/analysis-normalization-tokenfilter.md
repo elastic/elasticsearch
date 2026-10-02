@@ -33,3 +33,6 @@ Scandinavian
 Serbian
 :   [`serbian_normalization`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/sr/SerbianNormalizationFilter.html)
 
+Thai
+:   [`thai_normalization`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/th/ThaiNormalizationFilter.html)
+

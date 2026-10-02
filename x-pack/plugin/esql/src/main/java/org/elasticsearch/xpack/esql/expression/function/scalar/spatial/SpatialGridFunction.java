@@ -384,7 +384,8 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
          * Returns the cell id of the point, or {@code -1} if the point lies outside the bounds. {@code -1} is never
          * a valid cell id: a geohash long encoding of {@code -1} would need precision nibble 15 while the maximum
          * is 12, and valid geotile and geohex (H3) cell ids are always non-negative. Valid cell ids may however be
-         * negative (geohash at precision ≥ 8 sets bit 63), so callers must compare against {@code -1} exactly.
+         * negative (geohash at precision 12 uses all 64 bits, so about half of its cells set bit 63), so callers must
+         * compare against {@code -1} exactly rather than testing the sign.
          */
         long calculateGridId(Point point);
 

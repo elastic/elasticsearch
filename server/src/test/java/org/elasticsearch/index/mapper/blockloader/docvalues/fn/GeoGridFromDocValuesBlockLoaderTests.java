@@ -43,11 +43,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
     private static final int PRECISION = 5;
     /**
-     * A precision high enough that {@link Geohash#longEncode} can set bit 63, producing naturally
-     * negative cell ids. Used to verify that valid negative ids are not discarded as if they were
-     * the {@code -1} no-cell sentinel.
+     * The only precision at which {@link Geohash#longEncode} sets bit 63: precision 12 fills all 64 bits
+     * (60 bits of interleaved coordinates plus the 4-bit level), so about half of its cells are negative longs.
+     * Used to verify that valid negative ids are not discarded as if they were the {@code -1} no-cell sentinel.
      */
-    private static final int HIGH_PRECISION = 9;
+    private static final int HIGH_PRECISION = Geohash.PRECISION;
     private static final BlockLoaderFunctionConfig.GeoGridShapeTilerFactory POINTS_ONLY = warnings -> {
         throw new AssertionError("shapes are not loaded by the point loader");
     };

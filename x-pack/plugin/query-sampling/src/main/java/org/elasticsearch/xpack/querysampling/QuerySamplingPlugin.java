@@ -17,6 +17,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
@@ -78,6 +80,11 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
         QueryCaptureFilter filter = new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff);
         captureFilter.set(filter);
         return List.of(new QuerySamplingService(filter, handoff, tracker, buffer));
+    }
+
+    @Override
+    public List<ActionHandler> getActions() {
+        return List.of(new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class));
     }
 
     @Override

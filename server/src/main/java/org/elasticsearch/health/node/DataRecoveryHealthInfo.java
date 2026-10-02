@@ -18,13 +18,10 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Health information about the data recovery protection pipeline that can only be derived from repository data, which only the
- * elected master node can load. The master computes it and sends it to the health node so that health indicators, which run
- * synchronously on any node, can read it from {@link HealthInfo}.
+ * Recovery point summaries computed on the elected master, the only node that can load repository data, and sent to the health node.
  *
- * @param projects          The recovery point summary of each project that has a recovery repository configured and whose repository
- *                          could be read. Projects that are absent have no summary available.
- * @param generatedAtMillis Epoch-millisecond timestamp at which the master built this information.
+ * @param projects          the summary of each project whose recovery repository could be read
+ * @param generatedAtMillis when the master built this information, in epoch milliseconds
  */
 public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, long generatedAtMillis) implements Writeable {
 
@@ -43,15 +40,13 @@ public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, lo
     }
 
     /**
-     * The recovery points found in the recovery repository of one project. A recovery point is a completed snapshot, either
-     * successful or partial, that is not being deleted.
+     * The recovery points of one project, which are its completed snapshots, successful or partial, that are not being deleted.
      *
-     * @param newestRecoveryPointStartMillis The start time of the newest recovery point, or {@link #NONE} when there are none.
-     * @param oldestRecoveryPointStartMillis The start time of the oldest recovery point, or {@link #NONE} when there are none.
-     * @param recoveryPointCount             The number of recovery points.
-     * @param partialRecoveryPointCount      The number of recovery points that are partial snapshots.
-     * @param incompleteSourceCount          The number of indices and data streams that are not fully captured in the newest
-     *                                       recovery point.
+     * @param newestRecoveryPointStartMillis start time of the newest recovery point, or {@link #NONE}
+     * @param oldestRecoveryPointStartMillis start time of the oldest recovery point, or {@link #NONE}
+     * @param recoveryPointCount             number of recovery points
+     * @param partialRecoveryPointCount      number of recovery points that are partial snapshots
+     * @param incompleteSourceCount          number of indices and data streams not fully captured in the newest recovery point
      */
     public record ProjectSummary(
         long newestRecoveryPointStartMillis,

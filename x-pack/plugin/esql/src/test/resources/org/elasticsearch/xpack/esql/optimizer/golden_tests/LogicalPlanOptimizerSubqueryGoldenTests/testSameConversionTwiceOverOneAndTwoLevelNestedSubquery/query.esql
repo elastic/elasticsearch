@@ -1,0 +1,4 @@
+FROM (FROM (FROM sample_data), (FROM sample_data)
+      | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"),
+     (FROM sample_data)
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"

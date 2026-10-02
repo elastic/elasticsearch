@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -38,6 +40,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
@@ -74,6 +80,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -92,7 +99,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -104,6 +113,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
@@ -424,10 +434,10 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, storedConfig);
         stubUpdateDatefeedConfigCapturesUpdateAndInvokesMintHook(datafeedConfigProvider, storedConfig, capturedUpdate);
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = invocation.getArgument(1);
+            ActionListener<Boolean> listener = invocation.getArgument(2);
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
     }
 
     private static void mockGetJobWithSnapshot(JobConfigProvider jobConfigProvider, String jobId, @Nullable String snapshotId) {
@@ -550,10 +560,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -627,10 +637,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         AtomicReference<Map<String, String>> capturedHeaders = new AtomicReference<>();
         doAnswer(invocation -> {
@@ -668,6 +678,115 @@ public class DatafeedManagerTests extends ESTestCase {
             response.get().getResponse().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY),
             equalTo(mintedAuthentication.encode())
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutEsqlDatafeedWithSecurityEnabledShouldShortCircuitIndexPrivilegeCheck() {
+        Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final String callerAuthentication = "caller-auth";
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, callerAuthentication);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        DatafeedManager manager = newDatafeedManager(datafeedConfigProvider, jobConfigProvider, settings, client, mlExtension, auditor);
+
+        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+        AtomicReference<Map<String, String>> validationHeaders = new AtomicReference<>();
+        doAnswer(invocation -> {
+            validationHeaders.set(invocation.getArgument(1));
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
+        AtomicReference<Map<String, String>> storedHeaders = new AtomicReference<>();
+        doAnswer(invocation -> {
+            ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
+                Tuple<DatafeedConfig, DocWriteResponse>>) invocation.getArguments()[2];
+            DatafeedConfig cfg = invocation.getArgument(0);
+            storedHeaders.set(invocation.getArgument(1));
+            listener.onResponse(Tuple.tuple(cfg, mock(DocWriteResponse.class)));
+            return null;
+        }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(datafeed);
+
+        SecurityContext securityContext = mockSecurityContextWithUser("df-user");
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        manager.putDatafeed(
+            request,
+            mockClusterStateWithNoTasks(),
+            securityContext,
+            threadPool,
+            ActionTestUtils.assertNoFailureListener(response::set)
+        );
+
+        assertThat(response.get(), notNullValue());
+        // Index privileges are not checked at PUT for ES|QL datafeeds, so the LIMIT 0 validation and the persisted
+        // datafeed headers (used by every runtime query) are the only controls: both must carry the caller's identity.
+        assertThat(validationHeaders.get(), notNullValue());
+        assertThat(validationHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
+        assertThat(storedHeaders.get(), notNullValue());
+        assertThat(storedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
+        verify(client, never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+        verify(client, never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
+    }
+
+    public void testPutEsqlDatafeedWithRemoteClusterSourceShouldRejectBeforeAnyValidation() {
+        for (boolean securityEnabled : new boolean[] { false, true }) {
+            Settings settings = Settings.builder().put("xpack.security.enabled", securityEnabled).build();
+            DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+            JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+            Client client = mock(Client.class);
+            ThreadPool threadPool = mock(ThreadPool.class);
+            when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+            DatafeedManager manager = newDatafeedManager(
+                datafeedConfigProvider,
+                jobConfigProvider,
+                settings,
+                client,
+                mockMlExtension(mock(CloudCredentialManager.class), mock(InternalCloudApiKeyService.class)),
+                mockAuditor()
+            );
+            DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs-*, remote:logs-*")
+                .setSourceTimeField("@timestamp")
+                .setGroupingInterval(TimeValue.timeValueHours(1))
+                .build();
+
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            manager.putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                securityEnabled ? mockSecurityContextWithUser("df-user") : null,
+                threadPool,
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+            assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources in this release"));
+            assertThat(failure.get().getMessage(), containsString("[remote:logs-*]"));
+            verifyNoInteractions(datafeedConfigProvider, jobConfigProvider, client);
+        }
     }
 
     /**
@@ -928,10 +1047,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -990,10 +1109,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1055,10 +1174,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1118,10 +1237,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1193,10 +1312,10 @@ public class DatafeedManagerTests extends ESTestCase {
         DatafeedConfig updatedConfig = updatedBuilder.build();
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -1351,10 +1470,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = invocation.getArgument(1);
+            ActionListener<Boolean> listener = invocation.getArgument(2);
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("test-datafeed").setQueryDelay(org.elasticsearch.core.TimeValue.timeValueSeconds(60)).build()
@@ -2017,6 +2136,278 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(manager.currentCallerCredential(threadPool, securityContext), nullValue());
     }
 
+    /**
+     * Installs a mock ES|QL request builder behind {@link SharedSecrets} (the ES|QL plugin is absent from the ML test
+     * classpath) so the real {@code EsqlDatafeedQueryValidator#validateAccessForMint} runs end to end. Each probe execution
+     * appends to {@code events}, and records the query, project routing, builder client and the security header visible
+     * in the thread context at execution time.
+     */
+    @SuppressWarnings("unchecked")
+    private static final class EsqlProbeRecorder implements AutoCloseable {
+        final List<String> events = new ArrayList<>();
+        final List<String> queries = new ArrayList<>();
+        final List<String> routings = new ArrayList<>();
+        final List<ElasticsearchClient> builderClients = new ArrayList<>();
+        final List<String> authenticationHeaders = new ArrayList<>();
+        @Nullable
+        Exception failure;
+
+        EsqlProbeRecorder(ThreadContext threadContext) {
+            EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = mock();
+            when(builder.query(any())).thenAnswer(invocation -> {
+                queries.add(invocation.getArgument(0));
+                return builder;
+            });
+            when(builder.projectRouting(any())).thenAnswer(invocation -> {
+                routings.add(invocation.getArgument(0));
+                return builder;
+            });
+            when(builder.params(any())).thenReturn(builder);
+            when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
+            doAnswer(invocation -> {
+                events.add("probe");
+                authenticationHeaders.add(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
+                ActionListener<EsqlQueryResponse> listener = invocation.getArgument(0);
+                if (failure != null) {
+                    listener.onFailure(failure);
+                } else {
+                    listener.onResponse(mock(EsqlQueryResponse.class));
+                }
+                return null;
+            }).when(builder).execute(any(ActionListener.class));
+            SharedSecrets.setEsqlQueryRequestBuilderAccess(client -> {
+                builderClients.add(client);
+                return builder;
+            });
+        }
+
+        @Override
+        public void close() {
+            SharedSecrets.setEsqlQueryRequestBuilderAccess(null);
+        }
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h)")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setProjectRouting("_alias:_origin");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutDatafeedWithEsqlQueryAndCloudCallerShouldProbeEsqlUnderCallerCredentialThenMint() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = cpsWithSecurityEnabledSettings();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        Client callerClient = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "caller-authentication");
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(callerClient.threadPool()).thenReturn(threadPool);
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller-token".toCharArray()));
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(callerCredential);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(callerClient);
+
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("minted-key-id");
+        stubClientForSecurityPutPath(client, threadPool);
+
+        try (EsqlProbeRecorder probe = new EsqlProbeRecorder(threadContext)) {
+            Authentication mintedAuthentication = AuthenticationTestHelper.builder().build();
+            doAnswer(invocation -> {
+                probe.events.add("mint");
+                ActionListener<InternalCloudApiKeyService.CloudGrantApiKeyResult> listener = invocation.getArgument(2);
+                listener.onResponse(new InternalCloudApiKeyService.CloudGrantApiKeyResult(persisted, mintedAuthentication));
+                return null;
+            }).when(apiKeyService).grantCloudAuthentication(any(CloudCredential.class), anyString(), any());
+            doAnswer(invocation -> {
+                ActionListener<Set<String>> listener = invocation.getArgument(1);
+                listener.onResponse(Collections.emptySet());
+                return null;
+            }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+            doAnswer(invocation -> {
+                ActionListener<Boolean> listener = invocation.getArgument(2);
+                listener.onResponse(Boolean.TRUE);
+                return null;
+            }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
+            doAnswer(invocation -> {
+                probe.events.add("persist");
+                ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = invocation.getArgument(2);
+                listener.onResponse(Tuple.tuple(invocation.getArgument(0), mock(DocWriteResponse.class)));
+                return null;
+            }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
+
+            PutDatafeedAction.Request request = new PutDatafeedAction.Request(esqlDatafeedBuilder("test-datafeed", "test-job").build());
+            AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+            manager.putDatafeed(
+                request,
+                mockClusterStateForUpdate(),
+                mockSecurityContextWithUser("df-user"),
+                threadPool,
+                ActionTestUtils.assertNoFailureListener(response::set)
+            );
+
+            assertThat(probe.queries, equalTo(List.of("FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h) | LIMIT 0")));
+            assertThat(probe.routings, equalTo(List.of("_alias:_origin")));
+            assertThat(probe.builderClients, equalTo(List.of(callerClient)));
+            assertThat(probe.authenticationHeaders, equalTo(List.of("caller-authentication")));
+            assertThat(probe.events, equalTo(List.of("probe", "mint", "persist")));
+            assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(persisted));
+            verify(client, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+            verify(callerClient, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutDatafeedWithEsqlQueryWhenProbeFailsShouldNotMintOrPersist() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = cpsWithSecurityEnabledSettings();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(new CloudCredential(new SecureString("t".toCharArray())));
+        stubWrapClientForValidateProbe(credentialManager, client);
+        stubClientForSecurityPutPath(client, threadPool);
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = invocation.getArgument(1);
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = invocation.getArgument(2);
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
+
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN);
+        try (EsqlProbeRecorder probe = new EsqlProbeRecorder(threadContext)) {
+            probe.failure = securityFailure;
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            manager.putDatafeed(
+                new PutDatafeedAction.Request(esqlDatafeedBuilder("test-datafeed", "test-job").build()),
+                mockClusterStateForUpdate(),
+                mockSecurityContextWithUser("df-user"),
+                threadPool,
+                ActionListener.wrap(r -> fail("expected probe failure"), failure::set)
+            );
+
+            assertThat(failure.get(), sameInstance(securityFailure));
+            assertThat(probe.events, equalTo(List.of("probe")));
+        }
+        verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
+        verify(datafeedConfigProvider, never()).putDatafeedConfig(any(), any(), any());
+    }
+
+    public void testUpdateDatafeedWithEsqlQueryRekeyShouldProbeEsqlUnderCallerCredentialThenMint() throws IOException {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        // the update path decodes stored security headers, so the caller header must be a real encoded Authentication
+        String callerAuthentication = AuthenticationTestHelper.builder().build().encode();
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, callerAuthentication);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor(),
+            mock(AnnotationPersister.class),
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
+        );
+
+        // A pre-CPS stored ES|QL datafeed (no envelope, no routing): the cloud-authenticated update must mint for the first time.
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-1", "job-1").setProjectRouting(null).build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        try (EsqlProbeRecorder probe = new EsqlProbeRecorder(threadContext)) {
+            stubUpdateMigrationPath(
+                datafeedConfigProvider,
+                jobConfigProvider,
+                credentialManager,
+                apiKeyService,
+                client,
+                threadPool,
+                storedConfig,
+                capturedUpdate
+            );
+            doAnswer(invocation -> {
+                probe.events.add("mint");
+                ActionListener<InternalCloudApiKeyService.CloudGrantApiKeyResult> listener = invocation.getArgument(2);
+                listener.onResponse(
+                    new InternalCloudApiKeyService.CloudGrantApiKeyResult(
+                        randomPersistedCloudCredential("minted-key-id"),
+                        AuthenticationTestHelper.builder().build()
+                    )
+                );
+                return null;
+            }).when(apiKeyService).grantCloudAuthentication(any(CloudCredential.class), anyString(), any());
+
+            AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+            manager.updateDatafeed(
+                new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-1").build()),
+                mockClusterStateForUpdate(),
+                null,
+                threadPool,
+                ActionTestUtils.assertNoFailureListener(response::set)
+            );
+
+            assertThat(probe.queries, equalTo(List.of("FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h) | LIMIT 0")));
+            assertThat(probe.routings, equalTo(List.of(ProjectRoutingResolver.LOCAL_ONLY)));
+            assertThat(probe.authenticationHeaders, equalTo(List.of(callerAuthentication)));
+            assertThat(probe.events, equalTo(List.of("probe", "mint")));
+            assertThat(response.get().getResponse().getCloudInternalCredential(), notNullValue());
+            verify(client, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
@@ -2341,6 +2732,86 @@ public class DatafeedManagerTests extends ESTestCase {
             "_alias:prod-*",
             true
         );
+    }
+
+    public void testEsqlQueryShapeUpdateShouldRejectBeforeCredentialOrRollbackSideEffects() {
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mockMlExtension(credentialManager, apiKeyService),
+            mockAuditor()
+        );
+        DatafeedConfig current = new DatafeedConfig.Builder("esql-datafeed", "job-1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .build();
+        stubGetDatafeedConfig(datafeedConfigProvider, current);
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder("esql-datafeed").setQueryDelay(
+            org.elasticsearch.core.TimeValue.timeValueMinutes(5)
+        ).setIndices(List.of("other-logs")).setProjectRouting("_alias:other-project").build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(update),
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.get().getMessage(), containsString("Recreate datafeed [esql-datafeed] to change its query shape"));
+        verifyNoInteractions(jobConfigProvider, client, apiKeyService);
+    }
+
+    public void testEsqlQueryWithRemoteClusterUpdateShouldRejectBeforeValidation() {
+        Settings settings = Settings.builder().put("xpack.security.enabled", false).build();
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mockMlExtension(mock(CloudCredentialManager.class), apiKeyService),
+            mockAuditor()
+        );
+        DatafeedConfig current = new DatafeedConfig.Builder("esql-datafeed", "job-1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        stubGetDatafeedConfig(datafeedConfigProvider, current);
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder("esql-datafeed").setEsqlQuery("FROM remote:logs").build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(update),
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        verifyNoInteractions(jobConfigProvider, client, apiKeyService);
     }
 
     @SuppressWarnings("unchecked")

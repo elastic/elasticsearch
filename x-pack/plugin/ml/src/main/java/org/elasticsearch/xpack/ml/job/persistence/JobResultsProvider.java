@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -707,6 +708,90 @@ public class JobResultsProvider {
             result -> handler.accept(result.result),
             errorHandler,
             () -> new DatafeedTimingStats(jobId)
+        );
+    }
+
+    /**
+     * Upper bound on the number of copies of the checkpoint document that the rollover fallback search retrieves.
+     * One copy can be left behind in every results index that was the write index when a checkpoint was persisted.
+     */
+    private static final int MAX_ESQL_CHECKPOINT_COPIES = 100;
+
+    /**
+     * Load the ES|QL source checkpoint.
+     * <p>
+     * The checkpoint is persisted through the results write alias with {@link WriteRequest.RefreshPolicy#NONE}, so the
+     * freshest copy is read with a realtime GET against that alias: a search would miss a write that was not yet refreshed.
+     * After a results-index rollover the write alias points at a new index that holds no checkpoint until the next
+     * persist, while the last checkpoint stays behind in an older index. The GET misses in that case, so fall back to a
+     * search against the read alias, which spans every results index of the job. Such older copies were persisted long
+     * before the rollover and are visible to search. Several indices can hold a copy, so the one with the greatest
+     * {@code source_end_ms} wins.
+     */
+    public void esqlDatafeedSourceCheckpoint(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        GetRequest getRequest = new GetRequest(
+            AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+            EsqlDatafeedSourceCheckpoint.documentId(jobId)
+        );
+        getRequest.realtime(true);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getDocResponse) {
+                try {
+                    if (getDocResponse.isExists() == false) {
+                        esqlDatafeedSourceCheckpointFromAllResultsIndices(jobId, handler, errorHandler);
+                        return;
+                    }
+                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
+                    try (XContentParser parser = createParser(docSource)) {
+                        handler.accept(EsqlDatafeedSourceCheckpoint.PARSER.apply(parser, null));
+                    }
+                } catch (Exception e) {
+                    errorHandler.accept(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    esqlDatafeedSourceCheckpointFromAllResultsIndices(jobId, handler, errorHandler);
+                    return;
+                }
+                errorHandler.accept(e);
+            }
+        }, client::get);
+    }
+
+    private void esqlDatafeedSourceCheckpointFromAllResultsIndices(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        // source_end_ms is not an explicit mapping in the results index, so it is dynamically mapped as a keyword and
+        // cannot be used as a numeric sort key; pick the newest copy client side instead.
+        SearchRequestBuilder search = client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setSize(MAX_ESQL_CHECKPOINT_COPIES)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(EsqlDatafeedSourceCheckpoint.documentId(jobId)));
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            search.request(),
+            ActionListener.<SearchResponse>wrap(response -> {
+                EsqlDatafeedSourceCheckpoint newest = null;
+                for (SearchHit hit : response.getHits().getHits()) {
+                    EsqlDatafeedSourceCheckpoint candidate = MlParserUtils.parse(hit, EsqlDatafeedSourceCheckpoint.PARSER);
+                    if (newest == null || candidate.getSourceEndMs() > newest.getSourceEndMs()) {
+                        newest = candidate;
+                    }
+                }
+                handler.accept(newest);
+            }, errorHandler),
+            client::search
         );
     }
 

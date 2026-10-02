@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +41,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -114,6 +118,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<DatafeedConfig> datafeedConfigActionListener = listener.delegateFailureAndWrap((delegate, datafeedConfig) -> {
+            try {
+                validateEsqlDatafeedEnabled(datafeedConfig, clusterService.state());
+            } catch (ElasticsearchStatusException e) {
+                delegate.onFailure(e);
+                return;
+            }
             if (request.getJobConfig() != null) {
                 previewDatafeed(parentTaskId, datafeedConfig, request.getJobConfig().build(new Date()), request, delegate);
                 return;
@@ -137,7 +147,16 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         }
     }
 
-    private void previewDatafeed(
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state) {
+        DatafeedEsqlGates.validateEsqlDatafeedEnabled(
+            datafeedConfig,
+            state,
+            Messages.DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS,
+            Messages.DATAFEED_ESQL_PREVIEW_DISABLED
+        );
+    }
+
+    void previewDatafeed(
         TaskId parentTaskId,
         DatafeedConfig datafeedConfig,
         Job job,
@@ -183,7 +202,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential
             );
-            DataExtractorFactory.create(
+            createDataExtractorFactory(
                 previewClient,
                 cloudCredentialManager,
                 effectiveDatafeedConfig,
@@ -192,22 +211,84 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                responseHeaderPreservingListener.delegateFailure(
-                    (l, dataExtractorFactory) -> isDateNanos(
-                        previewClient,
-                        effectiveDatafeedConfig,
-                        job.getDataDescription().getTimeField(),
-                        l.delegateFailure((l2, isDateNanos) -> {
-                            final long start = request.getStartTime().orElse(0);
-                            final long end = request.getEndTime()
-                                .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
-                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
-                            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l2));
-                        })
-                    )
-                )
+                responseHeaderPreservingListener.delegateFailure((l, dataExtractorFactory) -> {
+                    if (requiresDateNanosCheck(effectiveDatafeedConfig)) {
+                        isDateNanos(
+                            previewClient,
+                            effectiveDatafeedConfig,
+                            job.getDataDescription().getTimeField(),
+                            l.delegateFailure(
+                                (l2, isDateNanos) -> runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, isDateNanos, l2)
+                            )
+                        );
+                    } else {
+                        runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, true, l);
+                    }
+                })
             );
         });
+    }
+
+    void createDataExtractorFactory(
+        Client client,
+        CloudCredentialManager cloudCredentialManager,
+        DatafeedConfig datafeed,
+        QueryBuilder extraFilters,
+        Job job,
+        NamedXContentRegistry xContentRegistry,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        ActionListener<DataExtractorFactory> listener
+    ) {
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeed,
+            extraFilters,
+            job,
+            xContentRegistry,
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    private void runPreview(
+        DatafeedConfig datafeed,
+        DataExtractorFactory dataExtractorFactory,
+        PreviewDatafeedAction.Request request,
+        boolean isDateNanos,
+        ActionListener<PreviewDatafeedAction.Response> listener
+    ) {
+        final long start = request.getStartTime().orElse(0);
+        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed);
+        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
+    }
+
+    /**
+     * Visible for testing
+     */
+    static boolean requiresDateNanosCheck(DatafeedConfig datafeed) {
+        return datafeed.getEsqlQuery() == null;
+    }
+
+    /**
+     * Visible for testing
+     */
+    static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos, DatafeedConfig datafeed) {
+        if (request.getEndTime().isPresent() == false) {
+            return isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
+        }
+        long end = request.getEndTime().getAsLong();
+        if (datafeed.getEsqlQuery() == null) {
+            return end;
+        }
+        // An ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
+        // extractor factory floors the window end so an open bucket is never extracted. A preview is a
+        // diagnostic view of the requested range, so round the end up to keep the bucket containing it
+        // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
+        long alignedEnd = Intervals.alignToCeil(end, datafeed.getGroupingInterval().millis());
+        // alignToCeil overflows for ends within one interval of Long.MAX_VALUE; keep the requested end then.
+        return alignedEnd >= end ? alignedEnd : end;
     }
 
     /**
@@ -260,8 +341,11 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     static FieldCapabilitiesRequest buildDateNanosFieldCapsRequest(DatafeedConfig datafeed, String timeField) {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
-        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
+        if (datafeed.getIndicesOptions() != null) {
+            fieldCapabilitiesRequest.indicesOptions(datafeed.getIndicesOptions());
+        }
+        if (datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
             // Cross-project field-caps resolution is validated on the coordinator whenever the request runs in
             // cross-project mode; that validation relies on the per-project resolution map, which is only collected
             // when includeResolvedTo is set. Omitting it leaves the map empty and trips a node-fatal assertion for
@@ -286,7 +370,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
      */
     static void previewDatafeed(DataExtractor dataExtractor, ActionListener<PreviewDatafeedAction.Response> listener) {
         try {
-            Optional<InputStream> inputStream = dataExtractor.next().data();
+            // An extractor over a window with nothing to extract reports hasNext() == false and next() would throw
+            // NoSuchElementException (a 500); an empty window previews as an empty array.
+            Optional<InputStream> inputStream = dataExtractor.hasNext() ? dataExtractor.next().data() : Optional.empty();
             // DataExtractor returns single-line JSON but without newline characters between objects.
             // Instead, it has a space between objects due to how JSON XContentBuilder works.
             // In order to return a proper JSON array from preview, we surround with square brackets and

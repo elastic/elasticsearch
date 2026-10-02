@@ -93,7 +93,7 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * Unconditional charge used for buffers that must exist (sliding window at open, actual
+     * Unconditional charge used for buffers that must exist (sliding window on first use, actual
      * coalesced {@code DirectReadBuffer} size). Admission of look-ahead happens in
      * {@link #tryReserve}. When a prefetch already {@link #tryAdmit}ted a footer estimate,
      * {@link #accountingFactory(CircuitBreaker, AdmitHold)} drops that many estimate bytes on

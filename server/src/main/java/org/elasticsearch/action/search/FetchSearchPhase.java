@@ -222,8 +222,7 @@ class FetchSearchPhase extends SearchPhase {
                     } catch (CircuitBreakingException e) {
                         // The shard did the IO even though we cannot hold what it sent back.
                         context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
-                        // Hits this node cannot hold are dropped the same way a fetch that failed on the shard is.
-                        onFailure(e);
+                        context.failOnCoordinatorTrip(NAME, e);
                         return;
                     }
                     progressListener.notifyFetchResult(shardIndex);
@@ -235,6 +234,11 @@ class FetchSearchPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
+                if (context.failedOnCoordinatorTrip()) {
+                    // The chunked route reports the trip and then rethrows, so the same trip arrives here. Counting
+                    // this shard down would finish the phase and merge results the failure has already released.
+                    return;
+                }
                 try {
                     logger.debug(() -> "[" + contextId + "] Failed to execute fetch phase", e);
                     progressListener.notifyFetchFailure(shardIndex, shardTarget, e);

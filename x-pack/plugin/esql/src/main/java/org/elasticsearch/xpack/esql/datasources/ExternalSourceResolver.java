@@ -4097,8 +4097,9 @@ public class ExternalSourceResolver {
         ListingExtents extents = listingExtentsFor(demand, null, config);
         // A declared mapping is read from no file, so this listing answers the dataset's file count,
         // partition columns, and which file the coercibility check opens. Query filters stay off it:
-        // those answers are properties of the dataset, not of who asked. Inferred FFW passes hints
-        // through listAndRecord instead, because that listing is also the files the query reads.
+        // those answers are properties of the dataset, not of who asked. The listing-charge soak is
+        // inferred FFW (no mapping); that rail passes hints through listAndRecord because that
+        // listing is also the files the query reads. A strict mapping still lists the unfiltered set.
         List<PartitionFilterHintExtractor.PartitionFilterHint> schemaHints = null;
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(

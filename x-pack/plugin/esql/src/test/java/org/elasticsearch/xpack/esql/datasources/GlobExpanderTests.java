@@ -3511,7 +3511,7 @@ public class GlobExpanderTests extends ESTestCase {
      * One file per hour of {@code year}, Hive-padded {@code month=MM/day=DD/hour=HH}. 2026 is not a leap
      * year, so this is 365 × 24 files — the production VPC shape whose listing billed ~14 MB/query.
      */
-    private static List<StorageEntry> vpcHourlyYear(int year) {
+    static List<StorageEntry> hourlyHiveYear(int year, String fileName) {
         List<StorageEntry> entries = new ArrayList<>(366 * 24);
         LocalDate end = LocalDate.of(year, 12, 31);
         for (LocalDate day = LocalDate.of(year, 1, 1); day.isAfter(end) == false; day = day.plusDays(1)) {
@@ -3522,11 +3522,12 @@ public class GlobExpanderTests extends ESTestCase {
                     entry(
                         String.format(
                             Locale.ROOT,
-                            "s3://bucket/data/year=%d/month=%s/day=%s/hour=%02d/f.ext",
+                            "s3://bucket/data/year=%d/month=%s/day=%s/hour=%02d/%s",
                             year,
                             month,
                             dayOfMonth,
-                            hour
+                            hour,
+                            fileName
                         ),
                         100
                     )
@@ -3544,8 +3545,10 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
+    /** Remainder {@code chargeListingPlanning} would add after the walk's per-entry credit. */
     private static long listingPlanningCharge(FileList listing) {
-        return listing.planningBytes() + listing.fileCount() * 760L;
+        long n = listing.fileCount();
+        return listing.planningBytes() - n * FileList.LISTING_BYTES_PER_ENTRY + n * 760L;
     }
 
     /**
@@ -3554,7 +3557,7 @@ public class GlobExpanderTests extends ESTestCase {
      * Shallow padding fixtures already pass; this is the depth that used to bill ~14.3 MB/query.
      */
     public void testVpcHourlyHiveYearMonthDayHintsListTwentyFourFiles() throws IOException {
-        List<StorageEntry> files = vpcHourlyYear(2026);
+        List<StorageEntry> files = hourlyHiveYear(2026, "f.ext");
         assertEquals("2026 is not a leap year", 365 * 24, files.size());
         var hints = vpcYearMonthDayHints(2026, 7, 13);
         String globstar = "s3://bucket/data/**";

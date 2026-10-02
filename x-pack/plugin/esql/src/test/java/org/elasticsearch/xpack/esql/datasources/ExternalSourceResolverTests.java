@@ -93,7 +93,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -2395,7 +2394,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testVpcHourlyHiveFoldedHintsListTwentyFourFilesOnDefaultFfw() throws Exception {
         String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
-        List<StorageEntry> files = vpcHourlyYearParquet(2026);
+        List<StorageEntry> files = GlobExpanderTests.hourlyHiveYear(2026, "f.parquet");
         assertEquals(365 * 24, files.size());
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>(files.size());
@@ -2420,6 +2419,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
 
+        // null pathsRequiringStats is legacy eager-all (unbounded). The soak billed the year on that rail.
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, null, future);
         FileList listing = future.actionGet().resolvedSource(glob).fileList();
@@ -2428,35 +2428,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertTrue(listing.path(i).toString().startsWith("s3://bucket/data/year=2026/month=07/day=13/"));
         }
 
-        long charge = listing.planningBytes() + listing.fileCount() * 760L;
-        assertThat("24-file listing charge must drop off the 14.3 MB plateau", charge, lessThan(2_000_000L));
-        assertThat(reservation.queryHeld(), greaterThan(0L));
+        // chargeListingPlanning remainder (planningBytes - 700n + 760n): the listing's own size.
+        // queryHeld also keeps walk credit for keys the flat stub enumerated then dropped, so it
+        // is larger (~6.1 MB here) — still off the ~14.3 MB year plateau.
+        long n = listing.fileCount();
+        long listingCharge = listing.planningBytes() - n * FileList.LISTING_BYTES_PER_ENTRY + n * 760L;
+        assertThat("chargeListingPlanning remainder for 24 files", listingCharge, lessThan(2_000_000L));
+        long held = reservation.queryHeld();
+        assertThat("queryHeld=" + held + " must drop off the ~14.3 MB year plateau", held, lessThan(10_000_000L));
+        assertThat("queryHeld=" + held, held, greaterThan(0L));
         assertThat(metadataReads.get(), greaterThan(0));
-    }
 
-    private static List<StorageEntry> vpcHourlyYearParquet(int year) {
-        List<StorageEntry> entries = new ArrayList<>(366 * 24);
-        LocalDate end = LocalDate.of(year, 12, 31);
-        for (LocalDate day = LocalDate.of(year, 1, 1); day.isAfter(end) == false; day = day.plusDays(1)) {
-            String month = String.format(Locale.ROOT, "%02d", day.getMonthValue());
-            String dayOfMonth = String.format(Locale.ROOT, "%02d", day.getDayOfMonth());
-            for (int hour = 0; hour < 24; hour++) {
-                entries.add(
-                    entry(
-                        String.format(
-                            Locale.ROOT,
-                            "s3://bucket/data/year=%d/month=%s/day=%s/hour=%02d/f.parquet",
-                            year,
-                            month,
-                            dayOfMonth,
-                            hour
-                        ),
-                        100
-                    )
-                );
-            }
-        }
-        return entries;
+        // Production EsqlSession always passes a non-null set. LIMIT panels are bounded
+        // (sampleSize=1000); 24 still fits. Lock that rail separately so a cache hit on the
+        // eager listing cannot stand in for it.
+        ExternalSourceResolver bounded = createResolver(schemas, Map.of("s3://bucket/data/", files));
+        PlainActionFuture<ExternalSourceResolution> boundedFuture = new PlainActionFuture<>();
+        bounded.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, Set.of(), boundedFuture);
+        assertEquals(
+            "bounded FFW (no eager stats) must still list the hinted day",
+            24,
+            boundedFuture.actionGet().resolvedSource(glob).fileList().fileCount()
+        );
     }
 
     private static LogicalPlan vpcDashboardFilterPlan(String path) {

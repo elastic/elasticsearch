@@ -430,6 +430,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
             && includeEmptyFields
             && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
             && runtimeFields.isEmpty()
+            && Strings.isEmpty(clusterAlias)
             && cacheableFilters();
     }
 

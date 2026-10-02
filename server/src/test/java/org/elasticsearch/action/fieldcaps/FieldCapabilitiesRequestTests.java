@@ -163,6 +163,9 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         assertTrue(request.cacheable());
         request.filters("x".repeat(51));
         assertFalse(request.cacheable());
+        request.filters("-nested");
+        request.clusterAlias("remote");
+        assertFalse(request.cacheable());
     }
 
     public void testFromXContent() throws IOException {

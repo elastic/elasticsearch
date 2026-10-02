@@ -1877,9 +1877,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             ioWatermark
         );
         // Take the parsed footer straight from the cache rather than opening a ParquetFileReader.
-        // This method reads no data bytes at all (only row-group metadata and the schema), but
-        // ParquetFileReader.open would allocate the adapter's sliding window and reserve it on the
-        // breaker up front, per file, purely to hand back the metadata the cache already holds.
+        // This method needs row-group metadata only. loadFooter on a parsed-footer miss opens a
+        // short-lived stream and reads the footer through it. That read charges the sliding window
+        // — a FooterByteCache hit still copies into the window via fillFromCachedTail — and
+        // releases the charge when the stream closes. Opening a ParquetFileReader would keep a
+        // second stream for the reader's lifetime. That stream does not reserve the window unless
+        // something reads it.
         return rangesFromFooter(loadFooter(object, parquetInputFile));
     }
 

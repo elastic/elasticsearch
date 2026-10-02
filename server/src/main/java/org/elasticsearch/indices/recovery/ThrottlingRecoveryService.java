@@ -154,6 +154,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
     private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
 
+    // If non-null, this field caches the value for PendingRecovery.enqueuedTimeAbsoluteMillis() for any queued recovery, or Long.MAX_VALUE
+    // if the queue is empty. If null, the value should be computed on demand and cached.
+    // We use absoluteTimeInMillis rather than relativeTimeInMillis because the latter has an arbitrary zero point, so there's a chance
+    // (though very small!) that it could wrap around while we're running, and then the minimum timestamp wouldn't be the earliest.
+    // We deal with the (also very small) chance that we could observe time going backwards in queueLatencyMillis().
+    private Long cachedEarliestEnqueuedTimeAbsoluteMillis;
+
     /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
     /// already started (i.e. are not in [#pendingRecoveries]).
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
@@ -234,11 +241,19 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     : "mismatch between cached cancellation [" + cancelled + "] and enqueue recovery: [" + indexShard.recoveryState() + "]";
                 pendingRecovery = null;
             } else {
-                pendingRecovery = new PendingRecovery(indexShard, indexMetadata, task, recoveryListener, context);
+                pendingRecovery = new PendingRecovery(
+                    indexShard,
+                    indexMetadata,
+                    task,
+                    recoveryListener,
+                    context,
+                    threadPool.absoluteTimeInMillis()
+                );
                 // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
                 // not respond to changes in index.priority and reorder the queue. If we wanted that, we would need to maintain a collection
                 // of listeners (see IndexService.addMetadataListener) which are mapped to the queued entries, and remove and re-add them.
                 pendingRecoveries.add(pendingRecovery);
+                onEnqueued(pendingRecovery);
                 indexShard.recoveryStats().targetRecoveryQueued(recoverySource.getType());
             }
         }
@@ -246,7 +261,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (serviceClosed) {
                 logger.debug("service is closed, aborting recovery: {}", indexShard.recoveryState());
                 RecoveryListener.wrapPreservingContext(recoveryListener, context)
-                    .onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null), ABORT);
+                    .onRecoveryFailure(
+                        indexShard.recoveryState(),
+                        new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null),
+                        ABORT
+                    );
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", indexShard.recoveryState());
                 final RecoverySource.Type recoveryType = recoverySource.getType();
@@ -255,6 +274,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 executor.execute(() -> {
                     RecoveryListener.wrapPreservingContext(recoveryListener, context)
                         .onRecoveryFailure(
+                            indexShard.recoveryState(),
                             new RecoveryCancelledException(
                                 indexShard.shardId(),
                                 indexShard.recoveryState().getSourceNode(),
@@ -293,6 +313,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 final PendingRecovery candidate = it.next();
                 if (cancellations.containsKey(candidate.allocationId())) {
                     assert cancellations.get(candidate.allocationId()).equals(candidate.recoveryState().getShardId());
+                    onDequeued(candidate);
                     it.remove();
                     recoveriesToCancel.add(candidate);
                     candidate.stats().targetQueuedRecoveryDiscarded(candidate.recoveryState().getRecoverySource().getType());
@@ -306,6 +327,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(
+                    state,
                     new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                     FAIL_SILENT
                 );
@@ -341,6 +363,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 final PendingRecovery pending = it.next();
                 final RecoveryState recoveryState = pending.recoveryState();
                 if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
+                    onDequeued(pending);
                     it.remove();
                     staleRecoveries.add(pending);
                     // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
@@ -358,6 +381,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             executor.execute(() -> {
                 stale.listener()
                     .onRecoveryFailure(
+                        state,
                         new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                         FAIL_SILENT
                     );
@@ -388,12 +412,46 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return blockedState.get();
     }
 
+    /// Returns the longest time any recovery has been queued on this node, in milliseconds. If the queue is empty, returns zero.
+    public long queueLatencyMillis() {
+        return Math.max(threadPool.absoluteTimeInMillis() - earliestEnqueuedTimeAbsoluteMillis(), 0L);
+    }
+
+    private synchronized long earliestEnqueuedTimeAbsoluteMillis() {
+        if (cachedEarliestEnqueuedTimeAbsoluteMillis == null) {
+            cachedEarliestEnqueuedTimeAbsoluteMillis = pendingRecoveries.stream()
+                .mapToLong(PendingRecovery::enqueuedTimeAbsoluteMillis)
+                .min()
+                .orElse(Long.MAX_VALUE); // MAX_VALUE ensures that queueLatencyMillis() returns zero
+        }
+        return cachedEarliestEnqueuedTimeAbsoluteMillis;
+    }
+
+    private void onEnqueued(PendingRecovery enqueued) {
+        // If we have cached the earliest enqueued time, update it if necessary. (If it is not cached, it will be computed on demand.)
+        if (cachedEarliestEnqueuedTimeAbsoluteMillis != null) {
+            cachedEarliestEnqueuedTimeAbsoluteMillis = Math.min(
+                cachedEarliestEnqueuedTimeAbsoluteMillis,
+                enqueued.enqueuedTimeAbsoluteMillis()
+            );
+        }
+    }
+
+    private void onDequeued(PendingRecovery dequeued) {
+        // If this recovery matches the cached earliest enqueued time, invalidate the cache (it will be computed the next time it's needed).
+        if (cachedEarliestEnqueuedTimeAbsoluteMillis != null
+            && dequeued.enqueuedTimeAbsoluteMillis() == cachedEarliestEnqueuedTimeAbsoluteMillis) {
+            cachedEarliestEnqueuedTimeAbsoluteMillis = null;
+        }
+    }
+
     @Override
     protected void doStop() {
         assert isClosed(); // state change happens-before this line: all recoveries are discarded here or rejected during enqueue, no leaks
         final List<PendingRecovery> recoveriesToAbort;
         synchronized (this) {
             recoveriesToAbort = new ArrayList<>(pendingRecoveries);
+            cachedEarliestEnqueuedTimeAbsoluteMillis = null;
             pendingRecoveries.clear();
             cancelledAllocationIds.clear();
             for (PendingRecovery pending : recoveriesToAbort) {
@@ -403,7 +461,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
-                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
+                .onRecoveryFailure(
+                    pending.recoveryState(),
+                    new RecoveryFailedException(pending.recoveryState(), "service closing", null),
+                    ABORT
+                );
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(
                 pending.recoveryState().getRecoverySource().getType(),
                 pending.priorityGroup()
@@ -461,6 +523,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             while (pendingRecoveries.isEmpty() == false && recoveriesThrottle.shouldStartNextPendingRecovery(pendingRecoveries.peek())) {
                 final PendingRecovery recovery = pendingRecoveries.poll();
                 assert recovery != null;
+                onDequeued(recovery);
                 recoveriesToDispatch.add(recovery);
                 recoveriesThrottle.incrementRunning(recovery);
                 recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
@@ -581,7 +644,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         IndexMetadata indexMetadata,
         Consumer<RecoveryListener> task,
         RecoveryListener listener,
-        Supplier<ThreadContext.StoredContext> context
+        Supplier<ThreadContext.StoredContext> context,
+        long enqueuedTimeAbsoluteMillis
     ) {
 
         /// Returns the [RecoveryState] for the shard to be recovered.
@@ -704,7 +768,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), null, e), FAIL_SEND);
+            listener.onRecoveryFailure(
+                indexShard.recoveryState(),
+                new RecoveryFailedException(indexShard.recoveryState(), null, e),
+                FAIL_SEND
+            );
         }
 
         @Override

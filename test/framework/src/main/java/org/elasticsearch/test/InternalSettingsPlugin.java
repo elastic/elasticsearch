@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -84,7 +85,8 @@ public final class InternalSettingsPlugin extends Plugin {
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
                 IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
-                FsService.ALWAYS_REFRESH_SETTING
+                FsService.ALWAYS_REFRESH_SETTING,
+                IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING
             )
         );
         // The stateless plugin registers these itself, and a setting cannot be registered twice.

@@ -497,21 +497,17 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "external_field_extract",
-            Status::new
+            Status::readFrom
         );
 
         private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
         private static final TransportVersion ESQL_EXTRACT_CPU_NANOS = TransportVersion.fromName("esql_extract_cpu_nanos");
 
-        private final long rowsExtracted;
-        private final long extractNanos;
-        private final long extractCpuNanos;
+        final long rowsExtracted;
+        final long extractNanos;
+        final long extractCpuNanos;
 
-        public Status(long pagesProcessed, long rowsExtracted, long extractNanos, long extractCpuNanos) {
-            this(pagesProcessed, pagesProcessed, extractNanos, rowsExtracted, extractNanos, extractCpuNanos);
-        }
-
-        private Status(
+        Status(
             long receivedPages,
             long completedPages,
             long processNanos,
@@ -525,52 +521,43 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             this.extractCpuNanos = extractCpuNanos;
         }
 
-        Status(StreamInput in) throws IOException {
-            this(readSerialized(in));
+        private Status(StreamInput in) throws IOException {
+            // New format: superclass fields are on the wire too.
+            super(in);
+            rowsExtracted = in.readVLong();
+            extractNanos = in.readVLong();
+            extractCpuNanos = in.readVLong();
         }
 
-        private Status(Serialized serialized) {
-            this(
-                serialized.pagesProcessed,
-                serialized.pagesProcessed,
-                serialized.extractNanos,
-                serialized.rowsExtracted,
-                serialized.extractNanos,
-                serialized.extractCpuNanos
-            );
-        }
-
-        private static Serialized readSerialized(StreamInput in) throws IOException {
-            // The operator + its Status only exist on nodes that support deferred extraction
-            // (elasticsearch#149185), which landed alongside this PR. Pre-version nodes never
-            // send this entry, but be defensive and accept either shape.
-            long pagesProcessed;
-            long rowsExtracted;
-            long extractNanos;
-            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
-                pagesProcessed = in.readVLong();
-                rowsExtracted = in.readVLong();
-                extractNanos = in.readVLong();
+        static Status readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(ESQL_EXTRACT_CPU_NANOS)) {
+                return new Status(in);
+            } else if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
+                long completedPages = in.readVLong();  // pagesProcessed
+                long rowsExtracted = in.readVLong();
+                long extractNanos = in.readVLong();
+                return new Status(0L, completedPages, 0L, rowsExtracted, extractNanos, 0L);
             } else {
-                pagesProcessed = 0L;
-                rowsExtracted = 0L;
-                extractNanos = 0L;
+                return new Status(0L, 0L, 0L, 0L, 0L, 0L);
             }
-            long extractCpuNanos = in.getTransportVersion().supports(ESQL_EXTRACT_CPU_NANOS) ? in.readVLong() : 0L;
-            return new Serialized(pagesProcessed, rowsExtracted, extractNanos, extractCpuNanos);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // Keep the existing wire layout. The standard async counters are exact locally; after
-            // transport they are reconstructed from these legacy counters.
-            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
-                out.writeVLong(completedPages());
+            if (out.getTransportVersion().supports(ESQL_EXTRACT_CPU_NANOS)) {
+                // New format
+                super.writeTo(out);
                 out.writeVLong(rowsExtracted);
                 out.writeVLong(extractNanos);
-            }
-            if (out.getTransportVersion().supports(ESQL_EXTRACT_CPU_NANOS)) {
                 out.writeVLong(extractCpuNanos);
+            } else {
+                // Old format
+                if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
+                    // Fill out for pagesProcessed that does not exist anymore
+                    out.writeVLong(completedPages());
+                    out.writeVLong(rowsExtracted);
+                    out.writeVLong(extractNanos);
+                }
             }
         }
 
@@ -631,12 +618,5 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         public int hashCode() {
             return Objects.hash(super.hashCode(), rowsExtracted, extractNanos, extractCpuNanos);
         }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.minimumCompatible();
-        }
-
-        private record Serialized(long pagesProcessed, long rowsExtracted, long extractNanos, long extractCpuNanos) {}
     }
 }

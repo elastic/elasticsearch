@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterCo
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,6 +66,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -213,6 +215,97 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             }
         } finally {
             safeAwait(afterRelocatedBarrier);
+        }
+    }
+
+    /**
+     * A refresh can publish a commit after relocation captures the last flushed generation. The handoff must include this commit even
+     * though it is still in the current, unuploaded VBCC, otherwise the target can reuse a generation already seen by search shards.
+     */
+    public void testRelocationUploadsCommitRefreshedAfterLastFlushedGeneration() throws Exception {
+        final Settings nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+            .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueHours(1))
+            .build();
+        final String indexNode = startMasterAndIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+        final int numDocs = between(1, 10);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        final IndexShard indexShard = findIndexShard(indexName);
+        final IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var commitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
+        final var beforeMarkRelocating = new CountDownLatch(1);
+        final var continueRelocation = new CountDownLatch(1);
+        final var lastFlushedGeneration = new AtomicLong(-1);
+        commitService.setStrategy(new TestStatelessCommitService.Strategy() {
+            @Override
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
+                lastFlushedGeneration.set(minRelocatedGeneration);
+                beforeMarkRelocating.countDown();
+                safeAwait(continueRelocation);
+                return originalSupplier.get();
+            }
+        });
+
+        final var uploadedGenerationAtHandoff = new AtomicLong(-1);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME)) {
+                uploadedGenerationAtHandoff.set(commitService.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().generation());
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        try {
+            final String newIndexNode = startIndexNode(nodeSettings);
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
+            final long refreshedGeneration;
+            try {
+                safeAwait(beforeMarkRelocating);
+                // Explicit refresh creates a commit without requesting its upload, even while indexing permits are held by relocation.
+                safeAwait(
+                    (ActionListener<Engine.RefreshResult> listener) -> indexEngine.externalRefresh("refresh during relocation", listener)
+                );
+                refreshedGeneration = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+                assertThat(refreshedGeneration, greaterThan(lastFlushedGeneration.get()));
+                assertThat(
+                    refreshedGeneration,
+                    greaterThan(commitService.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().generation())
+                );
+                assertBusy(
+                    () -> assertThat(
+                        findSearchShard(indexName).getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(),
+                        equalTo(refreshedGeneration)
+                    )
+                );
+            } finally {
+                continueRelocation.countDown();
+            }
+
+            ensureGreen(indexName);
+            assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));
+            assertThat(uploadedGenerationAtHandoff.get(), greaterThanOrEqualTo(refreshedGeneration));
+
+            // The new primary must be able to publish further commits without conflicting with the search shard's existing reader.
+            indexDocs(indexName, 1);
+            refresh(indexName);
+            assertResponse(client().prepareSearch(indexName), response -> assertHitCount(response, numDocs + 1));
+        } finally {
+            continueRelocation.countDown();
+            commitService.setStrategy(new TestStatelessCommitService.Strategy());
+            transportService.clearAllRules();
         }
     }
 

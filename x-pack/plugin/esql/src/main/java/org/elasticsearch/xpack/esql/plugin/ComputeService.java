@@ -1045,11 +1045,19 @@ public class ComputeService {
 
     /**
      * Iteration budget for the expansion driver. {@link ExpandUnmappedFieldsOperator} does one page's worth of work per driver loop
-     * iteration, so a budget of one makes the driver re-dispatch onto the worker pool between pages: a long {@code LOAD_ALL} expansion
-     * hands its worker thread back repeatedly so other queued work interleaves, rather than running to completion in a single task
+     * iteration, so a budget of one makes the driver re-dispatch onto the worker pool between pages. Combined with
+     * {@link #EXPAND_DRIVER_MAX_PAGE_ROWS} bounding each page to a fixed row chunk, a long {@code LOAD_ALL} expansion hands its worker
+     * thread back every chunk so other queued work interleaves, rather than running a whole (possibly wide) scan in a single task
      * (see <a href="https://github.com/elastic/elasticsearch/issues/160286">#160286</a>).
      */
     private static final int EXPAND_DRIVER_MAX_ITERATIONS = 1;
+
+    /**
+     * Row chunk the expansion {@link PageListSourceOperator} replays per driver iteration. With {@link #EXPAND_DRIVER_MAX_ITERATIONS}
+     * of one, this is the number of rows the driver scans before re-dispatching, so it bounds how long a single expansion can hold a
+     * worker thread regardless of the input {@code page_size}. Matches the operator's per-row cancellation-poll cadence.
+     */
+    private static final int EXPAND_DRIVER_MAX_PAGE_ROWS = 1024;
 
     /**
      * Expands the synthetic {@code _unmapped_fields} column produced by {@code SET unmapped_fields="LOAD_ALL"} into per-field columns,
@@ -1096,7 +1104,7 @@ public class ComputeService {
                 System.nanoTime(),
                 driverContext,
                 expandOperator::toString,
-                new PageListSourceOperator(result.pages()),
+                new PageListSourceOperator(result.pages(), EXPAND_DRIVER_MAX_PAGE_ROWS),
                 List.of(expandOperator),
                 new PageConsumerOperator(collected::add),
                 Driver.DEFAULT_STATUS_INTERVAL,

@@ -89,7 +89,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
     }
 
-    /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses a non-positive one. */
+    /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses one outside 1 to the ceiling. */
     public void testSchemaMaxFieldsConfiguresTheCap() throws IOException {
         int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
         FormatReader raised = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
@@ -106,6 +106,15 @@ public class NdJsonFormatReaderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 0))
         );
+        NdJsonFormatReader.validateConfig(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NdJsonFormatReader.validateConfig(
+                Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS + 1)
+            )
+        );
     }
 
     /** The node setting replaces the default, and a dataset's {@code schema_max_fields} still overrides it. */
@@ -117,6 +126,16 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
         FormatReader overridden = reader.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
         assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
+    }
+
+    /** The node setting is bounded like the dataset key, so neither can lift the cap past the ceiling. */
+    public void testNodeSettingRejectsValuesAboveTheCeiling() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        Settings atCeiling = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), ceiling).build();
+        assertEquals(ceiling, (int) ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(atCeiling));
+
+        Settings aboveCeiling = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), ceiling + 1).build();
+        expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(aboveCeiling, blockFactory));
     }
 
     private static byte[] flatRecord(int columns) {

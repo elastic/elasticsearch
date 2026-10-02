@@ -377,9 +377,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     private static int parseSchemaMaxFields(Object value, int defaultValue) {
-        int maxFields = parseInt(value, defaultValue);
-        Check.clientError(maxFields > 0, CONFIG_SCHEMA_MAX_FIELDS + " must be positive, got: {}", maxFields);
-        return maxFields;
+        return ExternalSourceSettings.parseDatasetSchemaMaxFields(value, CONFIG_SCHEMA_MAX_FIELDS, defaultValue);
     }
 
     private static long parseSegmentSize(Object value, long defaultValueBytes) {

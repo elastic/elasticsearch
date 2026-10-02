@@ -402,6 +402,15 @@ public final class ExternalSourceSettings {
     public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
 
     /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 admits the widest
+     * legitimate Parquet and CSV files while staying far below the widths that exhaust a small heap. Long names are
+     * still bounded only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
      * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
      * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
      * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
@@ -412,8 +421,18 @@ public final class ExternalSourceSettings {
         "esql.external.schema_max_fields",
         DEFAULT_SCHEMA_MAX_FIELDS,
         1,
+        MAX_SCHEMA_MAX_FIELDS,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        return value == null ? defaultValue : Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+    }
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings

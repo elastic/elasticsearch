@@ -189,7 +189,7 @@ public class EsqlSessionTests extends ESTestCase {
         );
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", config);
+            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", "", config);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("x"),
                 2L,
@@ -264,7 +264,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertEquals(2L, strippedContribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", config);
+            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("val"),
                 2L,

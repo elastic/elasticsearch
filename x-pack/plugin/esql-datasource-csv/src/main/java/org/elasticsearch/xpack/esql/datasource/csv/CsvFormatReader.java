@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
@@ -58,7 +57,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -67,6 +65,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -490,7 +491,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final ErrorPolicy effectivePolicy;
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config, as produced by
-     * {@link SchemaCacheKey#buildFormatConfig}. Used as the external-stats cache fingerprint. It is
+     * {@link Configured#identityOf}. Used as the external-stats cache fingerprint. It is
      * deliberately derived from the canonical config rather than the parsed options or the resolved
      * schema: a data node reads only the query's projected columns and an instance-local options
      * object, so a projection/options-derived fingerprint would differ from the coordinator's and the
@@ -1150,7 +1151,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                    "the header of ["
+                        + object.path().objectName()
+                        + "] has duplicate column name ["
+                        + name
+                        + "]; declared columns cannot bind by name"
                 );
             }
         }
@@ -1227,10 +1232,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
-        // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
+        // Pin the node-stable config identity from THIS query's WITH config. identityOf filters
         // to format-affecting params (dropping credentials, split keys, and any per-node augmentation),
         // so a coordinator and a data node configured from the same logical query derive the same value.
-        String canon = SchemaCacheKey.buildFormatConfig(config);
+        //
+        // The resolved error policy is folded in because it decides which rows survive: a skip_row scan's committed
+        // count is a survivor count and its column statistics describe null-filled cells, so they are a different
+        // measurement of the same bytes than a fail_fast read makes. Without this the two share a harvest
+        // fingerprint, and since a contribution is matched to an entry on path, mtime and that fingerprint alone,
+        // a lenient scan's count enriches a strict entry whose own scan aborts.
+        String canon = Configured.fold(Configured.identityOf(config, RECOGNIZED_KEYS), resolvedPolicy.readIdentity());
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,
@@ -1246,7 +1257,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.declaredProvenanceBinding,
             parsedOptions.configWarnings()
         );
-        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
+        // The vended identity IS canon — the same string this reader stamps on a harvest. The coordinator seeds a
+        // cache entry with the former and the data node stamps the latter, and the reconcile gate enriches the entry
+        // only when they compare equal, so deriving them apart silently stops a strict dataset warming.
+        return Configured.fromKnownSubsetWithIdentity(result, config, RECOGNIZED_KEYS, canon);
     }
 
     @Override
@@ -1258,7 +1272,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
         List<Attribute> schema = readSchema(object, warnings::add);
-        String location = object.path().toString();
+        String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
@@ -1293,16 +1307,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
-     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * canonical string this reader derives from its own recognised keys, so a data
      * node's shipped-back contribution and the coordinator's cache entry compare equal across JVMs.
      */
     private String computeConfigFingerprint() {
         return canonicalConfig;
     }
 
+    /**
+     * The harvest fingerprint this reader stamps, for tests that must assert over the value production derives rather
+     * than a literal. Distinct from the {@link Configured#identity()} the reader vends: that names the reader's
+     * recognised keys, this additionally carries the resolved error policy, and it is this one that decides whether a
+     * contribution may enrich an entry.
+     */
+    String harvestFingerprintForTests() {
+        return canonicalConfig;
+    }
+
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        // Only messages read this, so redact once here: a pre-signed URL's query string is a credential.
-        String sourceLocation = ExternalFailures.redactHttpUrl(object.path().toString());
+        String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -1337,8 +1360,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (headerLine == null) {
                 // Names the format the user asked for, not the reader's class. This reader serves tsv as well as
                 // csv, so a hard-coded "CSV" told someone querying a .tsv about a format they never mentioned.
+                // Includes the object name when known so the user can identify which file in a glob caused the error.
+                String objectPart = sourceLocation.isEmpty() ? "" : " [" + sourceLocation + "]";
                 throw new IOException(
-                    format.toUpperCase(Locale.ROOT) + " file has no schema line: the object is empty or contains only comments"
+                    format.toUpperCase(Locale.ROOT)
+                        + " file"
+                        + objectPart
+                        + " has no schema line: the object is empty or contains only comments"
                 );
             }
             List<Attribute> typedSchema = parseSchema(headerLine);
@@ -1559,10 +1587,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (String dup : duplicates) {
                 rendered.add("'" + dup + "'");
             }
-            throw new ExternalClientException(
-                "CSV header has duplicate column names {}; if the file has no header row, " + "set header_row=false",
-                rendered.toString()
+            ExternalClientException headerEx = new ExternalClientException(
+                ExternalException.Condition.MALFORMED_DATA,
+                StoragePath.NONE,
+                "",
+                ""
             );
+            headerEx.setDetail(
+                "CSV header has duplicate column names " + rendered + "; if the file has no header row, set header_row=false"
+            );
+            throw headerEx;
         }
     }
 
@@ -1583,11 +1617,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code external_max_record_size}
      * record dropped by the record-reader path and laundered into an unchecked wrapper by
-     * {@link ExternalFailures#surface} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
+     * {@link #surfaceReadFailure} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
      * pragma-dependent survivor loss can safe-miss the stats publish, matching the bracket path's typed catch.
      */
     private static boolean isRecordCapDrop(Throwable e) {
         return ExceptionsHelper.unwrap(e, CsvRecordTooLargeException.class) != null;
+    }
+
+    /**
+     * {@link ExternalFailures#surface} drops the cause chain, but {@link #isRecordCapDrop} needs the
+     * {@link CsvRecordTooLargeException} in it. That exception is ours and names no storage location, so it is
+     * kept as the cause; any other failure goes through {@code surface}.
+     */
+    private static RuntimeException surfaceReadFailure(IOException e, String context) {
+        CsvRecordTooLargeException cap = (CsvRecordTooLargeException) ExceptionsHelper.unwrap(e, CsvRecordTooLargeException.class);
+        if (cap != null) {
+            return ExternalFailures.rowError(cap, context + ": " + cap.getMessage());
+        }
+        return ExternalFailures.surface(e, context);
     }
 
     /**
@@ -1807,15 +1854,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private static ExternalClientException failFastSamplingError(long row, Throwable cause) {
         Exception e = cause instanceof Exception ex ? ex : null;
-        return new ExternalClientException(
-            e,
-            "{}",
-            "schema sampling failed at row ["
+        ExternalClientException result = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            e
+        );
+        result.setDetail(
+            "CSV schema sampling failed at row ["
                 + row
                 + "]: "
                 + rowErrorReason(cause != null ? cause.getMessage() : "(no message)")
                 + "; set [error_mode] to [skip_row] to skip the row instead"
         );
+        return result;
     }
 
     private static ExternalClientException budgetExceededSamplingError(
@@ -1833,7 +1886,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             .append(policy.trippedLimit(errorCount))
             .append("; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ExternalClientException(cause, "{}", details.toString());
+        ExternalClientException budgetEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        budgetEx.setDetail(details.toString());
+        return budgetEx;
     }
 
     /**
@@ -1865,7 +1926,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
         StringBuilder details = new StringBuilder("CSV schema inference failed: no rows could be parsed; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ExternalClientException(cause, "{}", details.toString());
+        ExternalClientException zeroEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        zeroEx.setDetail(details.toString());
+        return zeroEx;
     }
 
     private static void appendCapturedErrors(StringBuilder details, List<String> capturedErrors) {
@@ -2079,7 +2148,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (headerColumns == null) {
                     throw new IllegalStateException(
                         "headered declared-provenance read of ["
-                            + object.path()
+                            + object.path().objectName()
                             + "] reached a non-first split without the file's header columns; cannot bind the declared "
                             + "schema by name"
                     );
@@ -2157,6 +2226,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredBinding,
             effective,
             object.path().toString(),
+            object.path(),
             cacheable ? object : null,
             cacheable ? stream : null,
             pinnedMtimeMillis,
@@ -2322,7 +2392,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(
                 "["
-                    + object.path()
+                    + object.path().objectName()
                     + "] has ["
                     + fields.length
                     + "] columns, the schema has ["
@@ -2382,7 +2452,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedColumn = column.trim();
             String[] parts = trimmedColumn.split(":");
             if (parts.length != 2) {
-                throw new ExternalClientException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
+                ExternalClientException schemaEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                schemaEx.setDetail("Invalid CSV schema format: [" + column + "]. Expected 'name:type'");
+                throw schemaEx;
             }
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
             String trimmedType = parts[1].trim();
@@ -2416,7 +2493,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "IP" -> DataType.IP;
             case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
-            default -> throw new ExternalClientException("illegal data type [{}]", typeName);
+            default -> {
+                ExternalClientException dtEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                dtEx.setDetail("illegal data type [" + typeName + "]");
+                throw dtEx;
+            }
         };
     }
 
@@ -3199,7 +3285,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, READ_RECORD_FAILURE);
+                throw surfaceReadFailure(e, READ_RECORD_FAILURE);
             }
         }
 
@@ -3371,8 +3457,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean bracketMultiValues;
         private final String sourceLocation;
         /**
-         * {@link #sourceLocation} as messages render it, with an HTTP location's query string and user info removed.
-         * {@link #sourceLocation} itself keys stats and cache entries, so it keeps the location verbatim.
+         * Object name (last path segment) used in user-facing messages; avoids leaking bucket/prefix for
+         * object-store sources.
          */
         private final String messageLocation;
         private final SkipWarnings skipWarnings;
@@ -3643,6 +3729,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             @Nullable DeclaredBinding declaredBinding,
             ErrorPolicy errorPolicy,
             String sourceLocation,
+            StoragePath objectPath,
             StorageObject cacheableObject,
             CountingInputStream byteCounter,
             long pinnedMtimeMillis,
@@ -3674,7 +3761,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
-            this.messageLocation = ExternalFailures.redactHttpUrl(sourceLocation);
+            this.messageLocation = objectPath.objectName();
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
@@ -3718,7 +3805,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return true;
             } catch (IOException e) {
-                throw ExternalFailures.surface(e, "Failed to read CSV batch");
+                throw surfaceReadFailure(e, "Failed to read CSV batch");
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
@@ -4261,7 +4348,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 if (isRecordCapDrop(e)) {
                                     // An over-external_max_record_size record dropped by the record-reader path
                                     // (rowPositionSlot >= 0): CsvRecordIterator.hasNext launders the typed
-                                    // CsvRecordTooLargeException through ExternalFailures.surface, so it arrives
+                                    // CsvRecordTooLargeException through surfaceReadFailure, so it arrives
                                     // here as the cause of an unchecked wrapper. Same survivor loss as
                                     // readBracketAwareRecord's typed catch: the cap is a query pragma outside the
                                     // cache fingerprint, so the whole publish must safe-miss rather than cache a
@@ -6799,9 +6886,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 String hint = structural
                     ? "; set [error_mode] to [skip_row] to skip the row instead"
                     : "; set [error_mode] to [null_field] to return null instead";
-                throw new ExternalClientException(
+                throw ExternalFailures.rowError(
                     cause,
-                    "{}",
                     "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + hint
                 );
             }
@@ -6847,13 +6933,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
-                throw new ExternalClientException(
+                throw ExternalFailures.rowError(
                     cause,
-                    "[{}] errors in [{}] rows of [{}]; {}",
-                    errorCount,
-                    totalRowCount,
-                    messageLocation,
-                    errorPolicy.trippedLimit(errorCount)
+                    "["
+                        + errorCount
+                        + "] errors in ["
+                        + totalRowCount
+                        + "] rows of ["
+                        + messageLocation
+                        + "]; "
+                        + errorPolicy.trippedLimit(errorCount)
                 );
             }
         }

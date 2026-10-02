@@ -79,6 +79,11 @@ public final class Messages {
             + "query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
     public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
         "You cannot add [esql_query] to non-ES|QL datafeed [{0}] using the update API.";
+    public static final String DATAFEED_ESQL_DISABLED_STOPPING_DATAFEED =
+        "Stopping ES|QL datafeed [{0}] for job [{1}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
+        "The ES|QL datafeed chunker could not cover the interval [{0}, {1}) without reaching its row limit. "
+            + "Pre-aggregate the data or configure a narrower chunk.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";
@@ -224,6 +229,9 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_RECOVERED = "Datafeed has recovered data extraction and analysis";
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
+    public static final String JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_BUCKETS =
+        "Skipped the model forward to [{0}] because the job''s last analysed bucket was [{1}] bucket "
+            + "spans behind the real-time window; no results are generated for the skipped period";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";

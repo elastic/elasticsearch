@@ -5891,8 +5891,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * After listing, planning reserves {@code planningBytes + fileCount * 760} on the request breaker and the
-     * query ledger. A limit under that charge trips before any file metadata read (reconciliation).
+     * After listing, planning reserves {@link ExternalSourceResolver#listingPlanningCharge} on the request
+     * breaker and the query ledger. A limit under that charge trips before any file metadata read.
      */
     public void testListingPlanningChargeMatchesFormulaAndTripsBeforeSchema() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5919,7 +5919,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
         FileList listing = resolution.resolvedSource(glob).fileList();
         assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
-        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        long expected = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(expected, greaterThan(0L));
         assertEquals(baseline + expected, wide.getUsed());
         assertEquals(expected, reservation.queryHeld());
@@ -5949,8 +5949,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Strict multi-file has its own post-listing charge. A declared schema still reserves
-     * {@code planningBytes + fileCount * 760} before the anchor footer read, and a limit under that
-     * charge trips with the ledger left at zero.
+     * {@link ExternalSourceResolver#listingPlanningCharge} before the anchor footer read, and a limit
+     * under that charge trips with the ledger left at zero.
      */
     public void testStrictListingPlanningChargeMatchesFormulaAndTripsBeforeSchema() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5979,7 +5979,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
         FileList listing = resolution.resolvedSource(glob).fileList();
         assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
-        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        long expected = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(expected, greaterThan(0L));
         assertEquals(baseline + expected, wide.getUsed());
         assertEquals(expected, reservation.queryHeld());
@@ -6134,7 +6134,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(resolution -> {
             // Still inside the gather completion. An earlier close would already have released the run.
             FileList listing = resolution.resolvedSource(glob).fileList();
-            long expectedNow = listing.planningBytes() + listing.fileCount() * 760L;
+            long expectedNow = ExternalSourceResolver.listingPlanningCharge(listing);
             expectedHolder[0] = expectedNow;
             assertNotNull(openRun[0]);
             assertEquals(bothLists, openRun[0].held());
@@ -6146,7 +6146,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
         long expected = expectedHolder[0];
         FileList listing = resolution.resolvedSource(glob).fileList();
-        assertEquals(expected, listing.planningBytes() + listing.fileCount() * 760L);
+        assertEquals(expected, ExternalSourceResolver.listingPlanningCharge(listing));
 
         assertEquals(bothLists, whileOpen[0]);
         assertEquals(expected, whileOpen[1]);

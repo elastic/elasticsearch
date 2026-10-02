@@ -361,12 +361,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         };
         final var finishedOrCancelled = new AtomicBoolean();
-        fieldCapTask.addListener(() -> {
-            if (finishedOrCancelled.compareAndSet(false, true)) {
-                singleThreadedExecutor.execute(releaseResourcesOnCancel);
-                LOGGER.trace("clear index responses on cancellation submitted");
-            }
-        });
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
             finishedOrCancelled.set(true);
             if (fieldCapTask.notifyIfCancelled(listener)) {
@@ -414,6 +408,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 handleIndexFailure,
                 refs.acquire()::close
             );
+            fieldCapTask.addListener(() -> {
+                if (finishedOrCancelled.compareAndSet(false, true)) {
+                    singleThreadedExecutor.execute(releaseResourcesOnCancel);
+                    LOGGER.trace("clear index responses on cancellation submitted");
+                }
+            });
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.

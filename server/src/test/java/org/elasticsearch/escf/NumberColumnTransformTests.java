@@ -834,7 +834,10 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertEquals(30L, vals[2]);
     }
 
-    /** Empty strings with coerce=true use the mapper null_value when one is configured. */
+    /**
+     * Empty strings with coerce=true use the mapper null_value when one is configured, whether or not the caller
+     * records an offsets sidecar: the null value is an ordinary output value, so there is no dropped slot to reject.
+     */
     public void testStringToLong_emptyString_coerceTrue_usesNullValue() {
         EscfColumnData src = stringColumnData("10", "", "30");
         EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
@@ -843,12 +846,32 @@ public class NumberColumnTransformTests extends ESTestCase {
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             99L,
-            false
+            randomBoolean()
         );
         long[] vals = readValues(out, 3);
         assertEquals(10L, vals[0]);
         assertEquals(99L, vals[1]);
         assertEquals(30L, vals[2]);
+    }
+
+    /**
+     * Empty strings with coerce=true and no null_value throw when the caller records an offsets sidecar: the row
+     * path records a null slot for them, which the columnar sidecar cannot emit.
+     */
+    public void testStringToLong_emptyString_rejectDroppedValues_throws() {
+        EscfColumnData src = stringColumnData("10", "", "30");
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                null,
+                true
+            )
+        );
+        assertTrue("expected offsets message but got: " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
     }
 
     public void testStringToLong_emptyString_coerceFalse_throws() {
@@ -1075,7 +1098,10 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertArrayEquals(new long[] { 4L }, vals[2]);
     }
 
-    /** ARRAY-of-STRING: empty elements use null_value when configured. */
+    /**
+     * ARRAY-of-STRING: empty elements use null_value when configured, whether or not the caller records an offsets
+     * sidecar, since each empty element still produces an output value.
+     */
     public void testStringArray_emptyString_coerceTrue_usesNullValue() {
         EscfColumnData src = stringArrayColumnData(new String[] { "1", "", "3" }, new String[] { "" });
         EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
@@ -1084,11 +1110,28 @@ public class NumberColumnTransformTests extends ESTestCase {
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             99L,
-            false
+            randomBoolean()
         );
         long[][] vals = readArrayValues(out, 2);
         assertArrayEquals(new long[] { 1L, 99L, 3L }, vals[0]);
         assertArrayEquals(new long[] { 99L }, vals[1]);
+    }
+
+    /** ARRAY-of-STRING: an empty element with no null_value throws when the caller records an offsets sidecar. */
+    public void testStringArray_emptyString_rejectDroppedValues_throws() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1", "2" }, new String[] { "", "3" });
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                null,
+                true
+            )
+        );
+        assertTrue("expected offsets message but got: " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
     }
 
     /** ARRAY-of-STRING: BigDecimal elements truncate per element when coerce=true. */

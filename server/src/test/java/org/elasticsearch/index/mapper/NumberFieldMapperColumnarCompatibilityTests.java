@@ -697,6 +697,10 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /**
+     * Doc values keep each document's values sorted and deduplicated, so repeated and out-of-order elements are
+     * the case only the offsets sidecar can reconstruct. Both paths must record the same per-slot ordinals.
+     */
     public void testLongField_multiValue_duplicatesAndOrder() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
@@ -712,6 +716,10 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /**
+     * An indexed half_float emits its BKD points as a separate 2-byte column, so the points transform has to walk
+     * every element of an ARRAY column rather than one value per document.
+     */
     public void testHalfFloatField_multiValueIndexed() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject()),
@@ -726,6 +734,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /** ARRAY-of-STRING: half_float elements parse through the string path and still record the offsets sidecar. */
     public void testHalfFloatField_multiValueStringColumn() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
@@ -929,6 +938,11 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /**
+     * The half_float stored column is re-read from the source at float precision rather than derived from the
+     * quantized doc values, and has to emit one stored value per array element. Stored fields record no offsets
+     * sidecar, so this runs in time-series mode without one.
+     */
     public void testHalfFloatField_storedMultiValue() throws IOException {
         final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
         assertColumnarMatchesXContent(mapping(b -> {
@@ -945,6 +959,10 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /**
+     * A coerced empty string with no {@code null_value} records a null slot in the row path's offsets sidecar,
+     * which the columnar sidecar cannot emit, so both a scalar and an array occurrence fall back to the row path.
+     */
     public void testEmptyStringWithOffsetsBailsOutOfColumnarPath() throws IOException {
         final var mapperService = createMapperService(
             multiValueColumnarSettings(),
@@ -960,6 +978,27 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         }
     }
 
+    /**
+     * With a {@code null_value} configured, a coerced empty string inside an array indexes the null value
+     * rather than dropping the slot, so the row path records an ordinary ordinal for it and the columnar
+     * path can build the offsets sidecar instead of bailing out. The duplicates and out-of-order values
+     * make the sidecar carry real ordering information.
+     */
+    public void testLongField_multiValue_emptyStringUsesNullValueWithOffsets() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").field("null_value", 7).endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "long multi-value empty string null_value",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"\",\"5\",\"\"]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"9\",\"\",\"1\"]}"),
+                doc("d4", 4L, "{\"f\":[\"\"]}")
+            )
+        );
+    }
+
     private static Settings tsdbKeepArraysSettings() {
         return Settings.builder().put(tsdbSettings()).put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build();
     }
@@ -972,6 +1011,11 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         };
     }
 
+    /**
+     * With {@code synthetic_source_keep: arrays} in time-series mode the row path records offsets only for values
+     * whose immediate parent is an array, so scalar values, including a dropped empty string, stay on the
+     * columnar path with no sidecar on either side.
+     */
     public void testLongField_tsdbKeepArraysScalar() throws IOException {
         final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
         final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
@@ -987,6 +1031,10 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    /**
+     * As {@link #testLongField_tsdbKeepArraysScalar}, for an array value: the row path records offsets for it by a
+     * rule the columnar sidecar does not reproduce outside strict-columnar modes, so the batch falls back.
+     */
     public void testLongField_tsdbKeepArraysArrayBailsOut() throws IOException {
         final var mapperService = createMapperService(tsdbKeepArraysSettings(), mapping(tsdbLongMapping()));
         final UnsupportedOperationException ex = expectThrows(

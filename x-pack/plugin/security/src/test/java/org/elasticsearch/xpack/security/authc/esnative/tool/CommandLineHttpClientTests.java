@@ -37,7 +37,9 @@ import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateExpiredException;
 import java.security.cert.X509Certificate;
+import java.util.Date;
 import java.util.List;
 
 import javax.net.ssl.KeyManager;
@@ -154,6 +156,47 @@ public class CommandLineHttpClientTests extends ESTestCase {
         }
     }
 
+    /**
+     * An HTTP leaf signed by the pinned CA but outside its validity period is rejected.
+     * {@link #testPinnedFingerprintValidatesCertificateChain} only covers a leaf that does not chain to the pinned CA.
+     */
+    public void testPinnedFingerprintRejectsExpiredLeaf() throws Exception {
+        final X509Certificate leafCertificate = CertParsingUtils.readX509Certificate(
+            getDataPath("/org/elasticsearch/xpack/security/authc/esnative/tool/expired-http.crt")
+        );
+        assertThat(leafCertificate.getNotAfter().before(new Date()), equalTo(true));
+        // Same key as the valid fixture leaf. This certificate is that key, signed by ca.crt, expired in 2021.
+        final PrivateKey leafKey = PemUtils.readPrivateKey(keyPath, () -> "testnode".toCharArray());
+        final X509Certificate pinnedCa = CertParsingUtils.readX509Certificate(caCertPath);
+
+        try (MockWebServer testServer = createMockWebServerPresentingChain(leafKey, leafCertificate, pinnedCa)) {
+            testServer.enqueue(new MockResponse().setResponseCode(200).setBody("{\"test\": \"complete\"}"));
+            testServer.start();
+
+            final CommandLineHttpClient client = new CommandLineHttpClient(
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build()),
+                SslUtil.calculateFingerprint(pinnedCa, "SHA-256")
+            );
+            final URL url = new URL("https://localhost:" + testServer.getPort() + "/test");
+            // SunJSSE reports the handshake failure as an SSLException. The FIPS JSSE provider throws
+            // org.bouncycastle.tls.TlsFatalAlert, which is only present on the FIPS runtime classpath.
+            final Exception thrown = expectThrows(
+                Exception.class,
+                () -> client.execute("GET", url, "u1", new SecureString(new char[] { 'p' }), () -> null, this::responseBuilder)
+            );
+            if (inFipsJvm()) {
+                assertThat(thrown.getClass().getName(), equalTo("org.bouncycastle.tls.TlsFatalAlert"));
+            } else {
+                assertThat(thrown, instanceOf(SSLException.class));
+            }
+            // FIPS reports the path-builder failure as "Unable to construct a valid chain" and nests the
+            // expiry underneath. The leaf expired in 2021; the fixture CA expired in 2024.
+            Throwable cause = ExceptionsHelper.unwrap(thrown, CertificateExpiredException.class);
+            assertThat(exceptionChain(thrown), cause, instanceOf(CertificateExpiredException.class));
+            assertThat(cause.getMessage(), containsString("2021"));
+        }
+    }
+
     public void testGetDefaultURLFailsWithHelpfulMessage() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).put("network.host", "_ec2:privateIpv4_").build();
         CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
@@ -238,6 +281,17 @@ public class CommandLineHttpClientTests extends ESTestCase {
             .put("xpack.security.http.ssl.key", keyPath.toString())
             .put("xpack.security.http.ssl.certificate", certPath.toString())
             .setSecureSettings(secureSettings);
+    }
+
+    private static String exceptionChain(Throwable thrown) {
+        StringBuilder chain = new StringBuilder();
+        for (Throwable current = thrown; current != null; current = current.getCause()) {
+            if (chain.length() > 0) {
+                chain.append(" -> ");
+            }
+            chain.append(current.getClass().getName()).append(": ").append(current.getMessage());
+        }
+        return chain.toString();
     }
 
     private HttpResponseBuilder responseBuilder(final InputStream is) throws IOException {

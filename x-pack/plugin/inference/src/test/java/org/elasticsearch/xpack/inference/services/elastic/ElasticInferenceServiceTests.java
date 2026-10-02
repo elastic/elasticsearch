@@ -20,6 +20,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -915,8 +916,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
      * Runs a document extraction inference against a model carrying {@code storedTaskSettings} with {@code requestTaskSettings} in the
      * request body and asserts that the request sent to the Elastic Inference Service carries each entry of
      * {@code expectedTaskSettings} as a top-level field (or no such fields at all when null), as the settings are not forwarded as a
-     * nested {@code task_settings} object. The request task settings are passed as immutable maps on purpose, as that is
-     * what the service receives from the parsed request and it must cope with it when extracting the settings.
+     * nested {@code task_settings} object. The request task settings are deep copied into mutable maps, as that is what the service
+     * receives from the parsed request and extracting the settings consumes them.
      */
     @SuppressWarnings("unchecked")
     private void assertDocumentExtractionInferSendsRequest(
@@ -952,7 +953,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var documents = List.of(
                 new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
             );
-            var documentExtractionRequest = new DocumentExtractionRequest(documents, requestTaskSettings);
+            var documentExtractionRequest = new DocumentExtractionRequest(documents, CollectionUtils.deepCopy(requestTaskSettings));
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.documentExtractionInfer(model, documentExtractionRequest, null, listener);

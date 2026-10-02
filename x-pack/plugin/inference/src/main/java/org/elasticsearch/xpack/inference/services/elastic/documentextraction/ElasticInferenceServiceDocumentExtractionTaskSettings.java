@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -199,10 +198,8 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
                 return EMPTY;
             }
 
-            // Copy the map as the selectors are removed from it and the caller may hold an immutable map
-            var cssMap = new HashMap<>(map);
-            var extractOnly = InferenceUtils.extractOptionalList(cssMap, EXTRACT_ONLY, String.class, validationException);
-            var remove = InferenceUtils.extractOptionalList(cssMap, REMOVE, String.class, validationException);
+            var extractOnly = InferenceUtils.extractOptionalList(map, EXTRACT_ONLY, String.class, validationException);
+            var remove = InferenceUtils.extractOptionalList(map, REMOVE, String.class, validationException);
 
             return new CssSettings(extractOnly == null ? null : List.copyOf(extractOnly), remove == null ? null : List.copyOf(remove));
         }

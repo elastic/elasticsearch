@@ -60,7 +60,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
 
     public void testFromMap_ParsesCssSettingsAndRemovesThemFromTheMap() {
         var map = new HashMap<String, Object>(
-            Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content", "#post-body"), REMOVE, List.of("nav")))
+            Map.of(CSS, new HashMap<>(Map.of(EXTRACT_ONLY, List.of(".main-content", "#post-body"), REMOVE, List.of("nav"))))
         );
 
         var settings = fromMap(map);
@@ -68,15 +68,6 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
         assertThat(settings.outputFormat(), nullValue());
         assertThat(settings.css(), is(new CssSettings(List.of(".main-content", "#post-body"), List.of("nav"))));
         assertThat(map, anEmptyMap());
-    }
-
-    public void testFromMap_WithImmutableNestedCssMap_DoesNotThrow() {
-        // The request task settings arrive as parsed, immutable maps; the nested css object must not be mutated in place
-        var map = new HashMap<String, Object>(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(".main-content"))));
-
-        var settings = fromMap(map);
-
-        assertThat(settings.css().extractOnly(), is(List.of(".main-content")));
     }
 
     public void testFromMap_WithNonStringOutputFormat_Throws() {
@@ -110,7 +101,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
     }
 
     public void testFromMap_WithNonStringSelector_Throws() {
-        var map = new HashMap<String, Object>(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(1))));
+        var map = new HashMap<String, Object>(Map.of(CSS, new HashMap<>(Map.of(EXTRACT_ONLY, List.of(1)))));
 
         var exception = expectThrows(ValidationException.class, () -> fromMap(map));
 
@@ -119,7 +110,9 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
 
     public void testFromMap_ForwardsSelectorsWithoutValidatingThem() {
         // Selector validation is left to the Elastic Inference Service, so empty lists and blank selectors are passed through
-        var map = new HashMap<String, Object>(Map.of(CSS, Map.of(EXTRACT_ONLY, List.of(), REMOVE, List.of(".main-content", " "))));
+        var map = new HashMap<String, Object>(
+            Map.of(CSS, new HashMap<>(Map.of(EXTRACT_ONLY, List.of(), REMOVE, List.of(".main-content", " "))))
+        );
 
         var settings = fromMap(map);
 
@@ -160,7 +153,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettingsTests extends 
     public void testUpdatedTaskSettings_ReplacesCssSettingsAndKeepsOutputFormat() {
         var settings = new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new CssSettings(List.of(".a"), null));
 
-        var updated = settings.updatedTaskSettings(new HashMap<>(Map.of(CSS, Map.of(REMOVE, List.of("nav")))));
+        var updated = settings.updatedTaskSettings(new HashMap<>(Map.of(CSS, new HashMap<>(Map.of(REMOVE, List.of("nav"))))));
 
         assertThat(
             updated,

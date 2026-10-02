@@ -291,7 +291,7 @@ The connector service has the following known issues:
 
     During an active sync, the connector service refreshed connector and sync-job system indices on every status poll. Under bulk-ingest load, refresh calls could time out, the ingestion heartbeat stopped updating, and the job was marked ERROR even though indexing was still in progress.
 
-    **Affected versions**: Connector service 8.9.0–8.19.20; `elastic-connectors` 9.4.0–9.4.5 and 9.5.0–9.5.1.
+    **Affected versions**: 8.9.0–8.19.20, 9.4.0–9.4.5, and 9.5.0–9.5.1.
 
     **Fix**: [elastic/connectors#4345](https://github.com/elastic/connectors/pull/4345), shipped in 8.19.21, 9.4.6, 9.5.2, and 9.6.0.
 
@@ -300,7 +300,7 @@ The connector service has the following known issues:
 
     Elasticsearch `_bulk` responses such as `Client Closed Request` were not retried, and failures from concurrent bulk tasks could be dropped instead of failing the sync.
 
-    **Affected versions**: Connector service 8.9.0–8.19.20; `elastic-connectors` 9.4.0–9.4.5 and 9.5.0–9.5.2.
+    **Affected versions**: 8.9.0–8.19.20, 9.4.0–9.4.5, and 9.5.0–9.5.2.
 
     **Fix**: [elastic/connectors#4384](https://github.com/elastic/connectors/pull/4384), shipped in 8.19.21, 9.4.6, 9.5.3, and 9.6.0.
 
@@ -309,7 +309,7 @@ The connector service has the following known issues:
 
     An expired Microsoft Graph drive delta token aborted the sync after partial indexing.
 
-    **Affected versions**: SharePoint Online connector 8.9.0–8.19.20; `elastic-connectors` 9.4.0–9.4.5 and 9.5.0–9.5.2.
+    **Affected versions**: 8.9.0–8.19.20, 9.4.0–9.4.5, and 9.5.0–9.5.2.
 
     **Fix**: [elastic/connectors#4370](https://github.com/elastic/connectors/pull/4370), shipped in 8.19.21, 9.4.6, 9.5.3, and 9.6.0.
 
@@ -349,7 +349,7 @@ The connector service has the following known issues:
 
     With **Expand role members** disabled, offset pagination on `sys_user_has_role` could run for many hours with no documents indexed on large tenants.
 
-    **Affected versions**: ServiceNow DLS with compact mode enabled only, on `elastic-connectors` 9.4.7 and 9.5.4 (releases that include [#4392](https://github.com/elastic/connectors/pull/4392) without [#4509](https://github.com/elastic/connectors/pull/4509)). The 8.19.22 connector bundles both fixes.
+    **Affected versions**: ServiceNow DLS with compact mode enabled only, on 9.4.7 and 9.5.4 (releases that include [#4392](https://github.com/elastic/connectors/pull/4392) without [#4509](https://github.com/elastic/connectors/pull/4509)). The 8.19.22 release bundles both fixes.
 
     **Fix**: [elastic/connectors#4509](https://github.com/elastic/connectors/pull/4509), shipped in 8.19.22, 9.4.8, 9.5.5, and 9.6.0.
 
@@ -376,7 +376,7 @@ The connector service has the following known issues:
 
     Exchange raises `ErrorNonPrimarySmtpAddress` when impersonation uses a proxy address instead of the primary SMTP address, aborting the entire sync.
 
-    **Affected versions**: Outlook 8.11.0–8.19.21; `elastic-connectors` 9.4.0–9.4.6 and 9.5.0–9.5.3. On-prem Exchange with Active Directory only.
+    **Affected versions**: 8.11.0–8.19.21, 9.4.0–9.4.6, and 9.5.0–9.5.3. On-prem Exchange with Active Directory only.
 
     **Fix**: [elastic/connectors#4406](https://github.com/elastic/connectors/pull/4406), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
 
@@ -385,7 +385,7 @@ The connector service has the following known issues:
 
     A single cached LDAP connection could sit idle for hours between user batches; a dropped connection then failed user enumeration and aborted the sync.
 
-    **Affected versions**: Outlook 8.11.0–8.19.21; `elastic-connectors` 9.4.0–9.4.6 and 9.5.0–9.5.3. On-prem Exchange with Active Directory only.
+    **Affected versions**: 8.11.0–8.19.21, 9.4.0–9.4.6, and 9.5.0–9.5.3. On-prem Exchange with Active Directory only.
 
     **Fix**: [elastic/connectors#4441](https://github.com/elastic/connectors/pull/4441), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
 
@@ -394,7 +394,7 @@ The connector service has the following known issues:
 
     A transient mailbox store error while materializing folder items aborted the sync with no retry.
 
-    **Affected versions**: Outlook 8.11.0–8.19.22; `elastic-connectors` 9.4.0–9.4.7 and 9.5.0–9.5.4. On-prem Exchange only.
+    **Affected versions**: 8.11.0–8.19.22, 9.4.0–9.4.7, and 9.5.0–9.5.4. On-prem Exchange only.
 
     **Fix**: [elastic/connectors#4529](https://github.com/elastic/connectors/pull/4529), shipped in 8.19.23, 9.4.8, 9.5.5, and 9.6.0.
 
@@ -430,7 +430,7 @@ The connector service has the following known issues:
 
     Document ID hashing used `hashlib.md5()` without `usedforsecurity=False`, which OpenSSL rejects in FIPS mode.
 
-    **Affected versions**: Connector service on FIPS-enabled hosts, on the 8.19 line through 8.19.21, on the 9.4 line through 9.4.6, and on the 9.5 line through 9.5.3.
+    **Affected versions**: FIPS-enabled connector deployments on the 8.19 line through 8.19.21, on the 9.4 line through 9.4.6, and on the 9.5 line through 9.5.3.
 
     **Fix**: [elastic/connectors#4416](https://github.com/elastic/connectors/pull/4416), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
 

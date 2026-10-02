@@ -120,8 +120,7 @@ final class AzureStorageSettings {
     public static final AffixSetting<TimeValue> WRITE_TIMEOUT_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "write_timeout",
-        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.NodeScope),
-        () -> ACCOUNT_SETTING
+        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.NodeScope)
     );
 
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */

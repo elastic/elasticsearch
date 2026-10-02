@@ -52,6 +52,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("data_stream_configuration"));
+            assertThat(resultMap.containsKey("lifecycle_enabled_by_default"), equalTo(false));
         }
         {
             // Since this is not a system data stream, we expect the global retention to override the configured retention
@@ -64,6 +65,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(globalMaxRetention.getStringRep()));
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
+            assertThat(resultMap.containsKey("lifecycle_enabled_by_default"), equalTo(false));
             Map<String, Map<String, Object>> settingsMap = (Map<String, Map<String, Object>>) resultMap.get("settings");
             assertThat(Settings.builder().loadFromMap(settingsMap).build(), equalTo(dataStreamInfo.getDataStream().getSettings()));
             Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
@@ -101,7 +103,9 @@ public class GetDataStreamActionTests extends ESTestCase {
             Map.of(),
             randomBoolean(),
             null,
-            null
+            null,
+            // the data stream has a configured lifecycle, so the default lifecycle for time series has no effect
+            randomBoolean()
         );
     }
 

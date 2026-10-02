@@ -50,6 +50,8 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     static final String PARTITION_LABEL = "BytesRefArrayState#partition";
 
+    private static final boolean[] EMPTY_SEEN = new boolean[0];
+
     private final BigArrays bigArrays;
     private final CircuitBreaker breaker;
     private final String breakerLabel;
@@ -170,11 +172,9 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     @Override
     public void close() {
-        for (int i = 0; i < values.size(); i++) {
-            Releasables.closeWhileHandlingException(values.get(i));
-        }
-
-        Releasables.close(values);
+        // Releases every group's builder plus the values array itself, batching the breaker
+        // release into a single call rather than one per group.
+        BreakingBytesRefBuilder.closeAll(values);
     }
 
     private static long bytesUsedByPointerPage(int length) {
@@ -535,10 +535,14 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
         if (source instanceof FlatBytesRefPartitionedState flat) {
-            return flat.seen == null ? null : flat.seen[partition];
+            if (flat.seen == null) return null;
+            assert flat.seen[partition] != null || flat.partitionCounts[partition] == 0;
+            return flat.seen[partition] != null ? flat.seen[partition] : EMPTY_SEEN;
         }
         final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
-        return paged.seen == null ? null : paged.seen[partition];
+        if (paged.seen == null) return null;
+        assert paged.seen[partition] != null || paged.partitionArrays[partition].size() == 0;
+        return paged.seen[partition] != null ? paged.seen[partition] : EMPTY_SEEN;
     }
 
     void appendPartition(BytesRefSequence src, int firstId, int length) {

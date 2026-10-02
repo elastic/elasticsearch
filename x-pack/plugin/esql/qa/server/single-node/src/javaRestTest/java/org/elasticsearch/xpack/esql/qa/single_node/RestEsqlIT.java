@@ -146,6 +146,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
+    public void testStreamingNotAllowed() throws IOException {
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query");
+        request.addParameter("streaming", "true");
+        request.addParameter("format", "ndjson");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
+    }
+
     public void testDoNotLogWithInfo() throws IOException {
         try {
             setLoggingLevel("INFO");
@@ -430,8 +441,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         assertEquals("ns", parsedProfile.get("displayTimeUnit"));
         List<Map<String, Object>> events = (List<Map<String, Object>>) parsedProfile.get("traceEvents");
-        // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
-        assertThat(events.size(), greaterThanOrEqualTo(7));
+        // At least 1 metadata event to declare the node, and 2 events each for the data and final drivers, resp.
+        assertThat(events.size(), greaterThanOrEqualTo(5));
 
         String clusterName = "test-cluster";
         Set<String> expectedProcessNames = new HashSet<>();

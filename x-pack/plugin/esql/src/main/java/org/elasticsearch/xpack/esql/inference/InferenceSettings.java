@@ -14,6 +14,9 @@ import java.util.List;
 
 /**
  * Settings for inference features such as completion, rerank and dense_vector.
+ *
+ * @param denseVectorBatchSizeExplicit whether {@link #DENSE_VECTOR_BATCH_SIZE_SETTING} was configured. A configured value is used
+ *                                     as given; otherwise the batch size resolves per endpoint.
  */
 public record InferenceSettings(
     boolean completionEnabled,
@@ -23,6 +26,7 @@ public record InferenceSettings(
     boolean denseVectorEnabled,
     int denseVectorRowLimit,
     int denseVectorBatchSize,
+    boolean denseVectorBatchSizeExplicit,
     String denseVectorDefaultInferenceId
 ) {
 
@@ -142,6 +146,7 @@ public record InferenceSettings(
             DENSE_VECTOR_ENABLED_SETTING.get(settings),
             DENSE_VECTOR_ROW_LIMIT_SETTING.get(settings),
             DENSE_VECTOR_BATCH_SIZE_SETTING.get(settings),
+            DENSE_VECTOR_BATCH_SIZE_SETTING.exists(settings),
             DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.get(settings)
         );
     }

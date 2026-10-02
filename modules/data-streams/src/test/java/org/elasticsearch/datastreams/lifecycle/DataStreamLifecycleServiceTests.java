@@ -25,11 +25,13 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -40,8 +42,10 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
@@ -59,7 +63,10 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2156,5 +2163,280 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             clientSeenRequests.stream().filter(r -> r instanceof DeleteIndexRequest).toList(),
             empty()
         );
+    }
+
+    public void testTimeSeriesDataStreamWithoutLifecycleIsManagedOnlyWhenDefaultLifecycleEnabled() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createTimeSeriesDataStream(builder, dataStreamName, settings(IndexVersion.current()), null);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
+
+        runWithDefaultLifecycleForTimeSeries(false, null, null, state);
+        assertThat(clientSeenRequests, empty());
+
+        runWithDefaultLifecycleForTimeSeries(true, null, null, state);
+        List<RolloverRequest> rolloverRequests = requestsOfType(RolloverRequest.class);
+        assertThat(rolloverRequests, hasSize(1));
+        assertThat(rolloverRequests.getFirst().getRolloverTarget(), is(dataStreamName));
+        // the default lifecycle has no retention, so nothing is deleted
+        assertThat(requestsOfType(DeleteIndexRequest.class), empty());
+        // the non-write indices are past their time bounds, so they are prepared for force merge by configuring their merge policy
+        List<UpdateSettingsRequest> updateSettingsRequests = requestsOfType(UpdateSettingsRequest.class);
+        assertThat(
+            updateSettingsRequests.stream().flatMap(request -> Arrays.stream(request.indices())).toList(),
+            containsInAnyOrder(dataStream.getIndices().get(0).getName(), dataStream.getIndices().get(1).getName())
+        );
+    }
+
+    /**
+     * The default lifecycle for time series is meant to only keep the data stream healthy, e.g. rollover and force merge, without
+     * deleting any data. For this reason the global retention, which applies to the data streams with a configured lifecycle without
+     * retention, should not be applied to the data streams that are managed by the default lifecycle.
+     */
+    public void testGlobalRetentionIsNotAppliedWhenLifecycleEnabledByDefault() {
+        TimeValue globalDefaultRetention = TimeValue.timeValueHours(1);
+        TimeValue globalMaxRetention = TimeValue.timeValueHours(3);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        {
+            // the data stream is managed by the default lifecycle, so the global retention is not applied
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+            createTimeSeriesDataStream(builder, dataStreamName, settings(IndexVersion.current()), null);
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
+
+            runWithDefaultLifecycleForTimeSeries(true, globalDefaultRetention, globalMaxRetention, state);
+            assertThat(requestsOfType(RolloverRequest.class), hasSize(1));
+            assertThat(requestsOfType(DeleteIndexRequest.class), empty());
+        }
+
+        {
+            // sanity check: the same data stream with a configured lifecycle without retention gets the global retention applied,
+            // so the indices whose generation time is older than the global default retention are deleted
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+            DataStream dataStream = createTimeSeriesDataStream(
+                builder,
+                dataStreamName,
+                settings(IndexVersion.current()),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
+            );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
+
+            runWithDefaultLifecycleForTimeSeries(randomBoolean(), globalDefaultRetention, globalMaxRetention, state);
+            assertThat(requestsOfType(RolloverRequest.class), hasSize(1));
+            assertThat(
+                requestsOfType(DeleteIndexRequest.class).stream().flatMap(request -> Arrays.stream(request.indices())).toList(),
+                containsInAnyOrder(dataStream.getIndices().get(0).getName(), dataStream.getIndices().get(1).getName())
+            );
+        }
+    }
+
+    public void testDataStreamsNotEligibleForDefaultLifecycleAreSkipped() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        // a configured lifecycle takes precedence over the default lifecycle
+        createTimeSeriesDataStream(
+            builder,
+            "tsds-with-disabled-lifecycle",
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build()
+        );
+        // ILM is preferred when an ILM policy is configured on the backing indices
+        createTimeSeriesDataStream(
+            builder,
+            "tsds-with-ilm",
+            settings(IndexVersion.current()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"),
+            null
+        );
+        // the default lifecycle applies only to time series data streams
+        builder.put(createDataStream(builder, "standard-without-lifecycle", 3, settings(IndexVersion.current()), null, now));
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
+
+        runWithDefaultLifecycleForTimeSeries(true, null, null, state);
+        assertThat(clientSeenRequests, empty());
+    }
+
+    public void testErrorStoreIsClearedForTimeSeriesIndicesOnlyWhenDefaultLifecycleDisabled() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createTimeSeriesDataStream(builder, dataStreamName, settings(IndexVersion.current()), null);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
+
+        for (boolean defaultLifecycleForTimeSeriesEnabled : new boolean[] { true, false }) {
+            DataStreamLifecycleService service = createServiceWithDefaultLifecycleForTimeSeries(
+                defaultLifecycleForTimeSeriesEnabled,
+                null,
+                null
+            );
+            try {
+                for (Index index : dataStream.getIndices()) {
+                    service.getErrorStore().recordError(builder.getId(), index, new NullPointerException("bad"));
+                }
+                service.run(state);
+                for (Index index : dataStream.getIndices()) {
+                    assertThat(
+                        service.getErrorStore().getError(builder.getId(), index),
+                        defaultLifecycleForTimeSeriesEnabled ? notNullValue() : nullValue()
+                    );
+                }
+            } finally {
+                service.close();
+                clientSeenRequests.clear();
+            }
+        }
+    }
+
+    public void testTargetIndicesIncludingDefaults() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createTimeSeriesDataStream(builder, dataStreamName, settings(IndexVersion.current()), null);
+        ProjectMetadata project = builder.build();
+        Set<Index> indicesToExclude = Set.of(dataStream.getIndices().getFirst());
+        boolean withFailureStore = randomBoolean();
+
+        assertThat(DataStreamLifecycleService.getTargetIndices(dataStream, indicesToExclude, project::index, withFailureStore), empty());
+        assertThat(
+            DataStreamLifecycleService.getTargetIndicesIncludingDefaults(
+                dataStream,
+                indicesToExclude,
+                project::index,
+                withFailureStore,
+                false
+            ),
+            empty()
+        );
+        assertThat(
+            DataStreamLifecycleService.getTargetIndicesIncludingDefaults(
+                dataStream,
+                indicesToExclude,
+                project::index,
+                withFailureStore,
+                true
+            ),
+            equalTo(dataStream.getIndices().subList(1, 3))
+        );
+    }
+
+    /**
+     * Creates a time series data stream with two rolled over backing indices, whose time bounds have lapsed and whose generation time is
+     * older than 1 hour, and a write index that is still within its time bounds.
+     */
+    private DataStream createTimeSeriesDataStream(
+        ProjectMetadata.Builder builder,
+        String dataStreamName,
+        Settings.Builder indexSettings,
+        @Nullable DataStreamLifecycle lifecycle
+    ) {
+        long hour = TimeValue.timeValueHours(1).millis();
+        long[] boundaries = new long[] { now - 6 * hour, now - 4 * hour, now - 2 * hour, now + 2 * hour };
+        List<Index> backingIndices = new ArrayList<>();
+        for (int generation = 1; generation <= 3; generation++) {
+            long startTime = boundaries[generation - 1];
+            long endTime = boundaries[generation];
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(
+                DataStream.getDefaultBackingIndexName(dataStreamName, generation, startTime)
+            )
+                .settings(
+                    Settings.builder()
+                        .put(indexSettings.build())
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(endTime).toString())
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(startTime);
+            if (generation < 3) {
+                indexMetadataBuilder.putRolloverInfo(
+                    new RolloverInfo(dataStreamName, List.of(new MaxAgeCondition(TimeValue.timeValueHours(2))), endTime)
+                );
+            }
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
+            builder.put(indexMetadata, false);
+            backingIndices.add(indexMetadata.getIndex());
+        }
+        DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(3)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(lifecycle)
+            .build();
+        builder.put(dataStream);
+        return dataStream;
+    }
+
+    /**
+     * Runs the data stream lifecycle service once against the provided state, with the provided global retention settings and the
+     * default lifecycle for time series enabled or disabled. The requests seen during previous runs are cleared.
+     */
+    private void runWithDefaultLifecycleForTimeSeries(
+        boolean defaultLifecycleForTimeSeriesEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention,
+        ClusterState state
+    ) {
+        clientSeenRequests.clear();
+        DataStreamLifecycleService service = createServiceWithDefaultLifecycleForTimeSeries(
+            defaultLifecycleForTimeSeriesEnabled,
+            globalDefaultRetention,
+            globalMaxRetention
+        );
+        try {
+            service.run(state);
+        } finally {
+            service.close();
+        }
+    }
+
+    private DataStreamLifecycleService createServiceWithDefaultLifecycleForTimeSeries(
+        boolean defaultLifecycleForTimeSeriesEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention
+    ) {
+        // The default lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
+        // only this method. This should be replaced with the cluster setting once it is available.
+        DataStreamLifecycleSettings settings = createDataStreamLifecycleSettings(
+            defaultLifecycleForTimeSeriesEnabled,
+            globalDefaultRetention,
+            globalMaxRetention
+        );
+        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> now);
+        Client client = getTransportRequestsRecordingClient();
+        return new DataStreamLifecycleService(
+            Settings.EMPTY,
+            client,
+            clusterService,
+            Clock.fixed(Instant.ofEpochMilli(now), ZoneOffset.UTC),
+            threadPool,
+            () -> now,
+            errorStore,
+            mock(AllocationService.class),
+            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
+            settings,
+            ignored -> downsamplingIndices
+        );
+    }
+
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(
+        Boolean defaultLifecycleForTimeSeriesEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention
+    ) {
+        Settings.Builder clusterSettingsBuilder = Settings.builder();
+        if (globalDefaultRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
+        }
+        if (globalMaxRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
+        }
+        DataStreamLifecycleSettings settings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(clusterSettingsBuilder.build())
+        );
+        if (defaultLifecycleForTimeSeriesEnabled != null) {
+            settings.setDefaultLifecycleForTimeSeriesEnabled(defaultLifecycleForTimeSeriesEnabled);
+        }
+        return settings;
+    }
+
+    private <T extends TransportRequest> List<T> requestsOfType(Class<T> type) {
+        return clientSeenRequests.stream().filter(type::isInstance).map(type::cast).toList();
     }
 }

@@ -58,9 +58,11 @@ import org.junit.BeforeClass;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
@@ -629,7 +631,7 @@ public class RestResponseTests extends ESTestCase {
         new RestResponse(channel, new SearchPhaseExecutionException("query", "all shards failed", failures));
 
         final Map<String, ?> fields = lastLoggedFields();
-        // NOTE: guessFirstRootCause returns on the first shard failure, so the remaining failures reach error.stack_trace only
+        // NOTE: guessFirstRootCause returns on the first shard failure, so root_cause describes that one
         assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
         assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
         assertEquals("my-index", fields.get("elasticsearch.error.index"));
@@ -879,6 +881,378 @@ public class RestResponseTests extends ESTestCase {
         final Map<String, ?> fields = lastLoggedFields();
         assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
         assertEquals("inner", fields.get("elasticsearch.error.root_cause.message"));
+    }
+
+    public void testSuppressedLoggingRecordsOneShardFailure() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, searchFailure(shardFailure("my-index", 0, new IllegalStateException("engine is closed"))));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(1, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(1, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(
+            List.of(
+                Map.of(
+                    "type",
+                    IllegalStateException.class.getName(),
+                    "message",
+                    "engine is closed",
+                    "index",
+                    "my-index",
+                    "shard",
+                    0,
+                    "node",
+                    "node-0"
+                )
+            ),
+            fields.get("elasticsearch.error.shard_failures")
+        );
+    }
+
+    public void testSuppressedLoggingRecordsShardFailuresBelowTheCap() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(
+            channel,
+            searchFailure(
+                shardFailure("my-index", 0, new IllegalStateException("engine is closed")),
+                shardFailure("other-index", 1, new IllegalArgumentException("bad argument"))
+            )
+        );
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(2, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(2, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(
+            List.of(
+                Map.of(
+                    "type",
+                    IllegalStateException.class.getName(),
+                    "message",
+                    "engine is closed",
+                    "index",
+                    "my-index",
+                    "shard",
+                    0,
+                    "node",
+                    "node-0"
+                ),
+                Map.of(
+                    "type",
+                    IllegalArgumentException.class.getName(),
+                    "message",
+                    "bad argument",
+                    "index",
+                    "other-index",
+                    "shard",
+                    1,
+                    "node",
+                    "node-1"
+                )
+            ),
+            fields.get("elasticsearch.error.shard_failures")
+        );
+    }
+
+    public void testSuppressedLoggingTruncatesShardFailuresAboveTheCap() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final int failureCount = randomIntBetween(11, 40);
+        final ShardSearchFailure[] failures = new ShardSearchFailure[failureCount];
+        for (int i = 0; i < failureCount; i++) {
+            failures[i] = shardFailure("index-" + i, i, new IllegalStateException("failure " + i));
+        }
+
+        new RestResponse(channel, searchFailure(failures));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(failureCount, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(failureCount, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        final List<?> reported = (List<?>) fields.get("elasticsearch.error.shard_failures");
+        assertEquals(10, reported.size());
+        for (int i = 0; i < reported.size(); i++) {
+            assertEquals(
+                Map.of(
+                    "type",
+                    IllegalStateException.class.getName(),
+                    "message",
+                    "failure " + i,
+                    "index",
+                    "index-" + i,
+                    "shard",
+                    i,
+                    "node",
+                    "node-" + i
+                ),
+                reported.get(i)
+            );
+        }
+    }
+
+    public void testSuppressedLoggingDeduplicatesIdenticalShardFailures() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final int shardCount = randomIntBetween(2, 50);
+        final ShardSearchFailure[] failures = new ShardSearchFailure[shardCount];
+        for (int i = 0; i < shardCount; i++) {
+            failures[i] = shardFailure("my-index", i, new IllegalStateException("engine is closed"));
+        }
+
+        new RestResponse(channel, searchFailure(failures));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(shardCount, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(1, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(
+            List.of(
+                Map.of(
+                    "type",
+                    IllegalStateException.class.getName(),
+                    "message",
+                    "engine is closed",
+                    "index",
+                    "my-index",
+                    "shard",
+                    0,
+                    "node",
+                    "node-0"
+                )
+            ),
+            fields.get("elasticsearch.error.shard_failures")
+        );
+    }
+
+    public void testSuppressedLoggingRecordsShardFailuresAtTheCap() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure[] failures = new ShardSearchFailure[10];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = shardFailure("index-" + i, i, new IllegalStateException("failure " + i));
+        }
+
+        new RestResponse(channel, searchFailure(failures));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(10, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(10, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(10, ((List<?>) fields.get("elasticsearch.error.shard_failures")).size());
+    }
+
+    public void testShardFailuresOmitLocationWhenTheTargetIsUnknown() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, searchFailure(new ShardSearchFailure(new IllegalStateException("engine is closed"))));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(1, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(1, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(
+            List.of(Map.of("type", IllegalStateException.class.getName(), "message", "engine is closed")),
+            fields.get("elasticsearch.error.shard_failures")
+        );
+    }
+
+    public void testShardFailuresOmitNodeWhenTheNodeIsUnknown() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure failure = new ShardSearchFailure(
+            new IllegalStateException("engine is closed"),
+            new SearchShardTarget(null, new ShardId("my-index", "uuid", 3), null)
+        );
+
+        new RestResponse(channel, searchFailure(failure));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(
+            List.of(Map.of("type", IllegalStateException.class.getName(), "message", "engine is closed", "index", "my-index", "shard", 3)),
+            fields.get("elasticsearch.error.shard_failures")
+        );
+    }
+
+    public void testShardFailuresDistinguishRootCausesBehindOneWrapper() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(
+            channel,
+            searchFailure(
+                shardFailure("my-index", 0, new ElasticsearchException("wrapped", new NullPointerException("npe"))),
+                shardFailure("my-index", 1, new ElasticsearchException("wrapped", new IllegalStateException("ise")))
+            )
+        );
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(2, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(2, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(
+            List.of(
+                expectedFailure(NullPointerException.class, "npe", "my-index", 0),
+                expectedFailure(IllegalStateException.class, "ise", "my-index", 1)
+            ),
+            shardFailuresIn(fields)
+        );
+    }
+
+    public void testShardFailuresGroupBeforeApplyingTheCap() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure[] failures = new ShardSearchFailure[100];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = shardFailure(i < 50 ? "my-index" : "other-index", i, new IllegalStateException("engine is closed"));
+        }
+
+        new RestResponse(channel, searchFailure(failures));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(100, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(2, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        assertEquals(
+            List.of(
+                expectedFailure(IllegalStateException.class, "engine is closed", "my-index", 0),
+                expectedFailure(IllegalStateException.class, "engine is closed", "other-index", 50)
+            ),
+            shardFailuresIn(fields)
+        );
+    }
+
+    public void testShardFailuresAboveTheCapReportDistinctMembers() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, searchFailure(failuresOnDistinctIndices(11)));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(11, fields.get("elasticsearch.error.shard_failure_count"));
+        assertEquals(11, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+        final List<?> reported = shardFailuresIn(fields);
+        assertEquals(10, reported.size());
+        assertEquals(10, Set.copyOf(reported).size());
+        final List<Map<String, Object>> everyFailure = new ArrayList<>();
+        for (int i = 0; i < 11; i++) {
+            everyFailure.add(expectedFailure(IllegalStateException.class, "failure " + i, "index-" + i, i));
+        }
+        assertTrue(everyFailure.containsAll(reported));
+    }
+
+    public void testRootCauseIsUnchangedByAdditionalShardFailures() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure[] many = failuresOnDistinctIndices(11);
+
+        new RestResponse(channel, searchFailure(many[0]));
+        final Map<String, ?> single = Map.copyOf(lastLoggedFields());
+
+        new RestResponse(channel, searchFailure(many));
+        final Map<String, ?> multiple = lastLoggedFields();
+
+        for (String field : List.of(
+            "error.type",
+            "error.message",
+            "elasticsearch.error.root_cause.type",
+            "elasticsearch.error.root_cause.message",
+            "elasticsearch.error.index",
+            "elasticsearch.error.shard",
+            "http.response.status_code",
+            "url.path"
+        )) {
+            assertEquals(field, single.get(field), multiple.get(field));
+        }
+    }
+
+    public void testSuppressedLoggingOmitsShardFailuresWhenThereAreNone() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertFalse(fields.containsKey("elasticsearch.error.shard_failure_count"));
+        assertFalse(fields.containsKey("elasticsearch.error.distinct_shard_failure_count"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard_failures"));
+    }
+
+    public void testShardFailuresSerialiseToEcsJson() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, searchFailure(shardFailure("my-index", 3, new IllegalStateException("engine is closed"))));
+
+        final EcsLayout layout = EcsLayout.newBuilder()
+            .setConfiguration(LoggerContext.getContext(false).getConfiguration())
+            .setEventDataset("elasticsearch.server")
+            .build();
+        final String serialised = layout.toSerializable(appender.getLastEventAndReset());
+        assertThat(serialised, not(containsString("{type=")));
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), serialised)) {
+            final Map<String, Object> fields = parser.map();
+            assertEquals(1, fields.get("elasticsearch.error.shard_failure_count"));
+            assertEquals(1, fields.get("elasticsearch.error.distinct_shard_failure_count"));
+            assertEquals(
+                List.of(
+                    Map.of(
+                        "type",
+                        IllegalStateException.class.getName(),
+                        "message",
+                        "engine is closed",
+                        "index",
+                        "my-index",
+                        "shard",
+                        3,
+                        "node",
+                        "node-3"
+                    )
+                ),
+                fields.get("elasticsearch.error.shard_failures")
+            );
+        }
+    }
+
+    public void testShardFailuresSerialiseToLegacyJson() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final String awkward = "say \"hi\" \\ then\nnew\ttab \u00e9";
+
+        new RestResponse(channel, searchFailure(shardFailure("my-index", 3, new IllegalStateException(awkward))));
+
+        final ESJsonLayout layout = ESJsonLayout.newBuilder().setType("server").build();
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), layout.toSerializable(appender.getLastEventAndReset()))) {
+            final Map<String, Object> fields = parser.map();
+            assertEquals(
+                List.of(
+                    Map.of(
+                        "type",
+                        IllegalStateException.class.getName(),
+                        "message",
+                        awkward,
+                        "index",
+                        "my-index",
+                        "shard",
+                        "3",
+                        "node",
+                        "node-3"
+                    )
+                ),
+                fields.get("elasticsearch.error.shard_failures")
+            );
+        }
+    }
+
+    private static ShardSearchFailure shardFailure(String index, int shard, Exception cause) {
+        return shardFailure(index, shard, "node-" + shard, cause);
+    }
+
+    private static ShardSearchFailure shardFailure(String index, int shard, String node, Exception cause) {
+        return new ShardSearchFailure(cause, new SearchShardTarget(node, new ShardId(index, "uuid", shard), null));
+    }
+
+    private static ShardSearchFailure[] failuresOnDistinctIndices(int count) {
+        final ShardSearchFailure[] failures = new ShardSearchFailure[count];
+        for (int i = 0; i < count; i++) {
+            failures[i] = shardFailure("index-" + i, i, new IllegalStateException("failure " + i));
+        }
+        return failures;
+    }
+
+    private static Map<String, Object> expectedFailure(Class<? extends Throwable> type, String message, String index, int shard) {
+        return Map.of("type", type.getName(), "message", message, "index", index, "shard", shard, "node", "node-" + shard);
+    }
+
+    private static List<?> shardFailuresIn(Map<String, ?> fields) {
+        return (List<?>) fields.get("elasticsearch.error.shard_failures");
+    }
+
+    private static SearchPhaseExecutionException searchFailure(ShardSearchFailure... failures) {
+        return new SearchPhaseExecutionException("query", "all shards failed", failures);
     }
 
     private Map<String, ?> lastLoggedFields() {

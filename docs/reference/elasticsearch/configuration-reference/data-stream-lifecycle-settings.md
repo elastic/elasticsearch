@@ -98,6 +98,21 @@ $$$dlm-frozen-cleanup-poll-interval$$$
 `dlm.frozen.cleanup.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
 
+$$$dlm-frozen-transition-enabled$$$
+
+`dlm.frozen_transitions.enabled`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `false`, the master node does not submit new frozen tier transitions. Transitions that are already running continue until they complete. Defaults to `true`.
+
+$$$dlm-frozen-transition-health-stuck-threshold$$$
+
+`dlm.frozen_transitions.health.stuck_threshold` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How long a backing index can remain past its `frozen_after` age without completing its frozen tier transition before the `dlm_frozen_transitions` indicator of the [Health API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-health-report) reports it as overdue and changes to `yellow`. Indices with a transition that is currently running are not counted as overdue. Must be at least `1m`. Defaults to `24h`.
+
+$$$dlm-frozen-transition-health-publish-interval$$$
+
+`dlm.frozen_transitions.health.publish_interval` {applies_to}`stack: ga 9.6`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node publishes frozen tier transition health information to the health node. The `dlm_frozen_transitions` health indicator reports `unknown` when it has received no new information for three intervals. Must be at least `1s`. Defaults to `5m`.
+
 ## Index level settings [_index_level_settings]
 
 :::{include} ../index-settings/_snippets/serverless-availability.md

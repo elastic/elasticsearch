@@ -1,5 +1,7 @@
 ---
-"Stats are reported per node":
+"Stats are reported per node and kNN searches are counted once sampling is enabled":
+  # the counters only ever grow while a node runs, so everything is checked in a single test: others
+  # sharing the cluster would otherwise change the numbers depending on the order the tests run in
   - do:
       query_sampling.stats: {}
 
@@ -14,15 +16,6 @@
   - match: { nodes.$node_id.picked: 0 }
   - match: { nodes.$node_id.buffered: 0 }
 
-  - do:
-      query_sampling.stats:
-        node_id: $node_id
-
-  - match: { _nodes.total: 1 }
-  - match: { nodes.$node_id.knn_searches: 0 }
-
----
-"kNN searches are counted once sampling is enabled":
   - do:
       indices.create:
         index: vectors
@@ -67,9 +60,10 @@
           query: { match_all: {} }
 
   - do:
-      query_sampling.stats: {}
+      query_sampling.stats:
+        node_id: $node_id
 
-  - set: { nodes._arbitrary_key_: node_id }
+  - match: { _nodes.total: 1 }
   - match: { nodes.$node_id.knn_searches: 1 }
   - match: { nodes.$node_id.captured: 1 }
 

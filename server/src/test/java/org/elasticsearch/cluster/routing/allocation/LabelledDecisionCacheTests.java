@@ -9,8 +9,10 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -60,6 +62,40 @@ public class LabelledDecisionCacheTests extends ESTestCase {
         // Unknown labels fall back to the original decision, and are not added
         assertThat(cache.get(Decision.NO, "one-more"), sameInstance(Decision.NO));
         assertThat(cache.get(Decision.NO, "one-more"), sameInstance(Decision.NO));
+    }
+
+    public void testWarnsOnlyOnceWhenAnyCacheFills() {
+        final var loggerName = LabelledDecisionCache.class.getCanonicalName();
+        try (var mockLog = MockLog.capture(LabelledDecisionCache.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("not full yet", loggerName, Level.WARN, "labelled decision cache*is full*")
+            );
+            for (int i = 0; i < LabelledDecisionCache.DECIDER_SIZE_LIMIT; i++) {
+                cache.get(Decision.NO, "label-" + i);
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        try (var mockLog = MockLog.capture(LabelledDecisionCache.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("cache full", loggerName, Level.WARN, "labelled decision cache for [NO]*is full*")
+            );
+            cache.get(Decision.NO, "label-0");
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        try (var mockLog = MockLog.capture(LabelledDecisionCache.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no repeat warning", loggerName, Level.WARN, "labelled decision cache*is full*")
+            );
+            cache.get(Decision.NO, "label-0");
+            cache.get(Decision.NO, "one-more");
+            // a different cache filling up does not warn again
+            for (int i = 0; i <= LabelledDecisionCache.DECIDER_SIZE_LIMIT; i++) {
+                cache.get(Decision.NOT_PREFERRED, "label-" + i);
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testSizeLimitIsAppliedPerDecisionType() {

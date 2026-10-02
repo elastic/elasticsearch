@@ -30,6 +30,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
     private static final String USER_ROLE = "user";
     private static final String ASSISTANT_ROLE = "assistant";
+    private static final String TOOL_ROLE = "tool";
+    private static final String MODEL_ID = "gemini-3.1-pro";
 
     public void testBasicSerialization_SingleMessage() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
@@ -460,7 +462,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                         "args": {
                           "order_id": "order_12345"
                         }
-                      }
+                      },
+                      "thoughtSignature": "skip_thought_signature_validator"
                     }
                   ]
                 }
@@ -556,7 +559,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                 "args": {
                                     "order_id" : "order_12345"
                                     }
-                                }
+                                },
+                                "thoughtSignature": "skip_thought_signature_validator"
                             }
                         ]
                     }
@@ -564,12 +568,14 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
+        // A message carrying tool calls is an assistant turn; a tool-role message carries the result of one and is
+        // covered by testToolMessage_MapsToUserRole.
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
                     null,
-                    "tool",
-                    "100",
+                    ASSISTANT_ROLE,
+                    null,
                     List.of(
                         new UnifiedCompletionRequest.ToolCall(
                             "call_62136354",
@@ -611,7 +617,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                     "indices": ["foo", "bar"],
                                     "size": 10
                                     }
-                                }
+                                },
+                                "thoughtSignature": "skip_thought_signature_validator"
                             }
                         ]
                     }
@@ -709,7 +716,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                 "args": {
                                     "order_id" : "order_12345"
                                     }
-                                }
+                                },
+                                "thoughtSignature": "skip_thought_signature_validator"
                             }
                         ]
                     }
@@ -778,6 +786,140 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             String jsonString = Strings.toString(builder);
             assertJsonEquals(jsonString, requestJson);
         }
+    }
+
+    public void testParallelFunctionCalls_OnlyFirstGetsSkipThoughtSignatureValidator() throws IOException {
+        var request = requestOf(
+            new UnifiedCompletionRequest.Message(
+                null,
+                ASSISTANT_ROLE,
+                null,
+                List.of(toolCall("call_1", "get_weather", "{\"city\": \"Paris\"}"), toolCall("call_2", "get_time", "{\"city\": \"Paris\"}"))
+            )
+        );
+
+        assertJsonEquals(serialize(request), """
+            {
+              "contents": [
+                {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "get_weather", "args": { "city": "Paris" } },
+                      "thoughtSignature": "skip_thought_signature_validator"
+                    },
+                    {
+                      "functionCall": { "name": "get_time", "args": { "city": "Paris" } }
+                    }
+                  ]
+                }
+              ]
+            }
+            """);
+    }
+
+    public void testFunctionCallsInSeparateAssistantMessages_EachGetsSkipThoughtSignatureValidator() throws IOException {
+        var request = requestOf(
+            new UnifiedCompletionRequest.Message(
+                null,
+                ASSISTANT_ROLE,
+                null,
+                List.of(toolCall("call_1", "get_weather", "{\"city\": \"Paris\"}"))
+            ),
+            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("sunny"), USER_ROLE, null, null),
+            new UnifiedCompletionRequest.Message(
+                null,
+                ASSISTANT_ROLE,
+                null,
+                List.of(toolCall("call_2", "get_time", "{\"city\": \"Paris\"}"))
+            )
+        );
+
+        assertJsonEquals(serialize(request), """
+            {
+              "contents": [
+                {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "get_weather", "args": { "city": "Paris" } },
+                      "thoughtSignature": "skip_thought_signature_validator"
+                    }
+                  ]
+                },
+                {
+                  "role": "user",
+                  "parts": [ { "text": "sunny" } ]
+                },
+                {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "get_time", "args": { "city": "Paris" } },
+                      "thoughtSignature": "skip_thought_signature_validator"
+                    }
+                  ]
+                }
+              ]
+            }
+            """);
+    }
+
+    public void testToolMessage_MapsToUserRole() throws IOException {
+        var request = requestOf(
+            new UnifiedCompletionRequest.Message(
+                new UnifiedCompletionRequest.ContentString("What is the weather in Paris?"),
+                USER_ROLE,
+                null,
+                null
+            ),
+            new UnifiedCompletionRequest.Message(
+                null,
+                ASSISTANT_ROLE,
+                null,
+                List.of(toolCall("call_1", "get_weather", "{\"city\": \"Paris\"}"))
+            ),
+            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("sunny"), TOOL_ROLE, "call_1", null)
+        );
+
+        assertJsonEquals(serialize(request), """
+            {
+              "contents": [
+                {
+                  "role": "user",
+                  "parts": [ { "text": "What is the weather in Paris?" } ]
+                },
+                {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "get_weather", "args": { "city": "Paris" } },
+                      "thoughtSignature": "skip_thought_signature_validator"
+                    }
+                  ]
+                },
+                {
+                  "role": "user",
+                  "parts": [ { "text": "sunny" } ]
+                }
+              ]
+            }
+            """);
+    }
+
+    private static UnifiedCompletionRequest.ToolCall toolCall(String id, String name, String arguments) {
+        return new UnifiedCompletionRequest.ToolCall(id, new UnifiedCompletionRequest.ToolCall.FunctionField(arguments, name), "function");
+    }
+
+    private static UnifiedCompletionRequest requestOf(UnifiedCompletionRequest.Message... messages) {
+        return new UnifiedCompletionRequest(List.of(messages), MODEL_ID, null, null, null, null, null, null);
+    }
+
+    private static String serialize(UnifiedCompletionRequest request) throws IOException {
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true));
+        var builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return Strings.toString(builder);
     }
 
     public void testParseToolChoiceString() throws IOException {

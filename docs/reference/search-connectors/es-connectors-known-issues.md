@@ -129,7 +129,7 @@ The connector service has the following known issues:
 
     **Workaround**: After fetching the DLS query from the access control document, replace `_allow_access_control.enum` with `_allow_access_control.keyword` before using it in an API key role descriptor.
 
-    **Fix**: [elastic/connectors#4006](https://github.com/elastic/connectors/pull/4006), shipped in 9.3.5, 9.4.1, and later connector releases. After upgrading, re-run an **access control sync** so the corrected query template is written to the `.search-acl-filter-*` documents.
+    **Fix**: Tracked in [elastic/connectors#4005](https://github.com/elastic/connectors/issues/4005). After the fix is deployed, re-run an **access control sync** so the corrected query template is written to the `.search-acl-filter-*` documents.
 
 
 * **Generic database connectors fail to sync with `ModuleNotFoundError: No module named 'pkg_resources'`**
@@ -138,7 +138,7 @@ The connector service has the following known issues:
 
     **Affected versions**: `docker.elastic.co/integrations/elastic-connectors` images 9.3.0 and later. Earlier versions are not affected because their image still ships `setuptools`. Self-managed deployments that install `setuptools` into their Python environment are also unaffected.
 
-    **Fix**: [elastic/connectors#4015](https://github.com/elastic/connectors/pull/4015), shipped in 9.4.2 and later connector releases.
+    **Fix**: Tracked in [elastic/connectors#4014](https://github.com/elastic/connectors/issues/4014). The fix is to bump `python-tds` to `>=1.15.0`, where the `pkg_resources` import was removed.
 
 
 * **Content Connectors entry in Stack Management is visible to users without the `content_connectors` capability**

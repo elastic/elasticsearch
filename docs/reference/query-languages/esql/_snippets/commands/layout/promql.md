@@ -49,6 +49,12 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
     Uses the end based on Kibana's date picker or unrestricted if missing.
     Example: `PROMQL start="2026-04-01T00:00:00Z" end="2026-04-01T02:00:00Z" sum(rate(http_requests_total))`
 
+`time`
+:   {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga` Evaluation time of an instant query (optional).
+    Evaluates the expression once, at this time, instead of at each step of a range query.
+    Mutually exclusive with `start`, `end`, `step`, and `buckets`.
+    Example: `PROMQL time="2026-04-01T01:00:00Z" sum(rate(http_requests_total))`
+
 `scrape_interval`
 :   The expected metric collection interval.
     Defaults to `1m`. Used to determine implicit range selector windows as `max(step, scrape_interval)`.
@@ -72,12 +78,18 @@ The result contains the following columns:
 | Column | Type | Description |
 |--------|------|-------------|
 | The PromQL expression (or `<result_name>` if specified) | `double` | The computed metric value |
-| `step` | `date` | The timestamp for each evaluation step |
+| `step` | `date` | The timestamp for each evaluation step. For an instant query, the evaluation time |
 | Grouping labels (if any) | `keyword` | One column per grouping label from `by` clauses |
+| `_timeseries` (if any) | `keyword` | The labels of each series as a JSON string |
 
-When the PromQL expression includes a cross-series aggregation like `sum by (instance)`, each grouping label gets
-its own output column. When there is no cross-series aggregation, all labels are returned in a single `_timeseries`
-column as a JSON string.
+The label columns depend on the outermost aggregation of the PromQL expression:
+
+- With a `by` grouping, such as `sum by (instance) (...)`, each grouping label gets its own output column.
+- With an aggregation without grouping, such as `sum(...)`, there are no label columns, and the result is a single series.
+- Without a cross-series aggregation, such as `rate(http_requests_total)`, or with a `without` grouping, such as
+  `sum without (pod) (...)`, the remaining labels of each series are returned in a single `_timeseries` column as a JSON string.
+
+A range query returns one row per series and evaluation step. An instant query returns one row per series.
 
 ### Index patterns
 
@@ -106,6 +118,18 @@ PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
 
 This is the recommended pattern for Kibana dashboards. The query responds to the date picker, adjusts the step size
 to the selected time range, and sizes the range selector window accordingly.
+
+### Instant query
+
+{applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+
+Evaluate the expression once, for example to get the current value of a metric:
+
+```esql
+PROMQL index=metrics-*
+  time="2026-04-01T01:00:00Z"
+  http_rate=(sum(rate(http_requests_total)))
+```
 
 ### Range query with explicit parameters
 

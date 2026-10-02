@@ -232,6 +232,7 @@ public class SharedBlobCacheWarmingService {
             queue.add(new BlobRange(blobLocation, position, length, timestampMillis, listener));
             return counter.incrementAndGet() == 1;
         }
+
     }
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheWarmingService.class);
@@ -390,12 +391,14 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX = SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME
+        + ".recovery_warming_timeout_reevaluation";
     /**
      * Ensures that we utilise the time-window for offline warming before we make a shard searchable.
      * Enabling this setting should reduce blob store cache misses after shard relocations.
      */
     public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
-        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation.enabled",
+        SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -407,7 +410,7 @@ public class SharedBlobCacheWarmingService {
      * busy-reschedule loop; setting it too high causes the loop to abort earlier than necessary, reducing the warming window.
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING = Setting.timeSetting(
-        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation.abort_threshold",
+        SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".abort_threshold",
         TimeValue.timeValueMillis(300L),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
@@ -423,7 +426,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting
         .timeSetting(
-            SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation.min_budget_per_pending_shard",
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".min_budget_per_pending_shard",
             TimeValue.timeValueMillis(500),
             TimeValue.ZERO,
             Setting.Property.NodeScope,

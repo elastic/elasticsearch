@@ -58,7 +58,6 @@ public final class MoveDecision extends AbstractAllocationDecision {
     private final Decision clusterRebalanceDecision;
     /**
      * The labeled {@code canAllocate} (or {@code canForceAllocateDuringReplace}) decision for the winning target node.
-     * Populated only when {@link #canMoveDecision} is {@link AllocationDecision#NOT_PREFERRED}; null otherwise.
      * Not rendered in XContent — used internally to label metrics.
      */
     @Nullable

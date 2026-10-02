@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no

@@ -80,6 +80,14 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
     }
 
+    /**
+     * The {@link DriverContext} of the driver running this operator. Subclasses that fetch results from another
+     * (possibly remote) driver use this to replay that driver's warnings into this driver's per-driver sink.
+     */
+    protected final DriverContext driverContext() {
+        return driverContext;
+    }
+
     @Override
     public boolean needsInput() {
         final long outstandingPages = checkpoint.getMaxSeqNo() - checkpoint.getPersistedCheckpoint();
@@ -195,6 +203,13 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             return true;
         } else {
             return false;
+        }
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        synchronized (this) {
+            return checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint();
         }
     }
 

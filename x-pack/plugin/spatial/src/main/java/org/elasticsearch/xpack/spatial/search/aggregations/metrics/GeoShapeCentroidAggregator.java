@@ -126,12 +126,14 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        final long bucketCount = counts.get(bucket);
+        final double bucketLatSum = latSum.get(bucket);
+        final double bucketLonSum = lonSum.get(bucket);
         final double bucketWeight = weightSum.get(bucket);
-        final GeoPoint bucketCentroid = (bucketWeight > 0)
-            ? new GeoPoint(latSum.get(bucket) / bucketWeight, lonSum.get(bucket) / bucketWeight)
-            : null;
-        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, metadata());
+        final long bucketCount = counts.get(bucket);
+        final DimensionalShapeType bucketShapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
+        final GeoPoint bucketCentroid = bucketWeight > 0 ? new GeoPoint(bucketLatSum / bucketWeight, bucketLonSum / bucketWeight) : null;
+        var shapeData = new InternalGeoCentroid.ShapeData(bucketLatSum, bucketLonSum, bucketWeight, bucketShapeType);
+        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, shapeData, metadata());
     }
 
     @Override

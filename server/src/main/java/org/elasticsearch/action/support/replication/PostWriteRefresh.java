@@ -143,8 +143,17 @@ public class PostWriteRefresh {
             transportService.getLocalNode(),
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
-            TransportRequestOptions.timeout(postWriteRefreshTimeout),
-            new ActionListenerResponseHandler<>(listener.safeMap(r -> wasForced), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.addTimeout(
+                    postWriteRefreshTimeout,
+                    transportService.getThreadPool(),
+                    refreshExecutor,
+                    listener.safeMap(r -> wasForced)
+                ),
+                in -> ActionResponse.Empty.INSTANCE,
+                refreshExecutor
+            )
         );
     }
 

@@ -1,0 +1,5 @@
+FROM employees
+| EVAL l = LENGTH(last_name)
+| SORT emp_no
+| LIMIT 10
+| KEEP l

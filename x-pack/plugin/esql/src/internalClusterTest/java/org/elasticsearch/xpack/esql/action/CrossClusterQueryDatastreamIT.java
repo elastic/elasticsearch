@@ -27,7 +27,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -1102,7 +1102,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
                 localOnlyProfiles = drivers.size();
 
@@ -1122,7 +1126,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
                 remoteOnlyProfiles = drivers.size();
 
@@ -1146,7 +1154,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
                 allProfiles = drivers.size();
 
@@ -1198,7 +1210,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(5L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
                 localOnlyProfiles = drivers.size();
 
@@ -1222,7 +1238,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(5L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
                 remoteOnlyProfiles = drivers.size();
 
@@ -1248,7 +1268,11 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(10L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
                 allProfiles = drivers.size();
 

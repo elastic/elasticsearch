@@ -28,4 +28,10 @@ public interface RewriteableAware extends TranslationAware {
      */
     Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
+    /**
+     * @return true if the `QueryBuilder` needs to be rewritten, false otherwise.
+     * If no rewrite is required, this instance will be skipped during the rewrite phase in
+     * {@link org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver#resolveQueryBuilders}.
+     */
+    boolean requiresQueryBuilderRewrite();
 }

@@ -92,6 +92,7 @@ import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -257,9 +258,11 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.DenseVectorQueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -396,6 +399,8 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
+        AggregatorFactories.setMaxNestedDepth(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.get(settings));
+
         ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(telemetryProvider.getMeterRegistry());
 
         registerAggregation(
@@ -1039,6 +1044,16 @@ public class SearchModule {
     }
 
     private void registerQueryVectorBuilders(List<SearchPlugin> plugins) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(QueryVectorBuilder.class, LookupQueryVectorBuilder.NAME, LookupQueryVectorBuilder::fromXContent)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                QueryVectorBuilder.class,
+                LookupQueryVectorBuilder.NAME.getPreferredName(),
+                LookupQueryVectorBuilder::new
+            )
+        );
         registerFromPlugin(plugins, SearchPlugin::getQueryVectorBuilders, this::registerQueryVectorBuilder);
     }
 
@@ -1185,6 +1200,7 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, KnnVectorQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(DenseVectorQueryBuilder.NAME, DenseVectorQueryBuilder::new, DenseVectorQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");

@@ -46,7 +46,7 @@ public class MistralEmbeddingsModel extends MistralModel {
             service,
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

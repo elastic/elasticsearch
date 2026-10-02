@@ -105,11 +105,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckTrialGoldOrPlatinumToBasic() {
-        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 6);
+        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 5);
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 0);
     }
 
     public void testSecurityAckAnyToStandard() {
@@ -368,7 +368,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         String warningSoon = "warning: license expiring soon";
         licenseState.update(new XPackLicenseStatus(licenseLevel, true, warningSoon));
         feature.check(licenseState);
-        assertCriticalWarnings(warningSoon);
+        assertWarnings(warningSoon);
 
         /*
         TODO: this does not yet work because the active comes before expiry check as a chance

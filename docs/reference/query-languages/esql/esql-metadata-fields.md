@@ -23,18 +23,20 @@ The following metadata fields are available in {{esql}}:
 
 | Metadata field | Type | Description |
 |---------------|------|-------------|
+| `_class` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index` or `dataset`. |
 | [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Unique document ID. |
 | [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Names every field in a document that was ignored when the document was indexed. |
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
+| `_name` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the dataset name on a dataset. |
 | `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
- | `_size`| [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabed.
+ | `_size`| [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabled.
 | [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |
 | `_version` | [`long`](/reference/elasticsearch/mapping-reference/number.md) | Document version number |
 
 ## Usage and limitations
 
-- Metadata fields are only available when the data source is an index
+- Most metadata fields are only available when the data source is an index. {applies_to}`stack: ga 9.6` `_class` and `_name` are answered by indices and datasets alike, and a dataset answers the rest either with a value or with `null` — refer to [query datasets](esql-data-federation-querying.md#use-metadata-columns)
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields
@@ -85,3 +87,21 @@ FROM products METADATA _score
 :::{tip}
 Refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring) for more information on relevance scoring and how to use `_score` in your queries.
 :::
+
+### Retrieving _source
+
+Using _`source` is useful when you want to retrieve most or all fields from a document.
+
+You should consider retrieving `_source` instead of individual fields when:
+- You need several fields from a document, and most of them are text fields.
+- You have long text fields or geoshape fields in your documents.
+- You want the original document instead of the indexed values for your fields.
+- You have nested objects or arrays that you want to preserve in their original structure.
+
+
+You might want to avoid retrieving `_source` when:
+- Your fields are stored as [doc_values](/reference/elasticsearch/mapping-reference/doc-values.md). `doc_values` access is faster than _`source`.
+- Your index uses [synthetic source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source). Accessing _`source` in synthetic source mode has a performance penalty.
+- The text fields you need are [stored fields](/reference/elasticsearch/mapping-reference/mapping-store.md).
+
+Using `_source` or selecting fields are both valid options, but can have performance and data format implications that you should consider based on your use case.

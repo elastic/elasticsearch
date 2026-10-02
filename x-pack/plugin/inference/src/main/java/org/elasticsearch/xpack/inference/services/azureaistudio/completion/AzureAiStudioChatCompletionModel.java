@@ -70,7 +70,7 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
             service,
             AzureAiStudioChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioChatCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -99,7 +99,7 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
             return new URI(this.target);
         }
 
-        return new URI(this.target + COMPLETIONS_URI_PATH);
+        return new URI(stripTrailingSlash(this.target) + COMPLETIONS_URI_PATH);
     }
 
     @Override

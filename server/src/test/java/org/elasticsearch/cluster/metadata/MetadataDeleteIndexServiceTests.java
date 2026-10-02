@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,10 +61,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     private AllocationService allocationService;
     private MetadataDeleteIndexService service;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initService() throws Exception {
         allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
             mockInvocation -> mockInvocation.getArguments()[0]
@@ -110,11 +109,101 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(index), Settings.EMPTY)
         );
         assertEquals(
-            "Cannot delete indices that are being snapshotted: ["
-                + index
-                + "]. Try again after snapshot finishes "
-                + "or cancel the currently running snapshot.",
+            "Cannot delete indices that are being snapshotted: "
+                + "[doesn't matter/snapshot name] indices:"
+                + List.of(index.getName() + "/" + index.getUUID())
+                + ". Try again after these snapshots finish, or cancel them.",
             e.getMessage()
+        );
+    }
+
+    public void testDeleteSnapshottingNamesBlockingSnapshots() {
+        // Two indices blocked by two snapshots in a many-to-many relationship:
+        // snap-a (repo-a) covers both alpha and beta; snap-b (repo-b) covers only beta.
+        // The message must group indices per snapshot (sorted by repository then snapshot name),
+        // and sort indices within each group by name — verifying the fix for the case where
+        // multiple concurrent snapshots (e.g. from ILM/SLM) are in flight simultaneously.
+        final ProjectId projectId = randomProjectIdOrDefault();
+        String alphaName = randomIndexName();
+        String betaName = randomIndexName();
+        String alphaUuid = randomUUID();
+        String betaUuid = randomUUID();
+        final Index alphaIndex = new Index(alphaName, alphaUuid);
+        final Index betaIndex = new Index(betaName, betaUuid);
+
+        String repoNameA = randomRepoName();
+        String snapNameA = randomSnapshotName();
+        Snapshot snapA = new Snapshot(projectId, repoNameA, new SnapshotId(snapNameA, randomUUID()));
+        String repoNameB = randomRepoName();
+        String snapNameB = randomSnapshotName();
+        Snapshot snapB = new Snapshot(projectId, repoNameB, new SnapshotId(snapNameB, randomUUID()));
+
+        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            SnapshotsInProgress.Entry.snapshot(
+                snapA,
+                false,
+                false,
+                SnapshotsInProgress.State.INIT,
+                Map.of(alphaName, new IndexId(alphaName, alphaUuid), betaName, new IndexId(betaName, betaUuid)),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                System.currentTimeMillis(),
+                (long) randomIntBetween(0, 1000),
+                Map.of(),
+                null,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                IndexVersionUtils.randomVersion()
+            )
+        )
+            .withAddedEntry(
+                SnapshotsInProgress.Entry.snapshot(
+                    snapB,
+                    false,
+                    false,
+                    SnapshotsInProgress.State.INIT,
+                    Map.of(betaName, new IndexId(betaName, betaUuid)),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    System.currentTimeMillis(),
+                    (long) randomIntBetween(0, 1000),
+                    Map.of(),
+                    null,
+                    SnapshotInfoTestUtils.randomUserMetadata(),
+                    IndexVersionUtils.randomVersion()
+                )
+            );
+
+        IndexMetadata alphaMetadata = IndexMetadata.builder(alphaName)
+            .settings(indexSettings(IndexVersionUtils.randomVersion(), alphaUuid, 1, 1))
+            .build();
+        IndexMetadata betaMetadata = IndexMetadata.builder(betaName)
+            .settings(indexSettings(IndexVersionUtils.randomVersion(), betaUuid, 1, 1))
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(projectId).put(alphaMetadata, false).put(betaMetadata, false))
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, alphaMetadata).addBlocks(projectId, betaMetadata))
+            .putCustom(SnapshotsInProgress.TYPE, snaps)
+            .build();
+
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(alphaIndex, betaIndex), Settings.EMPTY)
+        );
+        // each snapshot is rendered as [repo/snap]: [index-names]; iteration order is not guaranteed
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("Cannot delete indices that are being snapshotted:"),
+                containsString("[" + repoNameA + "/" + snapNameA + "] indices:"),
+                containsString(alphaName),
+                containsString("[" + repoNameB + "/" + snapNameB + "] indices:"),
+                containsString(betaName),
+                containsString(". Try again after these snapshots finish, or cancel them.")
+            )
         );
     }
 

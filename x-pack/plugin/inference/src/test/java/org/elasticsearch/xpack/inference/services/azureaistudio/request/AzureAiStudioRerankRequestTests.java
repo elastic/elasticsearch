@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModelTests;
@@ -91,7 +92,7 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
     }
 
     private HttpPost getHttpPost(AzureAiStudioRerankRequest request, String apikey) {
-        final var httpRequest = request.createHttpRequest();
+        final var httpRequest = RequestTests.getHttpRequestSync(request);
 
         final var httpPost = validateRequestUrlAndContentType(httpRequest, TARGET_URI + "/v1/rerank");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, apikey);

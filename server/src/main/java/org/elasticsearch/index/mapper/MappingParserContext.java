@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -25,6 +26,7 @@ import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -38,49 +40,55 @@ public class MappingParserContext {
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
     private final IndexVersion indexVersionCreated;
     private final Supplier<TransportVersion> clusterTransportVersion;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
-    private final IdFieldMapper idFieldMapper;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
-    private long mappingObjectDepth = 0;
+    // Start at 1 to account for the root object, so the limit semantics match the post-build
+    // checkObjectDepthLimit formula (path depth = dots + 2, where root = 1).
+    private long mappingObjectDepth = 1;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
+    private final ParseFieldLimits parseFieldLimits;
 
-    public MappingParserContext(
+    // Package-private: used by MapperService (to pass ParseFieldLimits directly) and by inner subcontexts.
+    MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper,
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
-        Supplier<ProjectMetadata> projectMetadataSupplier
+        Supplier<ProjectMetadata> projectMetadataSupplier,
+        ParseFieldLimits parseFieldLimits
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.indexVersionCreated = indexVersionCreated;
         this.clusterTransportVersion = clusterTransportVersion;
+        this.clusterSupportsFeature = clusterSupportsFeature;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
         this.projectMetadataSupplier = projectMetadataSupplier;
+        this.parseFieldLimits = parseFieldLimits;
     }
 
     public MappingParserContext(
@@ -89,11 +97,51 @@ public class MappingParserContext {
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        Supplier<ProjectMetadata> projectMetadataSupplier
+    ) {
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            clusterSupportsFeature,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            bitSetProducer,
+            vectorsFormatProviders,
+            namespaceValidator,
+            projectMetadataSupplier,
+            new ParseFieldLimits(
+                indexSettings.getMappingFieldNameLengthLimit(),
+                indexSettings.getMappingNestedFieldsLimit(),
+                NewFieldsBudget.unlimited(),
+                0
+            )
+        );
+    }
+
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
@@ -103,11 +151,11 @@ public class MappingParserContext {
             runtimeFieldParsers,
             indexVersionCreated,
             clusterTransportVersion,
+            clusterSupportsFeature,
             searchExecutionContextSupplier,
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldMapper,
             bitSetProducer,
             vectorsFormatProviders,
             null,
@@ -125,10 +173,6 @@ public class MappingParserContext {
 
     public IndexSettings getIndexSettings() {
         return indexSettings;
-    }
-
-    public IdFieldMapper idFieldMapper() {
-        return idFieldMapper;
     }
 
     public Settings getSettings() {
@@ -153,6 +197,13 @@ public class MappingParserContext {
 
     public Supplier<TransportVersion> clusterTransportVersion() {
         return clusterTransportVersion;
+    }
+
+    /**
+     * Returns {@code true} if all nodes in the cluster support {@code feature}.
+     */
+    public boolean clusterHasFeature(NodeFeature feature) {
+        return clusterSupportsFeature.test(feature);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -205,6 +256,52 @@ public class MappingParserContext {
         mappingObjectDepth--;
     }
 
+    /**
+     * Checks that adding a dynamic object at {@code fullPath} would not exceed the object depth limit.
+     * Depth is computed by counting dots in the path (each dot represents one nesting level).
+     * Called eagerly during document parsing to avoid stack-overflow errors from deeply nested objects.
+     */
+    public void checkObjectDepthLimit(String fullPath) {
+        int numDots = 0;
+        for (int i = 0; i < fullPath.length(); i++) {
+            if (fullPath.charAt(i) == '.') {
+                numDots++;
+            }
+        }
+        int depth = numDots + 2;
+        if (depth > mappingObjectDepthLimit) {
+            throw new MapperParsingException(
+                "Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded due to object field [" + fullPath + "]"
+            );
+        }
+    }
+
+    /**
+     * Checks that the given leaf name does not exceed the field name length limit.
+     * Called at each point where a new field name component is validated during parsing.
+     */
+    public void checkFieldNameLength(String leafName) {
+        parseFieldLimits.checkFieldNameLength(leafName);
+    }
+
+    /**
+     * Records that a nested object field has been added during parsing,
+     * and throws if the nested fields limit is exceeded.
+     */
+    public void checkNestedFieldCount() {
+        parseFieldLimits.checkNestedFieldCount();
+    }
+
+    /**
+     * Tries to claim {@code count} fields from the parse-time total-fields budget.
+     * Returns {@code false} if the budget is exhausted (drop mode); throws
+     * {@link IllegalArgumentException} if the budget is exhausted (throwing mode).
+     * Always returns {@code true} when the budget is unlimited.
+     */
+    public boolean tryAddFields(int count) {
+        return parseFieldLimits.decrementTotalFieldsIfPossible(count);
+    }
+
     public MappingParserContext createMultiFieldContext() {
         return new MultiFieldParserContext(this);
     }
@@ -215,21 +312,23 @@ public class MappingParserContext {
 
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
+            // Share parseFieldLimits so multi-fields count against the same budget as the parent field.
             super(
                 in.similarityLookupService,
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.clusterTransportVersion,
+                in.clusterSupportsFeature,
                 in.searchExecutionContextSupplier,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper,
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
-                null
+                null,
+                in.parseFieldLimits
             );
         }
 
@@ -254,15 +353,17 @@ public class MappingParserContext {
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.clusterTransportVersion,
+                in.clusterSupportsFeature,
                 in.searchExecutionContextSupplier,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper,
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
-                null
+                null,
+                // Use UNLIMITED so that parsing a dynamic template definition does not count against field limits.
+                ParseFieldLimits.UNLIMITED
             );
             this.dateFormatter = dateFormatter;
         }

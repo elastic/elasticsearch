@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -23,7 +24,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 
 public class TestPlannerOptimizer {
     private final Analyzer analyzer;
@@ -33,19 +35,28 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
+        this(config, analyzer, new EsqlFlags(true));
+    }
+
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, EsqlFlags flags) {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()))
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
+            flags
         );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
+        this(config, analyzer, logicalOptimizer, new EsqlFlags(true));
+    }
+
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer, EsqlFlags flags) {
         this.analyzer = analyzer;
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
         mapper = new Mapper();
 
     }
@@ -63,12 +74,20 @@ public class TestPlannerOptimizer {
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer, @Nullable QueryBuilder esFilter) {
-        PhysicalPlan plan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan(query, analyzer), esFilter);
+        PhysicalPlan plan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan(query, analyzer), esFilter, TransportVersion.current());
         return optimizedPlan(plan, stats);
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
         return optimizedPlan(physicalPlan(query, analyzer), stats, esqlFlags);
+    }
+
+    /**
+     * Builds the distributed physical plan before it is split into coordinator and data-node plans.
+     * This exposes the same boundary used by {@link PlannerUtils#breakPlanBetweenCoordinatorAndDataNode} to planner tests.
+     */
+    public PhysicalPlan distributedPlan(String query) {
+        return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
@@ -86,9 +105,8 @@ public class TestPlannerOptimizer {
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
-        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, esqlFlags, config, FoldContext.small(), searchStats),
-            true
+        var physicalTestOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, esqlFlags, config, FoldContext.small(), searchStats)
         );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer, null);
 
@@ -100,7 +118,7 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
     }

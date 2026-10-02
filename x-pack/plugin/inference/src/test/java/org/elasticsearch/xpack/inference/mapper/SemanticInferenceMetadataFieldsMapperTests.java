@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -22,6 +23,9 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTestCase {
     @Override
@@ -36,8 +40,19 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             .build();
         assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
 
+        // The legacy format setting cannot be set to true for versions >= SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN,
+        // so we restrict to new-format-compatible versions that still allow the setting.
+        IndexVersion newFormatVersionAllowingLegacySetting = randomBoolean()
+            ? IndexVersionUtils.randomVersionBetween(
+                IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+            )
+            : IndexVersionUtils.randomVersionBetween(
+                IndexVersions.INFERENCE_METADATA_FIELDS,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            );
         settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(false))
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newFormatVersionAllowingLegacySetting)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
             .build();
         assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
@@ -132,12 +147,38 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         return new SemanticInferenceMetadataFieldsMapper.FieldType();
     }
 
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
+    public void testLegacyFormatRejectedForNewIndices() {
+        var indexScopedSettings = new IndexScopedSettings(
+            Settings.EMPTY,
+            Set.of(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT, IndexMetadata.SETTING_INDEX_VERSION_CREATED)
+        );
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+            .build();
+
+        var ex = expectThrows(IllegalArgumentException.class, () -> indexScopedSettings.validate(settings, true));
+        assertThat(ex.getMessage(), containsString("index.mapping.semantic_text.use_legacy_format"));
+        assertThat(ex.getMessage(), containsString("legacy semantic text format is not supported for new indices"));
+    }
+
+    public static Settings randomIndexSettings(boolean useLegacyFormat) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(useLegacyFormat))
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
+    }
+
+    public static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
         if (useLegacyFormat) {
             // Randomly choose an index version compatible with the legacy semantic text format
             if (randomBoolean()) {
-                // 9.x+ version
-                return IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
+                // 9.x+ version: must be before SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                return IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                );
             }
 
             // 8.x version

@@ -49,10 +49,8 @@ public class Retry2Tests extends ESTestCase {
      */
     private Map<String, String> expectedHeaders = new HashMap<>();
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initBulkClient() throws Exception {
         this.threadPool = createThreadPool();
         this.bulkClient = new MockBulkClient(threadPool, CALLS_TO_FAIL);
         // Stash some random headers so we can assert that we preserve them
@@ -62,11 +60,9 @@ public class Retry2Tests extends ESTestCase {
         bulkClient.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         this.threadPool.close();
-        super.tearDown();
     }
 
     private BulkRequest createBulkRequest() {

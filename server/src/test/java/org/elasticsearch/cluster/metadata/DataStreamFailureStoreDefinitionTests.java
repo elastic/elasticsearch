@@ -54,7 +54,7 @@ public class DataStreamFailureStoreDefinitionTests extends ESTestCase {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
             .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
             .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "." + randomAlphaOfLength(4), randomAlphaOfLength(4))
-            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.values()))
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.availableModes()))
             .put(randomSetting, randomAlphaOfLength(10));
         // We expect no changes
         expectedBuilder = Settings.builder().put(builder.build());

@@ -12,7 +12,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -26,7 +28,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testLongVector() throws IOException {
         int maxPrimitiveElements = randomIntBetween(100, 1000);
         var maxPrimitiveSize = estimateArraySize(Long.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newLongBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             long[] elements = new long[numElements];
@@ -42,6 +47,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(LongArrayVector.class));
@@ -68,6 +75,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(LongBigArrayVector.class));
@@ -84,7 +93,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testLongBlock() throws IOException {
         int maxPrimitiveElements = randomIntBetween(1000, 5000);
         var maxPrimitiveSize = estimateArraySize(Long.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newLongBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             long[] elements = new long[numElements];
@@ -102,6 +114,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongArrayBlock.class));
                     assertNull(copy.asVector());
@@ -131,6 +145,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongBigArrayBlock.class));
                     assertNull(block.asVector());
@@ -148,7 +164,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testBooleanVector() throws IOException {
         int maxPrimitiveElements = randomIntBetween(100, 1000);
         var maxPrimitiveSize = estimateArraySize(Byte.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             boolean[] elements = new boolean[numElements];
@@ -164,6 +183,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     assertThat(mask.hadMultivaluedFields(), equalTo(false));
                     for (int p = 0; p < elements.length; p++) {
@@ -196,6 +217,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(BooleanBigArrayVector.class));
@@ -212,7 +235,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testBooleanBlock() throws IOException {
         int maxPrimitiveElements = randomIntBetween(1000, 5000);
         var maxPrimitiveSize = estimateArraySize(Byte.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             boolean[] elements = new boolean[numElements];
@@ -230,6 +256,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     assertThat(mask.hadMultivaluedFields(), equalTo(true));
                     for (int p = 0; p < elements.length; p++) {
@@ -265,6 +293,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     assertThat(mask.hadMultivaluedFields(), equalTo(true));
                     for (int p = 0; p < elements.length; p++) {
@@ -291,7 +321,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testBooleanBlockOneMv() {
         int mvCount = between(2, 10);
         int positionCount = randomIntBetween(1000, 5000);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), ByteSizeValue.ofBytes(1));
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays()).breaker(blockFactory.breaker()).maxPrimitiveArraySize(1).build();
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, mvCount + positionCount))) {
             boolean[] elements = new boolean[positionCount + mvCount];
             builder.beginPositionEntry();
@@ -317,6 +347,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(block.getFirstValueIndex(p)), equalTo(elements[mvCount + p]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     /*
                      * NOTE: this test is customized to the layout above where we don't make

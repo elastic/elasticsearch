@@ -116,7 +116,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 return new IndexWriter(directory, iwc);
             }, null, null)) {
                 // force segments to exist on disk
-                final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+                final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1);
                 e.index(indexForDoc(doc1));
                 e.flush();
                 final List<SegmentCommitInfo> segments = StreamSupport.stream(e.getLastCommittedSegmentInfos().spliterator(), false)

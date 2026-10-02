@@ -76,6 +76,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return false;
     }
 
+    /**
+     * Called on every task when we take it off the `tasks` queue.
+     */
+    protected void onDequeue(T task) {}
+
     private void pollAndSpawn() {
         // A pollAndSpawn attempts to run a new task. There could be many concurrent pollAndSpawn calls competing
         // to get a "free slot", since we attempt to run a new task on every enqueueTask call and every time an
@@ -95,9 +100,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 // non-empty queue and no workers!
                 if (tasks.peek() == null) break;
             } else {
+                onDequeue(task);
                 final boolean isForceExecution = isForceExecution(task);
-                executor.execute(new AbstractRunnable() {
+                var runnable = new AbstractRunnable() {
                     private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
+                    volatile boolean callerLoopProceeded;
 
                     private final Releasable releasable = Releasables.releaseOnce(() -> {
                         // To avoid missing to run tasks that are enqueued and waiting, we check the queue again once running
@@ -105,7 +112,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         int decremented = runningTasks.decrementAndGet();
                         assert decremented >= 0;
 
-                        if (rejected == false) {
+                        if (rejected == false && callerLoopProceeded) {
                             pollAndSpawn();
                         }
                     });
@@ -144,7 +151,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     public String toString() {
                         return task.toString();
                     }
-                });
+                };
+                executor.execute(runnable);
+                runnable.callerLoopProceeded = true;
             }
         }
     }
@@ -156,9 +165,12 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return preUpdateValue < maxRunningTasks;
     }
 
-    // exposed for testing
     int runningTasks() {
         return runningTasks.get();
+    }
+
+    int queuedTasks() {
+        return tasks.size();
     }
 
     /**
@@ -171,8 +183,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             protected void doRun() {
                 final AtomicBoolean isDone = new AtomicBoolean(true);
                 final Releasable ref = () -> isDone.set(true);
-                ActionListener<Releasable> task;
+                T task;
                 while ((task = tasks.poll()) != null) {
+                    onDequeue(task);
                     isDone.set(false);
                     try {
                         logger.trace("[{}] eagerly running task {}", taskRunnerName, task);

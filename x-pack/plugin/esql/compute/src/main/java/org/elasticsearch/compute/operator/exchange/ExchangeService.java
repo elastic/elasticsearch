@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -67,6 +68,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
     private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
+    public static final String BATCH_EXCHANGE_STATUS_ACTION_NAME = "internal:data/read/esql/batch_exchange_status";
+
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
      * removed from the exchange service if no sinks are attached (i.e., no computation uses that sink handler).
@@ -80,6 +83,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
+    // Registry for bidirectional batch exchange servers, keyed by serverToClientId
+    private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -116,6 +122,46 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
+
+        // Register batch exchange status handler once (singleton pattern)
+        // This handler routes requests to the appropriate server based on exchangeId
+        transportService.registerRequestHandler(
+            BATCH_EXCHANGE_STATUS_ACTION_NAME,
+            this.executor,
+            BatchExchangeStatusRequest::new,
+            new TransportRequestHandler<BatchExchangeStatusRequest>() {
+                @Override
+                public void messageReceived(BatchExchangeStatusRequest request, TransportChannel channel, Task task) throws Exception {
+                    final String exchangeId = request.exchangeId();
+                    BidirectionalBatchExchangeServer server = batchExchangeServers.get(exchangeId);
+                    if (server != null) {
+                        server.handleBatchExchangeStatusRequest(request, channel, task);
+                    } else {
+                        logger.warn("Received BatchExchangeStatusRequest for unknown exchangeId={}", exchangeId);
+                        channel.sendResponse(
+                            new BatchExchangeStatusResponse(new ResourceNotFoundException("exchange [{}] not found", exchangeId))
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+    /**
+     * Register a bidirectional batch exchange server.
+     * The server will receive BatchExchangeStatusRequest messages for its exchangeId.
+     */
+    public void registerBatchExchangeServer(String serverToClientId, BidirectionalBatchExchangeServer server) {
+        if (batchExchangeServers.putIfAbsent(serverToClientId, server) != null) {
+            throw new IllegalStateException("batch exchange server for id [" + serverToClientId + "] already exists");
+        }
+    }
+
+    /**
+     * Unregister a bidirectional batch exchange server.
+     */
+    public void unregisterBatchExchangeServer(String serverToClientId) {
+        batchExchangeServers.remove(serverToClientId);
     }
 
     /**
@@ -140,6 +186,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
         }
         return sinkHandler;
+    }
+
+    /**
+     * Gets an existing {@link ExchangeSinkHandler} for the specified exchange id, or creates one if it doesn't exist.
+     * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
+     */
+    public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
+        return sinks.computeIfAbsent(
+            exchangeId,
+            id -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
+        );
     }
 
     /**
@@ -188,18 +245,39 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         return exchangeSources.remove(sessionId);
     }
 
+    public void addLocalExchange(String sessionId, LocalExchange exchange) {
+        if (localExchanges.putIfAbsent(sessionId, exchange) != null) {
+            throw new IllegalStateException("local exchange for session [" + sessionId + "] already exists");
+        }
+    }
+
+    public LocalExchange removeLocalExchange(String sessionId) {
+        return localExchanges.remove(sessionId);
+    }
+
     /**
      * Finishes the session early, i.e., before all sources are finished.
      * It is called by async/stop API and should be called on the node that coordinates the async request.
      * It will close all sources and return the results - unlike cancel, this does not discard the results.
+     *
+     * @param listener receives {@code true} when an active exchange source was found and closed by this call,
+     *                 {@code false} when no session was registered (typically because the query already finished).
+     *                 Callers use this to distinguish "STOP actually interrupted execution" from "STOP was a no-op
+     *                 because the query had already completed".
      */
-    public void finishSessionEarly(String sessionId, ActionListener<Void> listener) {
+    public void finishSessionEarly(String sessionId, ActionListener<Boolean> listener) {
         ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
         if (exchangeSource != null) {
-            exchangeSource.finishEarly(false, listener);
-        } else {
-            listener.onResponse(null);
+            exchangeSource.finishEarly(false, listener.map(v -> Boolean.TRUE));
+            return;
         }
+        LocalExchange localExchange = removeLocalExchange(sessionId);
+        if (localExchange != null) {
+            localExchange.finish(false);
+            listener.onResponse(Boolean.TRUE);
+            return;
+        }
+        listener.onResponse(Boolean.FALSE);
     }
 
     private static class OpenExchangeRequest extends AbstractTransportRequest {
@@ -386,6 +464,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                         final ExchangeResponse resp = new ExchangeResponse(bsi);
                         final long responseBytes = resp.ramBytesUsedByPage();
                         estimatedPageSizeInBytes.getAndUpdate(curr -> Math.max(responseBytes, curr / 2));
+                        // Old remotes send ESQL warnings as transport response headers on every exchange
+                        // page fetch. Strip them here — warnings are delivered through the structured
+                        // DriverCompletionInfo.warnings path, and leaving them in the thread context would
+                        // cause duplicates when ResponseHeadersCollector merges them back later.
+                        transportService.getThreadPool().getThreadContext().takeResponseHeaders("Warning");
                         return resp;
                     }
                 }, responseExecutor)
@@ -411,6 +494,30 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * Sends a batch exchange status request from client to server.
+     * The server will reply after batch processing completes.
+     */
+    public static void sendBatchExchangeStatusRequest(
+        TransportService transportService,
+        Transport.Connection connection,
+        String exchangeId,
+        Executor responseExecutor,
+        ActionListener<BatchExchangeStatusResponse> listener
+    ) {
+        transportService.sendRequest(
+            connection,
+            BATCH_EXCHANGE_STATUS_ACTION_NAME,
+            new BatchExchangeStatusRequest(exchangeId),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                listener,
+                in -> new BatchExchangeStatusResponse(in, transportService.getThreadPool().getThreadContext()),
+                responseExecutor
+            )
+        );
+    }
+
     // For testing
     public boolean isEmpty() {
         return sinks.isEmpty();
@@ -418,6 +525,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     public Set<String> sinkKeys() {
         return sinks.keySet();
+    }
+
+    /**
+     * The registered exchange source ids, for tests that need to check the consumer side too. {@link #isEmpty()} and {@link #sinkKeys()}
+     * only cover sinks, so a test asserting on those alone would not notice a leaked source handler.
+     */
+    public Set<String> sourceKeys() {
+        return Sets.union(exchangeSources.keySet(), localExchanges.keySet());
     }
 
     @Override

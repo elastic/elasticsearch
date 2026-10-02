@@ -7,57 +7,122 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IncreaseExponentialHistogramGroupingAggregatorFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Currently just a surrogate for applying {@link HistogramMerge} per series.
+ * Time series variant of {@link HistogramMerge}. This is the newer version of {@link DeltaOnlyHistogramMergeOverTime},
+ * which support cumulative temporality for exponential histograms.
  */
-public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
-    // TODO Eventually we want to replace this with some increase/rate implementation
-    // for histograms to be consistent with counters on extrapolation.
+public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        ToAggregator,
+        TimestampAware,
+        TemporalityAware,
+        TransportVersionAware,
+        SurrogateExpression,
+        AnyNullIsNull {
+
+    public static final TransportVersion INTRODUCTION_VERSION = TransportVersion.fromName("histogram_merge_over_time_cumulative_exp_histo");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "HistogramMergeOverTime",
-        HistogramMergeOverTime::new
+        "HistogramMergeOverTime_v2", // backwards compatibility
+        HistogramMergeOverTime::readFrom
     );
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.TIME_SERIES_AGGREGATE)
+    private final Expression timestamp;
+    private final Expression temporality;
+
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "exponential_histogram", "tdigest" },
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        briefSummary = "Merges histogram field values over a time window."
+    )
     public HistogramMergeOverTime(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,
-        @Param(name = "window", type = "time_duration", optional = true) Expression window
+        @Param(name = "window", type = "time_duration", optional = true) Expression window,
+        Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), null);
     }
 
-    public HistogramMergeOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+    public HistogramMergeOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        this(source, field, timestamp, filter, window, null);
     }
 
-    private HistogramMergeOverTime(StreamInput in) throws IOException {
-        super(in);
+    public HistogramMergeOverTime(
+        Source source,
+        Expression field,
+        Expression timestamp,
+        Expression filter,
+        Expression window,
+        @Nullable Expression temporality
+    ) {
+        super(source, temporality == null ? List.of(field, timestamp) : List.of(field, timestamp, temporality), filter, window, List.of());
+        this.timestamp = timestamp;
+        this.temporality = temporality;
+    }
+
+    private static HistogramMergeOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new HistogramMergeOverTime(
+            source,
+            field,
+            parameters.getFirst(),
+            filter,
+            window,
+            parameters.size() > 1 ? parameters.get(1) : null
+        );
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return isType(
+            field(),
+            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "exponential_histogram",
+            "tdigest"
+        );
     }
 
     @Override
@@ -67,26 +132,97 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implemen
 
     @Override
     public DataType dataType() {
-        return perTimeSeriesAggregation().dataType();
+        return field().dataType();
     }
 
     @Override
     protected NodeInfo<HistogramMergeOverTime> info() {
-        return NodeInfo.create(this, HistogramMergeOverTime::new, field(), filter(), window());
+        if (temporality != null) {
+            return NodeInfo.create(this, HistogramMergeOverTime::new, field(), timestamp(), filter(), window(), temporality);
+        } else {
+            return NodeInfo.create(
+                this,
+                (source, field, timestamp, filter, window) -> new HistogramMergeOverTime(source, field, timestamp, filter, window, null),
+                field(),
+                timestamp(),
+                filter(),
+                window()
+            );
+        }
     }
 
     @Override
     public HistogramMergeOverTime replaceChildren(List<Expression> newChildren) {
-        return new HistogramMergeOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        // children layout: field, timestamp, [temporality], filter, window
+        boolean hasTemporality = newChildren.size() > 4;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression timestamp = newChildren.get(i++);
+        Expression temporality = hasTemporality ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i);
+        return new HistogramMergeOverTime(source(), field, timestamp, filter, window, temporality);
     }
 
     @Override
-    public HistogramMergeOverTime withFilter(Expression filter) {
-        return new HistogramMergeOverTime(source(), field(), filter, window());
+    public boolean requiredTimeSeriesSource() {
+        return true;
     }
 
     @Override
-    public AggregateFunction perTimeSeriesAggregation() {
-        return new HistogramMerge(source(), field(), filter(), window());
+    public AggregatorFunctionSupplier supplier() {
+        DataType type = field().dataType();
+        if (type == DataType.EXPONENTIAL_HISTOGRAM) {
+            return new IncreaseExponentialHistogramGroupingAggregatorFunction.FunctionSupplier(source());
+        }
+        if (type == DataType.TDIGEST) {
+            throw new IllegalStateException("TDigest type should have caused a surrogate replacement");
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(type);
+    }
+
+    @Override
+    public HistogramMergeOverTime perTimeSeriesAggregation() {
+        return this;
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+
+    @Override
+    public Expression temporality() {
+        return temporality;
+    }
+
+    @Override
+    public HistogramMergeOverTime withTemporality(Expression newTemporality) {
+        return new HistogramMergeOverTime(source(), field(), timestamp(), filter(), window(), newTemporality);
+    }
+
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(INTRODUCTION_VERSION) == false) {
+            DeltaOnlyHistogramMergeOverTime deltaUnsupported = new DeltaOnlyHistogramMergeOverTime(
+                source(),
+                field(),
+                filter(),
+                window(),
+                temporality()
+            );
+            var replacement = deltaUnsupported.forTransportVersion(minTransportVersion);
+            return replacement != null ? replacement : deltaUnsupported;
+        }
+        return null;
+    }
+
+    @Override
+    public Expression surrogate() {
+        if (field().dataType() == DataType.TDIGEST) {
+            // TDigest doesn't support cumulative temporality
+            return new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window(), temporality());
+        }
+        return null;
     }
 }

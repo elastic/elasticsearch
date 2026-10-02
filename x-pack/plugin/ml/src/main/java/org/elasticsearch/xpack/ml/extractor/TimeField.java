@@ -14,7 +14,7 @@ import java.util.Set;
 
 public class TimeField extends AbstractField {
 
-    static final Set<String> TYPES = Set.of("date", "date_nanos");
+    public static final Set<String> TYPES = Set.of("date", "date_nanos");
 
     private static final String EPOCH_MILLIS_FORMAT = "epoch_millis";
 

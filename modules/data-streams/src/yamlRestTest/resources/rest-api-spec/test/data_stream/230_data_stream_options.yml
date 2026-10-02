@@ -92,6 +92,24 @@ teardown:
   - is_false: data_streams.0.options
 
 ---
+"Setting frozen_after on failure store lifecycle via options API is rejected":
+  - requires:
+      reason: "Failure store lifecycle rejecting frozen_after was added in 9.5.1+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_data_stream/{target}/_options
+          capabilities: [ 'failure_store.lifecycle.frozen_after_rejected' ]
+  - do:
+      indices.put_data_stream_options:
+        name: "failure-data-stream"
+        body:
+          failure_store:
+            lifecycle:
+              frozen_after: 30d
+      catch: '/Failure store lifecycle does not support freezing/'
+
+---
 "Test resetting data stream options in template composition":
   - do:
       cluster.put_component_template:

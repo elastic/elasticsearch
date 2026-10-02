@@ -23,8 +23,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -66,10 +67,14 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         "ToAggregateMetricDouble",
         ToAggregateMetricDouble::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToAggregateMetricDouble.class)
+        .unary(ToAggregateMetricDouble::new)
+        .name("to_aggregate_metric_double", "to_aggregatemetricdouble");
 
     @FunctionInfo(
         preview = true,
         returnType = "aggregate_metric_double",
+        briefSummary = "Converts a numeric value to an aggregate_metric_double.",
         description = "Encode a numeric to an aggregate_metric_double.",
         examples = {
             @Example(file = "convert", tag = "toAggregateMetricDouble"),
@@ -173,10 +178,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class DoubleFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class DoubleFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public DoubleFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public DoubleFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -186,14 +191,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new DoubleEvaluator(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record DoubleEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record DoubleEvaluator(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleEvaluator.class);
 
         private Block evalBlock(Block block) {
@@ -202,11 +205,11 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum compensatedSum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = doubleBlock.getValueCount(p);
-                    if (valueCount == 0) {
+                    if (doubleBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = doubleBlock.getValueCount(p);
                     int start = doubleBlock.getFirstValueIndex(p);
                     int end = start + valueCount;
                     if (valueCount == 1) {
@@ -271,10 +274,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class IntFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class IntFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public IntFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public IntFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -284,14 +287,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new IntEvaluator(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record IntEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record IntEvaluator(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntEvaluator.class);
 
         @Override
@@ -308,13 +309,13 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum sum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = intBlock.getValueCount(p);
-                    int start = intBlock.getFirstValueIndex(p);
-                    int end = start + valueCount;
-                    if (valueCount == 0) {
+                    if (intBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = intBlock.getValueCount(p);
+                    int start = intBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
                     if (valueCount == 1) {
                         double current = intBlock.getInt(start);
                         builder.min().appendDouble(current);
@@ -369,10 +370,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class LongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class LongFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public LongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public LongFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -382,14 +383,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new LongEvaluator(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record LongEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record LongEvaluator(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongEvaluator.class);
 
         private Block evalBlock(Block block) {
@@ -398,13 +397,13 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum sum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = longBlock.getValueCount(p);
-                    int start = longBlock.getFirstValueIndex(p);
-                    int end = start + valueCount;
-                    if (valueCount == 0) {
+                    if (longBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = longBlock.getValueCount(p);
+                    int start = longBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
                     if (valueCount == 1) {
                         double current = longBlock.getLong(start);
                         builder.min().appendDouble(current);
@@ -467,10 +466,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class UnsignedLongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class UnsignedLongFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public UnsignedLongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public UnsignedLongFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -480,14 +479,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new UnsignedLong(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record UnsignedLong(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record UnsignedLong(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(UnsignedLong.class);
 
         private Block evalBlock(Block block) {
@@ -496,15 +493,15 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum sum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = longBlock.getValueCount(p);
-                    int start = longBlock.getFirstValueIndex(p);
-                    int end = start + valueCount;
-                    if (valueCount == 0) {
+                    if (longBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = longBlock.getValueCount(p);
+                    int start = longBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
                     if (valueCount == 1) {
-                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(start));
                         builder.min().appendDouble(current);
                         builder.max().appendDouble(current);
                         builder.sum().appendDouble(current);
@@ -514,7 +511,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                     double min = Double.POSITIVE_INFINITY;
                     double max = Double.NEGATIVE_INFINITY;
                     for (int i = start; i < end; i++) {
-                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(i));
                         min = Math.min(min, current);
                         max = Math.max(max, current);
                         sum.add(current);

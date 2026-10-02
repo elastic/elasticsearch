@@ -76,11 +76,11 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             (rerankInput) -> new VoyageAIRerankRequest(
-                rerankInput.getQuery(),
-                rerankInput.getChunks(),
+                rerankInput.getQueryAsString(),
+                rerankInput.getDocsAsStrings(),
                 rerankInput.getReturnDocuments(),
                 rerankInput.getTopN(),
-                model
+                overriddenModel
             ),
             QueryAndDocsInputs.class
         );

@@ -188,8 +188,9 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
     public void testShardSnapshotLifecycleCounters() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             int numberOfShardsStarted = randomIntBetween(5, 15);
+            IndexShardSnapshotStatus startStatus = IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE));
             for (int i = 0; i < numberOfShardsStarted; i++) {
-                metrics.shardSnapshotStarted();
+                metrics.shardSnapshotStarted(startStatus, System.currentTimeMillis());
             }
             assertThat(metrics.getShardSnapshotsInProgress().value(), equalTo(Integer.toUnsignedLong(numberOfShardsStarted)));
 

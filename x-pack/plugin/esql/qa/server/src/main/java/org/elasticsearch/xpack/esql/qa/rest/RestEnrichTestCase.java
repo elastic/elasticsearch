@@ -196,7 +196,9 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
-        Map<String, Object> result = runEsql("from test1 | enrich countries | stats s = sum(number) by country_name");
+        Map<String, Object> result = runEsql(
+            "from test1 | enrich countries | stats s = sum(number) by country_name | sort s, country_name"
+        );
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
         assertResultMap(result, columns, values);

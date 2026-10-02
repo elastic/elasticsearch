@@ -51,6 +51,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomF
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -67,16 +68,14 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     protected HttpServer httpServer;
 
     @Before
-    public void setUp() throws Exception {
+    public void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopHttpServer() throws Exception {
         httpServer.stop(0);
-        super.tearDown();
     }
 
     protected void restartHttpServer() throws IOException {
@@ -273,6 +272,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries)
             .bufferSize(bufferSize)
             .readTimeout(readTimeout)
+            .requestTimeout(TimeValue.timeValueSeconds(1))
             .build();
 
         // HTTP server does not send a response
@@ -325,10 +325,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("unexpected end of file from server")
             )
         );
-        int meaningfulProgressRetries = Math.toIntExact(
-            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
-        );
-        assertEquals(maxRetries + meaningfulProgressRetries, exception.getSuppressed().length);
+        assertExpectedNumberOfSuppressedExceptions(retryContentSizes, meaningfulProgressSize.get(), maxRetries, exception);
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -397,10 +394,33 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 alwaysFlushBody ? never() : containsString("the target server failed to respond")
             )
         );
+        assertExpectedNumberOfSuppressedExceptions(retryContentSizes, meaningfulProgressSize.get(), maxRetries, exception);
+    }
+
+    /**
+     * Assert that we see the same number of suppressed exceptions as we'd expect to see, given the payloads
+     * we delivered on each retry.
+     *
+     * @param sentContentSizes The size of each payload sent
+     * @param meaningfulProgressSize The "meaningful progress" size
+     * @param maxRetries The configured retry limit
+     * @param exception The exception that was thrown
+     */
+    private static void assertExpectedNumberOfSuppressedExceptions(
+        List<Long> sentContentSizes,
+        long meaningfulProgressSize,
+        int maxRetries,
+        Exception exception
+    ) {
         int meaningfulProgressRetries = Math.toIntExact(
-            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
+            sentContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize).count()
         );
-        assertEquals(Math.min(10, maxRetries + meaningfulProgressRetries), exception.getSuppressed().length);
+
+        // Just because the server sent a "meaningful-progress" sized chunk doesn't mean the
+        // client read enough of it to also consider it meaningful
+        final int maximumSuppressed = Math.min(10, maxRetries + meaningfulProgressRetries);
+        final int minimumSuppressed = Math.min(10, maxRetries);
+        assertThat(exception.getSuppressed().length, allOf(greaterThanOrEqualTo(minimumSuppressed), lessThanOrEqualTo(maximumSuppressed)));
     }
 
     private long extractMeaningfulProgressSize(InputStream stream) {
@@ -564,6 +584,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     protected abstract BlobContainer createBlobContainer(
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
+        @Nullable TimeValue requestTimeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable Integer maxConnections,
         @Nullable ByteSizeValue bufferSize,
@@ -576,6 +597,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         private Integer maxRetries;
         @Nullable
         private TimeValue readTimeout;
+        @Nullable
+        private TimeValue requestTimeout;
         @Nullable
         private Boolean disableChunkedEncoding;
         @Nullable
@@ -594,6 +617,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         public TestBlobContainerBuilder readTimeout(@Nullable TimeValue readTimeout) {
             this.readTimeout = readTimeout;
+            return this;
+        }
+
+        public TestBlobContainerBuilder requestTimeout(@Nullable TimeValue requestTimeout) {
+            this.requestTimeout = requestTimeout;
             return this;
         }
 
@@ -626,6 +654,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             return createBlobContainer(
                 maxRetries,
                 readTimeout,
+                requestTimeout,
                 disableChunkedEncoding,
                 maxConnections,
                 bufferSize,

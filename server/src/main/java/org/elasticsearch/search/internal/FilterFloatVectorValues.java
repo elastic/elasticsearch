@@ -40,6 +40,11 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues implemen
     }
 
     @Override
+    public int getVectorByteLength() {
+        return in.getVectorByteLength();
+    }
+
+    @Override
     public float[] vectorValue(int ord) throws IOException {
         return in.vectorValue(ord);
     }
@@ -60,6 +65,11 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues implemen
     @Override
     public VectorScorer scorer(float[] target) throws IOException {
         return in.scorer(target);
+    }
+
+    @Override
+    public VectorScorer rescorer(float[] target) throws IOException {
+        return in.rescorer(target);
     }
 
     @Override

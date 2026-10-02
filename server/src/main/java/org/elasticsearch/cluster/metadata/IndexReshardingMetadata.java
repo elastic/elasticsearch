@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -88,9 +90,16 @@ import java.util.Objects;
  * We only allow at most a single resharding operation to be in flight for an index, so removing this metadata is a prerequisite
  * to beginning another resharding operation.
  */
-public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
+public class IndexReshardingMetadata implements ToXContentFragment, Writeable, Accountable {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexReshardingMetadata.class);
+
     private static final String SPLIT_FIELD_NAME = "split";
     private static final ParseField SPLIT_FIELD = new ParseField(SPLIT_FIELD_NAME);
+
+    // During a reshard split operation, we restrict the split factor to be exactly 2 i.e
+    // we can go from 1 -> 2 shards, or 2 -> 4 shards, and so on.
+    public static final int RESHARD_SPLIT_FACTOR = 2;
+
     // This exists only so that tests can verify that IndexReshardingMetadata supports more than one kind of operation.
     // It can be removed when we have defined a second real operation, such as shrink.
     private static final String NOOP_FIELD_NAME = "noop";
@@ -194,6 +203,11 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
 
     public String toString() {
         return "IndexReshardingMetadata [state=" + state + "]";
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + state.ramBytesUsed();
     }
 
     /**

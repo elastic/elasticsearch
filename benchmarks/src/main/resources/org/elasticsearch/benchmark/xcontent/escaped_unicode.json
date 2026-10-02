@@ -1,0 +1,102 @@
+{
+  "description": "String-heavy corpus that is deliberately hostile to zero-copy UTF-8 parsing: every entry mixes escape sequences with literal multi-byte UTF-8.",
+  "entries": [
+    {
+      "id": "quote-heavy",
+      "title": "He said \"the parser must not copy\", and then said \"but it does\"",
+      "body": "The reviewer wrote: \"a value containing \\\"nested quotes\\\" defeats the fast path\". That is the point of this entry.",
+      "path": "C:\\Users\\benchmark\\corpus\\escaped\\quote-heavy.json",
+      "note": "Backslashes and quotes only, no multi-byte characters.",
+      "tags": ["quotes", "backslash", "ascii"]
+    },
+    {
+      "id": "control-escapes",
+      "title": "Tabs\tand\tnewlines\nin a single value",
+      "body": "line one\nline two\nline three\n\tindented continuation\n\tanother indented line\nend of record\n",
+      "path": "/var/log/benchmark/control\\escapes.log",
+      "note": "Only \\n and \\t appear; \\r is intentionally absent so the record stays platform-neutral.",
+      "tags": ["newline", "tab", "control"]
+    },
+    {
+      "id": "unicode-escapes",
+      "title": "Escaped code points: \u00e9\u00e8\u00ea\u00eb \u00fc\u00f6\u00e4 \u00f1",
+      "body": "Caf\u00e9 na\u00efve fa\u00e7ade \u2014 written entirely with \\uXXXX escapes so the decoder must expand them: \u201cquoted\u201d, \u2018single\u2019, ellipsis\u2026 and a non-breaking\u00a0space.",
+      "path": "/data/\u00e9t\u00e9/2026/rapport.json",
+      "note": "Every accented character here is a \\uXXXX escape, not a literal byte sequence.",
+      "tags": ["escape", "latin1", "punctuation"]
+    },
+    {
+      "id": "latin-literal",
+      "title": "Literal two-byte UTF-8: éèêë üöä ñ ç å ø",
+      "body": "Der Prüfstand läuft über Nacht. La città è già pronta. El niño comió mañana. Æther, Ångström, Œuvre — all written as literal UTF-8 bytes rather than escapes.",
+      "path": "/données/rapport-été.json",
+      "note": "Two-byte sequences only; contrast with the previous entry, which encodes the same characters as escapes.",
+      "tags": ["utf8", "latin", "literal"]
+    },
+    {
+      "id": "cjk-literal",
+      "title": "三字节 UTF-8 序列：中文、日本語、한국어",
+      "body": "これはベンチマーク用のドキュメントです。解析器は三バイトの UTF-8 シーケンスを処理する必要があります。这段文字用于测试解析器对多字节字符的处理速度。이 문서는 파서 성능 측정을 위한 것입니다。",
+      "path": "/データ/索引/문서.json",
+      "note": "Three-byte sequences dominate this record; the byte length is far larger than the character count.",
+      "tags": ["utf8", "cjk", "literal"]
+    },
+    {
+      "id": "emoji-literal",
+      "title": "Four-byte sequences: 🚀 🔥 🧪 📊 🐛",
+      "body": "Deploy went out 🚀, the dashboard lit up 📊, then the on-call pager fired 🔥 and we found the bug 🐛 in the parser fast path 🧪. Surrogate pairs in UTF-16, four bytes in UTF-8.",
+      "path": "/tmp/incident-🔥/notes.json",
+      "note": "Emoji are outside the basic multilingual plane, so a UTF-16 decoder must produce surrogate pairs.",
+      "tags": ["utf8", "emoji", "astral"]
+    },
+    {
+      "id": "escaped-astral",
+      "title": "Surrogate-pair escapes: \ud83d\ude80 \ud83d\udd25 \ud83d\udcca",
+      "body": "The same astral characters as the previous entry, but written as \\uXXXX surrogate pairs: \ud83d\ude80 launch, \ud83e\uddea test, \ud83d\udc1b bug. A parser must recombine the pairs.",
+      "path": "/tmp/escaped-\ud83d\udd25/notes.json",
+      "note": "Exercises the surrogate-pair branch of the escape decoder.",
+      "tags": ["escape", "surrogate", "astral"]
+    },
+    {
+      "id": "mixed-worst-case",
+      "title": "Mixed: \"quoted\" \\ backslash \t tab, café 中文 🚀 and \u00e9 \u4e2d \ud83d\ude80",
+      "body": "Every hostile construct in one value: an escaped quote \\\", a literal backslash \\\\, a tab\tcharacter, a newline\\n rendered literally as two characters, a real newline\nhere, escaped Latin \u00e9, literal Latin é, escaped CJK \u4e2d, literal CJK 中, escaped emoji \ud83d\ude80, literal emoji 🚀.",
+      "path": "/mixed/\\escaped\\café\\中文\\🚀.json",
+      "note": "This is the record that should defeat every zero-copy shortcut.",
+      "tags": ["mixed", "worst-case", "escape", "utf8"]
+    },
+    {
+      "id": "long-clean-ascii",
+      "title": "Control record: no escapes, no multi-byte characters",
+      "body": "This value is long, plain, and entirely ASCII, so the zero-copy path applies to it. Having it in the same document means the corpus is not uniformly hostile, and a measurement can separate the cost of the escape slow path from the cost of simply having long string values to hand back. The sentence continues for a while so that its length is comparable to the hostile records above and the comparison is not confounded by size.",
+      "path": "/clean/ascii/control.json",
+      "note": "Baseline for the records around it.",
+      "tags": ["ascii", "control", "baseline"]
+    },
+    {
+      "id": "short-values",
+      "title": "Many short strings",
+      "body": "Short values stress per-value overhead rather than per-byte throughput.",
+      "path": "/short/values.json",
+      "note": "a\tb\\c\"d é 中 🚀",
+      "tags": ["a", "b", "c", "é", "中", "🚀", "\u00e9", "\u4e2d", "\ud83d\ude80"]
+    },
+    {
+      "id": "urls-and-json-in-strings",
+      "title": "Embedded JSON and URLs",
+      "body": "{\"nested\":\"a JSON document encoded inside a string value\",\"count\":42,\"unicode\":\"café 中文 🚀\"}",
+      "path": "https://example.com/search?q=caf%C3%A9&lang=zh&emoji=%F0%9F%9A%80#résultats",
+      "note": "Escaped braces and quotes appear inside a value, which forces the escape path without any multi-byte bytes.",
+      "tags": ["embedded", "url", "escape"]
+    },
+    {
+      "id": "stack-trace",
+      "title": "A stack trace, the most common real-world escaped value",
+      "body": "java.lang.IllegalArgumentException: unexpected token\n\tat org.elasticsearch.xcontent.provider.json.JsonXContentParser.nextToken(JsonXContentParser.java:112)\n\tat org.elasticsearch.index.mapper.DocumentParser.parseObjectOrNested(DocumentParser.java:512)\n\tat org.elasticsearch.index.mapper.DocumentParser.parseDocument(DocumentParser.java:99)\n\tSuppressed: java.io.IOException: broken pipe\n\t\tat java.base/sun.nio.ch.SocketDispatcher.write0(Native Method)\nCaused by: java.lang.NumberFormatException: For input string: \"não-um-número\"\n\t... 24 more\n",
+      "path": "/var/log/elasticsearch/exception.log",
+      "note": "Log messages carrying stack traces are where escapes actually show up in production data.",
+      "tags": ["stacktrace", "newline", "tab", "escape"]
+    }
+  ],
+  "footer": "End of corpus — fin — 終わり — 🏁"
+}

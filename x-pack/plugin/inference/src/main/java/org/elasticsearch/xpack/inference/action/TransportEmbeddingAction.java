@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -20,6 +19,7 @@ import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
@@ -37,7 +37,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         super(
@@ -50,23 +49,24 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
             inferenceStats,
             streamingTaskManager,
             EmbeddingAction.Request::new,
-            nodeClient,
             threadPool
         );
     }
 
     @Override
     protected boolean isInvalidTaskTypeForInferenceEndpoint(EmbeddingAction.Request request, Model model) {
-        return request.getTaskType().isAnyOrSame(TaskType.EMBEDDING) == false || model.getTaskType() != TaskType.EMBEDDING;
+        assert request.getTaskType().isAnyOrSame(TaskType.EMBEDDING);
+        return model.getTaskType() != TaskType.EMBEDDING;
     }
 
     @Override
     protected ElasticsearchStatusException createInvalidTaskTypeException(EmbeddingAction.Request request, Model model) {
         return new ElasticsearchStatusException(
-            "Incompatible task_type for embedding API, the requested type [{}] must be one of [{}]",
+            "Incompatible task_type for embedding API, the inference endpoint [{}] has task type [{}], expected [{}]",
             RestStatus.BAD_REQUEST,
-            request.getTaskType(),
-            TaskType.EMBEDDING.toString()
+            request.getInferenceEntityId(),
+            model.getTaskType(),
+            TaskType.EMBEDDING
         );
     }
 
@@ -75,8 +75,9 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         Model model,
         EmbeddingAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), listener);
+        service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), taskId, listener);
     }
 }

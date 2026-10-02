@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.node.NodeRoleSettings;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,22 +47,21 @@ public class MachineDependentHeap {
      * Calculate heap options.
      *
      * @param nodeSettings the settings for the node
-     * @param userDefinedJvmOptions JVM arguments provided by the user
+     * @param finalJvmOptions the final JVM options as determined by the JVM
+     * @param userDefinedJvmOptions JVM arguments provided by the user, used for feature flag detection
      * @return final heap options, or an empty collection if user provided heap options are to be used
-     * @throws IOException if unable to load elasticsearch.yml
      */
     public final List<String> determineHeapSettings(
         Settings nodeSettings,
         SystemMemoryInfo systemMemoryInfo,
+        Map<String, JvmOption> finalJvmOptions,
         List<String> userDefinedJvmOptions
-    ) throws IOException, InterruptedException {
+    ) {
         if (userDefinedJvmOptions.contains("-Des.new_ml_memory_computation_feature_flag_enabled=true")
             || NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
             useNewMlMemoryComputation = true;
         }
 
-        // TODO: this could be more efficient, to only parse final options once
-        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
             // User has explicitly set memory settings so we use those
             return Collections.emptyList();

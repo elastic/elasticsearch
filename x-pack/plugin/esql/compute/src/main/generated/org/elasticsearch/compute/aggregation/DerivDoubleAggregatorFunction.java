@@ -11,12 +11,15 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -39,17 +42,12 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
 
   private final boolean dateNanos;
 
-  public DerivDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SimpleLinearRegressionWithTimeseries state, boolean dateNanos) {
+  DerivDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      boolean dateNanos) {
+    this.dateNanos = dateNanos;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.dateNanos = dateNanos;
-  }
-
-  public static DerivDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, boolean dateNanos) {
-    return new DerivDoubleAggregatorFunction(driverContext, channels, DerivDoubleAggregator.initSingle(driverContext, dateNanos), dateNanos);
+    this.state = DerivDoubleAggregator.initSingle(driverContext, dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -77,11 +75,35 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
     LongBlock timestampBlock = page.getBlock(channels.get(1));
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, timestampBlock, mask);
       return;
     }
     LongVector timestampVector = timestampBlock.asVector();
     if (timestampVector == null) {
+      if (timestampBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, timestampBlock, mask);
       return;
     }
@@ -93,11 +115,35 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
     LongBlock timestampBlock = page.getBlock(channels.get(1));
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, timestampBlock);
       return;
     }
     LongVector timestampVector = timestampBlock.asVector();
     if (timestampVector == null) {
+      if (timestampBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, timestampBlock);
       return;
     }
@@ -105,6 +151,33 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector) {
+    if (valueVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double valueValue = specialized.getDouble(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double valueValue = specialized.getDouble(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double valueValue = specialized.getDouble(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       double valueValue = valueVector.getDouble(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
@@ -114,6 +187,42 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector,
       BooleanVector mask) {
+    if (valueVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double valueValue = specialized.getDouble(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double valueValue = specialized.getDouble(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
+    if (valueVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) valueVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double valueValue = specialized.getDouble(valuesPosition);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -181,30 +290,75 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block countUncast = page.getBlock(channels.get(0));
     if (countUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
     Block sumValUncast = page.getBlock(channels.get(1));
     if (sumValUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector sumVal = ((DoubleBlock) sumValUncast).asVector();
     assert sumVal.getPositionCount() == 1;
     Block sumTsUncast = page.getBlock(channels.get(2));
     if (sumTsUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector sumTs = ((DoubleBlock) sumTsUncast).asVector();
     assert sumTs.getPositionCount() == 1;
     Block sumTsValUncast = page.getBlock(channels.get(3));
     if (sumTsValUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector sumTsVal = ((DoubleBlock) sumTsValUncast).asVector();
     assert sumTsVal.getPositionCount() == 1;
     Block sumTsSqUncast = page.getBlock(channels.get(4));
     if (sumTsSqUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector sumTsSq = ((DoubleBlock) sumTsSqUncast).asVector();

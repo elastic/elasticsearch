@@ -84,7 +84,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             threadPool,
             repositoriesService,
             nodeClient,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
@@ -443,7 +443,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
 
     /**
      * This tests whether the {@code SnapshotStatus} API reports {@link SnapshotIndexShardStage#DONE} for
-     * {@link SnapshotsInProgress.ShardState#SUCCESS}. No other API fields are validated for correctness in this test
+     * {@link SnapshotsInProgress.ShardState#SUCCESS} and {@link SnapshotsInProgress.State#STARTED} for a completed snapshot that
+     * is still awaiting finalization. No other API fields are validated for correctness in this test
      */
     public void testSuccessfulSnapshotInProgressShardState() {
         final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
@@ -473,7 +474,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
                 Map.of(),
                 IndexVersion.current()
             ),
-            SnapshotsInProgress.State.SUCCESS,
+            SnapshotsInProgress.State.STARTED,
             SnapshotIndexShardStage.DONE
         );
     }

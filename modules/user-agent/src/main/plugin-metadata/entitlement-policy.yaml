@@ -1,0 +1,8 @@
+org.elasticsearch.useragent:
+  - files:
+      - relative_path: user-agent
+        relative_to: config
+        mode: read
+      - relative_path: ingest-user-agent
+        relative_to: config
+        mode: read

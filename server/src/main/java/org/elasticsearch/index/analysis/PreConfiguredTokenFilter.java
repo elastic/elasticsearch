@@ -142,6 +142,13 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     }
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
+
+                @Override
+                public Object sharingKey() {
+                    // PreConfiguredAnalysisComponent caches per IndexVersion, so the same
+                    // instance is returned across calls — identity-equality shares correctly.
+                    return this;
+                }
             };
         }
         return new TokenFilterFactory() {
@@ -161,6 +168,12 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     return this;
                 }
                 throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Cached per IndexVersion (see PreConfiguredAnalysisComponent#get).
+                return this;
             }
         };
     }

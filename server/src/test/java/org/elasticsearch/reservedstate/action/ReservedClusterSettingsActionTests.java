@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate.action;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -109,6 +110,82 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertNull(updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"));
+    }
+
+    public void testIgnoreRemovedSettings() throws Exception {
+        // Only setting1 remains registered; setting2 was removed from the codebase
+        Setting<String> setting1 = Setting.simpleString("dummy.setting1", "default1", NodeScope, Dynamic);
+        ClusterSettings limitedClusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(setting1));
+        ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(limitedClusterSettings);
+
+        // Build a cluster state that has dummy.setting2 in persistent settings
+        // (it was valid when originally set, but is now removed from the registry)
+        ClusterState stateWithOldSetting = ClusterState.builder(new ClusterName("elasticsearch"))
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(Settings.builder().put("dummy.setting1", "old-value1").put("dummy.setting2", "old-value2").build())
+                    .build()
+            )
+            .build();
+
+        // Previous reserved state tracked both settings
+        TransformState prevState = new TransformState(stateWithOldSetting, Set.of("dummy.setting1", "dummy.setting2"));
+
+        // New config only specifies dummy.setting1 (dummy.setting2 was removed from the registry)
+        String json = """
+            {
+                "dummy": {
+                    "setting1": "new-value1"
+                }
+            }
+            """;
+
+        // Without the fix, this would throw:
+        // IllegalArgumentException: persistent setting [dummy.setting2], not recognized
+        TransformState newState = processJSON(action, prevState, json);
+
+        // dummy.setting2 should be dropped from reserved state keys
+        assertThat(newState.keys(), containsInAnyOrder("dummy.setting1"));
+        // dummy.setting1 should have the new value
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("new-value1"));
+        // dummy.setting2 is no longer present under its own key, but it is not gone: SettingsUpdater archives
+        // settings the registry no longer recognizes, so the value is preserved under the "archived." prefix
+        assertNull(newState.state().metadata().persistentSettings().get("dummy.setting2"));
+        assertThat(newState.state().metadata().persistentSettings().get("archived.dummy.setting2"), is("old-value2"));
+    }
+
+    public void testExistingArchivedSettingDoesNotBlockUpdates() throws Exception {
+        // A setting dropped from the registry ends up archived (see testIgnoreRemovedSettings), and no reserved state
+        // handler owns the archived key, so nothing will ever delete it. Subsequent reserved settings updates must
+        // still apply: for a cluster whose settings are managed exclusively through file-based settings, failing here
+        // would leave the cluster permanently unconfigurable.
+        ClusterState stateWithArchivedSetting = ClusterState.builder(new ClusterName("elasticsearch"))
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(
+                        Settings.builder().put("dummy.setting1", "old-value1").put("archived.dummy.setting2", "old-value2").build()
+                    )
+                    .build()
+            )
+            .build();
+        TransformState prevState = new TransformState(stateWithArchivedSetting, Set.of("dummy.setting1"));
+
+        String json = """
+            {
+                "dummy": {
+                    "setting1": "new-value1"
+                }
+            }
+            """;
+
+        // Without the fix, this would throw:
+        // IllegalArgumentException: unknown setting [archived.dummy.setting2] was archived after upgrading, ...
+        TransformState newState = processJSON(testAction, prevState, json);
+
+        assertThat(newState.keys(), containsInAnyOrder("dummy.setting1"));
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("new-value1"));
+        // the archived setting is left where it is: this handler never owned it, so removing it is not its business
+        assertThat(newState.state().metadata().persistentSettings().get("archived.dummy.setting2"), is("old-value2"));
     }
 
     public void testSettingNameNormalization() throws Exception {

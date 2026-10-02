@@ -1,0 +1,5 @@
+FROM employees
+| EVAL language_code = languages
+| EVAL language_name = 2*salary
+| LOOKUP JOIN languages_lookup ON language_code
+| LIMIT 5 BY language_name

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -44,6 +45,22 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     public void cleanup() {
         deleteTestInferenceEndpoint(RERANK_MODEL_ID, TaskType.RERANK);
         cleanupClusterSettings(InferenceSettings.RERANK_ENABLED_SETTING, InferenceSettings.RERANK_ROW_LIMIT_SETTING);
+    }
+
+    @Override
+    protected QueryPragmas getPragmas() {
+        if (canUseQueryPragmas() == false) {
+            return QueryPragmas.EMPTY;
+        }
+        Settings.Builder settings = Settings.builder();
+        settings.put("task_concurrency", randomLongBetween(1, 4));
+        settings.put("task_queue_size", randomIntBetween(1, 10));
+        settings.put("exchange_buffer_size", randomIntBetween(1, 10));
+        settings.put("exchange_concurrent_clients", randomIntBetween(1, 4));
+        settings.put("data_partitioning", "segment");
+        settings.put("page_size", between(1, 1024));
+        settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 2));
+        return new QueryPragmas(settings.build());
     }
 
     // ============================================
@@ -147,7 +164,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
             | KEEP id, _score
             """, testIndexLarge, RERANK_MODEL_ID);
 
-        try (var resp = run(query)) {
+        try (var resp = run(query, TimeValue.timeValueSeconds(60L))) {
             List<List<Object>> values = getValuesList(resp);
             // Should be limited to exactly the default row limit (1000)
             assertThat(values, hasSize(1000));

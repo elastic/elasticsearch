@@ -94,7 +94,7 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
         msr.decRef();
 
         // Build a response
-        AsyncSearchResponse resp = msr.toAsyncSearchResponse(createAsyncSearchTask(), System.currentTimeMillis() + 60_000, false);
+        AsyncSearchResponse resp = msr.toAsyncSearchResponse(createAsyncSearchTask(), System.currentTimeMillis() + 60_000, false, false);
         try {
             assertNotNull("Expect SearchResponse when a live ref prevents close", resp.getSearchResponse());
             assertNull("No failure expected while ref is held", resp.getFailure());
@@ -227,7 +227,15 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
             new AsyncExecutionId("debug", new TaskId("node", 1L)),
             client,
             threadPool,
-            isCancelled -> () -> new AggregationReduceContext.ForFinal(null, null, null, null, null, PipelineAggregator.PipelineTree.EMPTY),
+            isCancelled -> () -> new AggregationReduceContext.ForFinal(
+                null,
+                null,
+                null,
+                null,
+                null,
+                PipelineAggregator.PipelineTree.EMPTY,
+                null
+            ),
             store
         );
     }

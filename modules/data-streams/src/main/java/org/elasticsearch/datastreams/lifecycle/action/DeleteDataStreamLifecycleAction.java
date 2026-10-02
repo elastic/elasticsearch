@@ -41,10 +41,10 @@ public class DeleteDataStreamLifecycleAction {
                     .matchOpen(true)
                     .matchClosed(true)
                     .includeHidden(false)
-                    .resolveAliases(false)
                     .allowEmptyExpressions(true)
                     .build()
             )
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false))
             .gatekeeperOptions(
                 IndicesOptions.GatekeeperOptions.builder()
                     .allowAliasToMultipleIndices(false)

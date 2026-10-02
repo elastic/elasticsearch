@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.tsid;
 
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidBuilder.TsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTelTsdbDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
 
-    // for "unit" and "_metric_names_hash" that will be added in
-    // MetricDocumentBuilder once the data point group is complete
-    private static final int EXTRA_DIMENSIONS_SIZE = 2;
+    // for "unit", "temporality", and the _metric_names_hash / metric_name added once the group is complete
+    private static final int EXTRA_DIMENSIONS_SIZE = 3;
     private final BufferedByteStringAccessor byteStringAccessor;
 
     private DataPointTsidFunnel(BufferedByteStringAccessor byteStringAccessor) {
@@ -32,6 +34,13 @@ public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
     @Override
     public void add(DataPoint dataPoint, TsidBuilder tsidBuilder) {
         tsidBuilder.add(dataPoint.getAttributes(), AttributeListTsidFunnel.get(byteStringAccessor, "attributes."));
-        tsidBuilder.addStringDimension("unit", dataPoint.getUnit());
+        tsidBuilder.addStringDimension(OTelTsdbDocumentBuilder.UNIT_FIELD, dataPoint.getUnit());
+        AggregationTemporality temporality = dataPoint.getTemporality();
+        if (temporality != null) {
+            tsidBuilder.addStringDimension(
+                OTelTsdbDocumentBuilder.TEMPORALITY_FIELD,
+                OTelTsdbDocumentBuilder.temporalityToString(temporality)
+            );
+        }
     }
 }

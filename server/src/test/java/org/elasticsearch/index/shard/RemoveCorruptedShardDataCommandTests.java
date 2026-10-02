@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -166,6 +166,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         indexShard = newStartedShard(
             p -> newShard(
                 routing,
+                null,
                 shardPath,
                 indexMetadata,
                 null,
@@ -173,7 +174,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 new InternalEngineFactory(),
                 NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             ),
             true
         );
@@ -540,6 +541,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         return newShard(
             shardRouting,
+            null,
             shardPath,
             metadata,
             storeProvider,
@@ -547,7 +549,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
     }
 

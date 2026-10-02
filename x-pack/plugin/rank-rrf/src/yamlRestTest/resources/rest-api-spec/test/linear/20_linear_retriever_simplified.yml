@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: [ "linear_retriever.multi_fields_query_format_support" ]
+      cluster_features: [ "linear_retriever.multi_fields_query_format_support", "semantic_text.element_type_in_index_options" ]
       reason: "Linear retriever multi-fields query format support"
       test_runner_features: [ "close_to", "headers", "contains" ]
 
@@ -76,6 +76,9 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-id
@@ -151,12 +154,18 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-another-id
               text_1:
                 type: semantic_text
                 inference_id: dense-inference-another-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               text_2:
                 type: text
               sparse_vector:
@@ -293,12 +302,14 @@ setup:
 
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "3" }
   - lte: { hits.hits.0._score: 2.0 }
-  - match: { hits.hits.1._id: "2" }
   - lte: { hits.hits.1._score: 2.0 }
-  - match: { hits.hits.2._id: "1" }
   - lte: { hits.hits.2._score: 2.0 }
+  # Document ordering is non-deterministic because all results are equally good lexical matches and a mock inference
+  # service that generates fake embeddings is used for semantic matches
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
 
 ---
 "Lexical match per-field boosting using the simplified format":
@@ -601,6 +612,7 @@ setup:
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"
+
   - do:
       headers:
         Content-Type: application/json
@@ -614,24 +626,25 @@ setup:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "2" }
   - lte: { hits.hits.0._score: 2.0 }
-  - match: { hits.hits.1._id: "3" }
   - lte: { hits.hits.1._score: 2.0 }
-  - match: { hits.hits.2._id: "1" }
   - lte: { hits.hits.2._score: 2.0 }
-  - match: { hits.hits.3._id: "6" }
   - lte: { hits.hits.3._score: 2.0 }
-  - match: { hits.hits.4._id: "4" }
   - lte: { hits.hits.4._score: 2.0 }
-  - match: { hits.hits.5._id: "5" }
   - lte: { hits.hits.5._score: 2.0 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+  - contains: { hits.hits: { _id: "6" } }
 
 ---
 "Queries multiple indices with a list of fields":
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"
+
   - do:
       headers:
         Content-Type: application/json
@@ -646,24 +659,34 @@ setup:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "3" }
   - lte: { hits.hits.0._score: 2.0 }
-  - match: { hits.hits.1._id: "2" }
   - lte: { hits.hits.1._score: 2.0 }
-  - match: { hits.hits.2._id: "1" }
   - lte: { hits.hits.2._score: 2.0 }
-  - match: { hits.hits.3._id: "6" }
   - lte: { hits.hits.3._score: 2.0 }
-  - match: { hits.hits.4._id: "4" }
   - lte: { hits.hits.4._score: 2.0 }
-  - match: { hits.hits.5._id: "5" }
   - lte: { hits.hits.5._score: 2.0 }
+  # Top 3 results are docs 1, 2, 3 (from test-index) in any order
+  - match: { hits.hits.0._index: "test-index" }
+  - match: { hits.hits.1._index: "test-index" }
+  - match: { hits.hits.2._index: "test-index" }
+  # Bottom 3 results are docs 4, 5, 6 (from test-another-index) in any order
+  - match: { hits.hits.3._index: "test-another-index" }
+  - match: { hits.hits.4._index: "test-another-index" }
+  - match: { hits.hits.5._index: "test-another-index" }
+  # Verify all expected docs are present
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+  - contains: { hits.hits: { _id: "6" } }
 
 ---
 "Queries multiple indices with a list of fields with weights":
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"
+
   - do:
       headers:
         Content-Type: application/json
@@ -678,24 +701,34 @@ setup:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "6" }
+  # Top 3 results are docs 4, 5, 6 (from test-another-index) with scores >= 11.0
   - gte: { hits.hits.0._score: 11.0 }
-  - match: { hits.hits.1._id: "4" }
   - gte: { hits.hits.1._score: 11.0 }
-  - match: { hits.hits.2._id: "5" }
   - gte: { hits.hits.2._score: 11.0 }
-  - match: { hits.hits.3._id: "3" }
+  - match: { hits.hits.0._index: "test-another-index" }
+  - match: { hits.hits.1._index: "test-another-index" }
+  - match: { hits.hits.2._index: "test-another-index" }
+  # Bottom 3 results are docs 1, 2, 3 (from test-index) with scores <= 11.0
   - lte: { hits.hits.3._score: 11.0 }
-  - match: { hits.hits.4._id: "2" }
   - lte: { hits.hits.4._score: 11.0 }
-  - match: { hits.hits.5._id: "1" }
   - lte: { hits.hits.5._score: 11.0 }
+  - match: { hits.hits.3._index: "test-index" }
+  - match: { hits.hits.4._index: "test-index" }
+  - match: { hits.hits.5._index: "test-index" }
+  # Verify all expected docs are present
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+  - contains: { hits.hits: { _id: "6" } }
 
 ---
 "Conflicting boosts for inference fields in default_field":
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"
+
   - do:
       catch: bad_request
       search:
@@ -712,6 +745,7 @@ setup:
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"
+
   - do:
       headers:
         Content-Type: application/json
@@ -737,6 +771,7 @@ setup:
   - requires:
       cluster_features: [ "linear_retriever.multi_index_simplified_format_support" ]
       reason: "Support for querying multiple indices in simplified linear retriever"
+
   - do:
       headers:
         Content-Type: application/json
@@ -751,15 +786,24 @@ setup:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "6" }
+  # Top 3 results are docs 4, 5, 6 (from test-another-index) with scores >= 11.0
   - gte: { hits.hits.0._score: 11.0 }
-  - match: { hits.hits.1._id: "4" }
   - gte: { hits.hits.1._score: 11.0 }
-  - match: { hits.hits.2._id: "5" }
   - gte: { hits.hits.2._score: 11.0 }
-  - match: { hits.hits.3._id: "9" }
+  - match: { hits.hits.0._index: "test-another-index" }
+  - match: { hits.hits.1._index: "test-another-index" }
+  - match: { hits.hits.2._index: "test-another-index" }
+  # Bottom 3 results are docs 7, 8, 9 (from test-index-with-default-field) with scores <= 11.0
   - lte: { hits.hits.3._score: 11.0 }
-  - match: { hits.hits.4._id: "8" }
   - lte: { hits.hits.4._score: 11.0 }
-  - match: { hits.hits.5._id: "7" }
   - lte: { hits.hits.5._score: 11.0 }
+  - match: { hits.hits.3._index: "test-index-with-default-field" }
+  - match: { hits.hits.4._index: "test-index-with-default-field" }
+  - match: { hits.hits.5._index: "test-index-with-default-field" }
+  # Verify all expected docs are present
+  - contains: { hits.hits: { _id: "4" } }
+  - contains: { hits.hits: { _id: "5" } }
+  - contains: { hits.hits: { _id: "6" } }
+  - contains: { hits.hits: { _id: "7" } }
+  - contains: { hits.hits: { _id: "8" } }
+  - contains: { hits.hits: { _id: "9" } }

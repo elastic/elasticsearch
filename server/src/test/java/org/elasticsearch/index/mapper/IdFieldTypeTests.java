@@ -20,13 +20,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 public class IdFieldTypeTests extends ESTestCase {
 
     public void testRangeQuery() {
-        MappedFieldType ft = randomBoolean()
-            ? new ProvidedIdFieldMapper.IdFieldType(() -> false)
-            : TsidExtractingIdFieldMapper.INSTANCE.fieldType();
+        MappedFieldType ft = randomBoolean() ? new ProvidedIdFieldMapper.IdFieldType() : TsidExtractingIdFieldMapper.INSTANCE.fieldType();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
@@ -49,17 +48,21 @@ public class IdFieldTypeTests extends ESTestCase {
         IndexSettings mockSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
         Mockito.when(context.indexVersionCreated()).thenReturn(IndexVersion.current());
-        MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
+        MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType();
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("id"))), query);
     }
 
     public void testIsAggregatable() {
-        MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
+        boolean[] enabled = new boolean[1];
+        BooleanSupplier idFieldDataEnabled = () -> enabled[0];
+        MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType();
         assertFalse(ft.isAggregatable());
+        assertFalse(ft.isAggregatable(idFieldDataEnabled));
 
-        ft = new ProvidedIdFieldMapper.IdFieldType(() -> true);
-        assertTrue(ft.isAggregatable());
+        enabled[0] = true;
+        assertFalse(ft.isAggregatable());
+        assertTrue(ft.isAggregatable(idFieldDataEnabled));
 
         assertFalse(TsidExtractingIdFieldMapper.INSTANCE.fieldType().isAggregatable());
     }

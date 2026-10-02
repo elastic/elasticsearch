@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 
+import static java.net.InetAddress.getByName;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.parseIp6Prefix;
 import static org.hamcrest.Matchers.contains;
@@ -101,15 +102,29 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
         {
             CompiledAutomaton a = buildIpPrefixAutomaton("0");
             assertTrue(accepts(a, "0.2.3.4"));
+            assertTrue(accepts(a, "0:1234::1"));
+            assertTrue(accepts(a, "0:abcd:ef01:2345:6789:abcd:ef01:2345"));
+            assertTrue(accepts(a, "0:517::b12a:6a52:0:0"));
             assertFalse(accepts(a, "::1.1.2.3"));
             assertFalse(accepts(a, "1c7:21d6:ffff:ffff:6852:f279::"));
+            // the next is not an IP4 address, so the condensed display form we are expecting from the TermsEnum
+            // output is "::7f00:1" and shouldn't match
             assertFalse(accepts(a, "0000::127.0.0.1"));
+            assertEquals("::7f00:1", NetworkAddress.format(getByName("0000::127.0.0.1")));
+            // same for more than one leading 0, those get condensed to "::" in the terms API output, so we shouldn't match them
+            assertFalse(accepts(a, "0:0:0::127.0.0.1"));
+            assertEquals("::7f00:1", NetworkAddress.format(getByName("0:0:0::127.0.0.1")));
+            assertFalse(accepts(a, "::1"));
+            assertFalse(accepts(a, "::"));
+            assertFalse(accepts(a, "::1:0:0:0:0:0"));
         }
         {
             CompiledAutomaton a = buildIpPrefixAutomaton("00");
             assertFalse(accepts(a, "0.2.3.4"));
             assertFalse(accepts(a, "::1.1.2.3"));
             assertFalse(accepts(a, "c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(accepts(a, "0:1234::1"));
+            assertFalse(accepts(a, "0:abcd:ef01:2345:6789:abcd:ef01:2345"));
             assertFalse(accepts(a, "0000::127.0.0.1"));
         }
         {
@@ -117,6 +132,8 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             assertTrue(accepts(a, "0.2.3.4"));
             assertTrue(accepts(a, "::1.1.2.3"));
             assertTrue(accepts(a, "0:21d6:ffff:ffff:6852:f279::"));
+            assertTrue(accepts(a, "0:1234::1"));
+            assertTrue(accepts(a, "0:abcd:ef01:2345:6789:abcd:ef01:2345"));
             assertTrue(accepts(a, "0000::127.0.0.1"));
             assertFalse(accepts(a, "0001:21d6:ffff:ffff:6852:f279::"));
         }
@@ -183,7 +200,7 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
     }
 
     private static boolean accepts(CompiledAutomaton compiledAutomaton, String address) throws UnknownHostException {
-        byte[] encoded = InetAddressPoint.encode(InetAddress.getByName(address));
+        byte[] encoded = InetAddressPoint.encode(getByName(address));
         return compiledAutomaton.runAutomaton.run(encoded, 0, encoded.length);
     }
 

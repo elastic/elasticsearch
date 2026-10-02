@@ -1,0 +1,3 @@
+Project[[$$Positions$${r}#0, _meta_field{f}#1, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#5, job{f}#6, job.raw{f}#7, languages{f}#8, last_name{f}#9, long_noidx{f}#10, salary{f}#11]]
+\_Filter[MATCH(job{f}#6,engineer[KEYWORD])]
+  \_ParameterizedQuery[[_doc{f}#12, $$Positions$${r}#0, _meta_field{f}#1, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#5, job{f}#6, job.raw{f}#7, languages{f}#8, last_name{f}#9, long_noidx{f}#10, salary{f}#11],[MatchConfig[fieldName=first_name, channel=0, type=KEYWORD]],first_name{f}#13 == first_name{f}#3,false]

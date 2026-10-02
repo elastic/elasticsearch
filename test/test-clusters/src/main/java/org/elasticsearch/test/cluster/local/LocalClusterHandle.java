@@ -105,6 +105,13 @@ public interface LocalClusterHandle extends ClusterHandle {
     void upgradeToVersion(Version version);
 
     /**
+     * Perform a rolling upgrade to the given version.
+     * @param version               The version to upgrade to.
+     * @param onNodeUpgradeComplete A callback that is invoked after each node is upgraded.
+     */
+    void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete);
+
+    /**
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);
@@ -113,6 +120,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * Returns the {@link Path} to the given node's config directory.
      */
     Path getNodeConfigPath(int index);
+
+    /**
+     * Returns the {@link Path} to the given node's data directory.
+     */
+    Path getNodeDataPath(int index);
 
     /**
      * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure

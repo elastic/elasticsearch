@@ -10,8 +10,10 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
@@ -83,6 +85,24 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(Iterators.single((builder, innerParam) -> builder.field(name)), value.toXContentChunked(params));
     }
 
+    /**
+     * Creates an Iterator to serialize a named field where the value is represented by a {@link ChunkedToXContentObject} and can be null.
+     * Chunked equivalent for {@code XContentBuilder field(String name, ToXContent value)}.
+     * If the value is null, an empty iterator is returned.
+     *
+     * @param name name of the field
+     * @param value value for this field, or null if the field should be omitted
+     * @param params params to propagate for XContent serialization
+     * @return Iterator composing field name and value serialization
+     */
+    public static Iterator<ToXContent> nullableField(String name, @Nullable ChunkedToXContentObject value, ToXContent.Params params) {
+        if (value == null) {
+            return Collections.emptyIterator();
+        }
+
+        return field(name, value, params);
+    }
+
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(startArray(name), contents, endArray());
     }
@@ -121,4 +141,28 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(item);
     }
 
+    /**
+     * Creates an Iterator of a single ToXContent object that serializes the given field as a single chunk,
+     * or an empty iterator if the value is null.
+     * @param name name of the field
+     * @param value value for this field, or null if the field should be omitted
+     * @return iterator for the given field, or an empty iterator if the value is null
+     */
+    public static Iterator<ToXContent> nullableChunk(String name, @Nullable Object value) {
+        if (value == null) {
+            return Collections.emptyIterator();
+        } else {
+            return ChunkedToXContentHelper.chunk((b, p) -> b.field(name, value));
+        }
+    }
+
+    /**
+     * Serializes a fragment, or nothing at all when it is null.
+     *
+     * @param value the fragment to write if not null
+     * @param params params to propagate for XContent serialization
+     */
+    public static Iterator<? extends ToXContent> nullableFragment(@Nullable ChunkedToXContent value, ToXContent.Params params) {
+        return value == null ? Collections.emptyIterator() : value.toXContentChunked(params);
+    }
 }

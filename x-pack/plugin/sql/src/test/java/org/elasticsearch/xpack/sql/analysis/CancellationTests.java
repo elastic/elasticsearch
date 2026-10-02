@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -88,7 +90,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
@@ -142,7 +144,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
         countDownLatch.await();
         verify(client, times(1)).fieldCaps(any(), any());
         verify(client, times(1)).settings();
@@ -184,7 +186,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
-            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0));
+            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY));
             return null;
         }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
 
@@ -232,7 +234,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());

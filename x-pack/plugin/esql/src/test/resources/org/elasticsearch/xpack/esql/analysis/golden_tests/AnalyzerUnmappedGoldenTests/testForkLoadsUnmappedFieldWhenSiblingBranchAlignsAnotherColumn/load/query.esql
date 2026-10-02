@@ -1,0 +1,5 @@
+SET unmapped_fields="load"; FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (EVAL branch_tag = "two")
+| KEEP _fork, message, unmapped_message, branch_tag
+| SORT _fork, message

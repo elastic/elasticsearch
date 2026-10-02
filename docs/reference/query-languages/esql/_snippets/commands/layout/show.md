@@ -6,18 +6,18 @@ stack: ga
 The `SHOW` source command returns information about the deployment and
 its capabilities.
 
-**Syntax**
+## Syntax
 
 ```esql
 SHOW item
 ```
 
-**Parameters**
+## Parameters
 
 `item`
 :   Can only be `INFO`.
 
-**Examples**
+## Examples
 
 Use `SHOW INFO` to return the deployment’s version, build date and hash.
 

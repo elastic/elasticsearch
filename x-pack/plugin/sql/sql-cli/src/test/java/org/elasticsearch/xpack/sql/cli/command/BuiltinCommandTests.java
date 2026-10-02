@@ -132,4 +132,17 @@ public class BuiltinCommandTests extends SqlCliTestCase {
         testTerminal.clear();
     }
 
+    public void testProjectRouting() {
+        TestTerminal testTerminal = new TestTerminal();
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
+        ProjectRoutingCliCommand cliCommand = new ProjectRoutingCliCommand();
+        assertFalse(cliCommand.handle(testTerminal, cliSession, "project_routing"));
+        assertNull(cliSession.cfg().projectRouting());
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "project_routing = _alias:_origin"));
+        assertEquals("_alias:_origin", cliSession.cfg().projectRouting());
+        assertEquals("project_routing set to <em>_alias:_origin</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
+    }
+
 }

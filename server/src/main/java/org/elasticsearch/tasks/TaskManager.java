@@ -56,6 +56,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -91,6 +92,8 @@ public class TaskManager implements ClusterStateApplier {
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
+
+    private final List<AddedTaskListener> addedTaskListeners = new CopyOnWriteArrayList<>();
 
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
@@ -172,6 +175,9 @@ public class TaskManager implements ClusterStateApplier {
             if (traceRequest) {
                 maybeStartTrace(threadContext, task);
             }
+        }
+        for (AddedTaskListener listener : addedTaskListeners) {
+            listener.onAdded(task);
         }
         return task;
     }
@@ -367,6 +373,14 @@ public class TaskManager implements ClusterStateApplier {
         removedTaskListeners.remove(removedTaskListener);
     }
 
+    public void registerAddedTaskListener(AddedTaskListener addedTaskListener) {
+        addedTaskListeners.add(addedTaskListener);
+    }
+
+    public void unregisterAddedTaskListener(AddedTaskListener addedTaskListener) {
+        addedTaskListeners.remove(addedTaskListener);
+    }
+
     /**
      * Register a connection on which a child task will execute on the target connection. The returned {@link Releasable} must be called
      * to unregister the child connection once the child task is completed or failed.
@@ -415,7 +429,7 @@ public class TaskManager implements ClusterStateApplier {
             listener.onFailure(ex);
             return;
         }
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onFailure(error);
@@ -449,7 +463,7 @@ public class TaskManager implements ClusterStateApplier {
             return;
         }
 
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onResponse(response);
@@ -461,6 +475,14 @@ public class TaskManager implements ClusterStateApplier {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void storeTaskResult(Task task, TaskResult taskResult, ActionListener<Void> listener) {
+        if (task.useCreateSemanticsForResultStorage()) {
+            taskResultsService.storeResultIfAbsent(taskResult, listener);
+        } else {
+            taskResultsService.storeResult(taskResult, listener);
+        }
     }
 
     /**
@@ -506,6 +528,47 @@ public class TaskManager implements ClusterStateApplier {
             return holder.getTask();
         } else {
             return null;
+        }
+    }
+
+    /**
+     * Information about a cancellable task.
+     *
+     * @param task the cancellable task
+     * @param elapsedNanos how long the task has been running in nanoseconds
+     * @param hasOutstandingChildren true if this task has child tasks that haven't completed yet
+     */
+    public record CancellableTaskInfo(CancellableTask task, long elapsedNanos, boolean hasOutstandingChildren) {}
+
+    /**
+     * Iterates over cancellable tasks that have been running longer than the specified threshold.
+     * This method avoids allocating collections by iterating directly over the internal concurrent map.
+     * <p>
+     * The predicate receives information about each task including whether it has outstanding child tasks,
+     * allowing the caller to implement task-type-specific logic without TaskManager needing to know
+     * about specific task types. Return {@code false} from the predicate to stop iteration early.
+     *
+     * @param minElapsedNanos minimum elapsed time in nanoseconds; tasks running shorter are skipped
+     * @param processor callback for each task exceeding the threshold; return false to stop iteration
+     */
+    public void forEachCancellableTask(long minElapsedNanos, Predicate<CancellableTaskInfo> processor) {
+        if (minElapsedNanos <= 0) {
+            return;
+        }
+
+        final long now = threadPool.relativeTimeInNanos();
+
+        for (CancellableTaskHolder holder : cancellableTasks.values()) {
+            CancellableTask task = holder.getTask();
+            long elapsed = now - task.getStartTimeNanos();
+
+            if (elapsed >= minElapsedNanos) {
+                Map<Transport.Connection, Integer> children = holder.childTasksPerConnection;
+                boolean hasOutstandingChildren = children != null && children.isEmpty() == false;
+                if (processor.test(new CancellableTaskInfo(task, elapsed, hasOutstandingChildren)) == false) {
+                    return;
+                }
+            }
         }
     }
 
@@ -605,11 +668,17 @@ public class TaskManager implements ClusterStateApplier {
         lastDiscoveryNodes = event.state().getNodes();
     }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
     private static class CancellableTaskHolder {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private Map<Transport.Connection, Integer> childTasksPerConnection = null;
+        // volatile for safe unsynchronized reads in forEachCancellableTask
+        // writes are synchronized already so the volatile modified costs nothing on the write path
+        private volatile Map<Transport.Connection, Integer> childTasksPerConnection = null;
         private String banChildrenReason;
         private List<Runnable> childTaskCompletedListeners = null;
 

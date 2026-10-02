@@ -12,6 +12,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -26,6 +27,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,6 +38,9 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -44,11 +51,10 @@ import java.util.concurrent.ConcurrentMap;
  * <p>
  * Currently, the cache is only enabled for count requests, and can only be opted in on an index
  * level setting that can be dynamically changed and defaults to false.
- * <p>
- * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
- * is functional.
  */
 public final class IndicesRequestCache implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -70,6 +76,12 @@ public final class IndicesRequestCache implements Closeable {
         new TimeValue(0),
         Property.NodeScope
     );
+
+    /**
+     * How many times a request reloads an entry after inheriting a cancellation before it loads the value for itself. Exceeding the
+     * cap costs one uncached load rather than a failure.
+     */
+    private static final int MAX_INHERITED_CANCELLATION_RELOADS = 3;
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
@@ -97,21 +109,36 @@ public final class IndicesRequestCache implements Closeable {
         cleanCache();
     }
 
+    /**
+     * Get or compute a cache entry with cancellation support.
+     *
+     * @param cacheEntity           the cache entity
+     * @param loader                the loader to compute the value if not cached
+     * @param mappingCacheKey       the mapping cache key
+     * @param reader                the directory reader
+     * @param cacheKey              the cache key
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled.
+     *                              This allows waiting threads to be notified instantly when their task is cancelled,
+     *                              rather than polling.
+     * @return the cached or computed value
+     * @throws Exception if the computation fails or this request is cancelled
+     */
     BytesReference getOrCompute(
         CacheEntity cacheEntity,
         CheckedSupplier<BytesReference, IOException> loader,
         MappingLookup.CacheKey mappingCacheKey,
         DirectoryReader reader,
-        BytesReference cacheKey
+        BytesReference cacheKey,
+        Consumer<Runnable> cancellationRegistrar
     ) throws Exception {
         final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
         assert cacheHelper != null;
         final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = cache.computeIfAbsent(key, cacheLoader);
+        BytesReference value = compute(key, cacheLoader, cancellationRegistrar);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // see if it's the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
             if (registeredClosedListeners.containsKey(cleanupKey) == false) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -135,20 +162,75 @@ public final class IndicesRequestCache implements Closeable {
     }
 
     /**
-     * Invalidates the given the cache entry for the given key and it's context
+     * Loads the entry through the cache. A {@link TaskCancelledException} inherited from a computation started by another request
+     * belongs to that request, so the value is loaded again rather than failed. Cancellation is propagated instead when it came from
+     * this thread's own load, or when this request has been cancelled too. Once the reloads run out the value is loaded outside the
+     * cache.
+     */
+    private BytesReference compute(Key key, Loader cacheLoader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
+        AtomicBoolean cancelled = null;
+        for (int reloads = 0;; reloads++) {
+            try {
+                return cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
+            } catch (ExecutionException e) {
+                if (cacheLoader.isLoadAttempted() || ExceptionsHelper.unwrap(e, TaskCancelledException.class) == null) {
+                    throw e;
+                }
+                if (cancelled == null) {
+                    cancelled = watchForCancellation(cancellationRegistrar);
+                }
+                if (cancelled.get()) {
+                    throw e;
+                }
+                if (reloads == MAX_INHERITED_CANCELLATION_RELOADS) {
+                    logger.debug(
+                        "loading request cache entry for [{}] outside the cache, every reload was given a cancellation",
+                        key.entity.getCacheIdentity()
+                    );
+                    try {
+                        return cacheLoader.loadWithoutCaching();
+                    } catch (Exception loadFailure) {
+                        throw new ExecutionException(loadFailure);
+                    }
+                }
+                logger.debug(
+                    "reloading request cache entry for [{}], the computation it waited on was cancelled by another request",
+                    key.entity.getCacheIdentity()
+                );
+            }
+        }
+    }
+
+    /**
+     * The returned flag is set once this request is cancelled, and is already set if it was cancelled before this call, since
+     * registering with an already-cancelled task runs the callback straight away.
+     */
+    private static AtomicBoolean watchForCancellation(Consumer<Runnable> cancellationRegistrar) {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        if (cancellationRegistrar != null) {
+            cancellationRegistrar.accept(() -> cancelled.set(true));
+        }
+        return cancelled;
+    }
+
+    /**
+     * Invalidates the given cache entry for the given key and its context
      * @param cacheEntity the cache entity to invalidate for
+     * @param mappingCacheKey the mapping cache key to invalidate the cache entry for
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
-        assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        cache.invalidate(new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey));
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;
+        private boolean loadAttempted;
         private boolean loaded;
 
         Loader(CacheEntity entity, CheckedSupplier<BytesReference, IOException> loader) {
@@ -160,10 +242,24 @@ public final class IndicesRequestCache implements Closeable {
             return this.loaded;
         }
 
+        /**
+         * Whether this loader ran, whatever the outcome. Unlike {@link #isLoaded()} this is true for a load which threw, which tells
+         * the caller that a failure is its own.
+         */
+        public boolean isLoadAttempted() {
+            return this.loadAttempted;
+        }
+
         @Override
         public BytesReference load(Key key) throws Exception {
-            BytesReference value = loader.get();
+            BytesReference value = loadWithoutCaching();
             entity.onCached(key, value);
+            return value;
+        }
+
+        BytesReference loadWithoutCaching() throws IOException {
+            loadAttempted = true;
+            BytesReference value = loader.get();
             loaded = true;
             return value;
         }

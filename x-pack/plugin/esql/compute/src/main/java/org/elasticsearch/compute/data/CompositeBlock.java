@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implements Block {
+public final class CompositeBlock extends AbstractBlockRefCounted implements Block {
     private final Block[] blocks;
     private final int positionCount;
 
@@ -116,12 +116,18 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public int valueMaxByteSize() {
+        throw new UnsupportedOperationException("composite blocks do not have a single value byte size");
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return blocks[0].blockFactory();
     }
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }
@@ -151,12 +157,33 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
-    public CompositeBlock filter(int... positions) {
+    public Block slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        CompositeBlock result = null;
+        final Block[] slicedBlocks = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                slicedBlocks[i] = blocks[i].slice(beginInclusive, endExclusive);
+            }
+            result = new CompositeBlock(slicedBlocks);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(slicedBlocks);
+            }
+        }
+    }
+
+    @Override
+    public CompositeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = blocks[i].filter(positions);
+                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions, offset, length);
             }
             result = new CompositeBlock(filteredBlocks);
             return result;
@@ -165,6 +192,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
                 Releasables.close(filteredBlocks);
             }
         }
+    }
+
+    @Override
+    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override

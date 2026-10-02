@@ -30,7 +30,8 @@ public abstract class RegexExtract extends UnaryPlan
         PostAnalysisVerificationAware,
         Streaming,
         SortAgnostic,
-        SortPreserving {
+        SortPreserving,
+        DocPreserving {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 
@@ -104,9 +105,9 @@ public abstract class RegexExtract extends UnaryPlan
     }
 
     @Override
-    public void postAnalysisVerification(Failures failures) {
+    public final void postAnalysisVerification(Failures failures) {
         DataType type = input.dataType();
-        if (DataType.isString(type) == false) {
+        if (DataType.isNull(type) == false && DataType.isString(type) == false) {
             failures.add(
                 fail(
                     input,

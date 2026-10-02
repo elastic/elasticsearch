@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
@@ -44,13 +45,19 @@ public class ProcessedFieldTests extends ESTestCase {
 
     public void testMissingExtractor() {
         ProcessedField processedField = new ProcessedField(makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "baz"));
-        assertThat(processedField.value(makeHit(), null, (s) -> null), emptyArray());
+        SearchHit hit = makeHit();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            assertThat(processedField.value(hitRef.get(), null, (s) -> null), emptyArray());
+        }
     }
 
     public void testMissingInputValues() {
         ExtractedField extractedField = makeExtractedField(new Object[0]);
         ProcessedField processedField = new ProcessedField(makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "baz"));
-        assertThat(processedField.value(makeHit(), null, (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
+        SearchHit hit = makeHit();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            assertThat(processedField.value(hitRef.get(), null, (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
+        }
     }
 
     public void testProcessedFieldFrequencyEncoding() {
@@ -101,12 +108,15 @@ public class ProcessedFieldTests extends ESTestCase {
         assert inputs.length == expectedOutputs.length;
         for (int i = 0; i < inputs.length; i++) {
             Object input = inputs[i];
-            Object[] result = processedField.value(makeHit(input), null, (s) -> makeExtractedField(new Object[] { input }));
-            assertThat(
-                "Input [" + input + "] Expected " + Arrays.toString(expectedOutputs[i]) + " but received " + Arrays.toString(result),
-                result,
-                equalTo(expectedOutputs[i])
-            );
+            SearchHit hit = makeHit(input);
+            try (var hitRef = ReleasableRef.of(hit)) {
+                Object[] result = processedField.value(hitRef.get(), null, (s) -> makeExtractedField(new Object[] { input }));
+                assertThat(
+                    "Input [" + input + "] Expected " + Arrays.toString(expectedOutputs[i]) + " but received " + Arrays.toString(result),
+                    result,
+                    equalTo(expectedOutputs[i])
+                );
+            }
         }
     }
 

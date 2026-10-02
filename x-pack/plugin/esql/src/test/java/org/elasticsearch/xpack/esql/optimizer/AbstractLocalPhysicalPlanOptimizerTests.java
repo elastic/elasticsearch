@@ -27,11 +27,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -41,10 +39,12 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
@@ -82,9 +82,10 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
     @Before
     public void init() {
         EnrichResolution enrichResolution = new EnrichResolution();
+        // Not exercised by any "ENRICH foo" query in this class or its subclasses today; Source.EMPTY is a harmless
+        // placeholder key since EnrichResolution is now keyed by the originating Enrich node's Source, not by name/mode alone.
         enrichResolution.addResolvedPolicy(
-            "foo",
-            Enrich.Mode.ANY,
+            Source.EMPTY,
             new ResolvedEnrichPolicy(
                 "fld",
                 EnrichPolicy.MATCH_TYPE,
@@ -104,7 +105,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         timeSeriesAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(timeSeriesIndex),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -114,7 +115,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         plannerOptimizerTimeSeries = new TestPlannerOptimizer(
             config,
             timeSeriesAnalyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
         );
     }
 
@@ -125,13 +126,13 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         return new Analyzer(
             testAnalyzerContext(
                 config,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), new XPackLicenseState(() -> 0L))
         );
     }
 
@@ -143,12 +144,12 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         return new Analyzer(
             testAnalyzerContext(
                 config,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(indexResolution),
                 new EnrichResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), new XPackLicenseState(() -> 0L))
         );
     }
 

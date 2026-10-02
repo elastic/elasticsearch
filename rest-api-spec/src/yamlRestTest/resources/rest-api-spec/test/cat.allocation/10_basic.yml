@@ -53,9 +53,9 @@
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
-                [-\w.]+                \s+
-                \d+(\.\d+){3}          \s+
-                [-\w.]+                \s+
+                [-\w.%:]+             \s+
+                [-\w.:]+              \s+
+                [-\w.]+               \s+
                 [\w]+
                 \n
               )+
@@ -90,9 +90,9 @@
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                 (\d+                  \s+)?  #no value from client nodes
-                [-\w.]+                \s+
-                \d+(\.\d+){3}          \s+
-                [-\w.]+                \s+
+                [-\w.%:]+             \s+
+                [-\w.:]+              \s+
+                [-\w.]+               \s+
                 [\w]+
                 \n
               )
@@ -131,9 +131,9 @@
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                  (\d+                  \s+)?  #no value from client nodes
-                 [-\w.]+                \s+
-                 \d+(\.\d+){3}          \s+
-                 [-\w.]+                \s+
+                 [-\w.%:]+             \s+
+                 [-\w.:]+              \s+
+                 [-\w.]+               \s+
                  [\w]+
                  \n
                )+
@@ -183,9 +183,9 @@
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
-                [-\w.]+                \s+
-                \d+(\.\d+){3}          \s+
-                [-\w.]+                \s+
+                [-\w.%:]+             \s+
+                [-\w.:]+              \s+
+                [-\w.]+               \s+
                 [\w]+
                 \n
               )+
@@ -250,9 +250,9 @@
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
-                [-\w.]+             \s+
+               [-\w.%:]+             \s+
+               [-\w.:]+              \s+
+                [-\w.]+               \s+
                 [\w]+
                 \n
               )+

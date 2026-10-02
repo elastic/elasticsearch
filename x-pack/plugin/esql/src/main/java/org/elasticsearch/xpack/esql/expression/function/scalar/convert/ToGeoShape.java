@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -40,6 +43,7 @@ public class ToGeoShape extends AbstractConvertFunction {
         "ToGeoShape",
         ToGeoShape::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeoShape.class).unary(ToGeoShape::new).name("to_geoshape");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
@@ -52,7 +56,9 @@ public class ToGeoShape extends AbstractConvertFunction {
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "geo_shape",
+        briefSummary = "Converts a value to a geo_shape.",
         description = """
             Converts an input value to a `geo_shape` value.
             A string will only be successfully converted if it respects the

@@ -1,0 +1,4 @@
+SET unmapped_fields="load"; FROM languages
+| WHERE language_code == 1
+| STATS c = COUNT(*) + language_code
+        BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name

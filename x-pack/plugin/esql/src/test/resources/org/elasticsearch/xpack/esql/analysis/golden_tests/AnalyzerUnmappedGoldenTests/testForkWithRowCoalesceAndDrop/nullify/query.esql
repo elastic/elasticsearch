@@ -1,0 +1,4 @@
+SET unmapped_fields="nullify"; ROW a = 12::long
+| fork (where true)
+| eval x = Coalesce(a, 5)
+| drop a

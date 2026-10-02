@@ -158,7 +158,7 @@ public class QueryToFilterAdapter {
         if (query instanceof PointRangeQuery q1 && extraQuery instanceof PointRangeQuery q2) {
             return MergedPointRangeQuery.merge(q1, q2);
         }
-        return null;
+        return MergedDocValuesRangeQuery.merge(query, extraQuery);
     }
 
     private static Query unwrap(Query query) {

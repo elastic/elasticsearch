@@ -1,0 +1,7 @@
+SET unmapped_fields="nullify"; FROM employees, // adding a "main" index/pattern makes does_not_exist2 & 3 resolved (compared to the same query above, w/o it)
+    (FROM languages
+     | STATS c = COUNT(*) BY emp_no, does_not_exist1),
+    (FROM languages
+     | STATS a = AVG(salary))
+| WHERE does_not_exist2::LONG < 10
+| EVAL x = does_not_exist3

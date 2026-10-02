@@ -96,7 +96,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                 watchBuilder().trigger(schedule(cron("0 0 0 1 * ? 2020")))
                     .input(
                         httpInput(
-                            HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
+                            HttpRequestTemplate.builder("localhost", webServer.getPort())
                                 .path("/")
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))
                         )
@@ -184,7 +184,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                     .addAction(
                         "_webhook",
                         webhookAction(
-                            HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
+                            HttpRequestTemplate.builder("localhost", webServer.getPort())
                                 .path("/")
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))
                         )

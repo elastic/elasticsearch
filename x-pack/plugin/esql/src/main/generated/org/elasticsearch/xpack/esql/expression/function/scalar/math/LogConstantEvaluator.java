@@ -13,31 +13,34 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Log}.
+ * {@link ExpressionEvaluator} implementation for {@link Log}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class LogConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class LogConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LogConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
+
+  private final boolean allowNonFinite;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public LogConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
+  public LogConstantEvaluator(Source source, ExpressionEvaluator value, boolean allowNonFinite,
       DriverContext driverContext) {
     this.source = source;
     this.value = value;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -62,10 +65,11 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -75,7 +79,7 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
         }
         double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log.process(value));
+          result.appendDouble(Log.process(value, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -90,7 +94,7 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
       position: for (int p = 0; p < positionCount; p++) {
         double value = valueVector.getDouble(p);
         try {
-          result.appendDouble(Log.process(value));
+          result.appendDouble(Log.process(value, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -112,24 +116,27 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory value, boolean allowNonFinite) {
       this.source = source;
       this.value = value;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public LogConstantEvaluator get(DriverContext context) {
-      return new LogConstantEvaluator(source, value.get(context), context);
+      return new LogConstantEvaluator(source, value.get(context), allowNonFinite, context);
     }
 
     @Override

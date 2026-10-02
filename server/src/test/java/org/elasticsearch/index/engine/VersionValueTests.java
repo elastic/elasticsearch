@@ -16,11 +16,18 @@ import org.elasticsearch.test.ESTestCase;
 public class VersionValueTests extends ESTestCase {
 
     public void testIndexRamBytesUsed() {
-        Translog.Location translogLoc = null;
+        Translog.OperationLocation translogLoc = null;
         if (randomBoolean()) {
-            translogLoc = new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
+            translogLoc = new Translog.OperationLocation(
+                new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt())
+            );
         }
         IndexVersionValue versionValue = new IndexVersionValue(translogLoc, randomLong(), randomLong(), randomLong());
+        assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());
+    }
+
+    public void testIndexRamBytesUsedNullLocation() {
+        IndexVersionValue versionValue = new IndexVersionValue(null, randomLong(), randomLong(), randomLong());
         assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());
     }
 

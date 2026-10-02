@@ -26,56 +26,56 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ViewService {
-    private static final Logger logger = LogManager.getLogger(ViewService.class);
-    private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
 
-    private final PlanTelemetry telemetry;
+    private final EsqlParser parser;
     protected final ClusterService clusterService;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    // TODO: these are not currently publicly allowed on Serverless, should they be?
+    // These settings are registered as OperatorDynamic so they are not exposed to end users yet.
+    // To fully expose them later:
+    // 1. Change OperatorDynamic to Dynamic (makes them user-settable on self-managed)
+    // 2. Add ServerlessPublic (makes them visible to non-operator users on Serverless)
     public static final Setting<Integer> MAX_VIEWS_COUNT_SETTING = Setting.intSetting(
         "esql.views.max_count",
-        100,
+        500,
         0,
-        1_000_000,
+        10_000,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
     public static final Setting<Integer> MAX_VIEW_LENGTH_SETTING = Setting.intSetting(
         "esql.views.max_view_length",
         10_000,
         1,
-        1_000_000,
+        100_000,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
+    public static final int MAX_VIEW_DESCRIPTION_LENGTH = 1_000;
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
 
-    public ViewService(ClusterService clusterService) {
+    public ViewService(ClusterService clusterService, EsqlParser parser) {
         this.clusterService = clusterService;
+        this.parser = parser;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
     }
@@ -96,23 +96,12 @@ public class ViewService {
      * Adds or modifies a view by name.
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        if (viewsFeatureEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
-            return;
-        }
-
         final View view = request.view();
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         try {
             validatePutView(metadata, view);
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
-        }
-        // Check for a no-op existing view, in which case we can skip the cluster state update
-        final View existingView = getMetadata(metadata).views().get(view.name());
-        if (view.equals(existingView)) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
@@ -137,39 +126,41 @@ public class ViewService {
     }
 
     /**
-     * Removes a view from the cluster state.
+     * Removes views from the cluster state.
      */
-    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        if (viewsFeatureEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
-            return;
-        }
-        final String name = request.name();
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        if (viewMetadata.getView(name) == null) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", name));
+        Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
+        // at least one of the explicitly requested views was not found, so we can fail fast without submitting a cluster state update task
+        if (notFoundView.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("view [{}] not found", notFoundView.get()));
             return;
         }
 
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final ViewMetadata viewMetadata = getMetadata(project);
-                final View currentView = viewMetadata.getView(name);
-                if (currentView == null) {
-                    // The update is a no-op, because we're trying to remove the view, but it doesn't exist, so no change is necessary
+                if (viewNames.stream().allMatch(v -> viewMetadata.getView(v) == null)) {
+                    // The update is a no-op, because none of the views that we're trying to remove exist.
+                    // Perhaps the views were deleted in the meantime by another job, so no change is necessary
                     return currentState;
                 }
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
-                final View existingView = updatedViews.remove(name);
-                assert existingView != null : "we should have short-circuited if removing a view that already didn't exist";
+                viewNames.forEach(updatedViews::remove);
                 var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
-        taskQueue.submitTask("delete-esql-view-metadata-[" + name + "]", task, task.timeout());
+        taskQueue.submitTask("delete-esql-view-metadata-" + viewNames, task, task.timeout());
     }
 
     /**
@@ -179,6 +170,14 @@ public class ViewService {
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
+            );
+        }
+        if (view.description() != null && view.description().length() > MAX_VIEW_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException(
+                "view description is too large: "
+                    + view.description().length()
+                    + " characters, the maximum allowed is "
+                    + MAX_VIEW_DESCRIPTION_LENGTH
             );
         }
         final ViewMetadata views = getMetadata(metadata);
@@ -200,8 +199,8 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
+        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
+        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
     }
 
     /**
@@ -212,17 +211,13 @@ public class ViewService {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
-        return viewsFeatureEnabled() ? getMetadata(projectId).getView(name) : null;
+        return getMetadata(projectId).getView(name);
     }
 
     /**
      * List all current view names.
      */
     public Set<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).views().keySet() : Set.of();
-    }
-
-    protected boolean viewsFeatureEnabled() {
-        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return getMetadata(projectId).views().keySet();
     }
 }

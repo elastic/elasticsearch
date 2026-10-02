@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.Template.NamedTemplateDecorator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,8 @@ import java.util.Optional;
  */
 public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
 
+    public static final ParseField REGISTRY_INSTALLED = new ParseField("registry_installed");
+    public static final String HIDE_REGISTRY_INSTALLED_PARAM = "hide_registry_installed";
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -73,7 +76,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ComposableIndexTemplate, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
         a -> ComposableIndexTemplate.builder()
@@ -89,6 +92,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             .deprecated((Boolean) a[9])
             .createdDate((Long) a[10])
             .modifiedDate((Long) a[11])
+            .registryInstalled(Boolean.TRUE.equals(a[12]))
             .build()
     );
 
@@ -105,9 +109,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CREATED_DATE_MILLIS);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_MILLIS);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REGISTRY_INSTALLED);
     }
 
     private static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = TransportVersion.fromName("index_template_tracking_info");
+    private static final TransportVersion COMPOSABLE_INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD = TransportVersion.fromName(
+        "composable_index_template_managed_field"
+    );
 
     private final List<String> indexPatterns;
     @Nullable
@@ -128,6 +136,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private final List<String> ignoreMissingComponentTemplates;
     @Nullable
     private final Boolean deprecated;
+    private final boolean registryInstalled;
     @Nullable
     private final Long createdDateMillis;
     @Nullable
@@ -138,7 +147,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return PARSER.parse(parser, NamedTemplateDecorator.DEFAULT);
+    }
+
+    public static ComposableIndexTemplate parse(XContentParser parser, String templateName, Template.TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
     }
 
     public static Builder builder() {
@@ -156,6 +169,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.allowAutoCreate = b.allowAutoCreate;
         this.ignoreMissingComponentTemplates = b.ignoreMissingComponentTemplates;
         this.deprecated = b.deprecated;
+        this.registryInstalled = b.registryInstalled;
         this.createdDateMillis = b.createdDateMillis;
         this.modifiedDateMillis = b.modifiedDateMillis;
     }
@@ -182,6 +196,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.createdDateMillis = null;
             this.modifiedDateMillis = null;
         }
+        this.registryInstalled = in.getTransportVersion().supports(COMPOSABLE_INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD) && in.readBoolean();
     }
 
     public List<String> indexPatterns() {
@@ -263,6 +278,17 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return Boolean.TRUE.equals(deprecated);
     }
 
+    /**
+     * Returns {@code true} when this template was installed by an {@code IndexTemplateRegistry} implementation
+     * (e.g. the stack, APM, Fleet, or OTel template registries).
+     * <p>
+     * This flag is set programmatically by the registry at install time {@code IndexSettingProvider}
+     * implementations may use it to relax guardrails for registry-owned templates.
+     */
+    public boolean isRegistryInstalled() {
+        return registryInstalled;
+    }
+
     public Optional<Long> createdDateMillis() {
         return Optional.ofNullable(createdDateMillis);
     }
@@ -291,6 +317,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (out.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
             out.writeOptionalLong(createdDateMillis);
             out.writeOptionalLong(modifiedDateMillis);
+        }
+        if (out.getTransportVersion().supports(COMPOSABLE_INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD)) {
+            out.writeBoolean(registryInstalled);
         }
     }
 
@@ -333,6 +362,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         }
         if (this.deprecated != null) {
             builder.field(DEPRECATED.getPreferredName(), deprecated);
+        }
+        if (this.registryInstalled && params.paramAsBoolean(HIDE_REGISTRY_INSTALLED_PARAM, false) == false) {
+            builder.field(REGISTRY_INSTALLED.getPreferredName(), true);
         }
         if (this.createdDateMillis != null) {
             builder.timestampFieldsFromUnixEpochMillis(
@@ -451,6 +483,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.allowAutoCreate,
             this.ignoreMissingComponentTemplates,
             this.deprecated,
+            this.registryInstalled,
             this.createdDateMillis,
             this.modifiedDateMillis
         );
@@ -475,6 +508,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates)
             && Objects.equals(deprecated, other.deprecated)
+            && this.registryInstalled == other.registryInstalled
             && Objects.equals(createdDateMillis, other.createdDateMillis)
             && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
     }
@@ -507,7 +541,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
         private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
-        public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        static final ConstructingObjectParser<DataStreamTemplate, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
             args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])
@@ -602,6 +636,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private Boolean allowAutoCreate;
         private List<String> ignoreMissingComponentTemplates;
         private Boolean deprecated;
+        private boolean registryInstalled;
         private Long createdDateMillis;
         private Long modifiedDateMillis;
 
@@ -622,6 +657,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.allowAutoCreate = template.allowAutoCreate;
             this.ignoreMissingComponentTemplates = template.ignoreMissingComponentTemplates;
             this.deprecated = template.deprecated;
+            this.registryInstalled = template.registryInstalled;
             this.createdDateMillis = template.createdDateMillis;
             this.modifiedDateMillis = template.modifiedDateMillis;
         }
@@ -678,6 +714,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         public Builder deprecated(@Nullable Boolean deprecated) {
             this.deprecated = deprecated;
+            return this;
+        }
+
+        public Builder registryInstalled(boolean registryInstalled) {
+            this.registryInstalled = registryInstalled;
             return this;
         }
 

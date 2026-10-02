@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.rank.vectors.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.vectors.BFloat16RankVectorsDocValuesField;
@@ -44,10 +45,10 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
 
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
-        int dims = elementType == DenseVectorFieldMapper.ElementType.BIT ? this.dims / Byte.SIZE : this.dims;
+        int vectorLength = elementType.vectorLength(dims);
         return switch (elementType) {
             case BYTE, BIT -> new FormattedDocValues() {
-                private final byte[] vector = new byte[dims];
+                private final byte[] vector = new byte[vectorLength];
                 private BytesRef ref = null;
                 private int numVecs = -1;
                 private final BinaryDocValues binary;
@@ -65,8 +66,8 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                         return false;
                     }
                     ref = binary.binaryValue();
-                    assert ref.length % dims == 0;
-                    numVecs = ref.length / dims;
+                    assert ref.length % vectorLength == 0;
+                    numVecs = ref.length / vectorLength;
                     return true;
                 }
 
@@ -81,17 +82,22 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                     VectorIterator<byte[]> iterator = new ByteRankVectorsDocValuesField.ByteVectorIterator(ref, vector, numVecs);
                     while (iterator.hasNext()) {
                         byte[] v = iterator.next();
-                        Byte[] vec = new Byte[dims];
-                        for (int i = 0; i < dims; i++) {
+                        Byte[] vec = new Byte[vectorLength];
+                        for (int i = 0; i < vectorLength; i++) {
                             vec[i] = v[i];
                         }
                         vectors.add(vec);
                     }
                     return vectors;
                 }
+
+                @Override
+                public DocIdSetIterator docIdIterator() {
+                    return binary;
+                }
             };
             case FLOAT -> new FormattedDocValues() {
-                private final float[] vector = new float[dims];
+                private final float[] vector = new float[vectorLength];
                 private BytesRef ref = null;
                 private int numVecs = -1;
                 private final BinaryDocValues binary;
@@ -109,8 +115,8 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                         return false;
                     }
                     ref = binary.binaryValue();
-                    assert ref.length % (Float.BYTES * dims) == 0;
-                    numVecs = ref.length / (Float.BYTES * dims);
+                    assert ref.length % (Float.BYTES * vectorLength) == 0;
+                    numVecs = ref.length / (Float.BYTES * vectorLength);
                     return true;
                 }
 
@@ -129,9 +135,14 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                     }
                     return vectors;
                 }
+
+                @Override
+                public DocIdSetIterator docIdIterator() {
+                    return binary;
+                }
             };
             case BFLOAT16 -> new FormattedDocValues() {
-                private final float[] vector = new float[dims];
+                private final float[] vector = new float[vectorLength];
                 private BytesRef ref = null;
                 private int numVecs = -1;
                 private final BinaryDocValues binary;
@@ -149,8 +160,8 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                         return false;
                     }
                     ref = binary.binaryValue();
-                    assert ref.length % (BFloat16.BYTES * dims) == 0;
-                    numVecs = ref.length / (BFloat16.BYTES * dims);
+                    assert ref.length % (BFloat16.BYTES * vectorLength) == 0;
+                    numVecs = ref.length / (BFloat16.BYTES * vectorLength);
                     return true;
                 }
 
@@ -168,6 +179,11 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                         vectors.add(Arrays.copyOf(v, v.length));
                     }
                     return vectors;
+                }
+
+                @Override
+                public DocIdSetIterator docIdIterator() {
+                    return binary;
                 }
             };
         };
@@ -190,7 +206,7 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         throw new UnsupportedOperationException("String representation of doc values for multi-vector fields is not supported");
     }
 

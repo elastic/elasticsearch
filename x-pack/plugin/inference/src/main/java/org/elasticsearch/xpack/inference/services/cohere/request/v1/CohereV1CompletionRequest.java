@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
@@ -17,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class CohereV1CompletionRequest extends CohereRequest {
+public class CohereV1CompletionRequest extends CohereRequest implements OutboundCompletionRequest {
     private final List<String> input;
 
     public CohereV1CompletionRequest(List<String> input, CohereCompletionModel model, boolean stream) {

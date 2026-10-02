@@ -15,10 +15,11 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.CartesianPointVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.GeoPointVisitor;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -47,13 +49,15 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * The function `st_ymax` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_YMAX.html">PostGIS:ST_YMAX</a>.
  */
-public class StYMax extends SpatialUnaryDocValuesFunction {
+public class StYMax extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StYMax", StYMax::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StYMax.class).unary(StYMax::new).name("st_ymax");
 
     @FunctionInfo(
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Extracts the maximum y coordinate from the supplied geometry.",
         description = "Extracts the maximum value of the `y` coordinates from the supplied geometry.\n"
             + "If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum `latitude` value.",
         examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max"),
@@ -90,7 +94,7 @@ public class StYMax extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // Create the results-builder as a factory, so thread-local instances can be used in evaluators
         var resultsBuilder = isSpatialGeo(spatialField().dataType())
             ? new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))

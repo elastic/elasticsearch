@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[entity.id{r}#0],[FilteredExpression[VALUES(host.entity.id{r}#1,true[BOOLEAN],PT0S[TIME_DURATION]),ISNOTNULL(host.entity.id{r}#1)] AS host.entity.id#2, entity.id{r}#0]]
+  \_Eval[[foo[KEYWORD] AS entity.id#0, null[NULL] AS host.entity.id#1]]
+    \_Row[[1[INTEGER] AS x#3]]

@@ -448,6 +448,8 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
           settings:
             index:
               mapping.source.mode: synthetic
+              # needed to enable binary doc values
+              use_time_series_doc_values_format: true
           mappings:
             properties:
               foo:

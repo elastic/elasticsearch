@@ -11,8 +11,6 @@ package org.elasticsearch.benchmark.index.mapper;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -185,21 +183,16 @@ public class DynamicMapperBenchmark {
         MapperService mapperService = MapperServiceFactory.create("{}");
         for (int i = 0; i < 25; i++) {
             DocumentMapper documentMapper = mapperService.documentMapper();
-            Mapping mapping = null;
-            if (documentMapper == null) {
+            boolean noMappings = documentMapper == null;
+            if (noMappings) {
                 documentMapper = DocumentMapper.createEmpty(mapperService);
-                mapping = documentMapper.mapping();
             }
             ParsedDocument doc = documentMapper.parse(randomFrom(sources));
-            if (mapping != null) {
-                doc.addDynamicMappingsUpdate(mapping);
+            if (noMappings) {
+                doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
             }
             if (doc.dynamicMappingsUpdate() != null) {
-                mapperService.merge(
-                    "_doc",
-                    new CompressedXContent(XContentHelper.toXContent(doc.dynamicMappingsUpdate(), XContentType.JSON, false)),
-                    MapperService.MergeReason.MAPPING_UPDATE
-                );
+                mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
             }
         }
         return mapperService.documentMapper().parse(randomFrom(sources)).docs();

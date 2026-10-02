@@ -9,11 +9,15 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
 
 final class TranslogSnapshot extends BaseTranslogReader {
 
@@ -26,6 +30,9 @@ final class TranslogSnapshot extends BaseTranslogReader {
     private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
+    // When the most recently read record was a batch, its exploded ops are buffered here
+    // and emitted one-by-one by subsequent next() calls before reading the next on-disk record.
+    private final Deque<Translog.Operation> pendingExploded;
 
     /**
      * Create a snapshot of translog file channel.
@@ -39,6 +46,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
         this.readOperations = 0;
         this.position = reader.getFirstOperationOffset();
         this.reuse = null;
+        this.pendingExploded = new ArrayDeque<>();
     }
 
     @Override
@@ -57,7 +65,10 @@ final class TranslogSnapshot extends BaseTranslogReader {
 
     public Translog.Operation next() throws IOException {
         while (readOperations < totalOperations) {
-            final Translog.Operation operation = readOperation();
+            final Translog.Operation operation = nextOperation();
+            if (operation == null) {
+                continue;
+            }
             if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 return operation;
             }
@@ -67,13 +78,28 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return null;
     }
 
-    private Translog.Operation readOperation() throws IOException {
+    private Translog.Operation nextOperation() throws IOException {
+        // First drain any pending exploded ops from a previously-read batch record.
+        Translog.Operation pending = pendingExploded.pollFirst();
+        if (pending != null) {
+            readOperations++;
+            return pending;
+        }
         final int opSize = readSize(reusableBuffer, position);
         reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
-        Translog.Operation op = read(reuse);
+        final Translog.Record record = readRecord(reuse);
         position += opSize;
-        readOperations++;
-        return op;
+        if (record instanceof Translog.Operation op) {
+            readOperations++;
+            return op;
+        }
+        // A batch record contributed its replayable row count to operationCounter (and hence to
+        // totalOperations). Explode and queue them; the next loop iteration will emit one and
+        // bump readOperations.
+        final IndexOperationBatch.TranslogRecord batch = (IndexOperationBatch.TranslogRecord) record;
+        final List<Translog.Operation> exploded = batch.explode();
+        pendingExploded.addAll(exploded);
+        return null;
     }
 
     public long sizeInBytes() {

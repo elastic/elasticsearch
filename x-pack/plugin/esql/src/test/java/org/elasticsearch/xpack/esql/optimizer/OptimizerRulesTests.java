@@ -22,14 +22,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsInAnyOrderIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -130,8 +131,8 @@ public class OptimizerRulesTests extends ESTestCase {
         };
 
         rule.apply(
-            EsqlParser.INSTANCE.parseQuery("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
-            new LogicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion())
+            TEST_PARSER.parseQuery("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
+            logicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion())
         );
 
         var literal = new Literal(new Source(1, 25, "1"), 1, DataType.INTEGER);

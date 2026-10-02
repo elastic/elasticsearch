@@ -18,16 +18,8 @@ import java.util.List;
  */
 public class DenseVectorCountGroupingAggregatorFunction extends CountGroupingAggregatorFunction {
 
-    public static DenseVectorCountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new DenseVectorCountGroupingAggregatorFunction(
-            inputChannels,
-            new LongArrayState(driverContext.bigArrays(), 0),
-            driverContext
-        );
-    }
-
-    protected DenseVectorCountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
-        super(channels, state, driverContext);
+    DenseVectorCountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+        super(channels, driverContext);
     }
 
     @Override

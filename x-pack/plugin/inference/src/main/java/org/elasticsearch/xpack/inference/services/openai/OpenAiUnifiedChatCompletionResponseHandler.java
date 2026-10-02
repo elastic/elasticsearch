@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
@@ -27,7 +27,7 @@ import java.util.function.Function;
  * Handles streaming chat completion responses and error parsing for OpenAI inference endpoints.
  * This handler is designed to work with the unified OpenAI chat completion API.
  */
-public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiCompletionResponseHandler {
     private static final ChatCompletionErrorResponseHandler DEFAULT_CHAT_COMPLETION_ERROR_RESPONSE_HANDLER =
         new ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorResponse.ERROR_PARSER);
 
@@ -63,10 +63,10 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var openAiProcessor = new OpenAiUnifiedStreamingProcessor(
-            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(request.getInferenceEntityId(), m, e)
+            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(outboundRequest.getInferenceEntityId(), m, e)
         );
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
@@ -74,8 +74,8 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
     }
 
     @Override
-    protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result) {
-        return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
+    protected UnifiedChatCompletionException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
+        return chatCompletionErrorResponseHandler.buildChatCompletionError(message, outboundRequest, result);
     }
 
     public static UnifiedChatCompletionException buildMidStreamError(String inferenceEntityId, String message, Exception e) {

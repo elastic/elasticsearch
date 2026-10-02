@@ -75,7 +75,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             AzureAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -103,7 +103,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             return new URI(this.target);
         }
 
-        return new URI(this.target + EMBEDDINGS_URI_PATH);
+        return new URI(stripTrailingSlash(this.target) + EMBEDDINGS_URI_PATH);
     }
 
     @Override

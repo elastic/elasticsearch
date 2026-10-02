@@ -171,7 +171,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
             );
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), randomFrom(IndexMode.values()));
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), randomFrom(IndexMode.availableModes()));
             SearchExecutionContext mockContext = new SearchExecutionContext(
                 0,
                 0,

@@ -34,6 +34,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Map;
@@ -59,14 +61,18 @@ public final class MlInitializationService implements ClusterStateListener {
 
     private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
 
+    private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
+
     private boolean isMaster = false;
 
     MlInitializationService(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         Client client,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
         MlAssignmentNotifier mlAssignmentNotifier,
         IndexNameExpressionResolver indexNameExpressionResolver,
         boolean isAnomalyDetectionEnabled,
@@ -83,6 +89,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 threadPool,
                 client,
                 clusterService,
+                auditor,
                 mlAssignmentNotifier,
                 indexNameExpressionResolver,
                 isAnomalyDetectionEnabled,
@@ -91,6 +98,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 isIlmEnabled
             ),
             adaptiveAllocationsScalerService,
+            trainedModelAssignmentClusterService,
             clusterService
         );
     }
@@ -101,12 +109,14 @@ public final class MlInitializationService implements ClusterStateListener {
         ThreadPool threadPool,
         MlDailyMaintenanceService dailyMaintenanceService,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
         ClusterService clusterService
     ) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = threadPool;
         this.mlDailyMaintenanceService = dailyMaintenanceService;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
+        this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -121,6 +131,11 @@ public final class MlInitializationService implements ClusterStateListener {
                         MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE,
                         mlDailyMaintenanceService::setRolloverMaxSize
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT,
+                        mlDailyMaintenanceService::setIdleJobAutoCloseTimeout
+                    );
 
             }
 
@@ -134,12 +149,14 @@ public final class MlInitializationService implements ClusterStateListener {
     public void onMaster() {
         mlDailyMaintenanceService.start();
         adaptiveAllocationsScalerService.start();
+        trainedModelAssignmentClusterService.start();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
         adaptiveAllocationsScalerService.stop();
+        trainedModelAssignmentClusterService.stop();
     }
 
     @Override

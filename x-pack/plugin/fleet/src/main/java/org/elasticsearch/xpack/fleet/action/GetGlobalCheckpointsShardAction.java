@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -164,17 +163,15 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         protected Response shardOperation(Request request, ShardId shardId) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
-            return new Response(seqNoStats.getGlobalCheckpoint(), false);
+            return new Response(indexShard.getLastKnownGlobalCheckpoint(), false);
         }
 
         @Override
         protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
-            if (request.waitForAdvance() && request.checkpoint() >= seqNoStats.getGlobalCheckpoint()) {
+            if (request.waitForAdvance() && request.checkpoint() >= indexShard.getLastKnownGlobalCheckpoint()) {
                 indexShard.addGlobalCheckpointListener(request.checkpoint() + 1, new GlobalCheckpointListeners.GlobalCheckpointListener() {
 
                     @Override
@@ -216,7 +213,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         ) {
             try {
                 if (e instanceof TimeoutException) {
-                    final long globalCheckpoint = indexShard.seqNoStats().getGlobalCheckpoint();
+                    final long globalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
                     if (request.checkpoint() >= globalCheckpoint) {
                         listener.onResponse(new Response(globalCheckpoint, true));
                     } else {

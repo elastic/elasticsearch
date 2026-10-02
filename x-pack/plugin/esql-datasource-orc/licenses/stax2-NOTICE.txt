@@ -1,0 +1,2 @@
+Stax2 API
+Copyright (c) 2008+, FasterXML, LLC

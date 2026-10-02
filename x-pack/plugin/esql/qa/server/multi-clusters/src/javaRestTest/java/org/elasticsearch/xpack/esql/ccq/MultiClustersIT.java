@@ -13,8 +13,10 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -22,6 +24,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
@@ -46,6 +49,8 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -763,6 +768,72 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean includeCCSMetadata() {
         return randomBoolean();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRemoteViewFailsQuery() throws IOException {
+        assumeTrue(
+            "views not supported on remote cluster",
+            capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions", "views_not_discoverable_on_remotes"))
+        );
+        try (RestClient remoteClient = remoteClusterClient()) {
+            Request putView = new Request("PUT", "/_query/view/test-remote-view");
+            putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");
+            assertOK(remoteClient.performRequest(putView));
+        }
+        try {
+            // not available when using concrete expression
+            {
+                ResponseException e = expectThrows(
+                    ResponseException.class,
+                    () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-view").build())
+                );
+                assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
+                assertThat(error.get("type"), equalTo("verification_exception"));
+                assertThat(error.get("reason"), equalTo("Unknown index [remote_cluster:test-remote-view]"));
+            }
+
+            // not visible when using wildcard
+            {
+                var response = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build());
+                assertThat(response.get("error"), nullValue());
+                assertThat((List<String>) response.get("columns"), contains("<no-fields>"));
+                assertThat((List<String>) response.get("values"), empty());
+            }
+        } finally {
+            try (RestClient remoteClient = remoteClusterClient()) {
+                Request deleteView = new Request("DELETE", "/_query/view/test-remote-view");
+                remoteClient.performRequest(deleteView);
+            }
+        }
+    }
+
+    public void testStartsWithIndex() throws Exception {
+        assertRemoteIndexPredicate("STARTS_WITH(_index, \"" + REMOTE_CLUSTER_NAME + ":test-remote\")");
+    }
+
+    public void testEndsWithIndex() throws Exception {
+        assertRemoteIndexPredicate("ENDS_WITH(_index, \"remote-index\")");
+    }
+
+    private void assertRemoteIndexPredicate(String predicate) throws Exception {
+        assumeTrue(
+            "requires fix",
+            capabilitiesSupportedNewAndOld(List.of(EsqlCapabilities.Cap.FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX.capabilityName()))
+        );
+
+        boolean includeCCSMetadata = includeCCSMetadata();
+
+        Map<String, Object> result = run(LoggerMessageFormat.format(null, """
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE {}
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, predicate), includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
     }
 
     public static class ClusterSettingToggle implements AutoCloseable {

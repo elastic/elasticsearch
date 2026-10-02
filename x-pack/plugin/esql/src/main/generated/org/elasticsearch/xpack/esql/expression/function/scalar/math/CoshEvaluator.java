@@ -13,31 +13,34 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cosh}.
+ * {@link ExpressionEvaluator} implementation for {@link Cosh}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class CoshEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoshEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
+
+  private final boolean allowNonFinite;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CoshEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
+  public CoshEvaluator(Source source, ExpressionEvaluator val, boolean allowNonFinite,
       DriverContext driverContext) {
     this.source = source;
     this.val = val;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -62,10 +65,11 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -75,7 +79,7 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Cosh.process(val));
+          result.appendDouble(Cosh.process(val, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -90,7 +94,7 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Cosh.process(val));
+          result.appendDouble(Cosh.process(val, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -112,24 +116,27 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val, boolean allowNonFinite) {
       this.source = source;
       this.val = val;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public CoshEvaluator get(DriverContext context) {
-      return new CoshEvaluator(source, val.get(context), context);
+      return new CoshEvaluator(source, val.get(context), allowNonFinite, context);
     }
 
     @Override

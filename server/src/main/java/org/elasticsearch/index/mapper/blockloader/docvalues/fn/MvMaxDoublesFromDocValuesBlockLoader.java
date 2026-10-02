@@ -9,10 +9,11 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -21,68 +22,30 @@ import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongs
 /**
  * Loads the MAX {@code double} in each doc.
  */
-public class MvMaxDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader {
+public class MvMaxDoublesFromDocValuesBlockLoader extends DoublesBlockLoader {
     public MvMaxDoublesFromDocValuesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble) {
         super(fieldName, toDouble);
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(docValues, toDouble);
-    }
-
-    @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMaxSorted(docValues, toDouble);
-    }
-
-    @Override
-    public String toString() {
-        return "DoublesFromDocValues[" + fieldName + "]";
-    }
-
-    private static class MvMaxSorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
-        private final ToDouble toDouble;
-
-        MvMaxSorted(SortedNumericDocValues numericDocValues, ToDouble toDouble) {
-            this.numericDocValues = numericDocValues;
-            this.toDouble = toDouble;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        // Own read loop so the per-document append compiles monomorphically rather than going megamorphic through a shared reader.
+        return new AbstractNumericBlockLoader.Sorted("MvMaxDoublesFromDocValues", docValues) {
+            @Override
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                SortedNumericDocValues docValues = values.docValues();
+                try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        if (docValues.advanceExact(docs.get(i)) == false) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        discardAllButLast(docValues);
+                        builder.appendDouble(toDouble.convert(docValues.nextValue()));
+                    }
+                    return builder.build();
                 }
-                return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
-        }
-
-        private void read(int doc, DoubleBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            discardAllButLast(numericDocValues);
-            builder.appendDouble(toDouble.convert(numericDocValues.nextValue()));
-        }
-
-        @Override
-        public int docId() {
-            return numericDocValues.docID();
-        }
-
-        @Override
-        public String toString() {
-            return "MvMaxDoublesFromDocValues.Sorted";
-        }
+        };
     }
 }

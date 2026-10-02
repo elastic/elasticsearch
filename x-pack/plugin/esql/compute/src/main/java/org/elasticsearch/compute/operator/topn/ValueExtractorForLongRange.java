@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
@@ -20,18 +21,18 @@ public class ValueExtractorForLongRange implements ValueExtractor {
 
     @Override
     public void writeValue(BreakingBytesRefBuilder values, int position) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
-        if (block.getFromBlock().isNull(position)) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
-        } else {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(true, values);
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(block.getFromBlock().getLong(position), values);
+        LongBlock fromBlock = block.getFromBlock();
+        LongBlock toBlock = block.getToBlock();
+        int count = fromBlock.getValueCount(position);
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
+        if (count == 0) {
+            return;
         }
-        if (block.getToBlock().isNull(position)) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
-        } else {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(true, values);
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(block.getToBlock().getLong(position), values);
+        int start = fromBlock.getFirstValueIndex(position);
+        int end = start + count;
+        for (int i = start; i < end; i++) {
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(fromBlock.getLong(i), values);
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(toBlock.getLong(i), values);
         }
     }
 

@@ -1,0 +1,25 @@
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+/**
+ * This plugin is used to apply common configuration to all stateless plugins.
+ * It is applied by convention in the build.gradle of each stateless plugin.
+ */
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  onlyIf("stateless tests skipped on windows") { OS.current() != OS.WINDOWS }
+}
+
+project.extensions.configure(PluginPropertiesExtension) {
+  // All stateless plugins are stateless only, so we can set this by convention here.
+  it.deploymentTarget = "STATELESS_ONLY"
+}

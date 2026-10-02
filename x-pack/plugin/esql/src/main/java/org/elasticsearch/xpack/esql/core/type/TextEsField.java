@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -46,6 +47,11 @@ public class TextEsField extends EsField {
     }
 
     @Override
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        return new TextEsField(getName(), newProperties, isAggregatable(), isAlias(), getTimeSeriesFieldType());
+    }
+
+    @Override
     public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
@@ -54,7 +60,7 @@ public class TextEsField extends EsField {
         writeTimeSeriesFieldType(out);
     }
 
-    public String getWriteableName() {
+    public String getWriteableName(TransportVersion transportVersion) {
         return "TextEsField";
     }
 

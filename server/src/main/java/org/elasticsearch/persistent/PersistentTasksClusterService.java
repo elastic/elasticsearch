@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -37,7 +39,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.decider.AssignmentDecision;
@@ -52,12 +53,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.ProjectMetadata.isProjectUnderDeletion;
 import static org.elasticsearch.persistent.PersistentTasks.getAllTasks;
 import static org.elasticsearch.persistent.PersistentTasks.taskTypeString;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.assertAllocationIdsConsistencyForOnePersistentTasks;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getNonZeroAllocationIds;
+import static org.elasticsearch.persistent.PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -528,7 +530,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 reassigningTasks.set(false);
-                if (isAnyTaskUnassigned(getAllTasks(newState))) {
+                if (anyTaskNeedsReassignment(newState)) {
                     periodicRechecker.rescheduleIfNecessary();
                 }
             }
@@ -557,7 +559,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             while (projectIdToTasksIterator.hasNext()) {
                 var projectIdToTasks = projectIdToTasksIterator.next();
                 for (PersistentTask<?> task : projectIdToTasks.v2().tasks()) {
-                    if (needsReassignment(task.getAssignment(), event.state().nodes())) {
+                    if (needsReassignment(task, event.state().nodes(), event.state().metadata())) {
                         Assignment assignment = createAssignment(
                             task.getTaskName(),
                             task.getParams(),
@@ -572,14 +574,6 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             }
         }
         return false;
-    }
-
-    /**
-     * Returns true if any persistent task is unassigned.
-     */
-    private static boolean isAnyTaskUnassigned(final Stream<Tuple<ProjectId, PersistentTasks>> projectIdTasksTuples) {
-        return projectIdTasksTuples.flatMap(tasks -> tasks.v2().tasks().stream())
-            .anyMatch(task -> task.getAssignment().isAssigned() == false);
     }
 
     /**
@@ -608,7 +602,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
             // We need to check if removed nodes were running any of the tasks and reassign them
             for (PersistentTask<?> task : tasks.tasks()) {
-                if (needsReassignment(task.getAssignment(), nodes)) {
+                if (needsReassignment(task, nodes, currentState.metadata())) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState, projectId);
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace(
@@ -651,10 +645,18 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
         for (ProjectId projectId : projectIds) {
             if (previousProjectIds.contains(projectId)) {
+                final var tasks = PersistentTasksCustomMetadata.get(event.state().metadata().getProject(projectId));
                 if (Objects.equals(
-                    PersistentTasksCustomMetadata.get(event.state().metadata().getProject(projectId)),
+                    tasks,
                     PersistentTasksCustomMetadata.get(event.previousState().metadata().getProject(projectId))
                 ) == false) {
+                    return true;
+                }
+                // Nodes treat the tasks of a project under deletion as gone, so the block appearing is a change to them.
+                if (tasks != null
+                    && tasks.tasks().isEmpty() == false
+                    && isProjectUnderDeletion(event.state().blocks(), projectId)
+                    && isProjectUnderDeletion(event.previousState().blocks(), projectId) == false) {
                     return true;
                 }
             } else {
@@ -663,22 +665,69 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 }
             }
         }
+        // A removed project takes its tasks with it; nodes must notice so that they cancel the tasks still running locally
+        for (ProjectId projectId : event.projectDelta().removed()) {
+            if (PersistentTasksCustomMetadata.get(event.previousState().metadata().getProject(projectId)) != null) {
+                return true;
+            }
+        }
         return false;
     }
 
-    /** Returns true if the task is not assigned or is assigned to a non-existing node */
-    public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
+    /**
+     * Returns {@code true} if the given assignment has no executor node, or if the assigned node
+     * no longer exists in the cluster.
+     *
+     * @param assignment the current task assignment to evaluate
+     * @param nodes      the current set of nodes in the cluster
+     * @return {@code true} if the task is unassigned or its assigned node is missing
+     * @deprecated prefer {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} returning {@code true}
+     *             over manual reassignment handling. Executors that opt in to automatic reassignment should use
+     *             {@link #needsReassignment} for cluster-service-level reassignment decisions, which additionally
+     *             accounts for nodes marked for shutdown.
+     */
+    @Deprecated
+    public static boolean isUnassignedOrMisassigned(final Assignment assignment, final DiscoveryNodes nodes) {
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
+    }
+
+    /**
+     * Returns {@code true} if the task needs reassignment, either because it is unassigned or its node no longer
+     * exists, or because it is assigned to a node that is marked for shutdown and the corresponding task executor
+     * has {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} set to {@code true}.
+     *
+     * @param task     the persistent task to evaluate
+     * @param nodes    the current set of nodes in the cluster
+     * @param metadata cluster metadata, or {@code null} when the task does not opt in to automatic reassignment
+     */
+    public boolean needsReassignment(final PersistentTask<?> task, final DiscoveryNodes nodes, @Nullable final Metadata metadata) {
+        if (isUnassignedOrMisassigned(task.getAssignment(), nodes)) {
+            return true;
+        }
+        if (taskHasReassignmentOnShutdownDisabled(task.getTaskName())) {
+            return false;
+        }
+        return metadata != null && metadata.nodeShutdowns().contains(task.getAssignment().getExecutorNode());
+    }
+
+    /**
+     * Returns {@code true} if any persistent task needs reassignment (unassigned, misassigned, or opt-in task on a shutdown node).
+     */
+    private boolean anyTaskNeedsReassignment(ClusterState state) {
+        return getAllTasks(state).flatMap(tasks -> tasks.v2().tasks().stream())
+            .anyMatch(task -> needsReassignment(task, state.nodes(), state.metadata()));
     }
 
     private static PersistentTasks.Builder<?> builder(ClusterState currentState, @Nullable ProjectId projectId) {
         if (projectId == null) {
             return ClusterPersistentTasksCustomMetadata.builder(ClusterPersistentTasksCustomMetadata.get(currentState.metadata()));
-        } else {
-            return PersistentTasksCustomMetadata.builder(
-                PersistentTasksCustomMetadata.get(currentState.getMetadata().getProject(projectId))
-            );
         }
+        final ProjectMetadata project = currentState.metadata().projects().get(projectId);
+        if (project == null) {
+            // The project and its tasks are gone, e.g. a task still running on a node reports completion after its project was deleted
+            throw new ResourceNotFoundException("project [{}] not found", projectId);
+        }
+        return PersistentTasksCustomMetadata.builder(PersistentTasksCustomMetadata.get(project));
     }
 
     @FixForMultiProject(description = "Consider formalize this into ProjectResolver")
@@ -693,6 +742,18 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             logger.debug("skipping error on resolving project-id", e);
             return null;
         }
+    }
+
+    /**
+     * The METADATA_WRITE block check for actions on an existing task (complete, update, remove). The request only carries the task id,
+     * so the task's scope is determined the same way as in {@link #maybeNullProjectIdForClusterTask}: a cluster-scoped task is subject
+     * to the cluster-wide blocks only, a project-scoped task also to the project-global ones (e.g. project under deletion).
+     */
+    static ClusterBlockException checkMetadataWriteBlock(ClusterState state, ProjectResolver projectResolver, String taskId) {
+        final ProjectId projectId = maybeNullProjectIdForClusterTask(state, resolveProjectIdHint(projectResolver), taskId);
+        return projectId == null
+            ? state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE)
+            : state.blocks().globalBlockedException(projectId, ClusterBlockLevel.METADATA_WRITE);
     }
 
     /**
@@ -814,7 +875,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 // TODO just run on the elected master?
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
-                if (isAnyTaskUnassigned(PersistentTasks.getAllTasks(state))) {
+                if (anyTaskNeedsReassignment(state)) {
                     reassignPersistentTasks();
                 }
             }

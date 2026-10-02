@@ -1,0 +1,202 @@
+###########################
+# Tests for _slice support
+###########################
+
+simpleMetadataSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| SORT color
+| LIMIT 5
+| KEEP color, rgb_vector, _slice
+;
+
+color:text  | rgb_vector:dense_vector | _slice:keyword
+aqua marine | [127.0, 255.0, 212.0]   | cool
+azure       | [240.0, 255.0, 255.0]   | neutral
+beige       | [245.0, 245.0, 220.0]   | neutral
+bisque      | [255.0, 228.0, 196.0]   | neutral
+black       | [0.0, 0.0, 0.0]         | neutral
+;
+
+filterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice == "yellow_green"
+| SORT color
+| LIMIT 5
+| KEEP color, rgb_vector, _slice
+;
+
+color:text | rgb_vector:dense_vector | _slice:keyword
+chartreuse | [127.0, 255.0, 0.0]     | yellow_green
+gold       | [255.0, 215.0, 0.0]     | yellow_green
+golden rod | [218.0, 165.0, 32.0]    | yellow_green
+green      | [0.0, 128.0, 0.0]       | yellow_green
+khaki      | [240.0, 230.0, 140.0]   | yellow_green
+;
+
+withMixedIndices
+
+required_capability: metadata_slice
+
+FROM colors_with_slice, colors METADATA _slice, _index
+| SORT color, _index
+| LIMIT 5
+| KEEP color, rgb_vector, _slice, _index
+;
+
+color:text  | rgb_vector:dense_vector | _slice:keyword | _index:keyword
+aqua marine | [127.0, 255.0, 212.0]   | null           | colors
+aqua marine | [127.0, 255.0, 212.0]   | cool           | colors_with_slice
+azure       | [240.0, 255.0, 255.0]   | null           | colors
+azure       | [240.0, 255.0, 255.0]   | neutral        | colors_with_slice
+beige       | [245.0, 245.0, 220.0]   | null           | colors
+;
+
+notEqualsFilterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice != "neutral"
+| SORT color
+| LIMIT 5
+| KEEP color, _slice
+;
+
+color:text  | _slice:keyword
+aqua marine | cool
+blue        | cool
+brown       | warm
+chartreuse  | yellow_green
+coral       | warm
+;
+
+likeFilterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice LIKE "*_pink"
+| SORT color
+| LIMIT 5
+| KEEP color, _slice
+;
+
+color:text | _slice:keyword
+magenta    | purple_pink
+orchid     | purple_pink
+pink       | purple_pink
+plum       | purple_pink
+purple     | purple_pink
+;
+
+rlikeFilterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice RLIKE "warm|cool"
+| SORT color
+| LIMIT 5
+| KEEP color, _slice
+;
+
+color:text  | _slice:keyword
+aqua marine | cool
+blue        | cool
+brown       | warm
+coral       | warm
+crimson     | warm
+;
+
+orFilterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice == "cool" OR _slice == "purple_pink"
+| SORT color
+| LIMIT 5
+| KEEP color, _slice
+;
+
+color:text  | _slice:keyword
+aqua marine | cool
+blue        | cool
+cyan        | cool
+indigo      | cool
+magenta     | purple_pink
+;
+
+conflictingAndFilterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice == "cool" AND _slice == "warm"
+| KEEP color, _slice
+;
+
+color:text | _slice:keyword
+;
+
+renameSliceThenFilter
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| RENAME _slice AS category
+| WHERE category == "cool"
+| SORT color
+| KEEP color, category
+;
+
+color:text  | category:keyword
+aqua marine | cool
+blue        | cool
+cyan        | cool
+indigo      | cool
+navy        | cool
+turquoise   | cool
+;
+
+nonPushdownFilterSlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| WHERE SUBSTRING(_slice, 1, 1) == "w"
+| SORT color
+| LIMIT 5
+| KEEP color, _slice
+;
+
+color:text | _slice:keyword
+brown      | warm
+coral      | warm
+crimson    | warm
+firebrick  | warm
+maroon     | warm
+;
+
+statsGroupBySlice
+
+required_capability: metadata_slice
+
+FROM colors_with_slice METADATA _slice
+| STATS c = COUNT(*) BY _slice
+| SORT _slice
+;
+
+c:long | _slice:keyword
+6      | cool
+28     | neutral
+7      | purple_pink
+9      | warm
+9      | yellow_green
+;

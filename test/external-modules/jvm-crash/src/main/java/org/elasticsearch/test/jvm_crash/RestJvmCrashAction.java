@@ -16,12 +16,11 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+/** A REST action that crashes the JVM by freeing invalid memory via {@code sun.misc.Unsafe}. */
 public class RestJvmCrashAction implements RestHandler {
 
     // Turns out, it's actually quite hard to get the JVM to crash...
@@ -29,15 +28,12 @@ public class RestJvmCrashAction implements RestHandler {
     private static Object UNSAFE;
     static {
         try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<?>) () -> {
-                Class<?> unsafe = Class.forName("sun.misc.Unsafe");
+            Class<?> unsafe = Class.forName("sun.misc.Unsafe");
 
-                FREE_MEMORY = unsafe.getMethod("freeMemory", long.class);
-                Field f = unsafe.getDeclaredField("theUnsafe");
-                f.setAccessible(true);
-                UNSAFE = f.get(null);
-                return null;
-            });
+            FREE_MEMORY = unsafe.getMethod("freeMemory", long.class);
+            Field f = unsafe.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            UNSAFE = f.get(null);
         } catch (Exception e) {
             throw new AssertionError(e);
         }
@@ -54,7 +50,7 @@ public class RestJvmCrashAction implements RestHandler {
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // BIG BADDA BOOM
         try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<?>) () -> FREE_MEMORY.invoke(UNSAFE, 1L));
+            FREE_MEMORY.invoke(UNSAFE, 1L);
         } catch (Exception e) {
             throw new AssertionError(e);
         }

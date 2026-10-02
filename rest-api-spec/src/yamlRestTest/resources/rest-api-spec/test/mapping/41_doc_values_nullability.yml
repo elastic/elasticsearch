@@ -1,0 +1,249 @@
+---
+"doc_values object form rejected outside columnar mode":
+  - requires:
+      cluster_features: ["mapper.doc_values.extended_form_only_in_columnar", "mapper.doc_values.nullability"]
+      reason: "doc_values object form is rejected outside columnar index modes starting with this feature"
+
+  - do:
+      catch: /unsupported doc_values configuration/
+      indices.create:
+        index: test_non_columnar_rejected
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+---
+"nullability=false rejects missing field and null but accepts a value":
+  - requires:
+      cluster_features: ["mapper.doc_values.nullability"]
+      reason: "doc_values nullability parameter"
+
+  - do:
+      indices.create:
+        index: test_nullability
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  # A non-null value satisfies the requirement.
+  - do:
+      index:
+        index: test_nullability
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value"
+
+  # A document that omits the field is rejected.
+  - do:
+      catch: /configured with \[nullability=false\] but no value was provided/
+      index:
+        index: test_nullability
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          other: "x"
+
+  # An explicit null is rejected.
+  - do:
+      catch: /configured with \[nullability=false\] but no value was provided/
+      index:
+        index: test_nullability
+        id: "3"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: null
+
+---
+"nullability=false mapping serialization roundtrip":
+  - requires:
+      cluster_features: ["mapper.doc_values.nullability"]
+      reason: "doc_values nullability parameter"
+
+  - do:
+      indices.create:
+        index: test_nullability_roundtrip
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  - do:
+      indices.get_mapping:
+        index: test_nullability_roundtrip
+
+  - match: { test_nullability_roundtrip.mappings.properties.kw.doc_values.nullability: false }
+
+---
+"nullability=false is sealed against mapping updates":
+  - requires:
+      cluster_features: ["mapper.doc_values.nullability"]
+      reason: "doc_values nullability parameter"
+
+  - do:
+      indices.create:
+        index: test_nullability_sealed
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  # Flipping nullability back to true is rejected: the parameter is sealed.
+  - do:
+      catch: /Cannot update parameter \[doc_values\]/
+      indices.put_mapping:
+        index: test_nullability_sealed
+        body:
+          properties:
+            kw:
+              type: keyword
+              doc_values:
+                nullability: true
+
+---
+"nullability=false is enforced per nested instance":
+  - requires:
+      cluster_features: ["mapper.doc_values.nullability"]
+      reason: "doc_values nullability parameter"
+
+  - do:
+      indices.create:
+        index: test_nullability_nested
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              a:
+                type: nested
+                properties:
+                  b:
+                    type: integer
+                    doc_values:
+                      nullability: false
+
+  # Every nested instance carries b: accepted.
+  - do:
+      index:
+        index: test_nullability_nested
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          a: [{ "b": 1 }, { "b": 2 }]
+
+  # One nested instance omits b: rejected. A sibling instance does not satisfy it.
+  - do:
+      catch: /configured with \[nullability=false\] but no value was provided/
+      index:
+        index: test_nullability_nested
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          a: [{ "b": 1 }, { "c": 2 }]
+
+  # An absent nested array creates zero Lucene docs and is vacuously satisfied.
+  - do:
+      index:
+        index: test_nullability_nested
+        id: "3"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          other: "x"
+
+---
+"index.mapping.doc_values.nullability=false requires all fields to carry a value":
+  - requires:
+      cluster_features: ["mapper.doc_values.nullability"]
+      reason: "index.mapping.doc_values.nullability index-level setting"
+
+  - do:
+      indices.create:
+        index: test_nullability_index_setting
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.doc_values.nullability: false
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  # A field that did not override the index setting is required. The @timestamp is supplied so kw is the only missing field.
+  - do:
+      catch: /configured with \[nullability=false\] but no value was provided/
+      index:
+        index: test_nullability_index_setting
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          other: "x"
+
+  # Providing a value satisfies it.
+  - do:
+      index:
+        index: test_nullability_index_setting
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "a"
+
+---
+"field-level nullability overrides index.mapping.doc_values.nullability":
+  - requires:
+      cluster_features: ["mapper.doc_values.nullability"]
+      reason: "index.mapping.doc_values.nullability index-level setting"
+
+  - do:
+      indices.create:
+        index: test_nullability_index_override
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.doc_values.nullability: false
+          mappings:
+            properties:
+              kw_default:
+                type: keyword
+              kw_override:
+                type: keyword
+                doc_values:
+                  nullability: true
+
+  # The field with the index-level default is required. The @timestamp is supplied so kw_default is the only missing field.
+  - do:
+      catch: /configured with \[nullability=false\] but no value was provided/
+      index:
+        index: test_nullability_index_override
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw_override: "only override set"
+
+  # Setting just the required default field is enough; the override field may be omitted.
+  - do:
+      index:
+        index: test_nullability_index_override
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw_default: "a"

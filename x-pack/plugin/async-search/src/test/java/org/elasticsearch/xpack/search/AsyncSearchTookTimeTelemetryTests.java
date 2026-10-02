@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -16,9 +18,11 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -156,6 +160,19 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
                 asyncSearchResponse2.decRef();
             }
         }
+        // Wait for AsyncSearchTask to fully close (releases MutableSearchResponse.finalResponse)
+        // which happens asynchronously after store.updateResponse() completes in onFinalResponse.
+        assertBusy(() -> {
+            TaskId taskId = AsyncExecutionId.decode(id).getTaskId();
+            try {
+                GetTaskResponse resp = clusterAdmin().prepareGetTask(taskId).get();
+                assertNull(resp.getTask());
+            } catch (Exception exc) {
+                if (exc.getCause() instanceof ResourceNotFoundException == false) {
+                    throw exc;
+                }
+            }
+        });
     }
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {

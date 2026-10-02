@@ -12,6 +12,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -23,11 +28,13 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -43,50 +50,75 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,9 +155,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         return false;
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
+    public void initWildcardFieldTypes() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
@@ -153,20 +184,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.forceMerge(1);
         rewriteReader = iw.getReader();
         iw.close();
-
-        super.setUp();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeRewriteIndex() throws Exception {
         try {
             rewriteReader.close();
             rewriteDir.close();
         } catch (Exception ignoreCloseFailure) {
             // allow any superclass tear down logic to continue
         }
-        // TODO Auto-generated method stub
-        super.tearDown();
     }
 
     public void testTooBigKeywordField() throws IOException {
@@ -190,6 +217,53 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(1L));
+
+        reader.close();
+        dir.close();
+    }
+
+    public void testBinaryDvConfirmationChecksCircuitBreaker() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        Document doc = new Document();
+        LuceneDocument parseDoc = new LuceneDocument();
+        addFields(parseDoc, doc, randomAlphaOfLength(5) + "a" + randomAlphaOfLength(5));
+        indexDoc(parseDoc, doc, iw);
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        iw.close();
+
+        // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit test, so we
+        // substitute a breaker that always trips to verify the confirmation query consults the request breaker and passes 0 bytes.
+        AtomicLong checkpointedBytes = new AtomicLong(-1);
+        CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                checkpointedBytes.set(bytes);
+                throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+            }
+        };
+
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+        searcher.setCircuitBreaker(breaker);
+
+        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
+        expectThrows(CircuitBreakingException.class, () -> searcher.count(wildcardFieldQuery));
+        // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
+        assertThat(checkpointedBytes.get(), equalTo(0L));
+
+        // With no breaker configured the confirmation query runs normally.
+        searcher.setCircuitBreaker(null);
+        assertThat(searcher.count(wildcardFieldQuery), equalTo(1));
 
         reader.close();
         dir.close();
@@ -680,28 +754,59 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
-        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true, false);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+
+        // Different arrayOrder should not be equal
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, true);
+        assertNotEquals(csQ, arrayOrderQ);
+        assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
     }
 
     public void testQueryCachingEqualityFromTerms() {
-        ;
-        Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
-        Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termB"));
+        Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", false, new BytesRef("termA"));
+        Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", false, new BytesRef("termB"));
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
+        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", false, new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+
+        // Different arrayOrder should not be equal
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", true, new BytesRef("termA"));
+        assertNotEquals(csQ, arrayOrderQ);
+        assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
+    }
+
+    public void testVisit() {
+        Query query = wildcardFieldType.fieldType().wildcardQuery("*00363faa-1a2a-af71-8353*", null, MOCK_CONTEXT);
+        int[] totalQueries = new int[] { 0 };
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query query) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                totalQueries[0]++;
+            }
+        });
+        assertThat(totalQueries[0], equalTo(11));
     }
 
     @Override
@@ -718,6 +823,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerUpdateCheck(
+            "ignore_above",
             b -> b.field("ignore_above", 256),
             m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove().get())
         );
@@ -1089,14 +1195,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.availableModes()));
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
-            null,
+            mapperService,
             lookup,
             null,
             null,
@@ -1142,6 +1250,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         IndexableField field = parseDoc.getByKey(wildcardFieldType.fullPath());
         if (field != null) {
             doc.add(field);
+            // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
+            // It must be copied alongside the main binary field for MultiValuedSortableBinaryDocValues to decode values.
+            if (field instanceof MultiValuedBinaryDocValuesField.SeparateCount separateCount) {
+                doc.add(separateCount.countField());
+            } else {
+                fail("unexpected indexable field type: " + field.getClass().getName());
+            }
         }
         iw.addDocument(doc);
     }
@@ -1218,13 +1333,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
-        return new WildcardSyntheticSourceSupport();
+        // createSytheticSourceMapperService uses standard mode, which stores ignored values in stored fields (no sorting)
+        return new WildcardSyntheticSourceSupport(false, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
+        return new WildcardSyntheticSourceSupport(false, true);
     }
 
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         private final boolean allIgnored = ignoreAbove != null && rarely();
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final boolean sortIgnoredValues;
+        private final boolean isColumnar;
+
+        WildcardSyntheticSourceSupport(boolean sortIgnoredValues, boolean isColumnar) {
+            this.sortIgnoredValues = sortIgnoredValues;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
@@ -1235,17 +1369,37 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
-            List<String> outExtraValues = new ArrayList<>();
+            List<String> ignoredValues = new ArrayList<>();
+            boolean ignoreAboveIsNoOp = isColumnar;
             values.stream().map(Tuple::v2).forEach(v -> {
-                if (ignoreAbove != null && v.length() > ignoreAbove) {
-                    outExtraValues.add(v);
+                if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
+                    ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);
                 }
             });
-            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
-            Collections.sort(outList);
-            outList.addAll(outExtraValues);
+
+            // Strictly columnar index modes preserve insertion order and duplicates; otherwise values are deduplicated and sorted.
+            List<String> outList;
+            if (isColumnar) {
+                outList = new ArrayList<>(docValuesValues);
+            } else {
+                outList = new ArrayList<>(new HashSet<>(docValuesValues));
+                Collections.sort(outList);
+            }
+
+            // in columnar mode, ignored values are stored in sorted binary doc values
+            boolean sortIgnored = isColumnar || sortIgnoredValues;
+            if (sortIgnored) {
+                // binary doc values deduplicate and sort values
+                List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
+                Collections.sort(sortedExtraValues);
+                outList.addAll(sortedExtraValues);
+            } else {
+                // stored fields preserve insertion order
+                outList.addAll(ignoredValues);
+            }
+
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -1286,5 +1440,227 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    public void testIgnoredFieldStoredInBinaryDocValuesForLogsDbIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", "2025-01-01T00:00:00Z")));
+
+        // then
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsForStandardIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // then
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testDocValuesUsesSeparateCountFormat() throws IOException {
+        // given: a mapper created with the current index version
+        DocumentMapper mapper = createMapperService(fieldMapping(b -> b.field("type", "wildcard"))).documentMapper();
+
+        // when: indexing a document
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "testvalue")));
+
+        // then: the doc values field should be SeparateCount format
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var binaryDocValuesField = fields.stream().filter(f -> f instanceof MultiValuedBinaryDocValuesField.SeparateCount).findFirst();
+        assertTrue("Should use SeparateCount format", binaryDocValuesField.isPresent());
+    }
+
+    public void testDocValuesUsesIntegratedCountFormatWithPreviousIndexVersion() throws IOException {
+        // given: a mapper created with a pre-deprecation index version
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(previousVersion, fieldMapping(b -> b.field("type", "wildcard"))).documentMapper();
+
+        // when: indexing a document
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "testvalue")));
+
+        // then: the doc values field should be IntegratedCount format
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var binaryDocValuesField = fields.stream().filter(f -> f instanceof MultiValuedBinaryDocValuesField.IntegratedCount).findFirst();
+        assertTrue("Should use IntegratedCount format", binaryDocValuesField.isPresent());
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", "2025-01-01T00:00:00Z")));
+
+        // then
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * In strictly columnar index mode, the field's binary doc values are stored via
+     * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}, a different byte layout than the sorted-and-deduplicated format used
+     * elsewhere. Query confirmation ({@link BinaryDvConfirmedQuery}) reads that binary doc values column directly, bypassing the field's
+     * blockLoader/fielddata abstractions, so it must be told to decode the in-order format too; otherwise it misreads the bytes for any
+     * multi-valued doc.
+     */
+    public void testQueriesAgainstMultiValuedDocInColumnarMode() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "wildcard")));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapper.parse(source(b -> b.array("field", "aaaaa", "bbbbb"))).rootDoc()); },
+            reader -> {
+                IndexSearcher searcher = newSearcher(reader);
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+                WildcardFieldMapper.WildcardFieldType fieldType = (WildcardFieldMapper.WildcardFieldType) mapperService.fieldType("field");
+
+                assertEquals(1, searcher.count(fieldType.termQuery("bbbbb", context)));
+                assertEquals(0, searcher.count(fieldType.termQuery("ccccc", context)));
+                assertEquals(1, searcher.count(fieldType.wildcardQuery("bbb*", null, false, context)));
+            }
+        );
+    }
+
+    private void withColumnBatch(
+        MapperService mapperService,
+        String field,
+        CheckedConsumer<MappedColumns, Exception> assertions,
+        String... sources
+    ) throws Exception {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mappingLookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)
+        ) {
+            final org.elasticsearch.sourcebatch.SourceSchema schema = escfBatch.schema();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                if (path.equals(field) == false) {
+                    continue;
+                }
+                final org.elasticsearch.index.mapper.Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof org.elasticsearch.index.mapper.FieldMapper fm) {
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                }
+            }
+            assertions.accept(ctx.columns());
+        }
+    }
+
+    public void testColumnBatchNgramWrappingShape() throws Exception {
+        Settings columnarSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+        MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
+
+        final String value = "hello";
+        final byte[] expectedNgram = ("\0" + value + "\0\0").getBytes(StandardCharsets.UTF_8);
+        final byte[] expectedDv = value.getBytes(StandardCharsets.UTF_8);
+
+        withColumnBatch(ms, "field", columns -> {
+            boolean foundNgram = false;
+            boolean foundDv = false;
+            long dvCount = -1;
+
+            for (Column col : columns.toColumnBatch().columns()) {
+                if (col instanceof BinaryColumn binCol) {
+                    ObjectTupleCursor<BytesRef> cursor = binCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        BytesRef val = cursor.value();
+                        byte[] colBytes = Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length);
+                        if (Arrays.equals(colBytes, expectedNgram)) {
+                            foundNgram = true;
+                        } else if (Arrays.equals(colBytes, expectedDv)) {
+                            foundDv = true;
+                        }
+                    }
+                } else if (col instanceof LongColumn longCol && col.name().endsWith(".counts")) {
+                    LongTupleCursor cursor = longCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        dvCount = cursor.longValue();
+                    }
+                }
+            }
+
+            assertTrue(
+                "ngram terms column must carry \\0-wrapped bytes (" + new String(expectedNgram, StandardCharsets.UTF_8) + ")",
+                foundNgram
+            );
+            assertTrue("dv column must carry raw UTF-8 bytes (" + value + ")", foundDv);
+            assertEquals("counts companion must reflect 1 slot for a single-value doc", 1L, dvCount);
+        }, "{\"field\":\"" + value + "\"}");
+    }
+
+    public void testColumnBatchMultiValueArrayOrderShape() throws Exception {
+        Settings columnarSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+        MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
+
+        withColumnBatch(ms, "field", columns -> {
+            long dvCount = -1;
+            boolean foundMultiSlotBlob = false;
+
+            for (Column col : columns.toColumnBatch().columns()) {
+                if (col instanceof LongColumn longCol && col.name().endsWith(".counts")) {
+                    LongTupleCursor cursor = longCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        dvCount = cursor.longValue();
+                    }
+                } else if (col instanceof BinaryColumn binCol && col.name().equals("field")) {
+                    ObjectTupleCursor<BytesRef> cursor = binCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        BytesRef val = cursor.value();
+                        if (val.length > 0 && val.bytes[val.offset] == 3) {
+                            foundMultiSlotBlob = true;
+                        }
+                    }
+                }
+            }
+
+            assertEquals("counts must be 2 for two non-null slots", 2L, dvCount);
+            assertTrue("binary dv blob must use [len+1][val] multi-slot framing for two values", foundMultiSlotBlob);
+        }, "{\"field\":[\"ab\",\"cd\"]}");
     }
 }

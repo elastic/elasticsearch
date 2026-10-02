@@ -77,6 +77,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
                 randomIdentifier(),
                 randomIdentifier(),
                 randomAlphanumericOfLength(1024),
+                randomBoolean() ? null : randomAlphanumericOfLength(1024),
                 randomPlanTimeProfile()
             )
         );

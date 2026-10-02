@@ -123,6 +123,10 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         if (ratedHits.size() > this.k) {
+            // joinHitsWithRatings retains each hit via RatedSearchHit#mustIncRef; release refs for hits past the window
+            for (int i = this.k; i < ratedHits.size(); i++) {
+                ratedHits.get(i).getSearchHit().decRef();
+            }
             ratedHits = ratedHits.subList(0, k);
         }
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());

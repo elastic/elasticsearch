@@ -31,13 +31,13 @@ public final class CountDistinctBooleanAggregatorFunctionSupplier implements Agg
   @Override
   public CountDistinctBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return CountDistinctBooleanAggregatorFunction.create(driverContext, channels);
+    return new CountDistinctBooleanAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public CountDistinctBooleanGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return CountDistinctBooleanGroupingAggregatorFunction.create(channels, driverContext);
+    return new CountDistinctBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

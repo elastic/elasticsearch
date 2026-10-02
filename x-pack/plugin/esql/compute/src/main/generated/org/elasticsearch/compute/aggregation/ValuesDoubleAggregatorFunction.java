@@ -11,10 +11,13 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,16 +34,10 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
 
   private final List<Integer> channels;
 
-  public ValuesDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesDoubleAggregator.SingleState state) {
+  ValuesDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesDoubleAggregatorFunction(driverContext, channels, ValuesDoubleAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesDoubleAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -67,6 +64,18 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -77,6 +86,18 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -84,6 +105,30 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        ValuesDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        ValuesDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        ValuesDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
       ValuesDoubleAggregator.combine(state, vValue);
@@ -91,6 +136,39 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        ValuesDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        ValuesDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        ValuesDoubleAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -139,6 +217,15 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block valuesUncast = page.getBlock(channels.get(0));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleBlock values = (DoubleBlock) valuesUncast;

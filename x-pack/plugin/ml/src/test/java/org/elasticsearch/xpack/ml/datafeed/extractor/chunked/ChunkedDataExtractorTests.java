@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -463,6 +465,51 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
+    public void testLinkedClusterStatesPropagateThroughChunkedExtractor() throws IOException {
+        chunkSpan = TimeValue.timeValueSeconds(1);
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createContext(1000L, 2300L));
+
+        DataExtractor summaryExtractor = new StubSubExtractor(new SearchInterval(1000L, 2300L), new DataSummary(1000L, 2300L, 10L));
+        when(dataExtractorFactory.newExtractor(1000L, 2300L)).thenReturn(summaryExtractor);
+
+        List<LinkedClusterState> clusterStates = List.of(
+            new LinkedClusterState("remote_1", LinkedClusterState.Status.AVAILABLE, null, 50L)
+        );
+
+        InputStream inputStream1 = mock(InputStream.class);
+        DataExtractor subExtractor1 = new StubSubExtractorWithClusterStates(new SearchInterval(1000L, 2000L), clusterStates, inputStream1);
+        when(dataExtractorFactory.newExtractor(1000L, 2000L)).thenReturn(subExtractor1);
+
+        DataExtractor subExtractor2 = new StubSubExtractor(new SearchInterval(2000L, 2300L));
+        when(dataExtractorFactory.newExtractor(2000L, 2300L)).thenReturn(subExtractor2);
+
+        DataExtractor.Result result = extractor.next();
+        assertThat(result.data().isPresent(), is(true));
+        assertThat(result.linkedClusterStates(), equalTo(clusterStates));
+
+        // Advance past the empty sub-extractor results until we get the final empty result
+        while (extractor.hasNext()) {
+            result = extractor.next();
+        }
+        // The final empty result should still carry the last seen linked project states
+        assertThat(result.linkedClusterStates(), equalTo(clusterStates));
+    }
+
+    public void testLinkedClusterStatesPropagateWhenSetUpChunkedSearchThrows() {
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createContext(1000L, 2300L));
+
+        List<LinkedClusterState> skippedStates = List.of(new LinkedClusterState("remote_1", LinkedClusterState.Status.SKIPPED, null, 50L));
+        DataExtractor summaryExtractor = new StubSummaryExtractorThrowingWithClusterStates(skippedStates);
+        when(dataExtractorFactory.newExtractor(1000L, 2300L)).thenReturn(summaryExtractor);
+
+        assertThat(extractor.hasNext(), is(true));
+        expectThrows(ResourceNotFoundException.class, extractor::next);
+
+        // Despite the failure, the skipped cluster states observed by the summary extractor
+        // must be surfaced via getLinkedClusterStates() so that callers can update CCS stats.
+        assertThat(extractor.getLinkedClusterStates(), equalTo(skippedStates));
+    }
+
     public void testNoDataSummaryHasNoData() {
         DataSummary summary = new DataSummary(null, null, 0L);
         assertFalse(summary.hasData());
@@ -516,9 +563,9 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         public Result next() {
             if (streams.isEmpty()) {
                 hasNext = false;
-                return new Result(searchInterval, Optional.empty());
+                return new Result(searchInterval, Optional.empty(), List.of());
             }
-            return new Result(searchInterval, Optional.of(streams.remove(0)));
+            return new Result(searchInterval, Optional.of(streams.remove(0)), List.of());
         }
 
         @Override
@@ -535,6 +582,74 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         public void destroy() {
             // do nothing
         }
+
+        @Override
+        public long getEndTime() {
+            return 0;
+        }
+    }
+
+    private static class StubSubExtractorWithClusterStates extends StubSubExtractor {
+        private final List<LinkedClusterState> linkedClusterStates;
+
+        StubSubExtractorWithClusterStates(
+            SearchInterval searchInterval,
+            List<LinkedClusterState> linkedClusterStates,
+            InputStream... streams
+        ) {
+            super(searchInterval, streams);
+            this.linkedClusterStates = linkedClusterStates;
+        }
+
+        @Override
+        public Result next() {
+            Result base = super.next();
+            return new Result(base.searchInterval(), base.data(), linkedClusterStates);
+        }
+    }
+
+    /**
+     * A summary extractor that throws {@link ResourceNotFoundException} from {@link #getSummary()} to simulate
+     * a CCS search where a remote cluster is skipped. The skipped cluster states are available via
+     * {@link #getLinkedClusterStates()} so that callers can capture them before the exception propagates.
+     */
+    private static class StubSummaryExtractorThrowingWithClusterStates implements DataExtractor {
+        private final List<LinkedClusterState> linkedClusterStates;
+
+        StubSummaryExtractorThrowingWithClusterStates(List<LinkedClusterState> linkedClusterStates) {
+            this.linkedClusterStates = linkedClusterStates;
+        }
+
+        @Override
+        public DataSummary getSummary() {
+            throw new ResourceNotFoundException("remote cluster skipped");
+        }
+
+        @Override
+        public List<LinkedClusterState> getLinkedClusterStates() {
+            return linkedClusterStates;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public Result next() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public void cancel() {}
+
+        @Override
+        public void destroy() {}
 
         @Override
         public long getEndTime() {

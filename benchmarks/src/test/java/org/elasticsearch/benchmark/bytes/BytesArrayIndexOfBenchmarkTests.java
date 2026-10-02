@@ -11,8 +11,8 @@ package org.elasticsearch.benchmark.bytes;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.test.ESTestCase;
-import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
@@ -36,11 +36,7 @@ public class BytesArrayIndexOfBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            var params = BytesArrayIndexOfBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        String[] params = Utils.possibleValues(BytesArrayIndexOfBenchmark.class, "size").toArray(new String[0]);
+        return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
     }
 }

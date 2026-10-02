@@ -20,7 +20,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -42,13 +45,16 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.common.TruncatorTests.createTruncator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockExecutorTests extends ESTestCase {
+    // Shadows ESTestCase.logger until ESTestCase migrates its field to org.elasticsearch.logging.Logger
+    private final Logger logger = LogManager.getLogger(getClass());
+
     public void testExecute_EmbeddingsRequest_ForAmazonTitan() throws CharacterCodingException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
             "id",
@@ -157,13 +163,14 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
             new AmazonBedrockCompletionTaskSettings(null, null, null, null),
             new AwsSecretSettings(new SecureString("accessKey"), new SecureString("secretKey"))
         );
-        var content = new UnifiedCompletionRequest.ContentString("content");
-        var toolCall = new UnifiedCompletionRequest.ToolCall(
-            "id",
-            new UnifiedCompletionRequest.ToolCall.FunctionField("function", model.model()),
-            ""
+        var content = new ContentString("content");
+        var toolCall = new ToolCall("id", new ToolCall.FunctionField("function", model.model()), "");
+        var message = new org.elasticsearch.inference.completion.Message(
+            content,
+            "user",
+            "tooluse_Z7IP83_eTt2y_TECni1ULw",
+            List.of(toolCall)
         );
-        var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
 
         var requestEntity = new AmazonBedrockChatCompletionRequestEntity(
             List.of(message),

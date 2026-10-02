@@ -1,0 +1,5 @@
+pr: 157217
+summary: Support `FIELD_EXTRACT` in `MATCH_PHRASE` and the `:` operator
+area: ES|QL
+type: enhancement
+issues: []

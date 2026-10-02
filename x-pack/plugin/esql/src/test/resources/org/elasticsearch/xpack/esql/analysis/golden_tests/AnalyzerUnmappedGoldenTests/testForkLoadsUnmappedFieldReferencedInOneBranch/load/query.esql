@@ -1,0 +1,5 @@
+SET unmapped_fields="load"; FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE message == "42")
+| KEEP _fork, message, unmapped_message, unmapped_event_duration
+| SORT _fork, unmapped_event_duration

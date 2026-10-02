@@ -58,8 +58,7 @@ public class RestCancelReindexAction extends BaseRestHandler {
         }
 
         final boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
-        final CancelReindexRequest cancelRequest = new CancelReindexRequest(waitForCompletion);
-        cancelRequest.setTargetTaskId(taskId);
+        final CancelReindexRequest cancelRequest = new CancelReindexRequest(taskId, waitForCompletion);
 
         return channel -> client.execute(TransportCancelReindexAction.TYPE, cancelRequest, new RestToXContentListener<>(channel));
     }

@@ -163,7 +163,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, false);
+        return Strings.toTruncatedString(this, true, false);
     }
 
     /**

@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
@@ -35,13 +37,18 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     private final CharacterRunAutomaton automaton;
     private final String pattern;
     // string representation without backquotes
-    private final String name;
+    // Cannot rely on NamedExpression.name: the UnresolvedNamedExpression superclass throws on name()
+    // and stores "<unresolved>" as the internal name field.
+    private final String actualName;
+    @Nullable
+    private final String glob;
 
-    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name) {
+    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name, @Nullable String glob) {
         super(source, emptyList());
         this.automaton = automaton;
         this.pattern = patternString;
-        this.name = name;
+        this.actualName = name;
+        this.glob = glob;
     }
 
     @Override
@@ -58,13 +65,22 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         return automaton.run(string);
     }
 
+    // override because the super class throws
     @Override
     public String name() {
-        return name;
+        return actualName;
     }
 
     public String pattern() {
         return pattern;
+    }
+
+    /**
+     * The pattern as a {@code *} glob that matches exactly what {@link #match} does, in which {@code \*} and {@code \\} stand for a literal
+     * {@code *} and {@code \}. Used by unmapped_fields LOAD_ALL functionality.
+     */
+    public String glob() {
+        return glob;
     }
 
     @Override
@@ -74,7 +90,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected NodeInfo<UnresolvedNamePattern> info() {
-        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, name);
+        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, actualName, glob);
     }
 
     @Override
@@ -99,22 +115,53 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(true), pattern);
+        return Objects.hash(super.innerHashCode(true), pattern, actualName, glob);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedNamePattern) o;
-        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern);
+        return super.innerEquals(other, true)
+            && Objects.equals(pattern, other.pattern)
+            && Objects.equals(actualName, other.actualName)
+            && Objects.equals(glob, other.glob);
     }
 
-    @Override
-    public String nodeString(NodeStringFormat format) {
-        return toString();
+    /**
+     * Renders a wildcard-style pattern (SQL {@code LIKE} / shell {@code KEEP *foo*}) preserving
+     * the metacharacters {@code *}, {@code ?}, {@code %}, {@code _} verbatim; each literal run
+     * between metacharacters routes through {@code mapper.column}. Backslash escapes the next
+     * character (treated as literal).
+     */
+    public static void rewriteWildcardPattern(StringBuilder sb, String pattern, NodeStringMapper mapper) {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                run.append(pattern.charAt(++i));
+                continue;
+            }
+            if (c == '*' || c == '?' || c == '%' || c == '_') {
+                if (run.length() > 0) {
+                    sb.append(mapper.column(run.toString()));
+                    run.setLength(0);
+                }
+                sb.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        if (run.length() > 0) {
+            sb.append(mapper.column(run.toString()));
+        }
     }
 
     @Override
     public String toString() {
         return UNRESOLVED_PREFIX + pattern;
     }
+
 }

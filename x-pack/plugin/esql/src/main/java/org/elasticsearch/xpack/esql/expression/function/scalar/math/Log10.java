@@ -7,20 +7,29 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,11 +38,28 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
-public class Log10 extends UnaryScalarFunction {
+public class Log10 extends UnaryScalarFunction implements AnyNullIsNull, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log10", Log10::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Log10.class).unary(Log10::new).name("log10");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryNonFiniteValueTransformation(Log10::new)
+        .description("Calculates the decimal logarithm for all elements in the input vector.")
+        .example("log10(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("log10");
+
+    /**
+     * When {@code true}, non-finite results ({@code NaN}/{@code ±Inf}) are returned as-is instead of being
+     * rejected to {@code null}. Set only by the PromQL translation so that PromQL math follows IEEE-754
+     * semantics (e.g. {@code log10(0)} returns {@code -Inf} and {@code log10(-x)} returns {@code NaN}); the
+     * default is {@code false}, meaning non-finite values are rejected.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
+        briefSummary = "Returns the base-10 logarithm of a number.",
         description = "Returns the logarithm of a value to base 10. The input can "
             + "be any numeric value, the return value is always a double.\n"
             + "\n"
@@ -48,11 +74,28 @@ public class Log10 extends UnaryScalarFunction {
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression n
     ) {
+        this(source, n, false);
+    }
+
+    public Log10(Source source, Expression n, boolean allowNonFinite) {
         super(source, n);
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Log10(StreamInput in) throws IOException {
         super(in);
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_UNARY_MATH);
+    }
+
+    @Override
+    public TransportVersion nonFiniteTransportVersion() {
+        return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_UNARY_MATH;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -66,7 +109,7 @@ public class Log10 extends UnaryScalarFunction {
         var fieldType = field().dataType();
 
         if (fieldType == DataType.DOUBLE) {
-            return new Log10DoubleEvaluator.Factory(source(), field);
+            return new Log10DoubleEvaluator.Factory(source(), field, allowNonFinite);
         }
         if (fieldType == DataType.INTEGER) {
             return new Log10IntEvaluator.Factory(source(), field);
@@ -82,8 +125,8 @@ public class Log10 extends UnaryScalarFunction {
     }
 
     @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
-    static double process(double val) {
-        if (val <= 0d) {
+    static double process(double val, @Fixed(includeInToString = false) boolean allowNonFinite) {
+        if (allowNonFinite == false && val <= 0d) {
             throw new ArithmeticException("Log of non-positive number");
         }
         return Math.log10(val);
@@ -115,12 +158,22 @@ public class Log10 extends UnaryScalarFunction {
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new Log10(source(), newChildren.get(0));
+        return new Log10(source(), newChildren.get(0), allowNonFinite);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Log10::new, field());
+        return NodeInfo.create(this, Log10::new, field(), allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Log10(source(), field(), false);
     }
 
     @Override

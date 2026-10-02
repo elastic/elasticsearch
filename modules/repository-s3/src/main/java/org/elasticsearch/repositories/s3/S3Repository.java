@@ -22,6 +22,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -33,12 +34,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -49,7 +52,10 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +69,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * <dl>
  * <dt>{@code bucket}</dt><dd>S3 bucket</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
- * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * <dt>{@code chunk_size}</dt>
  * <dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
@@ -76,9 +81,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final String TYPE = "s3";
 
     /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
 
     /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
@@ -154,7 +161,19 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
-    static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
+    static final Setting<String> FALLBACK_STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
+
+    /**
+     * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
+     * When unset, falls back to {@link #FALLBACK_STORAGE_CLASS_SETTING} (which itself defaults to standard).
+     */
+    static final Setting<String> DATA_STORAGE_CLASS_SETTING = Setting.simpleString("data_storage_class");
+
+    /**
+     * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_METADATA}.
+     * When unset, falls back to {@link #FALLBACK_STORAGE_CLASS_SETTING}.
+     */
+    static final Setting<String> METADATA_STORAGE_CLASS_SETTING = Setting.simpleString("metadata_storage_class");
 
     /**
      * The S3 repository supports all S3 canned ACLs : private, public-read, public-read-write,
@@ -237,9 +256,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
         "unsafely_incompatible_with_s3_conditional_writes",
-        false
+        false,
+        Setting.Property.Deprecated
     );
 
     private final S3Service service;
@@ -252,7 +273,11 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final boolean serverSideEncryption;
 
-    private final String storageClass;
+    private final String fallbackStorageClass;
+
+    private final String dataStorageClass;
+
+    private final String metadataStorageClass;
 
     private final String cannedACL;
 
@@ -330,7 +355,11 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
-        this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.fallbackStorageClass = FALLBACK_STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.dataStorageClass = DATA_STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.metadataStorageClass = METADATA_STORAGE_CLASS_SETTING.get(metadata.settings());
+        validatePerPurposeStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS_SETTING.getKey(), this.dataStorageClass);
+        validatePerPurposeStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS_SETTING.getKey(), this.metadataStorageClass);
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
@@ -364,7 +393,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             serverSideEncryption,
             bufferSize,
             cannedACL,
-            storageClass
+            fallbackStorageClass
         );
     }
 
@@ -372,6 +401,192 @@ class S3Repository extends MeteredBlobStoreRepository {
         This repository's settings include a S3 access key and secret key, but repository settings are stored in plaintext and must not be \
         used for security-sensitive information. Instead, store all secure settings in the keystore. See [%s] for more information.\
         """, ReferenceDocs.SECURE_SETTINGS);
+
+    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING = Strings.format(
+        """
+            This repository's settings include [%s] which is deprecated and must be removed before upgrade. If this setting is configured \
+            as [true], then first upgrade your storage to a system that is fully compatible with AWS S3.""",
+        UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()
+    );
+
+    static String deprecatedClientSettingDeprecationWarning(String settingKey) {
+        return Strings.format(
+            "This repository's settings include the deprecated S3 client setting [%s] which must be removed before upgrade.",
+            settingKey
+        );
+    }
+
+    static final String MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE = "S3 client endpoint is missing a URL scheme";
+
+    static final String REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE = "S3 client region is not configured";
+
+    static String missingEndpointSchemeDeprecationWarning(String configuredEndpoint, String endpointOverride) {
+        return Strings.format("""
+            This repository's S3 client endpoint [%s] is missing a URL scheme. Elasticsearch guessed it should be [%s]; \
+            add a scheme prefix to the endpoint before upgrade.""", configuredEndpoint, endpointOverride);
+    }
+
+    static String regionGuessedFromEndpointDeprecationWarning(String configuredEndpoint, String guessedRegionId) {
+        return Strings.format("""
+            This repository's S3 client has endpoint [%s] but no configured region. Elasticsearch guessed it should use [%s]; \
+            configure the region before upgrade.""", configuredEndpoint, guessedRegionId);
+    }
+
+    static String regionGuessedAsUsEast1DeprecationWarning(String endpointDescription) {
+        return Strings.format("""
+            This repository's S3 client has no configured region and %s. Elasticsearch is falling back to [us-east-1]; \
+            configure the region before upgrade.""", endpointDescription);
+    }
+
+    static String regionFellBackToCrossRegionAccessDeprecationWarning(String endpointDescription) {
+        return Strings.format("""
+            This repository's S3 client has no configured region and %s. Elasticsearch is falling back to [us-east-1] and enabling \
+            cross-region access; configure the region before upgrade.""", endpointDescription);
+    }
+
+    static final String CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE = "S3 repository client could not be created";
+
+    static String clientCreationFailureDeprecationWarning(String clientName) {
+        return Strings.format("""
+            This repository is configured to use S3 client [%s] which could not be created on this node. Configure that client, or \
+            change the repository's [%s] setting, before upgrade.""", clientName, CLIENT_NAME.getKey());
+    }
+
+    @Override
+    public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
+        // The constructor already validates these settings, so this check cannot fail on a successfully-created S3Repository.
+        if (S3ClientSettings.checkDeprecatedCredentials(getMetadata().settings())) {
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "S3 repository stores credentials in insecure repository settings",
+                    ReferenceDocs.SECURE_SETTINGS,
+                    INSECURE_CREDENTIALS_DEPRECATION_WARNING,
+                    false
+                )
+            );
+        }
+        for (String normalizedKey : S3ClientSettings.normalizeRepositorySettings(getMetadata().settings()).keySet()) {
+            for (Setting.AffixSetting<?> setting : S3RepositorySettings.DEPRECATED_CLIENT_SETTINGS) {
+                if (setting.match(normalizedKey)) {
+                    deprecationInfos.add(
+                        new RepositoryDeprecationInfo(
+                            RepositoryDeprecationInfo.Level.CRITICAL,
+                            "S3 repository explicitly configures a deprecated client setting",
+                            ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                            deprecatedClientSettingDeprecationWarning(
+                                normalizedKey.substring(S3ClientSettings.REPOSITORY_CLIENT_SETTINGS_PREFIX.length())
+                            ),
+                            false
+                        )
+                    );
+                    break;
+                }
+            }
+        }
+        if (UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(getMetadata().settings())) {
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "S3 repository explicitly configures a deprecated conditional writes setting",
+                    ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                    UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING,
+                    false
+                )
+            );
+        }
+        addClientDeprecationInfo(deprecationInfos);
+        return deprecationInfos;
+    }
+
+    private void addClientDeprecationInfo(List<RepositoryDeprecationInfo> deprecationInfos) {
+        final S3ClientSettings clientSettings;
+        try {
+            clientSettings = service.settings(getProjectId(), getMetadata());
+        } catch (Exception ignored) {
+            // Client construction happens lazily so this repository might have an invalid config (e.g. if it was created before this node
+            // joined the cluster, or created with `?verify=false`). If so, we can't validate its client-specific config which might hide
+            // some critical deprecations, thus we must also consider this state to be critically-deprecated:
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    clientCreationFailureDeprecationWarning(CLIENT_NAME.get(getMetadata().settings())),
+                    false
+                )
+            );
+            return;
+        }
+        final var deprecatedLeniencyHandler = new S3DeprecatedLeniencyHandler() {
+            @Override
+            public void missingEndpointScheme(String configuredEndpoint, String endpointOverride) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        missingEndpointSchemeDeprecationWarning(configuredEndpoint, endpointOverride),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionGuessedFromEndpoint(String configuredEndpoint, String guessedRegionId) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionGuessedFromEndpointDeprecationWarning(configuredEndpoint, guessedRegionId),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionGuessedAsUsEast1(String endpointDescription) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionGuessedAsUsEast1DeprecationWarning(endpointDescription),
+                        false
+                    )
+                );
+            }
+
+            @Override
+            public void regionFellBackToCrossRegionAccess(String endpointDescription) {
+                deprecationInfos.add(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        regionFellBackToCrossRegionAccessDeprecationWarning(endpointDescription),
+                        false
+                    )
+                );
+            }
+        };
+        try {
+            service.getClientRegion(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // unexpected, but we need to continue regardless
+            logger.warn("failure getting S3 client region", e);
+            assert false : e;
+        }
+        try {
+            service.getClientEndpoint(clientSettings, deprecatedLeniencyHandler);
+        } catch (Exception e) {
+            // e.g. URI.create failed? we need to continue regardless
+            logger.warn("failure getting S3 client endpoint", e);
+            assert e instanceof IllegalArgumentException && e.getCause() instanceof URISyntaxException : e;
+        }
+    }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
@@ -389,6 +604,21 @@ class S3Repository extends MeteredBlobStoreRepository {
     private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
         var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
         return ByteSizeValue.ofBytes(bytes);
+    }
+
+    /**
+     * Validates explicit {@link #DATA_STORAGE_CLASS_SETTING} / {@link #METADATA_STORAGE_CLASS_SETTING} values during repository
+     * construction so misconfiguration surfaces when the repository is registered rather than on first blob store access.
+     */
+    private static void validatePerPurposeStorageClassIfSpecified(String repositoryName, String settingKey, String value) {
+        if (Strings.hasText(value) == false) {
+            return;
+        }
+        try {
+            S3BlobStore.initStorageClass(value, true);
+        } catch (BlobStoreException e) {
+            throw new RepositoryException(repositoryName, settingKey + ": " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -490,7 +720,9 @@ class S3Repository extends MeteredBlobStoreRepository {
             serverSideEncryption,
             bufferSize,
             cannedACL,
-            storageClass,
+            fallbackStorageClass,
+            dataStorageClass,
+            metadataStorageClass,
             supportsConditionalWrites,
             metadata,
             bigArrays,

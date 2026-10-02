@@ -14,6 +14,7 @@
   <suppress files="plugin[/\\]eql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]eql[/\\]parser[/\\]EqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
   <suppress files="plugin[/\\]esql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]esql[/\\]parser[/\\](EsqlBase|PromqlBase)(Parser|Lexer).*.java" checks="." />
   <suppress files="x-pack[/\\]plugin[/\\]otel-data[/\\]build[/\\]generated[/\\]sources[/\\]" checks="." />
+  <suppress files="x-pack[/\\]plugin[/\\]prometheus[/\\]build[/\\]generated[/\\]sources[/\\]" checks="." />
 
   <!-- JNA requires the no-argument constructor on JNAKernel32Library.SizeT to be public-->
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JNAKernel32Library.java" checks="RedundantModifier" />
@@ -42,4 +43,7 @@
 
   <!-- Gradle requires inputs to be seriablizable -->
   <suppress files="build-tools-internal[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]internal[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
+
+  <!-- Entitlements rules API requires functional interfaces to be serializable -->
+  <suppress files="libs[/\\]entitlement[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]entitlement[/\\]rules[/\\]function[/\\]" checks="RegexpSinglelineJava" />
 </suppressions>

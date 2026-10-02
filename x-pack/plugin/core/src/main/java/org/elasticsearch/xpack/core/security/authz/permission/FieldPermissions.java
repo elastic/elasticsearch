@@ -18,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -165,8 +165,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
         } else {
             // an automaton that includes metadata fields, including join fields created by the _parent field such
             // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            Automaton metaFieldsAutomaton = Operations.concatenate(List.of(Automata.makeChar('_'), Automata.makeAnyString()));
+            grantedFieldsAutomaton = Operations.union(List.of(Automatons.patterns(grantedFields), metaFieldsAutomaton));
         }
 
         Automaton deniedFieldsAutomaton;
@@ -246,7 +246,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader, IndexVersion indexVersionCreated, Function<String, Boolean> isMapped)
+    public DirectoryReader filter(DirectoryReader reader, IndexSettings indexSettings, Function<String, Boolean> isMapped)
         throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
@@ -254,7 +254,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return FieldSubsetReader.wrap(
             reader,
             permittedFieldsAutomaton,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersionCreated),
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
             isMapped
         );
     }

@@ -7,7 +7,7 @@ mapped_pages:
 # Path hierarchy tokenizer [analysis-pathhierarchy-tokenizer]
 
 
-The `path_hierarchy` tokenizer takes a hierarchical value like a filesystem path, splits on the path separator, and emits a term for each component in the tree. The `path_hierarcy` tokenizer uses Lucene’s [PathHierarchyTokenizer](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/path/PathHierarchyTokenizer.md) underneath.
+The `path_hierarchy` tokenizer takes a hierarchical value like a filesystem path, splits on the path separator, and emits a term for each component in the tree. The `path_hierarcy` tokenizer uses Lucene’s [PathHierarchyTokenizer](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/path/PathHierarchyTokenizer.html) underneath.
 
 
 ## Example output [_example_output_14]
@@ -41,7 +41,7 @@ The `path_hierarchy` tokenizer accepts the following parameters:
 :   The number of characters read into the term buffer in a single pass. Defaults to `1024`. The term buffer will grow by this size until all the text has been consumed. It is advisable not to change this setting.
 
 `reverse`
-:   If `true`, uses Lucene’s [ReversePathHierarchyTokenizer](http://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/path/ReversePathHierarchyTokenizer.md), which is suitable for domain–like hierarchies. Defaults to `false`.
+:   If `true`, uses Lucene’s [ReversePathHierarchyTokenizer](http://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/path/ReversePathHierarchyTokenizer.html), which is suitable for domain–like hierarchies. Defaults to `false`.
 
 `skip`
 :   The number of initial tokens to skip. Defaults to `0`.

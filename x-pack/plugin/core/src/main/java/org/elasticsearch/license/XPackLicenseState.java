@@ -86,7 +86,7 @@ public class XPackLicenseState {
         );
         messages.put(XPackField.REDACT_PROCESSOR, new String[] { "Executing a redact processor in an ingest pipeline will fail." });
         messages.put(XPackField.INFERENCE, new String[] { "The Inference API is disabled" });
-        messages.put(XPackField.GPU_INDEXING, new String[] { "Indexing using a GPU is disabled." });
+        messages.put(XPackField.GPU_VECTOR_INDEXING, new String[] { "Indexing using a GPU is disabled." });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -110,7 +110,7 @@ public class XPackLicenseState {
         messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
         messages.put(XPackField.ESQL, XPackLicenseState::esqlAcknowledgementMessages);
         messages.put(XPackField.INFERENCE, XPackLicenseState::inferenceApiAcknowledgementMessages);
-        messages.put(XPackField.GPU_INDEXING, XPackLicenseState::gpuIndexingAcknowledgementMessages);
+        messages.put(XPackField.GPU_VECTOR_INDEXING, XPackLicenseState::gpuVectorIndexingAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -118,15 +118,12 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 switch (currentMode) {
-                    case STANDARD:
-                        return new String[] { "Security tokens will not be supported." };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
                             "Authentication will be limited to the native and file realms.",
-                            "Security tokens will not be supported.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
@@ -378,7 +375,7 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
-    private static String[] gpuIndexingAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+    private static String[] gpuVectorIndexingAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
             case STANDARD:

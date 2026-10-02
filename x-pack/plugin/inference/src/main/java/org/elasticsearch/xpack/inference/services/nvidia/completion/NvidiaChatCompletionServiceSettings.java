@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
@@ -76,6 +77,22 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     }
 
     @Override
+    public NvidiaChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new NvidiaChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
+    }
+
+    @Override
     protected URI buildDefaultUri() throws URISyntaxException {
         return DEFAULT_URI_BUILDER.build();
     }
@@ -109,5 +126,10 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     @Override
     public int hashCode() {
         return Objects.hash(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

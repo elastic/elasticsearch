@@ -13,6 +13,7 @@ parser grammar EsqlBaseParser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 }
 
 options {
@@ -45,6 +46,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -68,10 +70,19 @@ processingCommand
     | rerankCommand
     | inlineStatsCommand
     | fuseCommand
+    | uriPartsCommand
+    | metricsInfoCommand
+    | registeredDomainCommand
+    | tsInfoCommand
+    | userAgentCommand
+    | tsCollapseCommand
+    | ipLocationCommand
+    | mmrCommand
+    | highlightCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? mmrCommand
+    | dedupCommand
+    | {this.isDevVersion()}? denseVectorCommand
     ;
 
 whereCommand
@@ -102,17 +113,27 @@ timeSeriesCommand
     : TS indexPatternAndMetadataFields
     ;
 
+externalCommand
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
 indexPatternAndMetadataFields
     : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
     ;
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery
-    : LP fromCommand (PIPE processingCommand)* RP
+    : LP subquerySourceCommand (PIPE processingCommand)* RP
+    ;
+
+subquerySourceCommand
+    : fromCommand
+    | rowCommand
+    | timeSeriesCommand
     ;
 
 indexPattern
@@ -186,8 +207,15 @@ identifier
 
 identifierPattern
     : ID_PATTERN
+    | expressionModeIdentifierPattern
     | parameter
     | doubleParameter
+    ;
+
+// HIGHLIGHT remains in EXPRESSION_MODE after ON, where identifier patterns are emitted as identifier/ASTERISK tokens.
+expressionModeIdentifierPattern
+    : identifier? ASTERISK (identifier | ASTERISK)*
+    | identifier
     ;
 
 parameter
@@ -212,7 +240,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -295,7 +327,7 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? (BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
     ;
 
 forkCommand
@@ -348,6 +380,18 @@ fuseKeyByFields
    : qualifiedName (COMMA qualifiedName)*
    ;
 
+metricsInfoCommand
+    : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
+    ;
+
+tsCollapseCommand
+    : TS_COLLAPSE
+    ;
+
 //
 // In development
 //
@@ -355,8 +399,32 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
+dedupCommand
+    : DEDUP
+    ;
+
+highlightCommand
+    : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
+    ;
+
+qualifiedNames
+    : qualifiedName (COMMA qualifiedName)*
+    ;
+
+uriPartsCommand
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
+    ;
+
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
+ipLocationCommand
+    : IP_LOCATION qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand
@@ -368,10 +436,24 @@ setField
     ;
 
 mmrCommand
-    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+// The field list is optional in the grammar only so the command can report its own errors: an absent list and a
+// literal input both parse here and are rejected in the builder, where the message can name the actual problem.
+denseVectorCommand
+    : DEV_DENSE_VECTOR denseVectorNaming? qualifiedNames? commandNamedParameters
+    ;
+
+// `ON` closes the suffix clause instead of separating two operands, so it sits inside the optional
+// group: without it, `DENSE_VECTOR title, description` would have to spell a bare `ON`.
+denseVectorNaming
+    : targetField=qualifiedName ASSIGN                      # denseVectorTargetName
+    | suffixKeyword=identifier ASSIGN suffix=string ON      # denseVectorSuffix
+    | (targetField=qualifiedName ASSIGN)? literalInput=string  # denseVectorLiteralInput
     ;

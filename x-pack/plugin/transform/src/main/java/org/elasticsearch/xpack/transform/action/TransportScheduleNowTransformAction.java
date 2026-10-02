@@ -18,7 +18,9 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -28,10 +30,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -49,13 +53,15 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
     private static final Logger logger = LogManager.getLogger(TransportScheduleNowTransformAction.class);
     private final TransformConfigManager transformConfigManager;
     private final TransformScheduler transformScheduler;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportScheduleNowTransformAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(
             ScheduleNowTransformAction.NAME,
@@ -69,13 +75,14 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
 
         this.transformConfigManager = transformServices.configManager();
         this.transformScheduler = transformServices.scheduler();
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot schedule any Transform while the Transform feature is upgrading.",
@@ -86,7 +93,10 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
         }
 
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
-            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
+            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                request.getId(),
+                projectResolver.getProjectMetadata(clusterState)
+            );
 
             // to send a request to schedule now the transform at runtime, several requirements must be met:
             // - transform must be running, meaning a task exists
@@ -132,8 +142,23 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
             logger.debug("[{}] Destination index is blocked. User requested a retry.", transformTask.getTransformId());
             transformTask.getContext().setIsWaitingForIndexToUnblock(false);
         }
-        transformScheduler.scheduleNow(request.getId());
-        listener.onResponse(Response.TRUE);
+        if (request.defer()) {
+            transformConfigManager.getTransformConfiguration(request.getId(), listener.delegateFailureAndWrap((l, config) -> {
+                if (config.getSyncConfig() instanceof TimeSyncConfig timeSyncConfig) {
+                    var deferDuration = timeSyncConfig.getDelay();
+                    transformScheduler.scheduleWithDelay(request.getId(), deferDuration);
+                } else {
+                    var incompatibleWarning = TransformMessages.getMessage(TransformMessages.REST_WARN_NO_TRANSFORM_NODES, request.getId());
+                    logger.warn(incompatibleWarning);
+                    HeaderWarning.addWarning(incompatibleWarning);
+                    transformScheduler.scheduleNow(request.getId());
+                }
+                l.onResponse(Response.TRUE);
+            }));
+        } else {
+            transformScheduler.scheduleNow(request.getId());
+            listener.onResponse(Response.TRUE);
+        }
     }
 
     @Override

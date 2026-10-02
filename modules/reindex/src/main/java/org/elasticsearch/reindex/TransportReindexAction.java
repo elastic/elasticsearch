@@ -22,21 +22,29 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
+public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByPaginatedSearchResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
         "reindex.remote.whitelist",
+        Property.NodeScope
+    );
+    // Hosts matching the blocklist are not allowed, even if they match the whitelist
+    public static final Setting<List<String>> REMOTE_CLUSTER_BLOCKLIST = Setting.stringListSetting(
+        "reindex.remote.blocklist",
         Property.NodeScope
     );
 
@@ -58,7 +66,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
-        @Nullable ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
+        FeatureService featureService,
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this(
             ReindexAction.NAME,
@@ -73,7 +87,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             client,
             transportService,
             sslConfig,
-            reindexMetrics
+            reindexMetrics,
+            bulkByPaginatedSearchSearchContextMetrics,
+            relocationNodePicker,
+            reindexSettings,
+            featureService,
+            taskResultsService,
+            circuitBreakerService
         );
     }
 
@@ -90,7 +110,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
-        @Nullable ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
+        FeatureService featureService,
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -101,17 +127,32 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             projectResolver,
             autoCreateIndex
         );
-        this.reindexer = new Reindexer(clusterService, projectResolver, client, threadPool, scriptService, sslConfig, reindexMetrics);
+        this.reindexer = new Reindexer(
+            clusterService,
+            reindexSettings,
+            projectResolver,
+            client,
+            threadPool,
+            scriptService,
+            sslConfig,
+            reindexMetrics,
+            bulkByPaginatedSearchSearchContextMetrics,
+            transportService,
+            relocationNodePicker,
+            featureService,
+            taskResultsService,
+            circuitBreakerService
+        );
     }
 
     @Override
-    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         validate(request);
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             request,
-            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+            listener.delegateFailure((l, v) -> reindexer.execute(bulkByPaginatedSearchTask, request, getBulkClient(), l))
         );
     }
 

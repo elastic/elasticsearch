@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicAccount;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 
@@ -24,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils.createVersionHeader;
 
-public class AnthropicChatCompletionRequest implements Request {
+public class AnthropicChatCompletionRequest implements OutboundCompletionRequest {
 
     private final AnthropicAccount account;
     private final List<String> input;
@@ -39,7 +41,7 @@ public class AnthropicChatCompletionRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -52,7 +54,7 @@ public class AnthropicChatCompletionRequest implements Request {
         httpPost.setHeader(AnthropicRequestUtils.createAuthBearerHeader(account.apiKey()));
         httpPost.setHeader(createVersionHeader());
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -61,7 +63,7 @@ public class AnthropicChatCompletionRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for Anthropic completions
         return this;
     }

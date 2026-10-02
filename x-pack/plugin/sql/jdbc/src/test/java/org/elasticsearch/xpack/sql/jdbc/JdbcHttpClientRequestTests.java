@@ -70,7 +70,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
     }
 
     private void assertBinaryRequest(boolean isBinary, XContentType xContentType) throws Exception {
-        String url = JdbcConfiguration.URL_PREFIX + webServer.getHostName() + ":" + webServer.getPort();
+        String url = JdbcConfiguration.URL_PREFIX + webServer.getHttpAddress();
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
 
@@ -184,6 +184,18 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
 
         int getPort() {
             return port;
+        }
+
+        /**
+         * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+         */
+        String getHttpAddress() {
+            String host = getHostName();
+            if (host.contains(":")) {
+                // IPv6 address needs brackets
+                host = "[" + host + "]";
+            }
+            return host + ":" + getPort();
         }
 
         void enqueue(Response response) {

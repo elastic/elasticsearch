@@ -126,12 +126,15 @@ public class ComparisonTests extends TDigestTestCase {
             assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
 
-        // The absolute value of median is within [0,5000], which is deemed close enough to 0 compared to the max value.
+        // The true median is ~0, negligible against this distribution's +/-5,000,000 range. Allow 0.01 * the standard
+        // deviation (which is SAMPLE_COUNT here), matching testDenseGaussianDistribution; the previous fixed 5000
+        // (0.005 * standard deviation) was occasionally too tight for the merging/hybrid digests and flaky (#153061).
+        double medianTolerance = SAMPLE_COUNT / 100.0;
         double expectedMedian = Dist.quantile(0.5, samples);
         assertEquals(expectedMedian, sortingDigest.quantile(0.5), 0);
-        assertEquals(expectedMedian, avlTreeDigest.quantile(0.5), 5000);
-        assertEquals(expectedMedian, mergingDigest.quantile(0.5), 5000);
-        assertEquals(expectedMedian, hybridDigest.quantile(0.5), 5000);
+        assertEquals(expectedMedian, avlTreeDigest.quantile(0.5), medianTolerance);
+        assertEquals(expectedMedian, mergingDigest.quantile(0.5), medianTolerance);
+        assertEquals(expectedMedian, hybridDigest.quantile(0.5), medianTolerance);
 
         releaseData();
     }

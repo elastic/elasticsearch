@@ -36,14 +36,12 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -58,7 +56,6 @@ import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSetting
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
@@ -218,8 +215,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
         when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
 
-        final MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
         final ClusterService clusterService;
         try (var ignored = threadContext.newStoredContext()) {
             defaultContext.restore();
@@ -233,7 +228,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             settings,
             Clock.systemUTC(),
             client,
-            licenseState,
             securityContext,
             securityIndex,
             securityIndex,
@@ -258,8 +252,9 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
         samlRealm = SamlRealm.create(
             realmConfig,
+            threadPool,
             mock(SSLService.class),
-            mock(ResourceWatcherService.class),
+            mockResourceWatcherService(),
             mock(UserRoleMapper.class),
             SingleSamlSpConfiguration.create(realmConfig)
         );

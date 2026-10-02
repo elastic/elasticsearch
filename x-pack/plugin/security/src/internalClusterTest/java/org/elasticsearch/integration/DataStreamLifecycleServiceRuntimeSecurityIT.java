@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -59,7 +59,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.dataStreamIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -100,18 +99,18 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         // with failure store and empty lifecycle contains the default rollover
         prepareDataStreamAndIndex(dataStreamName, null);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String backingIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String backingIndex = backingIndices.get(0).getName();
         assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-        String writeIndex = backingIndices.get(1);
+        String writeIndex = backingIndices.get(1).getName();
         assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
 
         // initialise the failure store
         indexFailedDoc(dataStreamName);
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
-        String firstFailureIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
+        String firstFailureIndex = failureIndices.get(0).getName();
         assertThat(firstFailureIndex, dataStreamIndexEqualTo(dataStreamName, 3, true));
-        String secondFailureIndexGen = failureIndices.get(1);
+        String secondFailureIndexGen = failureIndices.get(1).getName();
         assertThat(secondFailureIndexGen, dataStreamIndexEqualTo(dataStreamName, 4, true));
 
         assertNoAuthzErrors();
@@ -151,17 +150,21 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     }
 
     public void testUnauthorized() throws Exception {
-        // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
-        // lifecycle will therefore fail at runtime with an authz exception
-        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, null);
-        indexFailedDoc(SECURITY_MAIN_ALIAS);
+        // This system data stream is registered via SystemDataStreamTestPlugin but the DSL internal user does not have
+        // allowRestrictedIndices access for it, so lifecycle operations will fail with an authz exception
+        String dataStreamName = SystemDataStreamTestPlugin.UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME;
+        indexDoc(dataStreamName);
+        indexFailedDoc(dataStreamName);
 
         assertBusy(() -> {
-            Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
+            Map<Index, String> indicesAndErrors = collectErrorsFromStoreAsMap();
             // Both the backing and failures indices should have errors
             assertThat(indicesAndErrors.size(), is(2));
-            for (String index : indicesAndErrors.keySet()) {
-                assertThat(index, anyOf(containsString(DataStream.BACKING_INDEX_PREFIX), containsString(DataStream.FAILURE_STORE_PREFIX)));
+            for (Index index : indicesAndErrors.keySet()) {
+                assertThat(
+                    index.getName(),
+                    anyOf(containsString(DataStream.BACKING_INDEX_PREFIX), containsString(DataStream.FAILURE_STORE_PREFIX))
+                );
             }
             assertThat(
                 indicesAndErrors.values(),
@@ -202,12 +205,12 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         return randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
     }
 
-    private Map<String, String> collectErrorsFromStoreAsMap() {
+    private Map<Index, String> collectErrorsFromStoreAsMap() {
         Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-        Map<String, String> indicesAndErrors = new HashMap<>();
+        Map<Index, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
+            Set<Index> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
                 ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
                 if (error != null) {
@@ -338,6 +341,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {
 
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
+        static final String UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME = ".test-unauthorized-system-ds";
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
@@ -349,6 +353,46 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                            "properties": {
+                                              "@timestamp" : {
+                                                "type": "date"
+                                              },
+                                              "count": {
+                                                "type": "long"
+                                              }
+                                            }
+                                        }"""))
+                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO))
+                                    .dataStreamOptions(
+                                        new DataStreamOptions.Template(
+                                            new DataStreamFailureStore.Template(
+                                                true,
+                                                DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate()
+                                            )
+                                        )
+                                    )
+                            )
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        Collections.singletonList("test"),
+                        "test",
+                        new ExecutorNames(
+                            ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                            ThreadPool.Names.SYSTEM_READ,
+                            ThreadPool.Names.SYSTEM_WRITE
+                        )
+                    ),
+                    new SystemDataStreamDescriptor(
+                        UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME,
+                        "a system data stream the DSL user does not have access to",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME))
                             .template(
                                 Template.builder()
                                     .mappings(new CompressedXContent("""

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -39,9 +40,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -70,8 +73,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,7 +89,6 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecureBytesRefRecycler;
@@ -227,7 +227,6 @@ public class TokenService {
     private final SecurityIndexManager securityTokensIndex;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
-    private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final Recycler<BytesRef> bytesRefRecycler;
     private volatile TokenKeys keyCache;
@@ -242,7 +241,6 @@ public class TokenService {
         Settings settings,
         Clock clock,
         Client client,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
         SecurityIndexManager securityMainIndex,
         SecurityIndexManager securityTokensIndex,
@@ -256,7 +254,6 @@ public class TokenService {
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
-        this.licenseState = licenseState;
         this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
@@ -621,7 +618,11 @@ public class TokenService {
                     if (isShardNotAvailableException(e)) {
                         logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
                     } else {
-                        logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
+                        logger.log(
+                            ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException ? Level.WARN : Level.ERROR,
+                            () -> "failed to get token doc [" + tokenId + "]",
+                            e
+                        );
                     }
                     listener.onFailure(e);
                 }),
@@ -1984,15 +1985,10 @@ public class TokenService {
     }
 
     private boolean shouldTryRealm() {
-        // Check license without tracking because this is just checking if we should *try* the realm - if this realm doesn't match,
-        // the next realm in the list will be checked, and that's not "using the feature"
-        return enabled && Security.TOKEN_SERVICE_FEATURE.checkWithoutTracking(licenseState);
+        return enabled;
     }
 
     private void ensureEnabled() {
-        if (Security.TOKEN_SERVICE_FEATURE.check(licenseState) == false) {
-            throw LicenseUtils.newComplianceException("security tokens");
-        }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.TOKEN_SERVICE, "security tokens are not enabled");
         }
@@ -2468,7 +2464,11 @@ public class TokenService {
                     @Override
                     public void onFailure(Exception e) {
                         installTokenMetadataInProgress.set(false);
-                        logger.error("unable to install token metadata", e);
+                        logger.log(
+                            MasterService.isPublishFailureException(e) ? Level.WARN : Level.ERROR,
+                            "unable to install token metadata",
+                            e
+                        );
                     }
 
                     @Override

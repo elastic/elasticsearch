@@ -9,10 +9,14 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -23,17 +27,44 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
 
-    private transient long searchHitsSizeBytes = 0L;
+    private long searchHitsSizeBytes = 0L;
+
+    // Null exactly when there is no charge outstanding.
+    private CircuitBreaker searchHitsSizeBytesBreaker;
+
+    // Set when the outstanding charge was made on the coordinator instead of by the shard's own fetch.
+    private boolean chargedOnCoordinator;
 
     // client side counter
     private transient int counter;
 
     private ProfileResult profileResult;
+
+    /**
+     * Sequence number of the first hit in the last chunk (embedded in this result).
+     * Used by the coordinator to maintain correct ordering when processing the last chunk.
+     * Value of -1 indicates no last chunk or sequence tracking not applicable.
+     */
+    private long lastChunkSequenceStart = -1;
+
+    /**
+     *  Raw serialized bytes of the last chunk's hits.
+     */
+    private BytesReference lastChunkBytes;
+
+    /**
+     * Number of hits in the last chunk bytes.
+     * Used by the coordinator to know how many hits to deserialize from lastChunkBytes.
+     */
+    private int lastChunkHitCount;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -46,8 +77,16 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult(StreamInput in) throws IOException {
         contextId = new ShardSearchContextId(in);
-        hits = SearchHits.readFrom(in, true);
+        hits = SearchHits.readFrom(in);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            lastChunkSequenceStart = in.readLong();
+            lastChunkHitCount = in.readInt();
+            if (lastChunkHitCount > 0) {
+                lastChunkBytes = in.readReleasableBytesReference();
+            }
+        }
+        readDirectoryMetrics(in);
     }
 
     @Override
@@ -56,6 +95,14 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            out.writeLong(lastChunkSequenceStart);
+            out.writeInt(lastChunkHitCount);
+            if (lastChunkHitCount > 0 && lastChunkBytes != null) {
+                out.writeBytesReference(lastChunkBytes);
+            }
+        }
+        writeDirectoryMetrics(out);
     }
 
     @Override
@@ -87,18 +134,53 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
-    public void setSearchHitsSizeBytes(long bytes) {
+    public void setSearchHitsSizeBytes(long bytes, CircuitBreaker circuitBreaker) {
+        if (bytes <= 0L) {
+            return;
+        }
+        Objects.requireNonNull(circuitBreaker, "no breaker to return the charged bytes to");
+        assert searchHitsSizeBytes == 0L : "overwriting an outstanding charge of [" + searchHitsSizeBytes + "] bytes";
+        // Without assertions, give back what is outstanding rather than losing track of it.
+        giveBackCircuitBreakerBytes();
         this.searchHitsSizeBytes = bytes;
+        this.searchHitsSizeBytesBreaker = circuitBreaker;
     }
 
     public long getSearchHitsSizeBytes() {
         return searchHitsSizeBytes;
     }
 
-    public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
+    /**
+     * Takes over a charge already made on the coordinator for hits assembled there, so the bytes stay charged
+     * across the handoff rather than being given back and estimated again.
+     */
+    public void setCoordinatorSearchHitsSizeBytes(long bytes, CircuitBreaker circuitBreaker) {
+        setSearchHitsSizeBytes(bytes, circuitBreaker);
+        chargedOnCoordinator = bytes > 0L;
+    }
+
+    /**
+     * Whether the outstanding charge was made on the coordinator, which must then not charge for these hits again.
+     */
+    public boolean isChargedOnCoordinator() {
+        return chargedOnCoordinator;
+    }
+
+    /**
+     * Callers release once the response is written. {@link #deallocate()} cannot guarantee that ordering, so it only
+     * catches results dropped before the release.
+     */
+    public void releaseCircuitBreakerBytes() {
+        assert hasReferences() : "explicit release must hold a reference";
+        giveBackCircuitBreakerBytes();
+    }
+
+    private void giveBackCircuitBreakerBytes() {
         if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
+            searchHitsSizeBytesBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
+            searchHitsSizeBytesBreaker = null;
+            chargedOnCoordinator = false;
         }
     }
 
@@ -139,10 +221,78 @@ public final class FetchSearchResult extends SearchPhaseResult {
             hits.decRef();
             hits = null;
         }
+        releaseLastChunkBytes();
+        giveBackCircuitBreakerBytes();
     }
 
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
+    }
+
+    /**
+     * Sets the sequence start for the last chunk embedded in this result.
+     * Called on the data node after iterating fetch phase results.
+     *
+     * @param sequenceStart the sequence number of the first hit in the last chunk
+     */
+    public void setLastChunkSequenceStart(long sequenceStart) {
+        this.lastChunkSequenceStart = sequenceStart;
+    }
+
+    /**
+     * Gets the sequence start for the last chunk embedded in this result.
+     * Used by the coordinator to properly order last chunk hits with other chunks.
+     *
+     * @return the sequence number of the first hit in the last chunk, or -1 if not set
+     */
+    public long getLastChunkSequenceStart() {
+        return lastChunkSequenceStart;
+    }
+
+    /**
+     * Sets the raw bytes of the last chunk.
+     * Called on the data node in chunked fetch mode to avoid deserializing
+     * large hit data that would cause OOM.
+     *
+     * <p>Takes ownership of the bytes reference - caller must not release it.
+     *
+     * @param bytes the serialized hit bytes
+     * @param hitCount the number of hits in the bytes
+     */
+    public void setLastChunkBytes(BytesReference bytes, int hitCount) {
+        releaseLastChunkBytes(); // Release any existing bytes
+        this.lastChunkBytes = bytes;
+        this.lastChunkHitCount = hitCount;
+    }
+
+    /**
+     * Gets the raw bytes of the last chunk.
+     * Used by the coordinator to deserialize and merge with other accumulated chunks.
+     *
+     * @return the serialized hit bytes, or null if not set
+     */
+    public BytesReference getLastChunkBytes() {
+        return lastChunkBytes;
+    }
+
+    /**
+     * Gets the number of hits in the last chunk bytes.
+     *
+     * @return the hit count, or 0 if no last chunk
+     */
+    public int getLastChunkHitCount() {
+        return lastChunkHitCount;
+    }
+
+    /**
+     * Releases the last chunk bytes if they are releasable.
+     */
+    private void releaseLastChunkBytes() {
+        if (lastChunkBytes instanceof Releasable releasable) {
+            Releasables.closeWhileHandlingException(releasable);
+        }
+        lastChunkBytes = null;
+        lastChunkHitCount = 0;
     }
 }

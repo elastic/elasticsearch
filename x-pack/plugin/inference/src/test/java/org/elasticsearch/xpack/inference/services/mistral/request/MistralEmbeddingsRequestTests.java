@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingModelTests;
 import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 public class MistralEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_Works() throws IOException {
         var request = createRequest("mistral-embed", "apikey", "abcd");
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, MistralConstants.API_EMBEDDINGS_PATH);
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
 
@@ -44,7 +45,7 @@ public class MistralEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest("mistral-embed", "apikey", "abcd");
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
 
@@ -36,58 +36,28 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
-            return ConstantNull.READER;
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.COLUMN_READER;
         }
-        return new BytesRefsFromCustomBinary(docValues);
-    }
-
-    public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
-        protected final BinaryDocValues docValues;
-
-        public AbstractBytesRefsFromBinary(BinaryDocValues docValues) {
-            this.docValues = docValues;
-        }
-
-        @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
-                }
-                return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
-        }
-
-        @Override
-        public int docId() {
-            return docValues.docID();
-        }
-
-        public abstract void read(int docId, BytesRefBuilder builder) throws IOException;
+        return new BytesRefsFromCustomBinary(dv);
     }
 
     /**
-     * Read BinaryDocValues encoded by {@link BinaryFieldMapper.CustomBinaryDocValuesField}
+     * Read BinaryDocValues encoded by {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount}
      */
-    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
+    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinaryReader {
         private final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
-        BytesRefsFromCustomBinary(BinaryDocValues docValues) {
+        BytesRefsFromCustomBinary(TrackingBinaryDocValues docValues) {
             super(docValues);
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+            // Attempt a fast path through OptionalColumnAtATimeReader
+            if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, true);
                 if (block != null) {
                     return block;
@@ -98,11 +68,11 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytes = docValues.binaryValue();
+            BytesRef bytes = docValues.docValues().binaryValue();
             reader.read(bytes, builder);
         }
 

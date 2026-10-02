@@ -17,7 +17,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.nio.ShortBuffer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION;
@@ -86,32 +85,28 @@ public final class VectorEncoderDecoder {
         }
     }
 
-    public static void decodeBFloat16DenseVector(BytesRef vectorBR, float[] vector) {
+    public static void decodeBFloat16DenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        ShortBuffer sb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-        BFloat16.bFloat16ToFloat(sb, vector);
+        ByteOrder byteOrder = indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
+            ? ByteOrder.LITTLE_ENDIAN
+            : ByteOrder.BIG_ENDIAN;
+        BFloat16.bFloat16ToFloat(vectorBR.bytes, vectorBR.offset, vector, 0, vector.length, byteOrder);
     }
 
     /**
      * Decodes a BytesRef into the provided array of bytes
+     *
      * @param vectorBR - dense vector encoded in BytesRef
-     * @param vector - array of bytes where the decoded vector should be stored
+     * @param vector   - array of bytes where the decoded vector should be stored
      */
-    public static void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, byte[] vector) {
+    public static void decodeDenseVector(BytesRef vectorBR, byte[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        if (indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-            ByteBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN);
-            fb.get(vector);
-        } else {
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-            for (int dim = 0; dim < vector.length; dim++) {
-                vector[dim] = byteBuffer.get(dim * vectorBR.offset);
-            }
-        }
+        // individual bytes have no endianness, so a plain copy is correct for all index versions
+        System.arraycopy(vectorBR.bytes, vectorBR.offset, vector, 0, vector.length);
     }
 
     public static float[] getMultiMagnitudes(BytesRef magnitudes) {

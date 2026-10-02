@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
+
 /**
  * Groups together all metrics used in mappers.
  * Main purpose of this class is to avoid verbosity of passing individual metric instances around.
  */
-public record MapperMetrics(SourceFieldMetrics sourceFieldMetrics) {
-    public static final MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP);
+public record MapperMetrics(SourceFieldMetrics sourceFieldMetrics, TokenCountingMetrics tokenCountingMetrics) {
+    public static final MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP, TokenCountingMetrics.NOOP);
 }

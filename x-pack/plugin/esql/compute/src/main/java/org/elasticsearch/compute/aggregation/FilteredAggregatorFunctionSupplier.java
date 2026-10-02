@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.List;
  * A {@link AggregatorFunctionSupplier} that wraps another, filtering which positions
  * are supplied to the aggregator.
  */
-public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next, EvalOperator.ExpressionEvaluator.Factory filter)
+public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next, ExpressionEvaluator.Factory filter)
     implements
         AggregatorFunctionSupplier {
 
@@ -34,7 +34,7 @@ public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next
     @Override
     public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
         AggregatorFunction next = this.next.aggregator(driverContext, channels);
-        EvalOperator.ExpressionEvaluator filter = null;
+        ExpressionEvaluator filter = null;
         try {
             filter = this.filter.get(driverContext);
             AggregatorFunction result = new FilteredAggregatorFunction(next, filter);
@@ -49,7 +49,7 @@ public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
         GroupingAggregatorFunction next = this.next.groupingAggregator(driverContext, channels);
-        EvalOperator.ExpressionEvaluator filter = null;
+        ExpressionEvaluator filter = null;
         try {
             filter = this.filter.get(driverContext);
             GroupingAggregatorFunction result = new FilteredGroupingAggregatorFunction(next, filter);

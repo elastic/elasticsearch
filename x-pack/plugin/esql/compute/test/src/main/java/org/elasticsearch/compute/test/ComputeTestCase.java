@@ -58,7 +58,7 @@ public abstract class ComputeTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays).breaker(breaker));
         blockFactories.add(factory);
         return factory;
     }
@@ -69,9 +69,8 @@ public abstract class ComputeTestCase extends ESTestCase {
     protected final BlockFactory crankyBlockFactory() {
         CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(blockFactory);
         return blockFactory;
     }

@@ -1,0 +1,40 @@
+{
+  "esql.get_dataset": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-dataset-get",
+      "description": "Get one or more ES|QL datasets."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/dataset/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of dataset names or wildcard patterns"
+            }
+          }
+        },
+        {
+          "path": "/_query/dataset",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

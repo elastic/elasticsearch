@@ -8,66 +8,63 @@
 package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
-import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
-public abstract class JinaAIModel extends Model {
-    private final SecureString apiKey;
-    private final JinaAIRateLimitServiceSettings rateLimitServiceSettings;
+public abstract class JinaAIModel extends RateLimitGroupingModel {
     private final URI uri;
 
-    public JinaAIModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        @Nullable ApiKeySecrets apiKeySecrets,
-        JinaAIRateLimitServiceSettings rateLimitServiceSettings,
-        URI uri
-    ) {
+    public JinaAIModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
         super(configurations, secrets);
-
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(apiKeySecrets);
         this.uri = uri;
     }
 
     protected JinaAIModel(JinaAIModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
         uri = model.uri();
     }
 
-    protected JinaAIModel(JinaAIModel model, ServiceSettings serviceSettings) {
+    protected JinaAIModel(JinaAIModel model, JinaAIServiceSettings serviceSettings) {
         super(model, serviceSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-        apiKey = model.apiKey();
         uri = model.uri();
+    }
+
+    @Override
+    public JinaAIServiceSettings getServiceSettings() {
+        return (JinaAIServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public SecureString apiKey() {
-        return apiKey;
-    }
-
-    public JinaAIRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+        return ServiceUtils.apiKey(getSecretSettings());
     }
 
     public URI uri() {
         return uri;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return apiKey().hashCode();
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return getServiceSettings().rateLimitSettings();
     }
 
     public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings);

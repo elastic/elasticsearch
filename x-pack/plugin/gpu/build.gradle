@@ -25,6 +25,10 @@ dependencies {
   clusterModules project(xpackModule('gpu'))
 }
 
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("xpack.usage and xpack.info query all features, requiring the full distribution")
+}
+
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

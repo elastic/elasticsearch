@@ -12,11 +12,14 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModelCreator;
 
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.ensureEmptyTaskSettingsInRequestContext;
 
 /**
  * Creates {@link ElasticInferenceServiceRerankModel} instances from config maps
@@ -36,17 +39,18 @@ public class ElasticInferenceServiceRerankModelCreator extends ElasticInferenceS
         @Nullable Map<String, Object> taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
+        ensureEmptyTaskSettingsInRequestContext(taskSettings, context);
+
         return new ElasticInferenceServiceRerankModel(
             inferenceId,
             taskType,
-            service,
             serviceSettings,
-            taskSettings,
-            secretSettings,
             elasticInferenceServiceComponents,
-            context
+            context,
+            endpointMetadata
         );
     }
 

@@ -1,16 +1,24 @@
 ---
 applies_to:
-  stack:
+  stack: ga 9.1+
   serverless:
 navigation_title: "Query log"
 ---
 
 # {{esql}} Query log [esql-query-log]
 
+:::{note}
+:applies_to: {"stack": "preview 9.4", "serverless": "unavailable"}
 
-The {{esql}} query log allows to log {{esql}} queries based on their execution time.
+{{es}} [query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) supersedes this feature. Query logging provides a unified way to log all query types, including {{esql}}, with richer field coverage and a managed data stream for indexing and analysis. We recommend migrating to query logging. The `esql.querylog` settings described on this page continue to work but are no longer the recommended approach.
+:::
+
+The {{esql}} query log allows you to log {{esql}} queries based on their execution time.
 
 You can use these logs to investigate, analyze or troubleshoot your cluster’s historical {{esql}} performance.
+
+::::{include} _snippets/common/query-performance-tip.md
+::::
 
 {{esql}} query log reports task duration at coordinator level, but might not encompass the full task execution time observed on the client. For example, logs don’t surface HTTP network delays.
 
@@ -56,7 +64,7 @@ The following is an example of a failing query event in the query log:
     "@timestamp": "2025-03-11T08:41:54.172Z",
     "log.level": "TRACE",
     "auth.type": "REALM",
-    "elasticsearch.querylog.error.message": "line 1:15: mismatched input 'limitxyz' expecting {DEV_CHANGE_POINT, 'enrich', 'dissect', 'eval', 'grok', 'limit', 'sort', 'stats', 'where', DEV_INLINESTATS, DEV_FORK, 'lookup', DEV_JOIN_LEFT, DEV_JOIN_RIGHT, DEV_LOOKUP, 'mv_expand', 'drop', 'keep', DEV_INSIST, 'rename'}",
+    "elasticsearch.querylog.error.message": "line 1:15: mismatched input 'limitxyz' expecting {DEV_CHANGE_POINT, 'enrich', 'dissect', 'eval', 'grok', 'limit', 'sort', 'stats', 'where', DEV_INLINESTATS, DEV_FORK, 'lookup', DEV_JOIN_LEFT, DEV_JOIN_RIGHT, DEV_LOOKUP, 'mv_expand', 'drop', 'keep', 'rename'}",
     "elasticsearch.querylog.error.type": "org.elasticsearch.xpack.esql.parser.ParsingException",
     "elasticsearch.querylog.query": "from person | limitxyz 100",
     "elasticsearch.querylog.search_type": "ESQL",
@@ -131,4 +139,3 @@ PUT /_cluster/settings
   }
 }
 ```
-

@@ -196,10 +196,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceId,
             inferenceText,
             minScore,
-            failuresAllowed,
-            chunkScorerConfig != null
-                ? new ChunkScorerConfig(chunkScorerConfig.size, inferenceText, chunkScorerConfig.chunkingSettings())
-                : null
+            failuresAllowed
         );
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -1915,7 +1916,17 @@ public class IngestDocumentTests extends ESTestCase {
             someList.add(someList); // the list contains itself
             ingestDocument.setFieldValue("someList", someList);
             Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
-            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself (source document)"));
+        }
+
+        {
+            // the copy constructor rejects self-references in ingest metadata too
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            Map<String, Object> selfReference = new HashMap<>();
+            selfReference.put("self", selfReference);
+            ingestDocument.getIngestMetadata().put("self", selfReference);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself (ingest metadata)"));
         }
     }
 
@@ -1975,10 +1986,40 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
+    public void testGetFieldValueRawBytesLength() {
+        Map<String, Object> document = new HashMap<>();
+        document.put("bytes_field", new byte[] { 1, 2, 3 });
+        document.put("ascii_field", "QQ==");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        assertThat(
+            ingestDocument.getFieldValueRawBytesLength("bytes_field", ingestDocument.getFieldValue("bytes_field", Object.class)),
+            equalTo(3)
+        );
+        assertThat(
+            ingestDocument.getFieldValueRawBytesLength("ascii_field", ingestDocument.getFieldValue("ascii_field", Object.class)),
+            equalTo(4)
+        );
+    }
+
+    public void testGetFieldValueRawBytesLengthInvalidType() {
+        Map<String, Object> document = new HashMap<>();
+        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
+        document.put("source_field", randomObject);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestDocument.getFieldValueRawBytesLength("source_field", randomObject)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array")
+        );
+    }
+
     public void testDeepCopy() {
         IngestDocument copiedDoc = new IngestDocument(
-            IngestDocument.deepCopyMap(document.getSourceAndMetadata()),
-            IngestDocument.deepCopyMap(document.getIngestMetadata())
+            CollectionUtils.deepCopy(document.getSourceAndMetadata()),
+            CollectionUtils.deepCopy(document.getIngestMetadata())
         );
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),

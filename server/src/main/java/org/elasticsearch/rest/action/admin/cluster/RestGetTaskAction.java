@@ -42,12 +42,14 @@ public class RestGetTaskAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TaskId taskId = new TaskId(request.param("task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
+        boolean followRelocations = request.paramAsBoolean("follow_relocations", true);
         TimeValue timeout = getTimeout(request);
 
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(taskId);
         getTaskRequest.setWaitForCompletion(waitForCompletion);
         getTaskRequest.setTimeout(timeout);
+        getTaskRequest.setFollowRelocations(followRelocations);
         return channel -> client.admin().cluster().getTask(getTaskRequest, new RestToXContentListener<>(channel));
     }
 }

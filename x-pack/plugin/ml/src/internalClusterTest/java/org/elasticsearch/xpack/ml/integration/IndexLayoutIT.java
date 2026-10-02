@@ -63,7 +63,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
             client.admin()
                 .indices()
                 .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                .addIndices(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .addIndices(AnomalyDetectorsIndex.jobStateIndexPatterns())
                 .get()
                 .indices(),
             arrayContaining(".ml-state-000001")
@@ -71,7 +71,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
         assertThat(
             client.admin()
                 .indices()
-                .prepareGetAliases(TEST_REQUEST_TIMEOUT, AnomalyDetectorsIndex.jobStateIndexPattern())
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, AnomalyDetectorsIndex.jobStateIndexPatterns())
                 .get()
                 .getAliases()
                 .get(".ml-state-000001")
@@ -145,13 +145,13 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
             client.admin()
                 .indices()
                 .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                .addIndices(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .addIndices(AnomalyDetectorsIndex.jobStateIndexPatterns())
                 .get()
                 .indices(),
             arrayContaining(".ml-state-000001")
         );
 
-        assertHitCount(client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setTrackTotalHits(true), 0);
+        assertHitCount(client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setTrackTotalHits(true), 0);
     }
 
 }

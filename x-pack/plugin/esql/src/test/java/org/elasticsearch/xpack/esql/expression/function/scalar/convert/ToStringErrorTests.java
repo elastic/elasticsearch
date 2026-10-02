@@ -42,12 +42,8 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
         /*
          * In general ToString should support all signatures. While building a
-         * new type you may we to temporarily relax this.
+         * new type you may want to temporarily relax this.
          */
-        assertThat(
-            "all signatures except for TDigest should be supported",
-            invalidSignatureSamples,
-            equalTo(Set.of(List.of(DataType.TDIGEST)))
-        );
+        assertThat("all signatures should be supported", invalidSignatureSamples, equalTo(Set.of()));
     }
 }

@@ -9,15 +9,21 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-
+/**
+ * Defines the settings and the versioned mappings of the {@code .inference} system index.
+ *
+ * <p><b>Compatibility constraint on every mappings bump:</b> {@link InferenceIndexMappingManager}
+ * force-installs this node's latest mappings on the write path via an origin-carrying put-mapping
+ * request, bypassing the minimum-mappings-version downgrade the server applies elsewhere. In a
+ * mixed-version cluster the result is published in cluster state to older nodes, which must be able
+ * to parse it. Therefore every {@code mappingsVN()} must be <em>additive</em> and stick to field
+ * types and mapping parameters that all node versions a rolling upgrade can pair this node with
+ * already understand. A mapping that needs a newer construct must not rely on the force-install and
+ * needs an explicit compatibility strategy instead. This invariant is enforced by
+ * {@code InferenceIndexMappingsCompatibilityTests}, which parses each mappings version with the
+ * oldest supported index version.
+ */
 public class InferenceIndex {
 
     private InferenceIndex() {}
@@ -25,9 +31,6 @@ public class InferenceIndex {
     public static final String INDEX_NAME = ".inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
     public static final String INDEX_ALIAS = ".inference-alias";
-
-    // Increment this version number when the mappings change
-    private static final int INDEX_MAPPING_VERSION = 2;
 
     public static Settings settings() {
         return builder().build();
@@ -59,83 +62,295 @@ public class InferenceIndex {
      *
      * @return The index mappings
      */
-    public static XContentBuilder mappings() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("model_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("task_type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("task_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("chunking_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("strategy")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
-        }
+    public static String mappingsV4() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 4
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "doc_type": {
+                    "type": "keyword"
+                  },
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "dynamic": false,
+                    "properties": {
+                      "heuristics": {
+                        "dynamic": false,
+                        "properties": {
+                          "properties": {
+                            "type": "keyword"
+                          },
+                          "status": {
+                            "type": "keyword"
+                          },
+                          "release_date": {
+                            "type": "date"
+                          },
+                          "end_of_life_date": {
+                            "type": "date"
+                          }
+                        }
+                      },
+                      "display": {
+                        "dynamic": false,
+                        "properties": {
+                          "name": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "internal": {
+                        "dynamic": false,
+                        "properties": {
+                          "fingerprint": {
+                            "type": "keyword"
+                          },
+                          "version": {
+                            "type": "long"
+                          }
+                        }
+                      },
+                      "regions": {
+                        "dynamic": false,
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          },
+                          "geo": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "denied_by_region_policy": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "region_policy": {
+                    "dynamic": false,
+                    "properties": {
+                      "allowed_geos": {
+                        "type": "keyword"
+                      },
+                      "allowed_regions": {
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "created_at": {
+                    "type": "date"
+                  },
+                  "created_by": {
+                    "type": "keyword"
+                  },
+                  "updated_at": {
+                    "type": "date"
+                  },
+                  "updated_by": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
     }
 
-    public static XContentBuilder mappingsV1() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("model_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("task_type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("task_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
-        }
+    public static String mappingsV3() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 3
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "dynamic": false,
+                    "properties": {
+                      "heuristics": {
+                        "dynamic": false,
+                        "properties": {
+                          "properties": {
+                            "type": "keyword"
+                          },
+                          "status": {
+                            "type": "keyword"
+                          },
+                          "release_date": {
+                            "type": "date"
+                          },
+                          "end_of_life_date": {
+                            "type": "date"
+                          }
+                        }
+                      },
+                      "display": {
+                        "dynamic": false,
+                        "properties": {
+                          "name": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "internal": {
+                        "dynamic": false,
+                        "properties": {
+                          "fingerprint": {
+                            "type": "keyword"
+                          },
+                          "version": {
+                            "type": "long"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+    }
+
+    public static String mappingsV2() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 2
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+    }
+
+    public static String mappingsV1() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 1
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  }
+                }
+              }
+            }
+            """;
     }
 }

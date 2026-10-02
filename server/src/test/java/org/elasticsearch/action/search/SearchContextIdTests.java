@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -23,7 +24,9 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,5 +140,37 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(indices[0], equalTo("cluster_x:idx"));
         assertThat(indices[1], equalTo("cluster_y:idy"));
         assertThat(indices[2], equalTo("idy"));
+    }
+
+    public void testDecodingWithUnknownTransportIdThrows() {
+        TransportVersion unknownTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
+        BytesReference id = SearchContextId.encode(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            unknownTransportVersion,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, id));
+        assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
+    }
+
+    public void testDecodingWithForgedOversizedAliasFilterMapThrows() {
+        byte[] payload = new byte[] {
+            (byte) 0xa7,
+            (byte) 0xc7,
+            (byte) 0xba,
+            0x04,        // transport version
+            0x00,        // empty shards map
+            (byte) 0x80,
+            (byte) 0xa8,
+            (byte) 0xd6,
+            (byte) 0xb9,
+            0x07         // alias-filter map size ~1e9
+        };
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, new BytesArray(payload)));
     }
 }

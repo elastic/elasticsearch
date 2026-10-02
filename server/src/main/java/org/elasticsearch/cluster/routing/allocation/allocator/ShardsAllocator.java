@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
+import java.util.function.Function;
+
 /**
  * <p>
  * A {@link ShardsAllocator} is the main entry point for shard allocation on nodes in the cluster.
@@ -81,4 +83,20 @@ public interface ShardsAllocator {
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */
     ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation);
+
+    /**
+     * Similar to explainShardAllocation, but returns a Function that is more efficient for explaining many shards
+     * in a bulk circumstance.
+     *
+     * Internally, an allocator builds up internal data structures for simulating its balancing algorithm.
+     * In some implementations, such as the BalancedShardsAllocator (also used within the DesiredBalanceAllocator),
+     * this internal context is computationally expensive. When run over many shards, it can be Order(shards * nodes).
+     *
+     * Instead of taking a shard and explaining it, explainShardAllocationFunction returns a Function that can be
+     * called repeatedly to explain multiple shards while reusing the context in the Function's closure. This reduces
+     * the computational cost of explain.
+     */
+    default Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
+        throw new UnsupportedOperationException("explainShardAllocationFunction not implemented in this allocator");
+    }
 }

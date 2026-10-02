@@ -130,7 +130,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
               "indices": [
                 {
                   "names": [ "shared-logs" ],
-                  "privileges": [ "read", "read_cross_cluster" ]
+                  "privileges": [ "read" ]
                 }
               ]
             }""");
@@ -163,7 +163,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
               "indices": [
                 {
                   "names": [ "shared-logs" ],
-                  "privileges": [ "read", "read_cross_cluster" ]
+                  "privileges": [ "read" ]
                 }
               ]
             }""");

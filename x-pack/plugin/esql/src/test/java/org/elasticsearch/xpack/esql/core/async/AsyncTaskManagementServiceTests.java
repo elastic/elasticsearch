@@ -6,17 +6,21 @@
  */
 package org.elasticsearch.xpack.esql.core.async;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -52,7 +56,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
-    public static class TestRequest extends LegacyActionRequest {
+    public static class TestRequest extends UntypedActionRequest {
         private final String string;
         private final TimeValue keepAlive;
 
@@ -122,7 +126,8 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             TaskId parentTaskId,
             Map<String, String> headers,
             Map<String, String> originHeaders,
-            AsyncExecutionId asyncExecutionId
+            AsyncExecutionId asyncExecutionId,
+            TimeValue keepAlive
         ) {
             return new TestTask(
                 id,
@@ -133,7 +138,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                 headers,
                 originHeaders,
                 asyncExecutionId,
-                request.keepAlive
+                keepAlive
             );
         }
 
@@ -178,7 +183,13 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             store,
             false,
             TestTask.class,
-            (task, listener, timeout) -> addCompletionListener(transportService.getThreadPool(), task, listener, timeout),
+            (task, listener, timeout, returnIntermediateResults) -> addCompletionListener(
+                transportService.getThreadPool(),
+                task,
+                listener,
+                timeout,
+                returnIntermediateResults
+            ),
             transportService.getTaskManager(),
             clusterService
         );
@@ -217,7 +228,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         boolean keepOnCompletion = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die", TimeValue.timeValueDays(1));
-        service.asyncExecute(request, TimeValue.timeValueMinutes(1), keepOnCompletion, ActionListener.wrap(r -> {
+        service.asyncExecute(request, TimeValue.timeValueMinutes(1), request.keepAlive, keepOnCompletion, ActionListener.wrap(r -> {
             assertThat(success, equalTo(true));
             assertThat(r.string, equalTo("response for [" + request.string + "]"));
             assertThat(r.id, notNullValue());
@@ -252,12 +263,18 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die", TimeValue.timeValueDays(1));
         AtomicReference<TestResponse> responseHolder = new AtomicReference<>();
-        service.asyncExecute(request, TimeValue.timeValueMillis(1), keepOnCompletion, ActionTestUtils.assertNoFailureListener(r -> {
-            assertThat(r.string, nullValue());
-            assertThat(r.id, notNullValue());
-            assertThat(responseHolder.getAndSet(r), nullValue());
-            latch.countDown();
-        }));
+        service.asyncExecute(
+            request,
+            TimeValue.timeValueMillis(1),
+            request.keepAlive,
+            keepOnCompletion,
+            ActionTestUtils.assertNoFailureListener(r -> {
+                assertThat(r.string, nullValue());
+                assertThat(r.id, notNullValue());
+                assertThat(responseHolder.getAndSet(r), nullValue());
+                latch.countDown();
+            })
+        );
         assertThat(latch.await(20, TimeUnit.SECONDS), equalTo(true));
 
         if (timeoutOnFirstAttempt) {
@@ -331,7 +348,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         TestRequest request = new TestRequest(randomAlphaOfLength(10), TimeValue.timeValueHours(1));
         PlainActionFuture<TestResponse> submitResp = new PlainActionFuture<>();
         try {
-            service.asyncExecute(request, TimeValue.timeValueMillis(1), true, submitResp);
+            service.asyncExecute(request, TimeValue.timeValueMillis(1), request.keepAlive, true, submitResp);
             String id = submitResp.get().id;
             assertThat(id, notNullValue());
             TimeValue keepAlive = TimeValue.timeValueDays(between(1, 10));
@@ -340,6 +357,105 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         } finally {
             executionLatch.countDown();
         }
+    }
+
+    public void testOnResponseAfterTimeoutCallbackIsInvoked() throws Exception {
+        CountDownLatch executionLatch = new CountDownLatch(1);
+        CountDownLatch callbackLatch = new CountDownLatch(1);
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                executorService.submit(() -> {
+                    try {
+                        // Keep execution blocked so the request path times out first.
+                        assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+                    } catch (InterruptedException ex) {
+                        fail("Shouldn't be here");
+                    }
+                    super.execute(request, task, listener);
+                });
+            }
+
+            @Override
+            public void onResponseAfterTimeout(TestResponse response) {
+                callbackLatch.countDown();
+            }
+        });
+
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        service.asyncExecute(
+            new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueMinutes(5)),
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(5),
+            true,
+            submit
+        );
+        // We returned due to timeout, so only the initial async response is available.
+        assertThat(submit.get().string, nullValue());
+        executionLatch.countDown();
+        // Once execution completes in the background, the post-timeout callback must fire.
+        assertThat(callbackLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    public void testOnFailureAfterTimeoutCallbackIsInvoked() throws Exception {
+        CountDownLatch executionLatch = new CountDownLatch(1);
+        CountDownLatch callbackLatch = new CountDownLatch(1);
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                executorService.submit(() -> {
+                    try {
+                        // Keep execution blocked so the request path times out first.
+                        assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+                    } catch (InterruptedException ex) {
+                        fail("Shouldn't be here");
+                    }
+                    super.execute(request, task, listener);
+                });
+            }
+
+            @Override
+            public void onFailureAfterTimeout(Exception exception) {
+                callbackLatch.countDown();
+            }
+        });
+
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        service.asyncExecute(
+            new TestRequest("die", TimeValue.timeValueMinutes(5)),
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(5),
+            true,
+            submit
+        );
+        // We returned due to timeout, so only the initial async response is available.
+        assertThat(submit.get().string, nullValue());
+        executionLatch.countDown();
+        // The operation fails after timeout, so the post-timeout failure callback must fire.
+        assertThat(callbackLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    public void testStoreResultFailureStatusClassification() {
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(new IllegalStateException("boom")),
+            equalTo(RestStatus.INTERNAL_SERVER_ERROR)
+        );
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(new IllegalArgumentException("bad request")),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(
+                new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS)
+            ),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        assertThat(
+            AsyncTaskManagementService.storeResultFailureStatus(
+                new CircuitBreakingException("too much memory", CircuitBreaker.Durability.PERMANENT)
+            ),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
     }
 
     private StoredAsyncResponse<TestResponse> getResponse(String id, TimeValue timeout) throws InterruptedException {

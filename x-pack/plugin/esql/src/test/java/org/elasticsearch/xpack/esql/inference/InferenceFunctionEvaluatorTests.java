@@ -15,10 +15,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.junit.After;
@@ -66,7 +69,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test input"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
         );
 
         // Create a mock operator that returns a result
@@ -75,7 +79,9 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         float[] embedding = randomEmbedding(between(1, 100));
 
         InferenceService inferenceService = mock(InferenceService.class);
+        AtomicReference<InputType> inputType = new AtomicReference<>();
         doAnswer(i -> {
+            inputType.set(i.<InferenceAction.Request>getArgument(0).getInputType());
             threadPool.schedule(
                 () -> i.getArgument(1, ActionListener.class).onResponse(inferenceResponse(embedding)),
                 TimeValue.timeValueMillis(between(1, 10)),
@@ -112,15 +118,60 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
             Literal result = as(resultExpression.get(), Literal.class);
             assertThat(result.dataType(), equalTo(DataType.DENSE_VECTOR));
             assertThat(as(result.value(), List.class).toArray(), equalTo(embedding));
+            assertThat(inputType.get(), equalTo(InputType.UNSPECIFIED));
         });
 
         // Check all breakers are empty after the operation is executed
         allBreakersEmpty();
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFoldEmbeddingFunctionUsesUnspecifiedInputType() throws Exception {
+        Embedding embeddingFunction = new Embedding(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "test input"),
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
+        );
+        float[] embedding = randomEmbedding(between(1, 100));
+
+        InferenceService inferenceService = mock(InferenceService.class);
+        AtomicReference<InputType> inputType = new AtomicReference<>();
+        doAnswer(i -> {
+            inputType.set(i.<EmbeddingAction.Request>getArgument(0).getEmbeddingRequest().inputType());
+            threadPool.schedule(
+                () -> i.getArgument(1, ActionListener.class).onResponse(inferenceResponse(embedding)),
+                TimeValue.timeValueMillis(between(1, 10)),
+                threadPool.generic()
+            );
+            return null;
+        }).when(inferenceService).executeEmbeddingInference(any(), any());
+        when(inferenceService.threadPool()).thenReturn(threadPool);
+        when(inferenceService.threadContext()).thenReturn(threadPool.getThreadContext());
+
+        InferenceFunctionEvaluator evaluator = InferenceFunctionEvaluator.factory().create(FoldContext.small(), inferenceService);
+        AtomicReference<Expression> resultExpression = new AtomicReference<>();
+        evaluator.fold(embeddingFunction, ActionListener.wrap(resultExpression::set, ESTestCase::fail));
+
+        assertBusy(() -> {
+            assertNotNull(resultExpression.get());
+            Literal result = as(resultExpression.get(), Literal.class);
+            assertThat(result.dataType(), equalTo(DataType.DENSE_VECTOR));
+            assertThat(as(result.value(), List.class).toArray(), equalTo(embedding));
+            assertThat(inputType.get(), equalTo(InputType.UNSPECIFIED));
+        });
+
+        allBreakersEmpty();
+    }
+
     public void testFoldTextEmbeddingFunctionWithNullInput() throws Exception {
         // Create a mock TextEmbedding function
-        TextEmbedding textEmbeddingFunction = new TextEmbedding(Source.EMPTY, Literal.NULL, Literal.keyword(Source.EMPTY, "test-model"));
+        TextEmbedding textEmbeddingFunction = new TextEmbedding(
+            Source.EMPTY,
+            Literal.NULL,
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
+        );
 
         // Create a mock operator that returns a result
         Operator operator = mock(Operator.class);
@@ -157,7 +208,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             mock(Attribute.class),
-            Literal.keyword(Source.EMPTY, "test model")
+            Literal.keyword(Source.EMPTY, "test model"),
+            null
         );
 
         InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
@@ -174,7 +226,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test input"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
         );
 
         // Mock an operator that will trigger an async failure
@@ -202,7 +255,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test input"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            null
         );
 
         Operator operator = mock(Operator.class);
@@ -418,7 +472,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
     }
 
     private InferenceAction.Response completionResponse(String completionText) {
-        ChatCompletionResults.Result result = new ChatCompletionResults.Result(completionText);
-        return new InferenceAction.Response(new ChatCompletionResults(List.of(result)));
+        CompletionResults.Result result = new CompletionResults.Result(completionText);
+        return new InferenceAction.Response(new CompletionResults(List.of(result)));
     }
 }

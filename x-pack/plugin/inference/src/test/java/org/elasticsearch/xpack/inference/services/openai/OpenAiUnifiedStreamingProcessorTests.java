@@ -9,14 +9,20 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -63,8 +69,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
-                .parse(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals("example_id", chunk.id());
@@ -75,18 +80,18 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(20, chunk.usage().promptTokens());
             assertEquals(70, chunk.usage().totalTokens());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(1, choices.size());
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertEquals("example_content", choice.delta().content());
-            assertNull(choice.delta().refusal());
-            assertEquals("assistant", choice.delta().role());
+            ChatCompletionChoiceResponse choice = choices.get(0);
+            assertEquals("example_content", choice.message().content());
+            assertNull(choice.message().refusal());
+            assertEquals("assistant", choice.message().role());
             assertEquals("stop", choice.finishReason());
             assertEquals(0, choice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = choice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.index());
             assertEquals("tool_call_id", toolCall.id());
             assertEquals("example_function_name", toolCall.function().name());
@@ -141,8 +146,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
-                .parse(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals("example_id", chunk.id());
@@ -150,30 +154,29 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
             assertNull(chunk.usage());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(2, choices.size());
 
             // First choice assertions
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice firstChoice = choices.get(0);
-            assertNull(firstChoice.delta().content());
-            assertNull(firstChoice.delta().refusal());
-            assertEquals("assistant", firstChoice.delta().role());
-            assertTrue(firstChoice.delta().toolCalls().isEmpty());
+            ChatCompletionChoiceResponse firstChoice = choices.get(0);
+            assertNull(firstChoice.message().content());
+            assertNull(firstChoice.message().refusal());
+            assertEquals("assistant", firstChoice.message().role());
+            assertTrue(firstChoice.message().toolCalls().isEmpty());
             assertNull(firstChoice.finishReason());
             assertEquals(0, firstChoice.index());
 
             // Second choice assertions
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice secondChoice = choices.get(1);
-            assertEquals("example_content", secondChoice.delta().content());
-            assertEquals("example_refusal", secondChoice.delta().refusal());
-            assertEquals("user", secondChoice.delta().role());
+            ChatCompletionChoiceResponse secondChoice = choices.get(1);
+            assertEquals("example_content", secondChoice.message().content());
+            assertEquals("example_refusal", secondChoice.message().refusal());
+            assertEquals("user", secondChoice.message().role());
             assertEquals("stop", secondChoice.finishReason());
             assertEquals(1, secondChoice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = secondChoice.delta()
-                .toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = secondChoice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.index());
             assertNull(toolCall.id());
             assertEquals("example_function_name", toolCall.function().name());
@@ -218,8 +221,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             """;
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json)) {
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
-                .parse(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertThat(chunk.id(), is(""));
@@ -227,22 +229,21 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertThat(chunk.object(), is("chat.completion.chunk"));
             assertNull(chunk.usage());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertThat(choices.size(), is(1));
 
             // First choice assertions
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice firstChoice = choices.get(0);
-            assertNull(firstChoice.delta().content());
-            assertNull(firstChoice.delta().refusal());
-            assertThat(firstChoice.delta().role(), is("assistant"));
+            ChatCompletionChoiceResponse firstChoice = choices.get(0);
+            assertNull(firstChoice.message().content());
+            assertNull(firstChoice.message().refusal());
+            assertThat(firstChoice.message().role(), is("assistant"));
             assertNull(firstChoice.finishReason());
             assertThat(firstChoice.index(), is(0));
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = firstChoice.delta()
-                .toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = firstChoice.message().toolCalls();
             assertThat(toolCalls.size(), is(1));
 
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertThat(toolCall.index(), is(0));
             assertThat(toolCall.id(), is("8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a"));
             assertThat(toolCall.type(), is("function"));
@@ -269,11 +270,12 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         int usageCompletionTokens = randomIntBetween(1, 100);
         int usagePromptTokens = randomIntBetween(1, 100);
         int usageTotalTokens = randomIntBetween(1, 200);
-        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens);
+        int reasoningTokens = randomIntBetween(1, 50);
+        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens, null, null, reasoningTokens);
 
         String chatCompletionChunkId = randomAlphaOfLength(10);
         String chatCompletionChunkModel = randomAlphaOfLength(5);
-        String chatCompletionChunkJson = createChatCompletionChunkJson(
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
             chatCompletionChunkId,
             choiceJson,
             chatCompletionChunkModel,
@@ -286,8 +288,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
-                .parse(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals(chatCompletionChunkId, chunk.id());
@@ -297,19 +298,42 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(usageCompletionTokens, chunk.usage().completionTokens());
             assertEquals(usagePromptTokens, chunk.usage().promptTokens());
             assertEquals(usageTotalTokens, chunk.usage().totalTokens());
+            assertNotNull(chunk.usage().completionTokenDetails());
+            assertNotNull(chunk.usage().completionTokenDetails().reasoningTokens());
+            assertEquals(reasoningTokens, (int) chunk.usage().completionTokenDetails().reasoningTokens());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(1, choices.size());
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertEquals(choiceContent, choice.delta().content());
-            assertNull(choice.delta().refusal());
-            assertEquals(choiceRole, choice.delta().role());
+            ChatCompletionChoiceResponse choice = choices.get(0);
+            assertEquals(choiceContent, choice.message().content());
+            assertNull(choice.message().refusal());
+            assertEquals(choiceRole, choice.message().role());
+            assertEquals("some_reasoning", choice.message().reasoning());
+            assertEquals(
+                List.of(
+                    new ReasoningDetail.EncryptedReasoningDetail(
+                        "some_encrypted_reasoning_detail_format",
+                        "some_id_0",
+                        0L,
+                        "some_encrypted_data"
+                    ),
+                    new ReasoningDetail.SummaryReasoningDetail("some_summary_reasoning_detail_format", "some_id_1", 1L, "some_summary"),
+                    new ReasoningDetail.TextReasoningDetail(
+                        "some_text_reasoning_detail_format",
+                        "some_id_2",
+                        2L,
+                        "some_text",
+                        "some_signature"
+                    )
+                ),
+                choice.message().reasoningDetails()
+            );
             assertEquals(choiceFinishReason, choice.finishReason());
             assertEquals(choiceIndex, choice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().toolCalls();
+            List<ChatCompletionToolCallResponse> toolCalls = choice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
             assertEquals(toolCallIndex, toolCall.index());
             assertEquals(toolCallId, toolCall.id());
             assertEquals(toolCallFunctionName, toolCall.function().name());
@@ -325,7 +349,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         String chatCompletionChunkId = randomAlphaOfLength(10);
         String chatCompletionChunkModel = randomAlphaOfLength(5);
-        String chatCompletionChunkJson = createChatCompletionChunkJson(
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
             chatCompletionChunkId,
             choiceJson,
             chatCompletionChunkModel,
@@ -338,8 +362,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
-                .parse(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             // Assertions to verify the parsed object
             assertEquals(chatCompletionChunkId, chunk.id());
@@ -347,15 +370,15 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
             assertNull(chunk.usage());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
             assertEquals(1, choices.size());
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertNull(choice.delta().content());
-            assertNull(choice.delta().refusal());
-            assertNull(choice.delta().role());
+            ChatCompletionChoiceResponse choice = choices.get(0);
+            assertNull(choice.message().content());
+            assertNull(choice.message().refusal());
+            assertNull(choice.message().role());
             assertNull(choice.finishReason());
             assertEquals(choiceIndex, choice.index());
-            assertTrue(choice.delta().toolCalls().isEmpty());
+            assertTrue(choice.message().toolCalls().isEmpty());
         }
     }
 
@@ -401,7 +424,32 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                             "content": %s,
                             "refusal": %s,
                             "role": %s,
-                            "tool_calls": [%s]
+                            "tool_calls": [%s],
+                            "reasoning": "some_reasoning",
+                            "reasoning_details": [
+                                {
+                                    "type": "reasoning.encrypted",
+                                    "format": "some_encrypted_reasoning_detail_format",
+                                    "id": "some_id_0",
+                                    "index": 0,
+                                    "data": "some_encrypted_data"
+                                },
+                                {
+                                    "type": "reasoning.summary",
+                                    "format": "some_summary_reasoning_detail_format",
+                                    "id": "some_id_1",
+                                    "index": 1,
+                                    "summary": "some_summary"
+                                },
+                                {
+                                    "type": "reasoning.text",
+                                    "format": "some_text_reasoning_detail_format",
+                                    "id": "some_id_2",
+                                    "index": 2,
+                                    "text": "some_text",
+                                    "signature": "some_signature"
+                                }
+                            ]
                         },
                         "finish_reason": %s,
                         "index": %d
@@ -417,7 +465,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    private String createChatCompletionChunkJson(String id, String choicesJson, String model, String object, String usageJson) {
+    private String createChatCompletionChunkResponseJson(String id, String choicesJson, String model, String object, String usageJson) {
         if (usageJson != null) {
             return Strings.format("""
                 {
@@ -440,41 +488,78 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    private String createUsageJson(int completionTokens, int promptTokens, int totalTokens) {
-        return createUsageJson(completionTokens, promptTokens, totalTokens, null);
-    }
-
-    private String createUsageJson(int completionTokens, int promptTokens, int totalTokens, Integer cachedTokens) {
+    private String createUsageJson(
+        int completionTokens,
+        int promptTokens,
+        int totalTokens,
+        @Nullable Integer cachedTokens,
+        @Nullable Integer cacheWriteTokens,
+        @Nullable Integer reasoningTokens
+    ) {
+        String promptTokensDetailsPart = promptTokensDetailsJson(cachedTokens, cacheWriteTokens);
+        String reasoningTokensPart = reasoningTokens != null ? Strings.format("""
+            ,
+            "completion_tokens_details": {
+                "reasoning_tokens": %d
+            }""", reasoningTokens) : "";
         return Strings.format("""
             {
                 "completion_tokens": %d,
                 "prompt_tokens": %d,
-                "total_tokens": %d%s
+                "total_tokens": %d\
+                %s\
+                %s
             }
-            """, completionTokens, promptTokens, totalTokens, cachedTokens != null ? Strings.format("""
+            """, completionTokens, promptTokens, totalTokens, promptTokensDetailsPart, reasoningTokensPart);
+    }
+
+    private static String promptTokensDetailsJson(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) {
+        if (cachedTokens == null && cacheWriteTokens == null) {
+            return "";
+        }
+
+        var fields = new ArrayList<String>();
+        if (cachedTokens != null) {
+            fields.add(Strings.format("\"cached_tokens\": %d", cachedTokens));
+        }
+        if (cacheWriteTokens != null) {
+            fields.add(Strings.format("\"cache_write_tokens\": %d", cacheWriteTokens));
+        }
+
+        return Strings.format("""
             ,
             "prompt_tokens_details": {
-                "cached_tokens": %d
-            }""", cachedTokens) : "");
+                %s
+            }""", String.join(",\n    ", fields));
     }
 
-    public void testUsageParsing() throws IOException {
-        testUsageParsingWithCachedTokens(true);
+    public void testUsageParsingWithCachedAndReasoningTokens() throws IOException {
+        testUsageParsing(true, true);
     }
 
-    public void testUsageParsing_withoutCachedTokens() throws IOException {
-        testUsageParsingWithCachedTokens(false);
+    public void testUsageParsingWithoutCachedAndReasoningTokens() throws IOException {
+        testUsageParsing(false, false);
     }
 
-    private void testUsageParsingWithCachedTokens(boolean includeCachedTokens) throws IOException {
+    public void testUsageParsingWithReasoningTokens() throws IOException {
+        testUsageParsing(false, true);
+    }
+
+    public void testUsageParsingWithCachedTokens() throws IOException {
+        testUsageParsing(true, false);
+    }
+
+    private void testUsageParsing(boolean includeCachedTokens, boolean includeReasoningTokens) throws IOException {
         int completionTokens = randomIntBetween(1, 100);
         int promptTokens = randomIntBetween(1, 100);
         int totalTokens = randomIntBetween(1, 200);
-        Integer cachedTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var cachedTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var cacheWriteTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var reasoningTokens = includeReasoningTokens ? randomIntBetween(1, 50) : null;
 
-        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens);
+        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, cacheWriteTokens, reasoningTokens);
 
-        String chatCompletionChunkJson = createChatCompletionChunkJson(
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
             randomAlphaOfLength(10),
             createChoiceJson(null, null, null, "", null, 0),
             randomAlphaOfLength(5),
@@ -486,14 +571,50 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             LoggingDeprecationHandler.INSTANCE
         );
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
-                .parse(parser);
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
 
             assertNotNull(chunk.usage());
             assertEquals(completionTokens, chunk.usage().completionTokens());
             assertEquals(promptTokens, chunk.usage().promptTokens());
             assertEquals(totalTokens, chunk.usage().totalTokens());
-            assertEquals(cachedTokens, chunk.usage().cachedTokens());
+            if (includeCachedTokens) {
+                assertNotNull(chunk.usage().promptTokensDetails());
+                assertEquals(cachedTokens, chunk.usage().promptTokensDetails().cachedTokens());
+                assertEquals(cacheWriteTokens, chunk.usage().promptTokensDetails().cacheWriteTokens());
+            } else {
+                assertNull(chunk.usage().promptTokensDetails());
+            }
+            if (includeReasoningTokens) {
+                assertNotNull(chunk.usage().completionTokenDetails());
+                assertEquals(reasoningTokens, chunk.usage().completionTokenDetails().reasoningTokens());
+            } else {
+                assertNull(chunk.usage().completionTokenDetails());
+            }
         }
+    }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "id": "1",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "id": "2",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var data = firstChunkData + "\n" + secondChunkData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunks = OpenAiUnifiedStreamingProcessor.parse(parserConfig, data).toList();
+        assertThat(chunks.size(), is(2));
+        assertThat(chunks.get(0).id(), is("1"));
+        assertThat(chunks.get(1).id(), is("2"));
     }
 }

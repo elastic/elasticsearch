@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.AckResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ErrorResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.InferenceProcessStats;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
@@ -40,6 +41,8 @@ public class PyTorchResultProcessor {
         LongSummaryStatistics timingStats,
         LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
+        LongSummaryStatistics inferenceProcessMemoryRssBytesStats,
+        long peakMemoryRssBytes,
         long cacheHitCount,
         int numberOfPendingResults,
         Instant lastUsed,
@@ -57,6 +60,13 @@ public class PyTorchResultProcessor {
     private final LongSummaryStatistics timingStats;
     private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
+    private final LongSummaryStatistics inferenceProcessMemoryRssBytesStats;
+    /**
+     * The peak resident set size (bytes) reported by the native process (its OS high-water mark). Unlike the max of
+     * {@link #inferenceProcessMemoryRssBytesStats}, this captures transient spikes that occur between the periodic
+     * samples, which is the memory signal used to keep model assignment OOM-safe.
+     */
+    private long peakMemoryRssBytes;
     private long cacheHitCount;
     private long peakThroughput;
 
@@ -78,6 +88,7 @@ public class PyTorchResultProcessor {
         this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
+        this.inferenceProcessMemoryRssBytesStats = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -114,6 +125,11 @@ public class PyTorchResultProcessor {
                     processAcknowledgement(result);
                 } else if (result.errorResult() != null) {
                     processErrorResult(result);
+                } else if (result.processStats() != null) {
+                    // A standalone process-stats message (e.g. the periodic memory report emitted by
+                    // pytorch_inference). It is not tied to an inference request, so only fold the RSS
+                    // measurement into the accumulated stats without touching the timing statistics.
+                    updateProcessStats(result);
                 } else {
                     // will should only get here if the native process
                     // has produced a partially valid result, one that
@@ -146,7 +162,7 @@ public class PyTorchResultProcessor {
             logger.warn(format("[%s] clearing [%d] requests pending results", modelId, pendingResults.size()));
         }
         pendingResults.forEach(
-            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
+            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, null, errorResult))
         );
         pendingResults.clear();
     }
@@ -217,7 +233,7 @@ public class PyTorchResultProcessor {
                 String msg = format("[%s] pending result listener cannot handle unknown result type [%s]", modelId, result);
                 logger.error(msg);
                 var errorResult = new ErrorResult(msg);
-                pendingResult.listener.onResponse(new PyTorchResult(result.requestId(), null, null, null, null, null, errorResult));
+                pendingResult.listener.onResponse(new PyTorchResult(result.requestId(), null, null, null, null, null, null, errorResult));
             }
         } else {
             // Cannot look up the listener without a request id
@@ -256,6 +272,8 @@ public class PyTorchResultProcessor {
             cloneSummaryStats(timingStats),
             cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
+            cloneSummaryStats(inferenceProcessMemoryRssBytesStats),
+            peakMemoryRssBytes,
             cacheHitCount,
             pendingResults.size(),
             lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
@@ -268,6 +286,28 @@ public class PyTorchResultProcessor {
         return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
     }
 
+    /**
+     * Fold a standalone process-stats message (not associated with an inference request) into the
+     * accumulated resident-set-size statistics. Unlike {@link #updateStats(PyTorchResult)} this does
+     * not touch the timing/throughput statistics, which must only reflect real inference results.
+     */
+    public synchronized void updateProcessStats(PyTorchResult result) {
+        if (result.processStats() != null) {
+            recordProcessStats(result.processStats());
+        }
+    }
+
+    /**
+     * Fold a process-stats measurement into the accumulated resident-set-size statistics: the current RSS drives the
+     * average, while the reported peak (OS high-water mark) drives {@link #peakMemoryRssBytes}. When the native process
+     * does not report a peak (e.g. an older ml-cpp) the current RSS is used so the peak is never under-counted.
+     */
+    private void recordProcessStats(InferenceProcessStats processStats) {
+        this.inferenceProcessMemoryRssBytesStats.accept(processStats.memoryRss());
+        long reportedPeak = processStats.memoryMaxRss() > 0 ? processStats.memoryMaxRss() : processStats.memoryRss();
+        this.peakMemoryRssBytes = Math.max(this.peakMemoryRssBytes, reportedPeak);
+    }
+
     public synchronized void updateStats(PyTorchResult result) {
         Long timeMs = result.timeMs();
         if (timeMs == null) {
@@ -276,6 +316,10 @@ public class PyTorchResultProcessor {
         }
         boolean isCacheHit = Boolean.TRUE.equals(result.isCacheHit());
         timingStats.accept(timeMs);
+
+        if (result.processStats() != null) {
+            recordProcessStats(result.processStats());
+        }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {

@@ -33,11 +33,7 @@ public class DeepSeekChatCompletionModelCreator implements ModelCreator<DeepSeek
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return switch (context) {
-            case REQUEST -> DeepSeekChatCompletionModel.createFromNewInput(inferenceId, taskType, service, serviceSettings);
-            case PERSISTENT -> DeepSeekChatCompletionModel.readFromStorage(inferenceId, taskType, service, serviceSettings, secretSettings);
-        };
-
+        return new DeepSeekChatCompletionModel(inferenceId, taskType, DeepSeekService.NAME, serviceSettings, secretSettings, context);
     }
 
     @Override

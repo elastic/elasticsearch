@@ -56,7 +56,7 @@ GET _search
 `model_text`
 :   (Required, string) The query text you want to use for search.
 
-`pruning_config` {applies_to}`stack: preview` {applies_to}`serverless: preview`
+`pruning_config`
 :   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. Default: Disabled.
 
     Parameters for `<pruning_config>` are:
@@ -194,10 +194,7 @@ GET my-index/_search
 
 
 ## Example ELSER query with pruning configuration and rescore [text-expansion-query-with-pruning-config-and-rescore-example]
-```{applies_to}
-stack: preview
-serverless: preview
-```
+
 
 The following is an extension to the previous example that adds a pruning configuration  to the `text_expansion` query. The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
 

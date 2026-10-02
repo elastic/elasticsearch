@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +20,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
@@ -35,27 +33,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of("cluster_a");
-    }
-
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
-
-    private int indexDocs(Client client, String field, String index) {
-        int numDocs = between(1, 200);
-        for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource(field, "v" + i).get();
-        }
-        client.admin().indices().prepareRefresh(index).get();
-        return numDocs;
-    }
-
+public class CrossClusterSearchLeakIT extends AbstractCrossClusterSearchTestCase {
     /**
      * This test validates that we do not leak any memory when running CCS in various modes, actual validation is done by test framework
      * (leak detection)
@@ -75,7 +53,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3)))
         );
         indexDocs(client(LOCAL_CLUSTER), "ignored", "demo");
-        final InternalTestCluster remoteCluster = cluster("cluster_a");
+        final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
         int minRemotes = between(2, 5);
         remoteCluster.ensureAtLeastNumDataNodes(minRemotes);
         List<String> remoteDataNodes = remoteCluster.clusterService()
@@ -88,7 +66,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(minRemotes));
         List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
         disconnectFromRemoteClusters();
-        configureRemoteCluster("cluster_a", seedNodes);
+        configureRemoteCluster(REMOTE_CLUSTER, seedNodes);
         final Settings.Builder allocationFilter = Settings.builder();
         if (rarely()) {
             allocationFilter.put("index.routing.allocation.include._name", String.join(",", seedNodes));
@@ -97,7 +75,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
             allocationFilter.put("index.routing.allocation.exclude._name", String.join(",", seedNodes));
         }
         assertAcked(
-            client("cluster_a").admin()
+            client(REMOTE_CLUSTER).admin()
                 .indices()
                 .prepareCreate("prod")
                 .setMapping("f", "type=keyword")
@@ -109,7 +87,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
                 )
         );
         assertFalse(
-            client("cluster_a").admin()
+            client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareHealth(TEST_REQUEST_TIMEOUT, "prod")
                 .setWaitForYellowStatus()
@@ -117,11 +95,13 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
                 .get()
                 .isTimedOut()
         );
-        int docs = indexDocs(client("cluster_a"), "f", "prod");
+        int docs = indexDocs(client(REMOTE_CLUSTER), "f", "prod");
 
         List<ActionFuture<SearchResponse>> futures = new ArrayList<>();
         for (int i = 0; i < 10; ++i) {
-            String[] indices = randomBoolean() ? new String[] { "demo", "cluster_a:prod" } : new String[] { "cluster_a:prod" };
+            String[] indices = randomBoolean()
+                ? new String[] { "demo", REMOTE_CLUSTER + ":prod" }
+                : new String[] { REMOTE_CLUSTER + ":prod" };
             final SearchRequest searchRequest = new SearchRequest(indices);
             searchRequest.allowPartialSearchResults(false);
             boolean scroll = randomBoolean();

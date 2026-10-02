@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,13 +32,24 @@ public class ForkGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
-        // FORK can only be allowed once - so we skip adding another FORK if we already have one
-        // otherwise, most generated queries would only result in a validation error
+        // FORK is only allowed once; skip if one was already generated.
+        // ESQL also forbids FORK inside a subquery body ("FORK inside subquery is not supported").
+        // FORK also fails with "FORK after subquery is not supported" whenever a UnionAll node appears
+        // as a descendant in the plan. This covers both an embedded subquery in FROM and a wildcard
+        // that matches both a view and regular indices (creating a ViewUnionAll). Both cases are
+        // captured by the HAS_UNION_ALL flag set on the FROM command.
+        if (context.isWithinASubquery()) {
+            return EMPTY_DESCRIPTION;
+        }
         StringBuilder completeCommand = new StringBuilder();
         for (CommandDescription command : previousCommands) {
             if (command.commandName().equals(FORK)) {
+                return EMPTY_DESCRIPTION;
+            }
+            if (Boolean.TRUE.equals(command.context().get(FromGenerator.HAS_UNION_ALL))) {
                 return EMPTY_DESCRIPTION;
             }
 
@@ -48,7 +61,7 @@ public class ForkGenerator implements CommandGenerator {
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");
         for (int i = 0; i < branchCount; i++) {
-            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput);
+            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput, previousCommands);
             if (expr == null) {
                 expr = "true";
             }
@@ -100,7 +113,8 @@ public class ForkGenerator implements CommandGenerator {
                     List<CommandDescription> previousCommands,
                     List<Column> previousOutput,
                     QuerySchema schema,
-                    QueryExecutor executor
+                    QueryExecutor executor,
+                    GenerationContext context
                 ) {
                     return new CommandDescription(FORK, this, completeCommand.toString(), Map.of());
                 }
@@ -118,7 +132,7 @@ public class ForkGenerator implements CommandGenerator {
                 }
             };
 
-            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false, executor);
+            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false, executor, context);
             if (exec.previousCommands().size() > 1) {
                 String previousCmd = exec.previousCommands()
                     .stream()
@@ -131,8 +145,6 @@ public class ForkGenerator implements CommandGenerator {
             forkCmd.append(")");
         }
         forkCmd.append(" | WHERE _fork == \"fork").append(branchToRetain).append("\" | DROP _fork");
-
-        // System.out.println("Generated fork command: " + forkCmd);
         return new CommandDescription(FORK, this, forkCmd.toString(), Map.of());
     }
 

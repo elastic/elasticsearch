@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -43,9 +44,10 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
         GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.routing(request.param("routing"));
+        getRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
         if (request.param("fields") != null) {

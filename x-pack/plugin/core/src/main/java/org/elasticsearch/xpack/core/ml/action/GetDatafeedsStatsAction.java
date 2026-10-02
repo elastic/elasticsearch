@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,12 +52,13 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
     private static final String TIMING_STATS = "timing_stats";
     private static final String RUNNING_STATE = "running_state";
+    private static final String REMOTE_CLUSTER_STATS = "remote_cluster_stats";
 
     private GetDatafeedsStatsAction() {
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -218,6 +219,9 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 }
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
+                    if (runningState.getCrossClusterStats() != null) {
+                        builder.field(REMOTE_CLUSTER_STATS, runningState.getCrossClusterStats());
+                    }
                 }
                 builder.endObject();
                 return builder;

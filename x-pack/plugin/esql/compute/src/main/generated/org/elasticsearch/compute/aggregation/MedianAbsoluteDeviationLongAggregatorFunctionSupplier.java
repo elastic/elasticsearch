@@ -31,13 +31,13 @@ public final class MedianAbsoluteDeviationLongAggregatorFunctionSupplier impleme
   @Override
   public MedianAbsoluteDeviationLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MedianAbsoluteDeviationLongAggregatorFunction.create(driverContext, channels);
+    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MedianAbsoluteDeviationLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return MedianAbsoluteDeviationLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

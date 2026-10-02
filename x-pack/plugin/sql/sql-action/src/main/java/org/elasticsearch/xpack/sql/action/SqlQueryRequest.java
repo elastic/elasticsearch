@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
@@ -19,6 +21,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -47,6 +50,10 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARC
  * Request to perform an sql query
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
+    public static final TransportVersion OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS = TransportVersion.fromName(
+        "sql_optional_allow_partial_search_results"
+    );
+
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
     static final ParseField COLUMNAR = new ParseField(COLUMNAR_NAME);
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField(FIELD_MULTI_VALUE_LENIENCY_NAME);
@@ -104,9 +111,10 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     // Async settings
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
     private boolean keepOnCompletion = DEFAULT_KEEP_ON_COMPLETION;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
 
-    private boolean allowPartialSearchResults = Protocol.ALLOW_PARTIAL_SEARCH_RESULTS;
+    private Boolean allowPartialSearchResults;
 
     public SqlQueryRequest() {
         super();
@@ -130,7 +138,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
         TimeValue keepAlive,
-        boolean allowPartialSearchResults
+        Boolean allowPartialSearchResults
     ) {
         super(query, params, filter, runtimeMappings, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
@@ -162,7 +170,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
         this.keepAlive = in.readOptionalTimeValue();
-        allowPartialSearchResults = in.readBoolean();
+        if (in.getTransportVersion().supports(OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            allowPartialSearchResults = in.readOptionalBoolean();
+        } else {
+            allowPartialSearchResults = in.readBoolean();
+        }
     }
 
     /**
@@ -244,7 +256,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return keepOnCompletion;
     }
 
-    public SqlQueryRequest keepAlive(TimeValue keepAlive) {
+    public SqlQueryRequest keepAlive(@Nullable TimeValue keepAlive) {
         if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE.getMillis()) {
             throw new IllegalArgumentException("[" + KEEP_ALIVE_NAME + "] must be greater than " + MIN_KEEP_ALIVE + ", got: " + keepAlive);
         }
@@ -252,21 +264,23 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return this;
     }
 
+    @Nullable
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public SqlQueryRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
+    public SqlQueryRequest allowPartialSearchResults(Boolean allowPartialSearchResults) {
         this.allowPartialSearchResults = allowPartialSearchResults;
         return this;
     }
 
-    public boolean allowPartialSearchResults() {
+    public Boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        // Sync tasks are never stored. Use DEFAULT_KEEP_ALIVE as fallback so StoredAsyncTask doesn't NPE.
         return new SqlQueryTask(
             id,
             type,
@@ -276,7 +290,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             headers,
             null,
             null,
-            keepAlive,
+            keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE,
             mode(),
             version(),
             columnar()
@@ -293,8 +307,16 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalBoolean(binaryCommunication);
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeBoolean(keepOnCompletion);
-        out.writeOptionalTimeValue(keepAlive);
-        out.writeBoolean(allowPartialSearchResults);
+        if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
+            out.writeOptionalTimeValue(keepAlive);
+        } else {
+            out.writeOptionalTimeValue(keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE);
+        }
+        if (out.getTransportVersion().supports(OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            out.writeOptionalBoolean(allowPartialSearchResults);
+        } else {
+            out.writeBoolean(allowPartialSearchResults != null && allowPartialSearchResults);
+        }
     }
 
     @Override
@@ -320,7 +342,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
             && Objects.equals(binaryCommunication, ((SqlQueryRequest) obj).binaryCommunication)
             && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
-            && allowPartialSearchResults == ((SqlQueryRequest) obj).allowPartialSearchResults
+            && Objects.equals(allowPartialSearchResults, ((SqlQueryRequest) obj).allowPartialSearchResults)
             && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
             && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
             && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)

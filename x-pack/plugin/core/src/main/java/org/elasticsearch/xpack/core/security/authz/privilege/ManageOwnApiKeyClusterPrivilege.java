@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
@@ -109,7 +110,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     return false;
                 }
                 return queryApiKeyRequest.isFilterForCurrentUser();
-            } else if (request instanceof GrantApiKeyRequest) {
+            } else if (request instanceof GrantApiKeyRequest || request instanceof CloneApiKeyRequest) {
                 return false;
             }
             String message = "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")";

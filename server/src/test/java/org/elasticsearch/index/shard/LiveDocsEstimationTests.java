@@ -36,8 +36,9 @@ public class LiveDocsEstimationTests extends IndexShardTestCase {
         assertNull(shard.getShardFieldStats());
         recoverShardFromStore(shard);
 
-        // index some documents
-        int numDocs = 10;
+        // Use enough docs so the live docs FixedBitSet backing array requires multiple words (>64 bits),
+        // ensuring the byte estimation scales with segment size rather than being a constant.
+        int numDocs = randomIntBetween(100, 1000);
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "_doc", "first_" + i, """
                 {

@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -144,7 +145,13 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
         }
 
         final List<ProjectId> projectsOnLocalNode = state.metadata().projects().keySet().stream().filter(project -> {
-            final IndexRoutingTable indexRouting = state.routingTable(project).index(index);
+            IndexAbstraction index = state.projectState(project).metadata().getIndicesLookup().get(this.index);
+
+            if (index == null || index.getWriteIndex() == null) {
+                return false;
+            }
+
+            final IndexRoutingTable indexRouting = state.routingTable(project).index(index.getWriteIndex());
             if (indexRouting == null) {
                 return false;
             }

@@ -20,10 +20,18 @@ import org.elasticsearch.node.Node;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DiscoveryNodeUtils {
+
+    public static DiscoveryNode randomDiscoveryNode() {
+        return DiscoveryNodeUtils.builder(UUID.randomUUID().toString())
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1, 65535)))
+            .build();
+    }
 
     public static DiscoveryNode create(String id) {
         return builder(id).build();

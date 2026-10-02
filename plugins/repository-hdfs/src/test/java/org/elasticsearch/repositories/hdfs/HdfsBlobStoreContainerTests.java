@@ -16,7 +16,6 @@ import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -44,13 +43,10 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.security.AccessController;
 import java.security.Principal;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.Callable;
 
 import javax.security.auth.Subject;
 
@@ -63,16 +59,6 @@ import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends ESTestCase {
-
-    private FileContext createTestContext() {
-        FileContext fileContext;
-        try {
-            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>) () -> createContext(new URI("hdfs:///")));
-        } catch (PrivilegedActionException e) {
-            throw new RuntimeException(e.getCause());
-        }
-        return fileContext;
-    }
 
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private FileContext createContext(URI uri) {
@@ -107,15 +93,15 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         cfg.set("fs.AbstractFileSystem." + uri.getScheme() + ".impl", TestingFs.class.getName());
 
         // create the FileContext with our user
-        return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
-            try {
+        try {
+            return Subject.callAs(subject, (Callable<FileContext>) () -> {
                 TestingFs fs = (TestingFs) AbstractFileSystem.get(uri, cfg);
                 fs = Mockito.spy(fs);
                 return FileContext.getFileContext(fs, cfg);
-            } catch (UnsupportedFileSystemException e) {
-                throw new RuntimeException(e);
-            }
-        });
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void testRepositoryProjectId() {
@@ -134,7 +120,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReadOnly() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         // Constructor will not create dir if read only
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
         FileContext.Util util = fileContext.util();
@@ -163,7 +149,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReadRange() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         // Constructor will not create dir if read only
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
         FileContext.Util util = fileContext.util();
@@ -194,7 +180,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReplicationFactor() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         short replicationFactor = 8;
 
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
@@ -218,7 +204,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testListBlobsByPrefix() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));

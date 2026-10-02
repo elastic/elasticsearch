@@ -14,6 +14,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.UntrackedTask;
 import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
@@ -33,6 +34,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@UntrackedTask(because = "When we wanna run a cluster, we wanna run a cluster.")
 public abstract class RunTask extends DefaultTestClustersTask {
 
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
@@ -48,10 +50,6 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private String apmServerMetrics = null;
 
-    private String apmServerTransactions = null;
-
-    private String apmServerTransactionsExcludes = null;
-
     private List<String> plugins;
 
     private Boolean preserveData = false;
@@ -63,6 +61,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private Boolean useHttps = false;
 
     private Boolean useTransportTls = false;
+
+    private Integer nodeCount = null;
 
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
@@ -79,10 +79,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.cliDebug = enabled;
     }
 
-    @Option(
-        option = "entitlements",
-        description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
-    )
+    @Option(option = "entitlements", description = "Use the Entitlements agent system to enforce sandbox policies.")
     public void setEntitlementsEnabled(boolean enabled) {}
 
     @Input
@@ -111,19 +108,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         return apmServerMetrics;
     }
 
-    @Input
-    @Optional
-    public String getApmServerTransactions() {
-        return apmServerTransactions;
-    }
-
-    @Input
-    @Optional
-    public String getApmServerTransactionsExcludes() {
-        return apmServerTransactionsExcludes;
-    }
-
-    @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
+    @Option(option = "with-apm-server", description = "Run a mock OTLP/gRPC server that logs the telemetry the node exports")
     public void setApmServerEnabled(Boolean apmServerEnabled) {
         this.apmServerEnabled = apmServerEnabled;
     }
@@ -131,16 +116,6 @@ public abstract class RunTask extends DefaultTestClustersTask {
     @Option(option = "apm-metrics", description = "Metric wildcard filter for APM server")
     public void setApmServerMetrics(String apmServerMetrics) {
         this.apmServerMetrics = apmServerMetrics;
-    }
-
-    @Option(option = "apm-transactions", description = "Transaction wildcard filter for APM server")
-    public void setApmServerTransactions(String apmServerTransactions) {
-        this.apmServerTransactions = apmServerTransactions;
-    }
-
-    @Option(option = "apm-transactions-excludes", description = "Transaction wildcard filter for APM server")
-    public void setApmServerTransactionsExcludes(String apmServerTransactionsExcludes) {
-        this.apmServerTransactionsExcludes = apmServerTransactionsExcludes;
     }
 
     @Option(option = "with-plugins", description = "Run distribution with plugins installed")
@@ -221,6 +196,17 @@ public abstract class RunTask extends DefaultTestClustersTask {
         return useTransportTls;
     }
 
+    @Option(option = "nodes", description = "Number of nodes to start in the cluster (default: 1)")
+    public void setNodeCount(String nodeCount) {
+        this.nodeCount = Integer.parseInt(nodeCount);
+    }
+
+    @Input
+    @Optional
+    public Integer getNodeCount() {
+        return nodeCount;
+    }
+
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -235,6 +221,11 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
+        if (nodeCount != null) {
+            for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.setNumberOfNodes(nodeCount);
+            }
+        }
         boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {
@@ -245,7 +236,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
         if (apmServerEnabled) {
             try {
-                mockServer = new MockApmServer(apmServerMetrics, apmServerTransactions, apmServerTransactionsExcludes);
+                mockServer = new MockApmServer(apmServerMetrics);
                 mockServer.start();
             } catch (IOException e) {
                 throw new GradleException("Unable to start APM server: " + e.getMessage(), e);
@@ -283,10 +274,10 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 if (mockServer != null) {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
-                    node.setting("telemetry.agent.transaction_sample_rate", "1.0");
-                    node.setting("telemetry.agent.transaction_max_spans", "100");
-                    node.setting("telemetry.agent.metrics_interval", "10s");
-                    node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getGrpcPort());
+                    // Sample everything so spans are actually emitted; the default is 0.001.
+                    node.setting("telemetry.tracing.sample_rate", "1.0");
+                    node.setting("telemetry.tracing.max_depth", "10");
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them

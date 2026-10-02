@@ -51,7 +51,7 @@ public class EsField implements Writeable {
                 if (other != DIMENSION) {
                     return METRIC;
                 }
-                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
+                throw new IllegalArgumentException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
             }
         },
         DIMENSION(3) {
@@ -60,7 +60,7 @@ public class EsField implements Writeable {
                 if (other != METRIC) {
                     return DIMENSION;
                 }
-                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
+                throw new IllegalArgumentException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
             }
         };
 
@@ -103,9 +103,10 @@ public class EsField implements Writeable {
     private static Map<String, Reader<? extends EsField>> readers = Map.ofEntries(
         Map.entry("DateEsField", DateEsField::new),
         Map.entry("EsField", EsField::new),
-        Map.entry("InvalidMappedField", InvalidMappedField::new),
         Map.entry("KeywordEsField", KeywordEsField::new),
+        Map.entry("MissingEsField", MissingEsField::new),
         Map.entry("MultiTypeEsField", MultiTypeEsField::new),
+        Map.entry("CompactMultiTypeEsField", CompactMultiTypeEsField::new),
         Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::new),
         Map.entry("TextEsField", TextEsField::new),
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)
@@ -167,7 +168,7 @@ public class EsField implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this)) {
+        if (((PlanStreamOutput) out).writeEsFieldCacheHeader(this, out.getTransportVersion())) {
             writeContent(out);
         }
     }
@@ -201,8 +202,12 @@ public class EsField implements Writeable {
     /**
      * This needs to be overridden by subclasses for specific serialization
      */
-    public String getWriteableName() {
+    public String getWriteableName(TransportVersion transportVersion) {
         return "EsField";
+    }
+
+    public String getNodeStringName() {
+        return "";
     }
 
     /**
@@ -219,6 +224,14 @@ public class EsField implements Writeable {
         return esDataType;
     }
 
+    public EsField withDataType(DataType esDataType) {
+        return esDataType == this.esDataType ? this : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    public EsField withWidenedSmallNumeric() {
+        return withDataType(getDataType().widenSmallNumeric());
+    }
+
     /**
      * This field can be aggregated
      */
@@ -233,6 +246,14 @@ public class EsField implements Writeable {
     @Nullable
     public Map<String, EsField> getProperties() {
         return properties;
+    }
+
+    /**
+     * Returns a copy with a different sub-field map, preserving the concrete field type. Subtypes with extra state must
+     * override this so that state (e.g. a keyword's {@code normalized} flag, which decides exact-match eligibility) is not lost.
+     */
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        return new EsField(name, esDataType, newProperties, aggregatable, isAlias, timeSeriesFieldType);
     }
 
     /**

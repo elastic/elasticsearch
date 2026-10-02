@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,6 +45,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -74,16 +77,14 @@ public class ReplicationOperationTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testReplication() throws Exception {
@@ -320,7 +321,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 new NodeClosedException(node)
             );
         } else {
-            shardActionFailure = new ShardStateAction.NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
+            shardActionFailure = new NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
         }
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
@@ -357,7 +358,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool) {
             @Override
             public void failShard(String message, Exception exception) {
-                assertThat(exception, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+                assertThat(exception, instanceOf(NoLongerPrimaryShardException.class));
                 assertTrue(primaryFailed.compareAndSet(false, true));
             }
         };
@@ -373,7 +374,7 @@ public class ReplicationOperationTests extends ESTestCase {
             ).getMessage(),
             anyOf(containsString("demoted while failing replica shard"), containsString("shutting down while failing replica shard"))
         );
-        if (shardActionFailure instanceof ShardStateAction.NoLongerPrimaryShardException) {
+        if (shardActionFailure instanceof NoLongerPrimaryShardException) {
             assertTrue(primaryFailed.get());
         } else {
             assertFalse(primaryFailed.get());

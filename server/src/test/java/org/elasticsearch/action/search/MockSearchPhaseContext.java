@@ -10,23 +10,35 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -47,6 +59,7 @@ import static org.mockito.Mockito.mock;
 public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
     public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
+    public final AtomicInteger phaseFailures = new AtomicInteger();
     final int numShards;
     final AtomicInteger numSuccess;
     public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
@@ -55,23 +68,29 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        this(numShards, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+    }
+
+    public MockSearchPhaseContext(int numShards, CircuitBreaker circuitBreaker) {
         super(
             "mock",
             logger,
             new NamedWriteableRegistry(List.of()),
             mock(SearchTransportService.class),
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
-            (clusterAlias, nodeId) -> null,
-            null,
-            null,
+            (clusterAlias, nodeId) -> createMockConnection(nodeId),
+            Map.of("uuid", AliasFilter.EMPTY),
+            Map.of(),
             Runnable::run,
-            new SearchRequest(),
+            new SearchRequest().allowPartialSearchResults(true),
             ActionListener.noop(),
-            List.of(),
-            null,
+            createShardIterators(numShards),
+            Collections.emptyMap(),
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             new ArraySearchPhaseResults<>(numShards),
+            circuitBreaker,
             5,
             null,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
@@ -80,6 +99,42 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
+    }
+
+    private static List<SearchShardIterator> createShardIterators(int numShards) {
+        List<SearchShardIterator> shardIterators = new ArrayList<>();
+        for (int i = 0; i < numShards; i++) {
+            shardIterators.add(
+                new SearchShardIterator(null, new ShardId("index", "uuid", i), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+            );
+        }
+        return shardIterators;
+    }
+
+    private static Transport.Connection createMockConnection(String nodeId) {
+        return new CloseableConnection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return new DiscoveryNode(
+                    nodeId,                                          // nodeName
+                    nodeId,                                          // nodeId
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9300),  // address
+                    Collections.emptyMap(),                          // attributes
+                    Collections.emptySet(),                          // roles
+                    null                                             // versionInfo (null = use current)
+                );
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+                // Mock implementation - not needed for these tests
+            }
+        };
     }
 
     public void assertNoFailure() {
@@ -96,11 +151,12 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
 
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+        boolean isMultiShard = getNumShards() > 1;
         String scrollId = getRequest().scroll() != null
-            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler())
+            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), isMultiShard)
             : null;
         BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
-            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()))
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), isMultiShard))
             : null;
         var existing = searchResponse.getAndSet(
             new SearchResponse(
@@ -112,7 +168,9 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
                 SearchResponse.Clusters.EMPTY,
-                searchContextId
+                searchContextId,
+                null,
+                null
             )
         );
         doneFuture.onResponse(null);
@@ -124,6 +182,11 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     @Override
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
+        // Counted because raisePhaseFailure completes the search listener, which must not happen twice.
+        phaseFailures.incrementAndGet();
+        // Completes the listener as production does, so anything registered with addReleasable is released. Unlike
+        // raisePhaseFailure it does not release the successful shards' contexts or notify the progress listener.
+        doneFuture.onResponse(null);
     }
 
     @Override
@@ -159,7 +222,12 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
-        onShardResult(new SearchPhaseResult() {});
+        onShardResult(new SearchPhaseResult() {
+            @Override
+            public void writeTo(StreamOutput out) {
+
+            }
+        });
     }
 
     @Override

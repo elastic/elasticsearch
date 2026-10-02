@@ -32,14 +32,15 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.assertColumnContainsInAnyOrder;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.assertOk;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.assertPartial;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
 
@@ -132,6 +133,10 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             containsString("no such remote cluster: [fake]"),
             () -> run(syncEsqlQueryRequest("FROM fake:index-1 METADATA _index"))
         );
+        try (var response = run(syncEsqlQueryRequest("FROM fake*:index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response); // empty
+        }
     }
 
     public void testResolutionWithFilter() {
@@ -234,30 +239,12 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    private static void assertOk(EsqlQueryResponse response) {
-        assertThat(response.isPartial(), equalTo(false));
-    }
-
-    private static void assertPartial(EsqlQueryResponse response) {
-        assertThat(response.isPartial(), equalTo(true));
-    }
-
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
-        var indexColumn = findIndexColumn(response);
-        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
+        assertColumnContainsInAnyOrder(response, MetadataAttribute.INDEX, indices);
     }
 
     private static void assertExecutionInfo(EsqlQueryResponse response, EsqlResponseExecutionInfo... infos) {
         assertThat(executionInfo(response), containsInAnyOrder(infos));
-    }
-
-    private static int findIndexColumn(EsqlQueryResponse response) {
-        for (int c = 0; c < response.columns().size(); c++) {
-            if (Objects.equals(response.columns().get(c).name(), MetadataAttribute.INDEX)) {
-                return c;
-            }
-        }
-        throw new AssertionError("no _index column found");
     }
 
     private static List<EsqlResponseExecutionInfo> executionInfo(EsqlQueryResponse response) {

@@ -29,7 +29,7 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
             }
         }
         resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
-            new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 30, 'ea')
+            Optional.of(new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 30, 'ea'))
         }
         return resolver
     }
@@ -43,7 +43,7 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
             }
         }
         resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
-            new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 30, 'rc')
+            Optional.of(new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 30, 'rc'))
         }
         when:
         Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(langVersion), vendor, platform(os, arch)))
@@ -67,6 +67,32 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
         ]
     }
 
+    def "resolves ga versions #os #arch #vendor jdk #langVersion"() {
+        given:
+        def resolver = new EarlyAccessCatalogJdkToolchainResolver() {
+            @Override
+            BuildServiceParameters.None getParameters() {
+                return null
+            }
+        }
+        resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
+            Optional.of(new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 35, 'ga'))
+        }
+        when:
+        Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(langVersion), vendor, platform(os, arch)))
+
+        then:
+        download.get().uri == URI.create(expectedUrl)
+        where:
+
+        [langVersion, vendor, os, arch, expectedUrl] << [
+            [26, anyVendor(), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26/openjdk-26_linux-x64_bin.tar.gz"],
+            [26, anyVendor(), LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26/openjdk-26_linux-aarch64_bin.tar.gz"],
+            [26, anyVendor(), MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26/openjdk-26_macos-x64_bin.tar.gz"],
+            [26, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26/openjdk-26_macos-aarch64_bin.tar.gz"],
+            [26, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26/openjdk-26_windows-x64_bin.zip"]
+        ]
+    }
 
     @Override
     def supportedRequests() {
@@ -83,6 +109,42 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
             [26, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_macos-aarch64_bin.tar.gz"],
             [26, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+30/openjdk-26-ea+30_windows-x64_bin.zip"]
         ]
+    }
+
+    def "prefers ga over rc over ea when build numbers are the same"() {
+        given:
+        def rcBuild = new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(JavaLanguageVersion.of(26), 35, 'rc')
+        def gaBuild = new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(JavaLanguageVersion.of(26), 35, 'ga')
+        def eaBuild = new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(JavaLanguageVersion.of(26), 35, 'ea')
+
+        when:
+        def builds = [rcBuild, gaBuild, eaBuild]
+        def best = builds.stream().max(
+            Comparator.comparingInt(EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild::buildNumber)
+                .thenComparingInt(EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild::typeRank)
+        )
+
+        then:
+        best.isPresent()
+        best.get().type() == 'ga'
+    }
+
+    def "returns empty when version is not in catalog"() {
+        given:
+        def resolver = new EarlyAccessCatalogJdkToolchainResolver() {
+            @Override
+            BuildServiceParameters.None getParameters() {
+                return null
+            }
+        }
+        resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
+            Optional.empty()
+        }
+        when:
+        Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(26), anyVendor(), platform(LINUX, X86_64)))
+
+        then:
+        download.isEmpty()
     }
 
     @Override

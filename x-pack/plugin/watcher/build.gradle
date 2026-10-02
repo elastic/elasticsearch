@@ -11,6 +11,7 @@ esplugin {
   hasNativeController = false
   requiresKeystore = false
   extendedPlugins = ['x-pack-core', 'lang-painless']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 
 base {

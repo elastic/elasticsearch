@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -25,6 +26,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -35,6 +39,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -45,19 +50,30 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class MvZip extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvZip", MvZip::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvZip.class).ternary(MvZip::new).name("mv_zip");
 
     private final Expression mvLeft, mvRight, delim;
     private static final Literal COMMA = new Literal(Source.EMPTY, BytesRefs.toBytesRef(","), DataType.TEXT);
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "keyword" },
+        briefSummary = "Combines values from two multi-value fields with a delimiter.",
         description = "Combines the values from two multivalued fields with a delimiter that joins them together.",
         examples = @Example(file = "string", tag = "mv_zip")
     )
     public MvZip(
         Source source,
-        @Param(name = "string1", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvLeft,
-        @Param(name = "string2", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvRight,
+        @Param(
+            name = "string1",
+            type = { "keyword", "text" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression mvLeft,
+        @Param(
+            name = "string2",
+            type = { "keyword", "text" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression mvRight,
         @Param(
             name = "delim",
             type = { "keyword", "text" },
@@ -131,12 +147,13 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new MvZipEvaluator.Factory(
             source(),
             toEvaluator.apply(mvLeft),
             toEvaluator.apply(mvRight),
-            toEvaluator.apply(delim == null ? COMMA : delim)
+            toEvaluator.apply(delim == null ? COMMA : delim),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "mv_zip")
         );
     }
 
@@ -169,7 +186,8 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
         @Position int position,
         BytesRefBlock leftField,
         BytesRefBlock rightField,
-        BytesRef delim
+        BytesRef delim,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder work
     ) {
         int leftFieldValueCount = leftField.getValueCount(position);
         int rightFieldValueCount = rightField.getValueCount(position);
@@ -198,13 +216,13 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             return;
         }
 
-        BytesRefBuilder work = new BytesRefBuilder();
         // single value
         if (leftFieldValueCount == 1 && rightFieldValueCount == 1) {
+            work.clear();
             work.append(leftField.getBytesRef(leftFirst, fieldScratch));
             work.append(delim);
             work.append(rightField.getBytesRef(rightFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             return;
         }
         // multiple values
@@ -216,20 +234,20 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             work.append(leftField.getBytesRef(leftIndex + leftFirst, fieldScratch));
             work.append(delim);
             work.append(rightField.getBytesRef(rightIndex + rightFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             leftIndex++;
             rightIndex++;
         }
         while (leftIndex < leftFieldValueCount) {
             work.clear();
             work.append(leftField.getBytesRef(leftIndex + leftFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             leftIndex++;
         }
         while (rightIndex < rightFieldValueCount) {
             work.clear();
             work.append(rightField.getBytesRef(rightIndex + rightFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             rightIndex++;
         }
         builder.endPositionEntry();

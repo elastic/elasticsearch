@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -17,10 +18,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,34 +32,55 @@ import java.util.List;
 /**
  * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
  */
-public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",
-        CountDistinctOverTime::new
+        CountDistinctOverTime::readFrom
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinctOverTime.class)
+        .binary(CountDistinctOverTime::new)
+        .capabilities("flattened", "spatial_grid_types")
+        .name("count_distinct_over_time");
 
     private final Expression precision;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
+        briefSummary = "Calculates the count of distinct values over time for a field.",
         description = "Calculates the count of distinct values over time for a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "count_distinct_over_time") }
     )
     public CountDistinctOverTime(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = {
+                "boolean",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "geohash",
+                "geohex",
+                "geotile",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             optional = true,
             name = "precision",
             type = { "integer", "long", "unsigned_long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."
@@ -65,23 +90,22 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     }
 
     public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression window, Expression precision) {
-        super(source, field, filter, window, precision == null ? List.of() : List.of(precision));
+        super(source, List.of(field), filter, window, precision == null ? List.of() : List.of(precision));
         this.precision = precision;
     }
 
-    private CountDistinctOverTime(StreamInput in) throws IOException {
-        super(in);
-        this.precision = parameters().isEmpty() ? null : parameters().getFirst();
+    private static CountDistinctOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new CountDistinctOverTime(source, field, filter, window, parameters.isEmpty() ? null : parameters.getFirst());
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    public CountDistinctOverTime withFilter(Expression filter) {
-        return new CountDistinctOverTime(source(), field(), filter, window(), precision);
     }
 
     @Override
@@ -103,6 +127,11 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override

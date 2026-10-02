@@ -19,8 +19,12 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,14 +32,16 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BreakingBytesRefBuilderTests extends ESTestCase {
     public void testBreakOnBuild() {
         String label = randomAlphaOfLength(4);
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(0));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(0));
         Exception e = expectThrows(CircuitBreakingException.class, () -> new BreakingBytesRefBuilder(breaker, label));
         assertThat(e.getMessage(), equalTo("over test limit"));
     }
@@ -73,7 +79,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
     }
 
     public void testCopyBytes() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(300));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(300));
         try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "test")) {
             String initialValue = randomAlphaOfLengthBetween(1, 50);
             builder.copyBytes(new BytesRef(initialValue));
@@ -82,6 +88,51 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
             String newValue = randomAlphaOfLengthBetween(350, 500);
             Exception e = expectThrows(CircuitBreakingException.class, () -> builder.copyBytes(new BytesRef(newValue)));
             assertThat(e.getMessage(), equalTo("over test limit"));
+        }
+    }
+
+    public void testCloseAllBatchesReleaseIntoOneCallAndReleasesTheArray() {
+        var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
+        var breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var countingBreaker = new ReleaseCountingCircuitBreaker(breaker);
+
+        int numBuilders = between(1, 1000);
+        ObjectArray<BreakingBytesRefBuilder> builders = bigArrays.newObjectArray(numBuilders);
+        for (int i = 0; i < numBuilders; i++) {
+            // Leave some slots null too -- closeAll must skip them, not just batch over them.
+            if (randomBoolean()) {
+                builders.set(i, new BreakingBytesRefBuilder(countingBreaker, "test", randomIntBetween(0, 64)));
+            }
+        }
+
+        assertThat("breaker should be holding memory before closeAll", breaker.getUsed(), greaterThan(0L));
+
+        long releaseCallsBefore = countingBreaker.releaseCalls.get();
+        BreakingBytesRefBuilder.closeAll(builders);
+        long releaseCallsDuring = countingBreaker.releaseCalls.get() - releaseCallsBefore;
+
+        assertThat("breaker must be fully released after closeAll", breaker.getUsed(), equalTo(0L));
+        assertThat("closeAll should batch every builder's release into a single breaker call", releaseCallsDuring, equalTo(1L));
+    }
+
+    public void testCloseAllAssertsAllBuildersShareOneBreaker() {
+        var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
+        var breakerA = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var breakerB = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(200));
+
+        ObjectArray<BreakingBytesRefBuilder> builders = bigArrays.newObjectArray(2);
+        var builderA = new BreakingBytesRefBuilder(breakerA, "test");
+        var builderB = new BreakingBytesRefBuilder(breakerB, "test");
+        builders.set(0, builderA);
+        builders.set(1, builderB);
+
+        try {
+            // closeAll releases the array itself (in its own finally) even though the assertion
+            // trips before it reaches its own breaker release -- the individual builders are
+            // never released by closeAll in that case, so we close them ourselves below.
+            expectThrows(AssertionError.class, () -> BreakingBytesRefBuilder.closeAll(builders));
+        } finally {
+            Releasables.closeExpectNoException(builderA, builderB);
         }
     }
 
@@ -250,7 +301,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
     private void testAgainstOracle(Supplier<TestIteration> iterations) {
         int limit = between(1_000, 10_000);
         String label = randomAlphaOfLength(4);
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         assertThat(breaker.getUsed(), equalTo(0L));
         try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, label)) {
             assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
@@ -285,6 +336,69 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
             }
         }
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Delegates to a real breaker, counting only release (negative-delta) calls to {@link #addWithoutBreaking(long)}. */
+    private static class ReleaseCountingCircuitBreaker implements CircuitBreaker {
+        private final CircuitBreaker delegate;
+        final AtomicLong releaseCalls = new AtomicLong();
+
+        ReleaseCountingCircuitBreaker(CircuitBreaker delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {
+            delegate.circuitBreak(fieldName, bytesNeeded);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            delegate.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            if (bytes < 0) {
+                releaseCalls.incrementAndGet();
+            }
+            delegate.addWithoutBreaking(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return delegate.getUsed();
+        }
+
+        @Override
+        public long getLimit() {
+            return delegate.getLimit();
+        }
+
+        @Override
+        public double getOverhead() {
+            return delegate.getOverhead();
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return delegate.getTrippedCount();
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public Durability getDurability() {
+            return delegate.getDurability();
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {
+            delegate.setLimitAndOverhead(limit, overhead);
+        }
     }
 
     private long ramForArray(int length) {

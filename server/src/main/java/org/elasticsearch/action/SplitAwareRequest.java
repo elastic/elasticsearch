@@ -9,11 +9,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
-
-public interface SplitAwareRequest {
-    SplitShardCountSummary getSplitShardCountSummary();
-
-    void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index);
-}
+/// Marker interface that marks requests that are used in actions that have special logic
+/// to handle resharding splits.
+/// This is used mostly for assertions.
+public interface SplitAwareRequest {}

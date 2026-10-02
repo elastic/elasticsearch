@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -18,10 +19,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -116,7 +126,11 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
                 } else {
                     if (ij != null) { // this is an Aggregate part of right-hand side of an InlineJoin
                         plan = ij.replaceRight(
-                            ij.right().transformUp(Aggregate.class, agg -> updateAggregate(agg, newAggs, newEvals, newProjections))
+                            ij.right()
+                                .transformUp(
+                                    Aggregate.class,
+                                    agg -> agg == aggregate ? updateAggregate(agg, newAggs, newEvals, newProjections) : agg
+                                )
                         );
                     } else { // this is a standalone Aggregate
                         plan = updateAggregate(aggregate, newAggs, newEvals, newProjections);
@@ -127,20 +141,68 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         return plan;
     }
 
-    private static boolean shouldReplace(AggregateFunction aggFunction) {
-        return hasFalseFilter(aggFunction) || DataType.isNull(aggFunction.field().dataType());
+    public static boolean shouldReplace(AggregateFunction aggFunction) {
+        if (hasFalseFilter(aggFunction)) {
+            return true;
+        }
+        aggFunction = unwrapToPartial(unwrapFromPartial(aggFunction));
+        if (aggFunction instanceof AnyNullIsNull || mapNullToValue(aggFunction) != null) {
+            return aggFunction.fields().stream().anyMatch(field -> DataType.isNull(field.dataType()));
+        }
+        // Instead of the allowlist [First, Last], this could benefit from a marker
+        // interface `FirstNullIsNull` or similar (comparable to `AnyNullIsNull`).
+        if (aggFunction instanceof First || aggFunction instanceof Last) {
+            return DataType.isNull(aggFunction.fields().getFirst().dataType());
+        }
+        return false;
     }
 
     private static boolean hasFalseFilter(AggregateFunction aggFunction) {
         return aggFunction.hasFilter() && aggFunction.filter() instanceof Literal literal && Boolean.FALSE.equals(literal.value());
     }
 
-    private static Object mapNullToValue(AggregateFunction aggFunction) {
-        return switch (aggFunction) {
+    /**
+     * If {@code aggFunction} is a {@link FromPartial} whose inner function is an {@link AggregateFunction},
+     * returns that inner function; otherwise returns {@code aggFunction} itself.
+     */
+    private static AggregateFunction unwrapFromPartial(AggregateFunction aggFunction) {
+        if (aggFunction instanceof FromPartial fromPartial && fromPartial.function() instanceof AggregateFunction inner) {
+            return inner;
+        }
+        return aggFunction;
+    }
+
+    /**
+     * If {@code aggFunction} is a {@link ToPartial} whose inner function is an {@link AggregateFunction},
+     * returns that inner function; otherwise returns {@code aggFunction} itself.
+     */
+    private static AggregateFunction unwrapToPartial(AggregateFunction aggFunction) {
+        if (aggFunction instanceof ToPartial toPartial && toPartial.function() instanceof AggregateFunction inner) {
+            return inner;
+        }
+        return aggFunction;
+    }
+
+    public static Object mapNullToValue(AggregateFunction aggFunction) {
+        if (aggFunction instanceof ToPartial) {
+            /*
+             * The intermediate partial-state value is irrelevant; Phase 2's FromPartial will be replaced
+             * by the correct constant via its own shouldReplace/mapNullToValue call.
+             */
+            return null;
+        }
+        // For FromPartial, the correct return value depends on the inner (wrapped) aggregate type.
+        AggregateFunction effective = unwrapFromPartial(aggFunction);
+        return switch (effective) {
             case Count ignored -> 0L;
+            case CountApproximate ignored -> 0.0;
+            case CountOverTime ignored -> 0L;
             case CountDistinct ignored -> 0L;
+            case CountDistinctOverTime ignored -> 0L;
             case Absent ignored -> true;
+            case AbsentOverTime ignored -> true;
             case Present ignored -> false;
+            case PresentOverTime ignored -> false;
             default -> null;
         };
     }

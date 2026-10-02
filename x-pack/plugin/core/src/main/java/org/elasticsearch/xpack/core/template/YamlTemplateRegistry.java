@@ -13,10 +13,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -54,9 +57,10 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, ignored -> true);
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, ignored -> true, NODE_FEATURE_FILTERS);
     }
 
     @SuppressWarnings({ "unchecked", "this-escape" })
@@ -66,9 +70,11 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        Predicate<String> templateFilter
+        FeatureService featureService,
+        Predicate<String> templateFilter,
+        Map<NodeFeature, Predicate<Template>> nodeFeatureFilters
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, nodeFeatureFilters);
         try {
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,

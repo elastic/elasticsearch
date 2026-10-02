@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-@Fork(1)
+@Fork(value = 1, jvmArgs = { "--add-opens=java.base/java.nio=ALL-UNNAMED" })
 public class BlockKeepMaskBenchmark extends BlockBenchmark {
     static {
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {

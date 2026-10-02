@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -33,7 +34,8 @@ public class StatsGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         List<Column> nonNull = previousOutput.stream()
             .filter(EsqlQueryGenerator::fieldCanBeUsed)
@@ -43,7 +45,7 @@ public class StatsGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION;
         }
         StringBuilder cmd = new StringBuilder(" | ");
-        cmd.append(commandName());
+        cmd.append(commandName().replace("_", " "));
         cmd.append(" ");
         int nStats = randomIntBetween(1, 5);
         for (int i = 0; i < nStats; i++) {
@@ -56,7 +58,7 @@ public class StatsGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.agg(nonNull);
+            String expression = EsqlQueryGenerator.agg(nonNull, previousCommands);
             if (i > 0) {
                 cmd.append(",");
             }

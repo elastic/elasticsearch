@@ -79,7 +79,8 @@ import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -89,11 +90,14 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final String language;
 
+    private final Object sharingKey;
+
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(name);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();
+        this.sharingKey = new Key(language);
     }
 
     @Override
@@ -242,12 +246,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
                 // Norwegian (Nynorsk) stemmers
             } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
-                NorwegianLightStemFilterFactory factory = new NorwegianLightStemFilterFactory(Collections.singletonMap("variant", "nn"));
+                NorwegianLightStemFilterFactory factory = new NorwegianLightStemFilterFactory(new HashMap<>(Map.of("variant", "nn")));
                 return factory.create(tokenStream);
             } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
-                NorwegianMinimalStemFilterFactory factory = new NorwegianMinimalStemFilterFactory(
-                    Collections.singletonMap("variant", "nn")
-                );
+                NorwegianMinimalStemFilterFactory factory = new NorwegianMinimalStemFilterFactory(new HashMap<>(Map.of("variant", "nn")));
                 return factory.create(tokenStream);
                 // Persian stemmers
             } else if ("persian".equalsIgnoreCase(language)) {
@@ -300,4 +302,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         return new SnowballFilter(tokenStream, language);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String language) {}
 }

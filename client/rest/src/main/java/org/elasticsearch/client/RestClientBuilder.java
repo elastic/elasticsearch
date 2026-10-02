@@ -30,9 +30,7 @@ import org.apache.http.util.VersionInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -104,12 +102,7 @@ public final class RestClientBuilder {
 
         VersionInfo httpClientVersion = null;
         try {
-            httpClientVersion = AccessController.doPrivileged(
-                (PrivilegedAction<VersionInfo>) () -> VersionInfo.loadVersionInfo(
-                    "org.apache.http.nio.client",
-                    HttpAsyncClientBuilder.class.getClassLoader()
-                )
-            );
+            httpClientVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader());
         } catch (Exception e) {
             // Keep unknown
         }
@@ -209,7 +202,7 @@ public final class RestClientBuilder {
      * it is not intended for other purposes and it should not be supplied in other scenarios.
      *
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.
-     * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty or contains consecutive slashes.
      */
     public RestClientBuilder setPathPrefix(String pathPrefix) {
         this.pathPrefix = cleanPathPrefix(pathPrefix);
@@ -223,6 +216,10 @@ public final class RestClientBuilder {
             throw new IllegalArgumentException("pathPrefix must not be empty");
         }
 
+        if (pathPrefix.contains("//")) {
+            throw new IllegalArgumentException("pathPrefix is malformed. consecutive slashes are not allowed: [" + pathPrefix + "]");
+        }
+
         String cleanPathPrefix = pathPrefix;
         if (cleanPathPrefix.startsWith("/") == false) {
             cleanPathPrefix = "/" + cleanPathPrefix;
@@ -231,10 +228,6 @@ public final class RestClientBuilder {
         // best effort to ensure that it looks like "/base/path" rather than "/base/path/"
         if (cleanPathPrefix.endsWith("/") && cleanPathPrefix.length() > 1) {
             cleanPathPrefix = cleanPathPrefix.substring(0, cleanPathPrefix.length() - 1);
-
-            if (cleanPathPrefix.endsWith("/")) {
-                throw new IllegalArgumentException("pathPrefix is malformed. too many trailing slashes: [" + pathPrefix + "]");
-            }
         }
         return cleanPathPrefix;
     }
@@ -285,9 +278,7 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
-        );
+        CloseableHttpAsyncClient httpClient = createHttpClient();
         RestClient restClient = new RestClient(
             httpClient,
             defaultHeaders,
@@ -344,8 +335,7 @@ public final class RestClientBuilder {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
-            final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
+            return httpClientBuilder.build();
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }

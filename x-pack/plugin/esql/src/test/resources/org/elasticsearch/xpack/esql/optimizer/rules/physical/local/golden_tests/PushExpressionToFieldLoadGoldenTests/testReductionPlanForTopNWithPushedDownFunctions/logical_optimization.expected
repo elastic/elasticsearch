@@ -1,0 +1,4 @@
+Project[[text{f}#0, score{r}#1]]
+\_TopN[[Order[integer{f}#2,DESC,FIRST]],10[INTEGER],false]
+  \_Eval[[DOTPRODUCT(dense_vector{f}#3,[1.0, 2.0, 3.0][DENSE_VECTOR]) AS score#1]]
+    \_EsRelation[all_types][!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, dense_vector{f}#3, double{f}#9, float{f}#10, half_float{f}#11, integer{f}#2, ip{f}#12, keyword{f}#13, long{f}#14, scaled_float{f}#15, semantic_text{f}#16, short{f}#17, text{f}#0, unsigned_long{f}#18, version{f}#19, wildcard{f}#20]

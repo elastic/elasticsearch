@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -119,7 +120,11 @@ public class MockWebServer implements Closeable {
      * @throws IOException in case of a binding or other I/O errors
      */
     public void start() throws IOException {
-        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
+        start(InetAddress.getLoopbackAddress());
+    }
+
+    public void start(InetAddress bindAddress) throws IOException {
+        InetSocketAddress address = new InetSocketAddress(bindAddress.getHostAddress(), 0);
         if (sslContext != null) {
             HttpsServer httpsServer = MockHttpServer.createHttps(address, 0);
             httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, tlsConfig));
@@ -185,7 +190,7 @@ public class MockWebServer implements Closeable {
         return new InetSocketAddress(hostname, port);
     }
 
-    public URI getUri(String path) throws URISyntaxException {
+    public URI getUri(@Nullable String path) throws URISyntaxException {
         if (hostname == null) {
             throw new IllegalStateException("Web server must be started in order to determine its URI");
         }
@@ -253,6 +258,16 @@ public class MockWebServer implements Closeable {
             }
         }
         return request;
+    }
+
+    public String getHttpAddress() {
+        String host = getHostName();
+        if (host.contains(":")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
+        return host + ":" + getPort();
     }
 
     /**

@@ -44,6 +44,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -154,7 +156,9 @@ public class AllocationServiceTests extends ESTestCase {
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP,
+            clusterSettings
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -266,9 +270,11 @@ public class AllocationServiceTests extends ESTestCase {
         final AllocationService allocationService = new AllocationService(
             null,
             null,
-            null,
-            null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            () -> ClusterInfo.EMPTY,
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP,
+            createBuiltInClusterSettings()
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
@@ -298,18 +304,11 @@ public class AllocationServiceTests extends ESTestCase {
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(Collections.emptyList()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            null,
-            0L
-        );
-        allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
-
+        final var debugMode = randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
         final ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(
             clusterState.globalRoutingTable().routingTable(projectId).index("index").shard(0).primaryShard(),
-            allocation
+            clusterState,
+            debugMode
         );
 
         assertTrue(shardAllocationDecision.isDecisionTaken());
@@ -328,6 +327,41 @@ public class AllocationServiceTests extends ESTestCase {
                 finding the previous copies of this shard requires an allocator called [unknown] but that allocator was not found; \
                 perhaps the corresponding plugin is not installed"""));
         }
+    }
+
+    public void testPreserveDecisionLabelsSetting() {
+        final boolean initialValue = randomBoolean();
+        final var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder().put(AllocationService.PRESERVE_DECISION_LABELS_SETTING.getKey(), initialValue).build()
+        );
+        // Deciders are not consulted by RoutingAllocation#decision, so none are needed here.
+        final var allocationService = new AllocationService(
+            null,
+            null,
+            () -> ClusterInfo.EMPTY,
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP,
+            clusterSettings
+        );
+        final Supplier<AllocationQueryContext> newContext = () -> allocationService.createAllocationQueryContext(
+            ClusterState.EMPTY_STATE,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY
+        );
+        final Function<AllocationQueryContext, String> labelOf = context -> context.decision(Decision.NO, "label", "reason").label();
+        final Function<Boolean, String> expectedLabel = preserve -> preserve ? "label" : null;
+
+        final var contextBeforeUpdate = newContext.get();
+        assertThat(labelOf.apply(contextBeforeUpdate), equalTo(expectedLabel.apply(initialValue)));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(AllocationService.PRESERVE_DECISION_LABELS_SETTING.getKey(), initialValue == false).build()
+        );
+
+        // the value is fixed for the lifetime of an existing RoutingAllocation, new instances pick up the update
+        assertThat(labelOf.apply(contextBeforeUpdate), equalTo(expectedLabel.apply(initialValue)));
+        assertThat(labelOf.apply(newContext.get()), equalTo(expectedLabel.apply(initialValue == false)));
     }
 
     public void testHealthStatusWithMultipleProjects() {
@@ -390,7 +424,9 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP,
+            clusterSettings
         );
 
         final ProjectId project1 = randomUniqueProjectId();

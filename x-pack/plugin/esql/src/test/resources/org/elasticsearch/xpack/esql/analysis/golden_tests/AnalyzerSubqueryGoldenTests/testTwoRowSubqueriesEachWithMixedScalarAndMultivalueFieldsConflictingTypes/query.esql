@@ -1,0 +1,2 @@
+FROM (ROW a = 1, b = ["cat", "dog"]), (ROW a = [1.5, 2.5], b = true)
+| KEEP a, b

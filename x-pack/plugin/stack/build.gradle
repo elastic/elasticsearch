@@ -29,6 +29,8 @@ dependencies {
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:data-streams')
+  // Required to support semantic_text fields in defined templates
+  clusterModules project(xpackModule('inference'))
 }
 
 restResources {

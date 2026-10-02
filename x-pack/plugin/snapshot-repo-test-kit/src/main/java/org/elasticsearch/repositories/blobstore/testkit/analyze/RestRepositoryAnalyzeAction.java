@@ -60,6 +60,9 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
         analyzeRepositoryRequest.abortWritePermitted(
             request.paramAsBoolean("rarely_abort_writes", analyzeRepositoryRequest.isAbortWritePermitted())
         );
+        analyzeRepositoryRequest.checkOverwriteProtection(
+            request.paramAsBoolean("check_overwrite_protection", analyzeRepositoryRequest.checkOverwriteProtection())
+        );
 
         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
         return channel -> cancelClient.execute(

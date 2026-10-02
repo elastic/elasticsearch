@@ -4,42 +4,46 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeotile}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeotile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeotileFromFieldAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeotileFromFieldAndLiteralEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeotileFromFieldAndLiteralEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkbBlock;
+  private final ExpressionEvaluator wkbBlock;
 
   private final int precision;
+
+  private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StGeotileFromFieldAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator wkbBlock, int precision, DriverContext driverContext) {
+  public StGeotileFromFieldAndLiteralEvaluator(Source source, ExpressionEvaluator wkbBlock,
+      int precision, SpatialGridFunction.GeoShapeCellsComputer shapeTiler,
+      DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
     this.precision = precision;
+    this.shapeTiler = shapeTiler;
     this.driverContext = driverContext;
   }
 
@@ -68,12 +72,7 @@ public final class StGeotileFromFieldAndLiteralEvaluator implements EvalOperator
           result.appendNull();
           continue position;
         }
-        try {
-          StGeotile.fromFieldAndLiteral(result, p, wkbBlockBlock, this.precision);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        StGeotile.fromFieldAndLiteral(result, p, wkbBlockBlock, this.precision, this.shapeTiler);
       }
       return result.build();
     }
@@ -91,28 +90,31 @@ public final class StGeotileFromFieldAndLiteralEvaluator implements EvalOperator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
+    private final ExpressionEvaluator.Factory wkbBlock;
 
     private final int precision;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
-        int precision) {
+    private final Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler;
+
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock, int precision,
+        Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler) {
       this.source = source;
       this.wkbBlock = wkbBlock;
       this.precision = precision;
+      this.shapeTiler = shapeTiler;
     }
 
     @Override
     public StGeotileFromFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, context);
+      return new StGeotileFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, shapeTiler.apply(context), context);
     }
 
     @Override

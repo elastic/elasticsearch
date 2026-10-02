@@ -57,6 +57,16 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 [Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
+### Using `min_score` with compound retrievers [retriever-min-score-compound]
+
+When using `min_score` with compound retrievers (such as [`rrf`](retrievers/rrf-retriever.md) or [`linear`](retrievers/linear-retriever.md)), documents are filtered **after** the compound scoring has been applied. This is important to understand because:
+
+1. **Document collection**: Each child retriever collects documents up to its `rank_window_size` limit.
+2. **Score computation**: The compound retriever computes final scores (e.g., RRF ranking, linear combination with normalization).
+3. **Threshold filtering**: Documents with a final score below `min_score` are excluded from the results.
+
+Because `min_score` is applied after score normalization or RRF computation, the `total_hits` value reflects only the documents that pass the threshold after the compound scoring, not the total number of documents matched by the child retrievers.
+
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]
 
 When a retriever is specified as part of a search, the following elements are not allowed at the top-level:

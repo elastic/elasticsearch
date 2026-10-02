@@ -16,7 +16,6 @@ import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -37,28 +36,29 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 @SuppressForbidden("HttpExchange and Headers are ok here")
 public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "no_conditional_writes_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
-        BUCKET,
-        BASE_PATH,
+        null,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     ) {
@@ -121,12 +121,12 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

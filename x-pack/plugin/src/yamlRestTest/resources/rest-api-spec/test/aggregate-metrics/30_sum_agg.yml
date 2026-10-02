@@ -1,5 +1,9 @@
 setup:
+  - requires:
+      test_runner_features: [ allowed_warnings, capabilities ]
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  aggregate_metric_test
         body:
@@ -27,10 +31,6 @@ setup:
           - '{"metric": {"sum": -100, "value_count": 40} }'
 ---
 "Test sum agg":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test
@@ -47,22 +47,25 @@ setup:
 ---
 "Test sum agg with query":
   - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
+      reason: "Using average as default for aggregate metric double was added in 9.14"
   - do:
       search:
         index: aggregate_metric_test
         size: 0
         body:
           query:
-            term:
+            range:
               metric:
-                value: 20
+                gte: 2
+                lte: 200
           aggs:
             sum_agg:
               sum:
                 field: metric
 
   - match: { hits.total.value: 2 }
-  - match: { aggregations.sum_agg.value: 61}
+  - match: { aggregations.sum_agg.value: 10060.45}

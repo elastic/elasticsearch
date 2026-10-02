@@ -1,20 +1,31 @@
 ---
 applies_to:
   stack:
-  serverless:
+  serverless: unavailable
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-routing-field.html
 ---
 
 # _routing field [mapping-routing-field]
 
-A document is routed to a particular shard in an index using the following formulas:
+A document is routed to a particular shard in an index using the following formula:
+
+```
+shard_num = hash(_routing) % num_primary_shards
+```
+
+`num_primary_shards` is the value of the [`index.number_of_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-shards) index setting.
+
+::::{note}
+Indices created before {{es}} 9.4.0 use the legacy routing function:
 
 ```
 routing_factor = num_routing_shards / num_primary_shards
 shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 ```
-`num_routing_shards` is the value of the [`index.number_of_routing_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-routing-shards) index setting. `num_primary_shards` is the value of the [`index.number_of_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-shards) index setting.
+
+`num_routing_shards` is the value of the [`index.number_of_routing_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-routing-shards) index setting. Existing indices keep the legacy routing function based on their creation version. Recreating or reindexing into a new index can change how documents are distributed across shards compared to the source index. [#137062](https://github.com/elastic/elasticsearch/pull/137062).
+::::
 
 The default `_routing` value is the document’s [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md). Custom routing patterns can be implemented by specifying a custom `routing` value per document. For instance:
 
@@ -100,6 +111,28 @@ PUT my-index-000002/_doc/1 <2>
 
 
 
+## Storing routing as doc values [_storing_routing_as_doc_values]
+```{applies_to}
+stack: ga 9.5.0
+serverless: ga
+```
+
+By default, the `_routing` value is stored as an indexed field with a stored field.
+Setting `doc_values` to `true` stores routing as only a doc value field.
+
+```console
+PUT my-index-000003
+{
+  "mappings": {
+    "_routing": {
+      "required": true,
+      "doc_values": true
+    }
+  }
+}
+```
+% TEST
+
 ## Unique IDs with custom routing [_unique_ids_with_custom_routing]
 
 When indexing documents specifying a custom `_routing`, the uniqueness of the `_id` is not guaranteed across all of the shards in the index. In fact, documents with the same `_id` might end up on different shards if indexed with different `_routing` values.
@@ -117,9 +150,19 @@ When this setting is present, the formulas for calculating the shard become:
 
 ```
 routing_value = hash(_routing) + hash(_id) % routing_partition_size
+shard_num = routing_value % num_primary_shards
+```
+
+That is, the `_routing` field is used to calculate a set of shards within the index and then the `_id` is used to pick a shard within that set.
+
+::::{note}
+Indices created before {{es}} 9.4.0 use the legacy partitioned routing formula:
+
+```
+routing_value = hash(_routing) + hash(_id) % routing_partition_size
 shard_num = (routing_value % num_routing_shards) / routing_factor
 ```
-That is, the `_routing` field is used to calculate a set of shards within the index and then the `_id` is used to pick a shard within that set.
+::::
 
 To enable this feature, the `index.routing_partition_size` should have a value greater than 1 and less than `index.number_of_shards`.
 

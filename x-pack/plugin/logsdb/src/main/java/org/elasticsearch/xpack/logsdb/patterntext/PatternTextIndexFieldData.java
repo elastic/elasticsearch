@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patterntext;
 
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -71,11 +71,10 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
 
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        LeafReader leafReader = context.reader();
-        var values = PatternTextFallbackDocValues.from(leafReader, fieldType);
+        final BinaryDocValues values = PatternTextFallbackDocValues.from(context, fieldType);
         return new LeafFieldData() {
 
-            final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
+            final ToScriptFieldFactory<SortableBinaryDocValues> factory = KeywordDocValuesField::new;
 
             @Override
             public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
@@ -83,11 +82,11 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
             }
 
             @Override
-            public SortedBinaryDocValues getBytesValues() {
-                return new SortedBinaryDocValues() {
+            public SortableBinaryDocValues getBytesValues() {
+                return new SortableBinaryDocValues(values) {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        return values != null && values.advanceExact(doc);
                     }
 
                     @Override

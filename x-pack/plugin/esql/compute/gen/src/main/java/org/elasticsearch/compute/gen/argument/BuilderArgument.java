@@ -13,6 +13,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public record BuilderArgument(ClassName type, String name) implements Argument {
     @Override
@@ -62,7 +63,7 @@ public record BuilderArgument(ClassName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         // nothing to do
     }
 

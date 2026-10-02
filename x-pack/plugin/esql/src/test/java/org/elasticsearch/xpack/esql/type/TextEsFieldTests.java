@@ -12,16 +12,10 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 
 import java.util.Map;
 
-public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
-    static TextEsField randomTextEsField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        boolean hasDocValues = randomBoolean();
-        boolean isAlias = randomBoolean();
-        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType);
-    }
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
 
+public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
     @Override
     protected TextEsField createTestInstance() {
         return randomTextEsField(4);

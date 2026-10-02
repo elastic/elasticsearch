@@ -107,6 +107,10 @@ public class RestIndicesActionTests extends ESTestCase {
                             }
                             break;
                         case RED:
+                            IntStream.range(0, numberOfShards)
+                                .mapToObj(n -> new ShardId(index, n))
+                                .map(shardId -> TestShardRouting.newShardRouting(shardId, null, true, ShardRoutingState.UNASSIGNED))
+                                .forEach(indexRoutingTable::addShard);
                             break;
                     }
                     routingTable.add(indexRoutingTable);

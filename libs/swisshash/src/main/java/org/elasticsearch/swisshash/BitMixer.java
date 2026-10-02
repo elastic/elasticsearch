@@ -39,7 +39,14 @@ final class BitMixer {
         return z ^ (z >>> 32);
     }
 
+    /**
+     * Multiplicative (Fibonacci) hashing: a single multiply by an odd
+     * constant close to 2^64 / golden-ratio spreads sequential and random
+     * keys alike into its high bits, so we only need those bits rather
+     * than the full multi-round avalanche {@link #mix64}/{@link #mix32}
+     * provide.
+     */
     static int mix(long key) {
-        return (int) mix64(key);
+        return (int) ((key * 0x9E3779B97F4A7C15L) >>> 32);
     }
 }

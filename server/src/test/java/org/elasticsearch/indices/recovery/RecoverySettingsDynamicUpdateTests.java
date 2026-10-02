@@ -51,7 +51,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(), duration, timeUnit).build()
         );
-        assertEquals(new TimeValue(duration, timeUnit), recoverySettings.activityTimeout());
+        // checking we can set it without an exception, but it does nothing
     }
 
     public void testInternalActionTimeout() {

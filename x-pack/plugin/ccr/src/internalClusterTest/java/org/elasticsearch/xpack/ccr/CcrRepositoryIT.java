@@ -200,6 +200,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         // UUID is changed so that we can follow indexes on same cluster
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
+        assertEquals(leaderMetadata.getTransportVersion(), followerMetadata.getTransportVersion());
     }
 
     public void testDocsAreRecovered() throws Exception {
@@ -457,7 +458,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Runnable updateMappings = () -> {
             if (updateSent.compareAndSet(false, true)) {
                 leaderClient().admin().indices().preparePutMapping(leaderIndex).setSource("""
-                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.running(latch::countDown));
+                    {"properties":{"k":{"type":"long"}}}""").execute(ActionListener.running(latch::countDown));
             }
             try {
                 latch.await();

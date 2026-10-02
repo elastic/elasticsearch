@@ -34,7 +34,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents containing terms with a specified prefix.
  */
-public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
+public class PrefixQueryBuilder extends LeafQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
 
     private static final ParseField PREFIX_FIELD = new ParseField("value");

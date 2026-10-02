@@ -86,4 +86,9 @@ public abstract class AbstractTransportRequest extends TransportMessage implemen
     public String toString() {
         return getClass().getName() + "/" + getParentTask();
     }
+
+    public AbstractTransportRequest copyFieldsFrom(AbstractTransportRequest request) {
+        this.parentTaskId = request.parentTaskId;
+        return this;
+    }
 }

@@ -12,8 +12,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -24,7 +24,7 @@ import org.elasticsearch.core.Releasables;
  *     parameter for {@link #addRawInput}.
  * </p>
  */
-record FilteredAggregatorFunction(AggregatorFunction next, EvalOperator.ExpressionEvaluator filter) implements AggregatorFunction {
+public record FilteredAggregatorFunction(AggregatorFunction next, ExpressionEvaluator filter) implements AggregatorFunction {
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
         if (mask.isConstant() == false || mask.getBoolean(0) == false) {

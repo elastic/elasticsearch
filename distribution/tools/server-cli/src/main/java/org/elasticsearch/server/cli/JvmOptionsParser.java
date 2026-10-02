@@ -95,7 +95,7 @@ public final class JvmOptionsParser {
 
         try {
             return Collections.unmodifiableList(
-                parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
+                parser.jvmOptions(args, args.configDir(), envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
             );
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
@@ -128,7 +128,6 @@ public final class JvmOptionsParser {
     private List<String> jvmOptions(
         ServerArgs args,
         final Path config,
-        Path tmpDir,
         final String esJavaOpts,
         final Map<String, String> substitutions,
         final Map<String, String> cliSysprops,
@@ -142,23 +141,27 @@ public final class JvmOptionsParser {
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
-        final SystemMemoryInfo memoryInfo = new OverheadSystemMemoryInfo(
-            substitutedJvmOptions,
-            new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo())
+        final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
+        final Map<String, JvmOption> parsedJvmOptions = JvmOption.findFinalOptions(substitutedJvmOptions);
+        final List<String> heapSettings = machineDependentHeap.determineHeapSettings(
+            args.nodeSettings(),
+            memoryInfo,
+            parsedJvmOptions,
+            substitutedJvmOptions
         );
-        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
-        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
+        substitutedJvmOptions.addAll(heapSettings);
+        final long effectiveHeapSize = heapSettings.isEmpty()
+            ? JvmOption.extractMaxHeapSize(parsedJvmOptions)
+            : parseHeapSizeFromOptions(heapSettings);
+        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(parsedJvmOptions, effectiveHeapSize, args.nodeSettings());
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
-        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
-
         final List<String> finalJvmOptions = new ArrayList<>(
-            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()
+            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
         );
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);
-        finalJvmOptions.addAll(apmOptions);
 
         return finalJvmOptions;
     }
@@ -356,6 +359,23 @@ public final class JvmOptionsParser {
                 invalidLineConsumer.accept(lineNumber, line);
             }
         }
+    }
+
+    /**
+     * Parses the max heap size in bytes from heap options produced by {@link MachineDependentHeap}.
+     * Expects the format {@code -Xmx<N>m}.
+     */
+    static long parseHeapSizeFromOptions(List<String> heapSettings) {
+        for (String option : heapSettings) {
+            if (option.startsWith("-Xmx")) {
+                String value = option.substring(4);
+                if (value.endsWith("m") == false) {
+                    throw new IllegalStateException("Expected heap option in megabytes: " + option);
+                }
+                return Long.parseLong(value.substring(0, value.length() - 1)) * 1024 * 1024;
+            }
+        }
+        throw new IllegalStateException("Heap settings did not contain -Xmx option: " + heapSettings);
     }
 
 }

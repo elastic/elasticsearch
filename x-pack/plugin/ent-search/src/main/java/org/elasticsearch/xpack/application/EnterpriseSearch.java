@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.application;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -27,7 +23,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,6 +42,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalytic
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.ConnectorsConfig;
 import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.GetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.ListConnectorAction;
@@ -367,13 +363,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -476,7 +466,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         analyticsTemplateRegistry.initialize();
 
@@ -485,7 +476,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         connectorTemplateRegistry.initialize();
 
@@ -522,7 +514,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             AnalyticsEventIngestConfig.FLUSH_DELAY_SETTING,
             AnalyticsEventIngestConfig.MAX_NUMBER_OF_RETRIES_SETTING,
             AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING,
-            QueryRulesConfig.MAX_RULE_LIMIT_SETTING
+            QueryRulesConfig.MAX_RULE_LIMIT_SETTING,
+            ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING
         );
     }
 

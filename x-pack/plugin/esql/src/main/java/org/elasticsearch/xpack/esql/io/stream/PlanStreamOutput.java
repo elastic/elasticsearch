@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -193,9 +194,11 @@ public final class PlanStreamOutput extends StreamOutput {
      * Writes a cache header for an {@link org.elasticsearch.xpack.esql.core.type.EsField} and caches it if it is not already in the cache.
      * In that case, the field will have to serialize itself into this stream immediately after this method call.
      * @param field The EsField to serialize
+     * @param transportVersion The transport version to use for serialization,
+     *                         needed to get the correct field name in case of versioned fields.
      * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
      */
-    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+    public boolean writeEsFieldCacheHeader(EsField field, TransportVersion transportVersion) throws IOException {
         Integer cacheId = esFieldIdFromCache(field);
         if (cacheId != null) {
             writeZLong(cacheId);
@@ -204,7 +207,7 @@ public final class PlanStreamOutput extends StreamOutput {
 
         cacheId = cacheEsField(field);
         writeZLong(-1 - cacheId);
-        writeCachedString(field.getWriteableName());
+        writeCachedString(field.getWriteableName(transportVersion));
         return true;
     }
 
@@ -221,6 +224,11 @@ public final class PlanStreamOutput extends StreamOutput {
     @Override
     public void writeGenericString(String value) throws IOException {
         delegate.writeGenericString(value);
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
+        delegate.writeText(text);
     }
 
     /**

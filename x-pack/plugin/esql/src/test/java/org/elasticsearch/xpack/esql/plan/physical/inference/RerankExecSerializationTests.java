@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,7 +29,15 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
     protected RerankExec createTestInstance() {
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
-        return new RerankExec(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields(), scoreAttribute());
+        return new RerankExec(
+            source,
+            child,
+            string(randomIdentifier()),
+            string(randomIdentifier()),
+            randomFields(),
+            scoreAttribute(),
+            randomTimeout()
+        );
     }
 
     @Override
@@ -37,14 +46,20 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
         Expression inferenceId = instance.inferenceId();
         Expression queryText = instance.queryText();
         List<Alias> fields = instance.rerankFields();
+        TimeValue timeout = instance.timeout();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, () -> string(RerankExecSerializationTests.randomIdentifier()));
             case 2 -> queryText = randomValueOtherThan(queryText, () -> string(RerankExecSerializationTests.randomIdentifier()));
             case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
+            case 4 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new RerankExec(instance.source(), child, inferenceId, queryText, fields, scoreAttribute());
+        return new RerankExec(instance.source(), child, inferenceId, queryText, fields, scoreAttribute(), timeout);
+    }
+
+    private TimeValue randomTimeout() {
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
     }
 
     private List<Alias> randomFields() {

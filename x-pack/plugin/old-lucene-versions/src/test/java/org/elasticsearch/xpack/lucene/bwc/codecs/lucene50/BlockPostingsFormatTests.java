@@ -27,7 +27,7 @@ import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.Impact;
+import org.apache.lucene.index.FreqAndNormBuffer;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.ByteArrayDataInput;
@@ -41,12 +41,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree.FieldReader;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree.Stats;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50ScoreSkipReader.MutableImpactList;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 /** Tests BlockPostingsFormat */
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
@@ -85,47 +81,55 @@ public class BlockPostingsFormatTests extends BasePostingsFormatTestCase {
 
     public void testImpactSerialization() throws IOException {
         // omit norms and omit freqs
-        doTestImpactSerialization(Collections.singletonList(new Impact(1, 1L)));
+        FreqAndNormBuffer freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(1, 1L);
+        doTestImpactSerialization(freqAndNormBuffer);
 
         // omit freqs
-        doTestImpactSerialization(Collections.singletonList(new Impact(1, 42L)));
+        freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(1, 42L);
+        doTestImpactSerialization(freqAndNormBuffer);
+
         // omit freqs with very large norms
-        doTestImpactSerialization(Collections.singletonList(new Impact(1, -100L)));
+        freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(1, -100);
+        doTestImpactSerialization(freqAndNormBuffer);
 
         // omit norms
-        doTestImpactSerialization(Collections.singletonList(new Impact(30, 1L)));
+        freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(30, 1L);
+        doTestImpactSerialization(freqAndNormBuffer);
+
         // omit norms with large freq
-        doTestImpactSerialization(Collections.singletonList(new Impact(500, 1L)));
+        freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(500, 1L);
+        doTestImpactSerialization(freqAndNormBuffer);
 
         // freqs and norms, basic
-        doTestImpactSerialization(
-            Arrays.asList(
-                new Impact(1, 7L),
-                new Impact(3, 9L),
-                new Impact(7, 10L),
-                new Impact(15, 11L),
-                new Impact(20, 13L),
-                new Impact(28, 14L)
-            )
-        );
+        freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(1, 7L);
+        freqAndNormBuffer.add(3, 9L);
+        freqAndNormBuffer.add(7, 10L);
+        freqAndNormBuffer.add(15, 11L);
+        freqAndNormBuffer.add(20, 13L);
+        freqAndNormBuffer.add(28, 14L);
+        doTestImpactSerialization(freqAndNormBuffer);
 
         // freqs and norms, high values
-        doTestImpactSerialization(
-            Arrays.asList(
-                new Impact(2, 2L),
-                new Impact(10, 10L),
-                new Impact(12, 50L),
-                new Impact(50, -100L),
-                new Impact(1000, -80L),
-                new Impact(1005, -3L)
-            )
-        );
+        freqAndNormBuffer = new FreqAndNormBuffer();
+        freqAndNormBuffer.add(2, 2L);
+        freqAndNormBuffer.add(10, 10L);
+        freqAndNormBuffer.add(12, 50L);
+        freqAndNormBuffer.add(50, -100L);
+        freqAndNormBuffer.add(1000, -80L);
+        freqAndNormBuffer.add(1005, -3L);
+        doTestImpactSerialization(freqAndNormBuffer);
     }
 
-    private void doTestImpactSerialization(List<Impact> impacts) throws IOException {
+    private void doTestImpactSerialization(FreqAndNormBuffer impacts) throws IOException {
         CompetitiveImpactAccumulator acc = new CompetitiveImpactAccumulator();
-        for (Impact impact : impacts) {
-            acc.add(impact.freq, impact.norm);
+        for (int i = 0; i < impacts.size; i++) {
+            acc.add(impacts.freqs[i], impacts.norms[i]);
         }
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = EndiannessReverserUtil.createOutput(dir, "foo", IOContext.DEFAULT)) {
@@ -134,8 +138,12 @@ public class BlockPostingsFormatTests extends BasePostingsFormatTestCase {
             try (IndexInput in = EndiannessReverserUtil.openInput(dir, "foo", IOContext.DEFAULT)) {
                 byte[] b = new byte[Math.toIntExact(in.length())];
                 in.readBytes(b, 0, b.length);
-                List<Impact> impacts2 = Lucene50ScoreSkipReader.readImpacts(new ByteArrayDataInput(b), new MutableImpactList());
-                assertEquals(impacts, impacts2);
+                FreqAndNormBuffer impacts2 = Lucene50ScoreSkipReader.readImpacts(new ByteArrayDataInput(b), new FreqAndNormBuffer());
+                assertEquals(impacts.size, impacts2.size);
+                for (int i = 0; i < impacts.size; i++) {
+                    assertEquals(impacts.freqs[i], impacts2.freqs[i]);
+                    assertEquals(impacts.norms[i], impacts2.norms[i]);
+                }
             }
         }
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -23,12 +24,12 @@ public class WhereGenerator implements CommandGenerator {
     public static final String WHERE = "where";
     public static final CommandGenerator INSTANCE = new WhereGenerator();
 
-    public static String randomExpression(final int nConditions, List<Column> previousOutput) {
+    public static String randomExpression(final int nConditions, List<Column> previousOutput, List<CommandDescription> previousCommands) {
         // TODO more complex conditions
         var result = new StringBuilder();
 
         for (int i = 0; i < nConditions; i++) {
-            String exp = EsqlQueryGenerator.booleanExpression(previousOutput);
+            String exp = EsqlQueryGenerator.booleanExpression(previousOutput, previousCommands);
             if (exp == null) {
                 // Cannot generate expressions, just skip.
                 return null;
@@ -50,9 +51,10 @@ public class WhereGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
-        String expression = randomExpression(randomIntBetween(1, 5), previousOutput);
+        String expression = randomExpression(randomIntBetween(1, 5), previousOutput, previousCommands);
         if (expression == null) {
             return EMPTY_DESCRIPTION;
         }
@@ -68,6 +70,6 @@ public class WhereGenerator implements CommandGenerator {
         List<Column> columns,
         List<List<Object>> output
     ) {
-        return CommandGenerator.expectSameColumns(previousColumns, columns);
+        return CommandGenerator.expectSameColumns(previousCommands, previousColumns, columns);
     }
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -25,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutSamlServiceProviderRequest extends LegacyActionRequest {
+public class PutSamlServiceProviderRequest extends UntypedActionRequest {
     public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.NONE;
 
     private final SamlServiceProviderDocument document;

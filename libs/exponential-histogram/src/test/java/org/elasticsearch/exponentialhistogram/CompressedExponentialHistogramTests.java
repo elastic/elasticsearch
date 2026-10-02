@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.BytesRef;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
@@ -39,12 +41,16 @@ public class CompressedExponentialHistogramTests extends ExponentialHistogramTes
 
     private static CompressedExponentialHistogram toCompressedHistogram(ReleasableExponentialHistogram input) throws IOException {
         ByteArrayOutputStream encodedStream = new ByteArrayOutputStream();
-        CompressedExponentialHistogram.writeHistogramBytes(
-            encodedStream,
-            input.scale(),
-            input.negativeBuckets().iterator(),
-            input.positiveBuckets().iterator()
-        );
+        if (randomBoolean()) {
+            CompressedExponentialHistogram.writeHistogramBytes(
+                encodedStream,
+                input.scale(),
+                input.negativeBuckets().iterator(),
+                input.positiveBuckets().iterator()
+            );
+        } else {
+            CompressedExponentialHistogram.writeHistogramBytes(encodedStream, input);
+        }
         CompressedExponentialHistogram decoded = new CompressedExponentialHistogram();
         byte[] encodedBytes = encodedStream.toByteArray();
         decoded.reset(
@@ -66,6 +72,55 @@ public class CompressedExponentialHistogramTests extends ExponentialHistogramTes
             .build();
         autoReleaseOnTestEnd(input);
         return input;
+    }
+
+    public void testWriteHistogramBytesFastPath() throws IOException {
+        ReleasableExponentialHistogram original = randomHistogramWithDoubleZeroThreshold();
+        CompressedExponentialHistogram compressed = toCompressedHistogram(original);
+
+        // Wrap in a subclass that throws on bucket access to prove the fast path copies raw bytes
+        BucketAccessForbiddenHistogram forbidden = new BucketAccessForbiddenHistogram();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        CompressedExponentialHistogram.writeHistogramBytes(out, compressed);
+        BytesRef encodedBytes = new BytesRef(out.toByteArray());
+        forbidden.reset(
+            compressed.zeroBucket().zeroThreshold(),
+            compressed.valueCount(),
+            compressed.sum(),
+            compressed.min(),
+            compressed.max(),
+            encodedBytes
+        );
+
+        ByteArrayOutputStream reEncodedStream = new ByteArrayOutputStream();
+        CompressedExponentialHistogram.writeHistogramBytes(reEncodedStream, forbidden);
+        CompressedExponentialHistogram roundTripped = new CompressedExponentialHistogram();
+        roundTripped.reset(
+            forbidden.zeroBucket().zeroThreshold(),
+            forbidden.valueCount(),
+            forbidden.sum(),
+            forbidden.min(),
+            forbidden.max(),
+            new BytesRef(reEncodedStream.toByteArray())
+        );
+        assertThat(roundTripped, equalTo(original));
+    }
+
+    /**
+     * A {@link CompressedExponentialHistogram} subclass that throws on any bucket iterator access,
+     * ensuring that the {@link CompressedExponentialHistogram#writeHistogramBytes(java.io.OutputStream, ExponentialHistogram)}
+     * fast path copies raw bytes without iterating buckets.
+     */
+    private static class BucketAccessForbiddenHistogram extends CompressedExponentialHistogram {
+        @Override
+        public ExponentialHistogram.Buckets positiveBuckets() {
+            throw new AssertionError("fast path should not access positiveBuckets()");
+        }
+
+        @Override
+        public ExponentialHistogram.Buckets negativeBuckets() {
+            throw new AssertionError("fast path should not access negativeBuckets()");
+        }
     }
 
     public void testIteratorCopy() throws IOException {

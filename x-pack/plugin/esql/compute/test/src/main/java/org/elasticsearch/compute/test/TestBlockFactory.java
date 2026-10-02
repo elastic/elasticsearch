@@ -13,10 +13,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 
 public class TestBlockFactory {
 
-    private static final BlockFactory NON_BREAKING = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test-noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory NON_BREAKING = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     /**
      * Returns the Non-Breaking block factory.

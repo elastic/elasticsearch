@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal
 
 import org.apache.commons.io.IOUtils
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
@@ -22,7 +22,10 @@ import java.util.zip.ZipFile
 
 import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarHellJar
 
-class BuildPluginFuncTest extends AbstractGradleFuncTest {
+class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.BuildPlugin
+
 
     @Shared
     @ClassRule
@@ -53,14 +56,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
-        configurationCacheCompatible = false
+        disableConfigurationCache("checkstyle task references LegacyConfiguration class; revisit after checkstyle update")
+        // elasticsearch.build (BuildPlugin) and elasticsearch.global-build-info are applied by
+        // AbstractGradleInternalPluginFuncTest; we only add the java plugin and project config here.
         buildFile << """
-        plugins {
-          id 'java'
-          id 'elasticsearch.global-build-info'
-        }
-
-        apply plugin:'elasticsearch.build'
+        apply plugin: 'java'
         group = 'org.acme'
         description = "some example project"
 
@@ -122,8 +122,17 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("assemble", "-x", "generateClusterFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
-        file("build/distributions/hello-world.jar").exists()
-        assertValidJar(file("build/distributions/hello-world.jar"))
+
+        and: "the produced jar bundles LICENSE and NOTICE"
+        // The jar file name embeds the project version, which is set by elasticsearch.build via
+        // ElasticsearchBasePlugin#apply(project.setVersion(VersionProperties.getElasticsearch())).
+        // We deliberately don't pin the version in the assertion — the jar name is incidental;
+        // what this test actually verifies is that the LICENSE / NOTICE files are packaged.
+        def distributionsDir = file("build/distributions")
+        def producedJars = distributionsDir.listFiles({ f -> f.name.startsWith("hello-world") && f.name.endsWith(".jar") } as FileFilter) ?: []
+        assert producedJars.length == 1 :
+            "expected exactly one hello-world*.jar in ${distributionsDir}, found: ${producedJars*.name}"
+        assertValidJar(producedJars[0])
     }
 
     def "applies checks"() {
@@ -140,7 +149,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
             dependencies {
-              api "junit:junit:4.12"
+              api "junit:junit:4.13"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
             }
@@ -173,21 +182,21 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "can generate dependency infos file"() {
         given:
-        repository.generateJar("junit", "junit", "4.12", 'org.acme.JunitMock')
+        repository.generateJar("junit", "junit", "4.13", 'org.acme.JunitMock')
         repository.configureBuild(buildFile)
-        file("licenses/junit-4.12.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
+        file("licenses/junit-4.13.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
         file("licenses/junit-LICENSE.txt").text = EXAMPLE_LICENSE
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
         dependencies {
-            api "junit:junit:4.12"
+            api "junit:junit:4.13"
         }
         """
         when:
         def result = gradleRunner("dependenciesInfo").build()
         then:
         result.task(":dependenciesInfo").outcome == TaskOutcome.SUCCESS
-        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.12,https://repo1.maven.org/maven2/junit/junit/4.12,BSD-3-Clause,\n"
+        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.13,https://repo1.maven.org/maven2/junit/junit/4.13,BSD-3-Clause,\n"
     }
 
     def assertValidJar(File jar) {

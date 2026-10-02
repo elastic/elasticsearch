@@ -13,34 +13,37 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
+ * {@link ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AddDoublesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AddDoublesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator lhs;
+  private final ExpressionEvaluator lhs;
 
-  private final EvalOperator.ExpressionEvaluator rhs;
+  private final ExpressionEvaluator rhs;
+
+  private final boolean allowNonFinite;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public AddDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+  public AddDoublesEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator rhs,
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -72,10 +75,11 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -83,10 +87,11 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
               result.appendNull();
               continue position;
         }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -97,7 +102,7 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
         double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Add.processDoubles(lhs, rhs));
+          result.appendDouble(Add.processDoubles(lhs, rhs, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -113,7 +118,7 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         double lhs = lhsVector.getDouble(p);
         double rhs = rhsVector.getDouble(p);
         try {
-          result.appendDouble(Add.processDoubles(lhs, rhs));
+          result.appendDouble(Add.processDoubles(lhs, rhs, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -135,28 +140,31 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+    private final ExpressionEvaluator.Factory lhs;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+    private final ExpressionEvaluator.Factory rhs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        EvalOperator.ExpressionEvaluator.Factory rhs) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs,
+        boolean allowNonFinite) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public AddDoublesEvaluator get(DriverContext context) {
-      return new AddDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new AddDoublesEvaluator(source, lhs.get(context), rhs.get(context), allowNonFinite, context);
     }
 
     @Override

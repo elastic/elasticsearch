@@ -9,96 +9,45 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
 /**
- * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
+ * This class is responsible for APM settings.
  * The methods could all be static, however they are not in order to make unit testing easier.
  */
 public class APMAgentSettings {
-
-    private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
         final APMMeterService apmMeterService = apmTelemetryProvider.getMeterService();
 
-        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
-            apmTracer.setEnabled(enabled);
-            // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
-            // minimise its impact to a running Elasticsearch.
-            boolean recording = enabled || clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING);
-            this.setAgentSetting("recording", Boolean.toString(recording));
-        });
-        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
-            apmMeterService.setEnabled(enabled);
-            // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
-            // minimise its impact to a running Elasticsearch.
-            boolean recording = enabled || clusterSettings.get(TELEMETRY_TRACING_ENABLED_SETTING);
-            this.setAgentSetting("recording", Boolean.toString(recording));
-        });
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, apmTracer::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, apmMeterService::setEnabled);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
-        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
-    }
-
-    /**
-     * Initialize APM settings from the provided settings object into the corresponding system properties.
-     * Later updates to these settings are synchronized using update consumers.
-     * @param settings the settings to apply
-     */
-    public void initAgentSystemProperties(Settings settings) {
-        boolean tracing = TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        boolean metrics = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
-
-        this.setAgentSetting("recording", Boolean.toString(tracing || metrics));
-        // Apply values from the settings in the cluster state
-        APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
-    }
-
-    /**
-     * Copies a setting to the APM agent's system properties under <code>elastic.apm</code>, either
-     * by setting the property if {@code value} has a value, or by deleting the property if it doesn't.
-     *
-     * All permitted agent properties must be covered by the <code>write_system_properties</code> entitlement,
-     * see the entitlement policy of this module!
-     *
-     * @param key the config key to set, without any prefix
-     * @param value the value to set, or <code>null</code>
-     */
-    @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
-    public void setAgentSetting(String key, String value) {
-        if (key.startsWith("global_labels.")) {
-            // Invalid agent setting, leftover from flattening global labels in APMJVMOptions
-            // https://github.com/elastic/elasticsearch/issues/120791
-            return;
-        }
-        final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
-        if (value == null || value.isEmpty()) {
-            LOGGER.trace("Clearing system property [{}]", completeKey);
-            System.clearProperty(completeKey);
-        } else {
-            LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
-            System.setProperty(completeKey, value);
-        }
+        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH, apmTracer::setMaxTraceDepth);
+        clusterSettings.addSettingsUpdateConsumer(
+            OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
+            apmTracer::setRecordExceptionStacks
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
+            apmMeterService.getMeterRegistry()::setInstrumentTimingEnabled
+        );
     }
 
     private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";

@@ -59,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -400,7 +401,7 @@ public class TasksIT extends ESIntegTestCase {
                 );
                 case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
-                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
+                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null], shardId[[test][*]]", taskInfo.description())
                 );
                 case NODE_SEARCH_ACTION_NAME -> assertEquals("NodeQueryRequest", taskInfo.description());
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
@@ -904,15 +905,14 @@ public class TasksIT extends ESIntegTestCase {
         assertNull(response.getTask().getResponse());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void removeTaskManagerListeners() throws Exception {
         for (Map.Entry<Tuple<String, String>, RecordingTaskManagerListener> entry : listeners.entrySet()) {
             ((MockTaskManager) internalCluster().getInstance(TransportService.class, entry.getKey().v1()).getTaskManager()).removeListener(
                 entry.getValue()
             );
         }
         listeners.clear();
-        super.tearDown();
     }
 
     /**

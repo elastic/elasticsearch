@@ -94,7 +94,7 @@ public class RetryFailedReindexIT extends ESIntegTestCase {
         assertBusy(() -> { assertHitCount(prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true), NUM_DOCS); });
     }
 
-    private ActionFuture<BulkByScrollResponse> reindex(boolean abortOnVersionConflict) {
+    private ActionFuture<BulkByPaginatedSearchResponse> reindex(boolean abortOnVersionConflict) {
         ReindexRequestBuilder builder = new ReindexRequestBuilder(internalCluster().client());
         builder.source(INDEX).destination(DEST_INDEX).abortOnVersionConflict(abortOnVersionConflict);
         builder.source().setSize(1);

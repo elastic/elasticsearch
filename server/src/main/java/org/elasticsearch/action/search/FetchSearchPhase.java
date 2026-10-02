@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.transport.Transport;
@@ -52,10 +54,10 @@ class FetchSearchPhase extends SearchPhase {
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         super(NAME);
-        if (context.getNumShards() != resultConsumer.getNumShards()) {
+        if (context.results.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
+                    + context.results.getNumShards()
                     + "!="
                     + resultConsumer.getNumShards()
             );
@@ -95,10 +97,10 @@ class FetchSearchPhase extends SearchPhase {
         long phaseStartTimeInNanos = System.nanoTime();
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
-        final int numShards = context.getNumShards();
+        final int numShards = context.results.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = numShards == 1
+        final boolean queryAndFetchOptimization = context.getNumShards() == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
@@ -126,7 +128,7 @@ class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         long phaseStartTimeInNanos
     ) {
-        ArraySearchPhaseResults<FetchSearchResult> fetchResults = new ArraySearchPhaseResults<>(numShards);
+        FetchSearchPhaseResults fetchResults = new FetchSearchPhaseResults(numShards, context.circuitBreaker());
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
             : splitRankDocsPerShard(scoreDocs, numShards);
@@ -134,14 +136,11 @@ class FetchSearchPhase extends SearchPhase {
             ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
             : null;
         final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+        context.addReleasable(fetchResults);
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> {
-                try (fetchResults) {
-                    moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
-                }
-            },
+            () -> moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -161,6 +160,7 @@ class FetchSearchPhase extends SearchPhase {
             } else {
                 executeFetch(
                     shardPhaseResult,
+                    fetchResults,
                     counter,
                     entry,
                     rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty() ? null : new RankDocShardInfo(rankDocsPerShard.get(i)),
@@ -202,6 +202,7 @@ class FetchSearchPhase extends SearchPhase {
 
     private void executeFetch(
         SearchPhaseResult shardPhaseResult,
+        final FetchSearchPhaseResults fetchResults,
         final CountedCollector<FetchSearchResult> counter,
         final List<Integer> entry,
         final RankDocShardInfo rankDocs,
@@ -216,6 +217,14 @@ class FetchSearchPhase extends SearchPhase {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
                 try {
+                    try {
+                        fetchResults.reserve(result);
+                    } catch (CircuitBreakingException e) {
+                        // The shard did the IO even though we cannot hold what it sent back.
+                        context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
+                        context.failOnCoordinatorTrip(NAME, e);
+                        return;
+                    }
                     progressListener.notifyFetchResult(shardIndex);
                     counter.onResult(result);
                 } catch (Exception e) {
@@ -225,6 +234,11 @@ class FetchSearchPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
+                if (context.failedOnCoordinatorTrip()) {
+                    // The chunked route reports the trip and then rethrows, so the same trip arrives here. Counting
+                    // this shard down would finish the phase and merge results the failure has already released.
+                    return;
+                }
                 try {
                     logger.debug(() -> "[" + contextId + "] Failed to execute fetch phase", e);
                     progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
@@ -237,6 +251,7 @@ class FetchSearchPhase extends SearchPhase {
                 }
             }
         };
+
         final Transport.Connection connection;
         try {
             connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
@@ -244,21 +259,28 @@ class FetchSearchPhase extends SearchPhase {
             listener.onFailure(e);
             return;
         }
+        ShardSearchRequest fetchShardSearchRequest = context.buildShardSearchRequest(
+            context.shardIterators[shardPhaseResult.getShardIndex()],
+            shardPhaseResult.getShardIndex()
+        );
         context.getSearchTransport()
             .sendExecuteFetch(
                 connection,
                 new ShardFetchSearchRequest(
                     context.getOriginalIndices(shardPhaseResult.getShardIndex()),
                     contextId,
-                    shardPhaseResult.getShardSearchRequest(),
+                    fetchShardSearchRequest,
                     entry,
                     rankDocs,
                     lastEmittedDocForShard,
                     shardPhaseResult.getRescoreDocIds(),
                     aggregatedDfs
                 ),
-                context.getTask(),
-                listener
+                context,
+                shardTarget,
+                listener,
+                context::trackPhaseResultBytesRead,
+                context::trackPhaseRequestBytesWritten
             );
     }
 

@@ -11,10 +11,12 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.junit.Before;
 
@@ -24,21 +26,21 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 public class AuthorizationStatePersistenceUtilsTests extends TransformSingleNodeTestCase {
 
-    private ClusterService clusterService;
     private IndexBasedTransformConfigManager transformConfigManager;
 
     @Before
     public void createComponents() {
-        clusterService = mock(ClusterService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         transformConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             client(),
-            xContentRegistry()
+            xContentRegistry(),
+            new TransformParsingContext(false)
         );
     }
 

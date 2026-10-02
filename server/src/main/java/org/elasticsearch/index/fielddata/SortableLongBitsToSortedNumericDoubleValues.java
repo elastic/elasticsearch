@@ -18,32 +18,15 @@ import java.io.IOException;
  * and converts the doubles to sortable long bits using
  * {@link NumericUtils#sortableLongToDouble(long)}.
  */
-final class SortableLongBitsToSortedNumericDoubleValues extends SortedNumericDoubleValues {
-
-    private final SortedNumericLongValues values;
+final class SortableLongBitsToSortedNumericDoubleValues extends SortedNumericDoubleValues.SortedNumericLongWrapper {
 
     SortableLongBitsToSortedNumericDoubleValues(SortedNumericLongValues values) {
-        this.values = values;
-    }
-
-    @Override
-    public boolean advanceExact(int target) throws IOException {
-        return values.advanceExact(target);
+        super(values);
     }
 
     @Override
     public double nextValue() throws IOException {
-        return NumericUtils.sortableLongToDouble(values.nextValue());
-    }
-
-    @Override
-    public int docValueCount() {
-        return values.docValueCount();
-    }
-
-    /** Return the wrapped values. */
-    public SortedNumericLongValues getLongValues() {
-        return values;
+        return NumericUtils.sortableLongToDouble(getLongValues().nextValue());
     }
 
 }

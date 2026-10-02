@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no IN (FROM employees_view, (FROM employees | WHERE salary > 70000) | KEEP emp_no)

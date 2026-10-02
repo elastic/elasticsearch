@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.textstructure.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ public class TestGrokPatternAction {
 
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/text_structure/test_grok_pattern");
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
         public static final ParseField TEXT = new ParseField("text");

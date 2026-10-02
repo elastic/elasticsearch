@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -13,35 +12,38 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeohex}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeohex}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohexFromFieldAndLiteralAndLiteralEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final ExpressionEvaluator in;
 
   private final StGeohex.GeoHexBoundedGrid bounds;
+
+  private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, StGeohex.GeoHexBoundedGrid bounds,
+  public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source, ExpressionEvaluator in,
+      StGeohex.GeoHexBoundedGrid bounds, SpatialGridFunction.GeoShapeCellsComputer shapeTiler,
       DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.bounds = bounds;
+    this.shapeTiler = shapeTiler;
     this.driverContext = driverContext;
   }
 
@@ -70,12 +72,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
           result.appendNull();
           continue position;
         }
-        try {
-          StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        StGeohex.fromFieldAndLiteralAndLiteral(result, p, inBlock, this.bounds, this.shapeTiler);
       }
       return result.build();
     }
@@ -93,28 +90,32 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final ExpressionEvaluator.Factory in;
 
     private final Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
-        Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds) {
+    private final Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler;
+
+    public Factory(Source source, ExpressionEvaluator.Factory in,
+        Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds,
+        Function<DriverContext, SpatialGridFunction.GeoShapeCellsComputer> shapeTiler) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
+      this.shapeTiler = shapeTiler;
     }
 
     @Override
     public StGeohexFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
+      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler.apply(context), context);
     }
 
     @Override

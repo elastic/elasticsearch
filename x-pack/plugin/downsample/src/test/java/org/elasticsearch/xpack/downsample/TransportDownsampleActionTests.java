@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -69,7 +70,6 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
@@ -107,6 +107,8 @@ public class TransportDownsampleActionTests extends ESTestCase {
     private MasterServiceTaskQueue<TransportDownsampleAction.DownsampleClusterStateUpdateTask> taskQueue;
     @Mock
     private MapperService mapperService;
+    @Mock
+    private FeatureService featureService;
 
     private static final String MAPPING = """
         {
@@ -136,17 +138,17 @@ public class TransportDownsampleActionTests extends ESTestCase {
     private IndicesAdminClient indicesAdminClient;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
         action = new TransportDownsampleAction(
             client,
             indicesService,
             clusterService,
             mock(TransportService.class),
+            featureService,
             threadPool,
             mock(MetadataCreateIndexService.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             projectResolver,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             persistentTaskService,
@@ -203,11 +205,11 @@ public class TransportDownsampleActionTests extends ESTestCase {
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(MAPPING));
         when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeMocks() throws Exception {
         mocks.close();
     }
 
@@ -434,9 +436,11 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 Map.of("type", "exponential_histogram", "time_series_metric", "histogram")
             )
         );
+        boolean defaultMetricDeprecated = randomBoolean();
         String downsampledMappingStr = TransportDownsampleAction.createDownsampleIndexMapping(
             new DownsampleConfig(new DateHistogramInterval("1h"), null),
-            sourceMapping
+            sourceMapping,
+            defaultMetricDeprecated
         );
         Map<String, Object> downsampledMapping = XContentHelper.convertToMap(
             new CompressedXContent(downsampledMappingStr).compressedReference(),
@@ -467,7 +471,11 @@ public class TransportDownsampleActionTests extends ESTestCase {
         assertThat(downsampledProperties.containsKey("gauge"), equalTo(true));
         Map<String, Object> gauge = (Map<String, Object>) downsampledProperties.get("gauge");
         assertThat(gauge.get("type"), equalTo("aggregate_metric_double"));
-        assertThat(gauge.get("default_metric"), equalTo("max"));
+        if (defaultMetricDeprecated) {
+            assertThat(gauge.containsKey("default_metric"), equalTo(false));
+        } else {
+            assertThat(gauge.get("default_metric"), equalTo("max"));
+        }
         assertThat((List<String>) gauge.get("metrics"), containsInAnyOrder("max", "min", "sum", "value_count"));
         assertThat(gauge.get("time_series_metric"), equalTo("gauge"));
         assertThat(downsampledProperties.containsKey("exp_histogram"), equalTo(true));

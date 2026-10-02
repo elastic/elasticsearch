@@ -46,9 +46,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -101,6 +98,13 @@ public class HdfsFixture extends ExternalResource {
     }
 
     private void assumeHdfsAvailable() {
+        // Skip HDFS tests when running with IPv6 preferred.
+        // HDFS's BlockPoolId generation uses InetAddress.getLocalHost() which can return
+        // link-local IPv6 addresses with zone IDs (e.g., fe80::1%eth0). The zone ID contains
+        // '%' which gets URL-encoded to '%25' and breaks URI parsing in HDFS file paths.
+        boolean preferIPv6 = Boolean.getBoolean("java.net.preferIPv6Addresses");
+        Assume.assumeFalse("HDFS tests are not compatible with IPv6 due to link-local address zone ID issues in BlockPoolId", preferIPv6);
+
         boolean fixtureSupported = false;
         if (isWindows()) {
             // hdfs fixture will not start without hadoop native libraries on windows
@@ -149,19 +153,16 @@ public class HdfsFixture extends ExternalResource {
             Locale originalLocale = Locale.getDefault();
             try {
                 Locale.setDefault(Locale.ENGLISH);
-                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                    CloseableHAAdmin haAdmin = new CloseableHAAdmin();
-                    haAdmin.setConf(haConfiguration);
-                    try {
-                        haAdmin.transitionToStandby(from);
-                        haAdmin.transitionToActive(to);
-                    } finally {
-                        haAdmin.close();
-                    }
-                    return null;
-                });
-            } catch (PrivilegedActionException pae) {
-                throw new IOException("Unable to perform namenode failover", pae);
+                CloseableHAAdmin haAdmin = new CloseableHAAdmin();
+                haAdmin.setConf(haConfiguration);
+                try {
+                    haAdmin.transitionToStandby(from);
+                    haAdmin.transitionToActive(to);
+                } finally {
+                    haAdmin.close();
+                }
+            } catch (Exception e) {
+                throw new IOException("Unable to perform namenode failover", e);
             } finally {
                 // Restore original locale
                 Locale.setDefault(originalLocale);

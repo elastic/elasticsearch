@@ -63,32 +63,32 @@ $$$analysis-stemmer-tokenfilter-language-parm$$$
 
 Valid values are sorted by language. Defaults to [**`english`**](https://snowballstem.org/algorithms/porter/stemmer.html). Recommended algorithms are **bolded**.
 
-* Arabic: [**`arabic`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ar/ArabicStemmer.md)
-* Armenian: [**`armenian`**](https://snowballstem.org/algorithms/armenian/stemmer.md)
-* Basque: [**`basque`**](https://snowballstem.org/algorithms/basque/stemmer.md)
+* Arabic: [**`arabic`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ar/ArabicStemmer.html)
+* Armenian: [**`armenian`**](https://snowballstem.org/algorithms/armenian/stemmer.html)
+* Basque: [**`basque`**](https://snowballstem.org/algorithms/basque/stemmer.html)
 * Bengali:[**`bengali`**](https://www.tandfonline.com/doi/abs/10.1080/02564602.1993.11437284)
-* Brazilian Portuguese:[**`brazilian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/br/BrazilianStemmer.md)
+* Brazilian Portuguese:[**`brazilian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/br/BrazilianStemmer.html)
 * Bulgarian:[**`bulgarian`**](http://members.unine.ch/jacques.savoy/Papers/BUIR.pdf)
-* Catalan:[**`catalan`**](https://snowballstem.org/algorithms/catalan/stemmer.md)
+* Catalan:[**`catalan`**](https://snowballstem.org/algorithms/catalan/stemmer.html)
 * Czech:[**`czech`**](https://dl.acm.org/doi/10.1016/j.ipm.2009.06.001)
-* Danish:[**`danish`**](https://snowballstem.org/algorithms/danish/stemmer.md)
+* Danish:[**`danish`**](https://snowballstem.org/algorithms/danish/stemmer.html)
 * Dutch
-  * [**`dutch`**](https://snowballstem.org/algorithms/dutch/stemmer.md)
-  * [`dutch_kp`](https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.md)
+  * [**`dutch`**](https://snowballstem.org/algorithms/dutch/stemmer.html)
+  * [`dutch_kp`](https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html)
     :::{admonition} Deprecated in 8.16.0
     This language was deprecated in 8.16.0.
     :::
 * English:
   * [**`english`**](https://snowballstem.org/algorithms/porter/stemmer.html)
   * [`light_english`](https://ciir.cs.umass.edu/pubfiles/ir-35.pdf)
-  * [`lovins`](https://snowballstem.org/algorithms/lovins/stemmer.md)
+  * [`lovins`](https://snowballstem.org/algorithms/lovins/stemmer.html)
     :::{admonition} Deprecated in 8.16.0
     This language was deprecated in 8.16.0.
     :::
   * [`minimal_english`](https://www.researchgate.net/publication/220433848_How_effective_is_suffixing)
   * [`porter2`](https://snowballstem.org/algorithms/english/stemmer.html)
   * [`possessive_english`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/en/EnglishPossessiveFilter.html)
-* Estonian:[**`estonian`**](https://lucene.apache.org/core/10_0_0/analyzers-common/org/tartarus/snowball/ext/EstonianStemmer.md)
+* Estonian:[**`estonian`**](https://lucene.apache.org/core/10_0_0/analyzers-common/org/tartarus/snowball/ext/EstonianStemmer.html)
 * Finnish:
   * [**`finnish`**](https://snowballstem.org/algorithms/finnish/stemmer.html)
   * [`light_finnish`](http://clef.isti.cnr.it/2003/WN_web/22.pdf)
@@ -113,17 +113,17 @@ Valid values are sorted by language. Defaults to [**`english`**](https://snowbal
 * Italian:
   * [**`light_italian`**](https://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf)
   * [`italian`](https://snowballstem.org/algorithms/italian/stemmer.html)
-* Kurdish (Sorani):[**`sorani`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ckb/SoraniStemmer.md)
-* Latvian:[**`latvian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/lv/LatvianStemmer.md)
+* Kurdish (Sorani):[**`sorani`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ckb/SoraniStemmer.html)
+* Latvian:[**`latvian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/lv/LatvianStemmer.html)
 * Lithuanian:[**`lithuanian`**](https://svn.apache.org/viewvc/lucene/dev/branches/lucene_solr_5_3/lucene/analysis/common/src/java/org/apache/lucene/analysis/lt/stem_ISO_8859_1.sbl?view=markup)
 * Norwegian (Bokmål):
   * [**`norwegian`**](https://snowballstem.org/algorithms/norwegian/stemmer.html)
-  * [**`light_norwegian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianLightStemmer.md)
-  * [`minimal_norwegian`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.md)
+  * [**`light_norwegian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html)
+  * [`minimal_norwegian`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html)
 * Norwegian (Nynorsk):
-  * [**`light_nynorsk`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianLightStemmer.md)
-    * [`minimal_nynorsk`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.md)
-* Persian:[**`persian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/fa/PersianStemmer.md)
+  * [**`light_nynorsk`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html)
+    * [`minimal_nynorsk`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html)
+* Persian:[**`persian`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/fa/PersianStemmer.html)
 * Portuguese:
   * [**`light_portuguese`**](https://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181)
   * [`minimal_portuguese`](http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf)

@@ -2,7 +2,7 @@
   "inference.put_nvidia": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-nvidia",
-      "description": "Create an Nvidia inference endpoint"
+      "description": "Create an NVIDIA inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",

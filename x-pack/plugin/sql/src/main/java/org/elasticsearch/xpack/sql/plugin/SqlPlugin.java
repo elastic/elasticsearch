@@ -7,13 +7,10 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -21,7 +18,6 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -43,7 +39,27 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+
 public class SqlPlugin extends Plugin implements ActionPlugin {
+
+    public static final int DEFAULT_MAX_QUERY_LENGTH = 1_000_000;
+
+    /**
+     * Maximum number of characters in an SQL query. Antlr may parse the entire
+     * query into tokens to make the choices, buffering the world. There's a lot we
+     * can do in the grammar to prevent that, but let's be paranoid and assume we'll
+     * fail at preventing antlr from slurping in the world. Instead, let's make sure
+     * that the world just isn't that big.
+     */
+    public static final Setting<Integer> MAX_QUERY_LENGTH_SETTING = Setting.intSetting(
+        "xpack.sql.max_query_length",
+        DEFAULT_MAX_QUERY_LENGTH,
+        1,
+        Dynamic,
+        NodeScope
+    );
 
     private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
     private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
@@ -71,6 +87,11 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     });
 
     public SqlPlugin(Settings settings) {}
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(MAX_QUERY_LENGTH_SETTING);
+    }
 
     // overridable by tests
     protected XPackLicenseState getLicenseState() {
@@ -110,20 +131,14 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
 
         return Arrays.asList(
-            new RestSqlQueryAction(settings),
-            new RestSqlTranslateAction(settings),
+            new RestSqlQueryAction(restHandlersServices.crossProjectModeDecider()),
+            new RestSqlTranslateAction(restHandlersServices.crossProjectModeDecider()),
             new RestSqlClearCursorAction(),
             new RestSqlStatsAction(),
             new RestSqlAsyncGetResultsAction(),

@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
  * Extends {@link AggregateFunction} to support aggregation per time_series,
@@ -29,16 +31,34 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
 
     protected TimeSeriesAggregateFunction(
         Source source,
-        Expression field,
+        List<? extends Expression> fields,
         Expression filter,
         Expression window,
         List<? extends Expression> parameters
     ) {
-        super(source, field, filter, window, parameters);
+        super(source, fields, filter, window, parameters);
     }
 
-    protected TimeSeriesAggregateFunction(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        List<? extends Expression> fields = fields();
+        source().writeTo(out);
+        out.writeNamedWriteable(fields.get(0));
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(CollectionUtils.combine(fields.subList(1, fields.size()), parameters()));
+    }
+
+    public final Expression field() {
+        return fields().get(0);
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return TypeResolutions.isExact(field(), sourceText(), DEFAULT);
     }
 
     /**
@@ -54,23 +74,18 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
     }
 
     @Override
-    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        List<Attribute> attributes = new ArrayList<>(super.aggregateInputReferences(inputAttributes));
         if (requiredTimeSeriesSource()) {
-            List<? extends Expression> parameters = parameters();
-            List<Expression> expressions = new ArrayList<>(1 + parameters.size() + EsQueryExec.TIME_SERIES_SOURCE_FIELDS.size());
-            expressions.add(field());
-            expressions.addAll(parameters);
             for (Attribute attr : inputAttributes.get()) {
                 for (EsField f : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
                     if (attr.name().equals(f.getName())) {
-                        expressions.add(attr);
+                        attributes.addAll(attr.references());
                         break;
                     }
                 }
             }
-            return Expressions.references(expressions);
-        } else {
-            return super.aggregateInputReferences(inputAttributes);
         }
+        return attributes;
     }
 }

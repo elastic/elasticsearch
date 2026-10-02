@@ -79,6 +79,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
                 shards.put(shardId, clusterShardHealth);
             }
         }
+        assert shards.size() == numberOfShards : "expected " + numberOfShards + " shards but got " + shards.size();
 
         // update the index status
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
@@ -88,6 +89,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         int computeInitializingShards = 0;
         int computeUnassignedPrimaryShards = 0;
         int computeUnassignedShards = 0;
+
         for (ClusterShardHealth shardHealth : shards.values()) {
             if (shardHealth.isPrimaryActive()) {
                 computeActivePrimaryShards++;
@@ -104,9 +106,6 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
                 // do not override an existing red
                 computeStatus = ClusterHealthStatus.YELLOW;
             }
-        }
-        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
-            computeStatus = ClusterHealthStatus.RED;
         }
 
         this.status = computeStatus;

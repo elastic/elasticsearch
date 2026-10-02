@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -56,7 +57,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -77,19 +77,21 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -134,6 +136,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final Engine.IndexCommitListener indexCommitListener;
+    private final MutableOperationGate mutableOperationGate;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final XContentParserConfiguration parserConfiguration;
@@ -173,6 +176,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -190,6 +194,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
@@ -200,7 +205,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -208,10 +213,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
+        MutableOperationGate mutableOperationGate,
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics
+        MergeMetrics mergeMetrics,
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -231,6 +238,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.mapperService = new MapperService(
                 clusterService,
+                featureService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -238,7 +246,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
-                idFieldMapper,
+                idFieldDataEnabled,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
@@ -264,7 +272,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.warmer = new IndexWarmer(threadPool, indexFieldData, indexSettings, bitsetFilterCache.createListener(threadPool));
             this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
@@ -294,6 +302,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
+        this.mutableOperationGate = mutableOperationGate;
         this.mapperMetrics = mapperMetrics;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
@@ -305,6 +314,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
         updateFsyncTaskIfNecessary();
     }
 
@@ -473,6 +483,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public synchronized IndexShard createShard(
         final ShardRouting routing,
+        final DiscoveryNode localNode,
+        @Nullable final DiscoveryNode sourceNode,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
@@ -567,11 +579,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                this.indexSettings.getIndexSortConfig().hasIndexSort()
+                this.indexSettings.getIndexSortConfig().hasIndexSort(),
+                metricHolder
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,
+                recoveryStateFactory,
+                localNode,
+                sourceNode,
                 this.indexSettings,
                 path,
                 store,
@@ -594,6 +610,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 snapshotCommitSupplier,
                 System::nanoTime,
                 indexCommitListener,
+                mutableOperationGate,
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
@@ -719,6 +736,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void onShardClose(ShardLock lock) {
+        // TODO: A shard may be closed for a reason unrelated to index deletion (e.g. a relocation), yet read
+        // deleted == true because a concurrent index deletion set the flag. It will then end up calling
+        // beforeIndexShardDeleted/afterIndexShardDeleted eventhough it did not own the deletion work.
+        // This is safe because index deletion is a no-return state, and cleanup should be idempotent, but should
+        // eventually be fixed for completeness' sake. See issue #147666.
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
                 try {
@@ -734,8 +756,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public RecoveryState createRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
-        return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
+    // visible for testing
+    IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory() {
+        return recoveryStateFactory;
     }
 
     @Override
@@ -759,6 +782,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Integer requestSize,
         ShardSearchStats shardSearchStats
     ) {
+        if (this.mapperService == null || this.indexCache == null) {
+            throw new IllegalStateException(
+                format(
+                    "cannot create a search execution context for index %s: this IndexService was created for a "
+                        + "closed index and therefore has no mapper service or caches (current index state [%s])",
+                    index(),
+                    indexSettings.getIndexMetadata().getState()
+                )
+            );
+        }
+
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
             clusterAlias,
@@ -878,7 +912,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         if (mapperService != null) {
-            mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            // Mapper service re-parses the mapping here, potentially adding deprecation warning response headers, but we're in the process
+            // of applying the cluster state and have no way to send these warnings back to the client so we just drop them. We will have
+            // generated, and sent back, the same headers while handling the request that created this mapping in the first place.
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            }
         }
     }
 
@@ -995,7 +1034,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (currentSettingsVersion == newSettingsVersion) {
                 assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion
@@ -1351,6 +1389,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     }
 
+    // public for tests
+    public AbstractAsyncTask getGlobalCheckpointTask() {
+        return globalCheckpointTask;
+    }
+
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
     }
@@ -1366,7 +1409,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
      */
-    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, String... fields) {
+    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         boolean clearedAtLeastOne = false;
         if (queryCache) {
             clearedAtLeastOne = true;
@@ -1382,7 +1425,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
         }
-        if (clearedAtLeastOne == false) {
+        if (clearedAtLeastOne == false && requestCache == false) {
             if (fields.length == 0) {
                 indexCache.clear("api");
                 indexFieldData.clear();

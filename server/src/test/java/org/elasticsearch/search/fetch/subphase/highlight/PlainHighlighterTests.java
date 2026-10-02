@@ -14,6 +14,8 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -103,6 +105,30 @@ public class PlainHighlighterTests extends HighlighterTestCase {
         }
     }
 
+    public void testCappedNumberOfFragments() {
+        assertEquals(19, PlainHighlighter.cappedNumberOfFragments(10_000, 19));
+        assertEquals(19, PlainHighlighter.cappedNumberOfFragments(1_000_000, 19));
+        assertEquals(3, PlainHighlighter.cappedNumberOfFragments(3, 100));
+        assertEquals(1, PlainHighlighter.cappedNumberOfFragments(5, 0));
+    }
+
+    public void testMaxNumberOfFragmentsHighlightsCorrectly() throws Exception {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "text" : { "type" : "text" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "text" : "some important text" }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchQuery("text", "important"))
+            .highlighter(new HighlightBuilder().field("text").highlighterType("plain").numOfFragments(10_000));
+
+        assertHighlights(highlight(mapperService, doc, search), "text", "some <em>important</em> text");
+    }
+
     public void testScriptScoreQuery() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "properties" : {
@@ -122,6 +148,32 @@ public class PlainHighlighterTests extends HighlighterTestCase {
         ).highlighter(new HighlightBuilder().field("text").highlighterType("plain"));
 
         assertHighlights(highlight(mapperService, doc, search), "text", "<em>some</em> text");
+    }
+
+    public void testHighlightWithDateRangeAndIndexSort() throws Exception {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put("index.sort.field", "timestamp").build();
+
+        MapperService mapperService = createMapperService(settings, """
+            { "_doc" : { "properties" : {
+                "text" : { "type" : "text" },
+                "timestamp" : { "type" : "date" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "text": "some important text to highlight",
+              "timestamp": "2025-01-15T10:30:00Z"
+            }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.matchQuery("text", "important"))
+                .filter(QueryBuilders.rangeQuery("timestamp").gte("2025-01-01").lte("2025-12-31"))
+        ).highlighter(new HighlightBuilder().field("text").highlighterType("plain"));
+
+        assertHighlights(highlight(mapperService, doc, search), "text", "some <em>important</em> text to highlight");
     }
 
     @Override

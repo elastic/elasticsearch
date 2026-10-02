@@ -19,7 +19,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.FieldPredicate;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -296,6 +299,99 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("field2"));
         assertNotNull(response.get("field3"));
         assertNull(response.get("_index"));
+    }
+
+    public void testPassthroughFieldDoesNotAddIntermediateParentAsObject() throws IOException {
+        // Reproduce the scenario from https://github.com/elastic/elasticsearch/issues/144179:
+        // A passthrough field (subobjects: false) with a sub-field whose name contains a dot,
+        // e.g. "attributes.foo.bar". The intermediate segment "attributes.foo" must NOT be
+        // synthesized as an implicit "object" field in the field capabilities response.
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "attributes" : {
+                  "type" : "passthrough",
+                  "priority" : 0,
+                  "properties" : {
+                    "foo.bar" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        // The leaf field should be present as keyword
+        assertNotNull(response.get("attributes.foo.bar"));
+        assertEquals("keyword", response.get("attributes.foo.bar").type());
+        // The intermediate segment "attributes.foo" must NOT appear as an implicit object,
+        // because the passthrough mapper enforces subobjects:false
+        assertNull(
+            "attributes.foo must not be synthesized as an implicit object under a subobjects:false passthrough mapper",
+            response.get("attributes.foo")
+        );
+    }
+
+    public void testIndexLocalAnalyzerNameIsDropped() throws IOException {
+        // The same mapping in two indices. The built-in name "default" is reported with the mapping's
+        // position_increment_gap, until index.analysis redefines it and field-caps must withhold it.
+        String mapping = """
+            { "_doc" : {
+              "properties" : {
+                "body" : { "type" : "text", "position_increment_gap" : 7 }
+              }
+            } }
+            """;
+        Settings redefinesDefault = Settings.builder()
+            .put("index.analysis.analyzer.default.type", "custom")
+            .put("index.analysis.analyzer.default.tokenizer", "standard")
+            .build();
+
+        IndexFieldCapabilities reported = retrieveBodyFieldCaps(Settings.EMPTY, mapping);
+        assertEquals("default", reported.indexAnalyzer());
+        assertEquals(7, reported.indexAnalyzerPositionIncrementGap());
+        assertFalse(reported.indexLocalAnalyzer());
+
+        IndexFieldCapabilities withheld = retrieveBodyFieldCaps(redefinesDefault, mapping);
+        assertNull(withheld.indexAnalyzer());
+        assertTrue(withheld.indexLocalAnalyzer());
+    }
+
+    private IndexFieldCapabilities retrieveBodyFieldCaps(Settings settings, String mapping) throws IOException {
+        SearchExecutionContext sec = createSearchExecutionContext(createMapperService(settings, mapping));
+        return FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        ).get("body");
+    }
+
+    public void testAnalyzerNamesDigest() {
+        // Both sets print as [standard, x, y], yet only the first withholds "standard".
+        assertNotEquals(
+            FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of("standard", "x, y")),
+            FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of("standard, x", "y"))
+        );
+        assertEquals(
+            FieldCapabilitiesFetcher.analyzerNamesDigest(new LinkedHashSet<>(List.of("a", "b"))),
+            FieldCapabilitiesFetcher.analyzerNamesDigest(new LinkedHashSet<>(List.of("b", "a")))
+        );
+        // Non-empty without configured analyzers, so the dedup hash never equals one from an older node.
+        assertFalse(FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of()).isEmpty());
     }
 
     private IndexShard getMockIndexShard() {

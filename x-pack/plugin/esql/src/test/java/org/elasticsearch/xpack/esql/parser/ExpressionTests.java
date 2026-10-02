@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.time.Duration;
 import java.time.Period;
@@ -44,9 +47,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -55,7 +60,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -352,12 +356,11 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testFunctionExpressions() {
-        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), whereExpression("fn()"));
+        assertEquals(new UnresolvedFunction(EMPTY, "fn", new ArrayList<>()), whereExpression("fn()"));
         assertEqualsIgnoringIds(
             new UnresolvedFunction(
                 EMPTY,
                 "invoke",
-                DEFAULT,
                 new ArrayList<>(
                     List.of(
                         new UnresolvedAttribute(EMPTY, "a"),
@@ -374,6 +377,66 @@ public class ExpressionTests extends ESTestCase {
         );
         assertEqualsIgnoringIds(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
         assertEqualsIgnoringIds(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
+    }
+
+    public void testLambdaExpressions() {
+        assumeTrue("Requires lambda syntax", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, x -> x)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(
+                            EMPTY,
+                            List.of(
+                                new UnresolvedAttribute(EMPTY, "x"),
+                                new UnresolvedAttribute(EMPTY, "y"),
+                                new Add(
+                                    EMPTY,
+                                    new UnresolvedAttribute(EMPTY, "x"),
+                                    new UnresolvedAttribute(EMPTY, "y"),
+                                    ConfigurationAware.CONFIGURATION_MARKER
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x, y) -> x + y)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(EMPTY, "invoke", new ArrayList<>(List.of(new Lambda(EMPTY, List.of(Literal.TRUE))))),
+            whereExpression("invoke(() -> true)")
+        );
+        // (x) -> body: single parenthesized param is ambiguous with a parenthesized expression; resolved by the -> lookahead
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x) -> x)")
+        );
     }
 
     public void testUnquotedIdentifiers() {
@@ -512,8 +575,51 @@ public class ExpressionTests extends ESTestCase {
             assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedNamePattern.class));
             UnresolvedNamePattern ua = (UnresolvedNamePattern) projections.get(0);
             assertThat(ua.name(), equalTo(e));
+            assertThat(ua.glob(), equalTo(e));
             assertThat(ua.unresolvedMessage(), equalTo("Unresolved pattern [" + e + "]"));
         }
+    }
+
+    public void testProjectKeepPatternGlobTakesBackquotedLegsLiterally() {
+        assertThat(keepPatternGlob("`tags`*"), equalTo("tags*"));
+        assertThat(keepPatternGlob("`tags`.n*"), equalTo("tags.n*"));
+        assertThat(keepPatternGlob("t`ag`s*"), equalTo("tags*"));
+        assertThat(keepPatternGlob("`a*b`*"), equalTo("a\\*b*"));
+        assertThat(keepPatternGlob("`a``b`*"), equalTo("a`b*"));
+        assertThat(keepPatternGlob("`a\\b`*"), equalTo("a\\\\b*"));
+        assertThat(keepPatternGlob("*`x*y`*`z*`"), equalTo("*x\\*y*z\\*"));
+    }
+
+    public void testProjectKeepPatternGlobMatchesWhatTheAutomatonMatches() {
+        for (int i = 0; i < 200; i++) {
+            String e = String.join(".", randomList(1, 2, () -> String.join("", randomList(1, 3, ExpressionTests::randomNamePatternPiece))));
+            if (singleValue(projectExpression(e).projections()) instanceof UnresolvedNamePattern unp) {
+                UnmappedFieldsPattern glob = UnmappedFieldsPattern.includes(List.of(unp.glob()));
+                for (int j = 0; j < 50; j++) {
+                    String name = randomCandidateName();
+                    assertThat("[" + e + "] against [" + name + "]", glob.matches(name), equalTo(unp.match(name)));
+                    if (glob.matches(name)) {
+                        for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                            assertTrue(
+                                "[" + e + "] must ship [" + name.substring(0, dot) + "]",
+                                glob.objectSubfieldsCouldMatch(name.substring(0, dot))
+                            );
+                        }
+                        assertTrue("[" + e + "] must ship [" + name + "]", glob.objectSubfieldsCouldMatch(name));
+                    }
+                }
+            }
+        }
+    }
+
+    private static String randomNamePatternPiece() {
+        return randomBoolean()
+            ? randomFrom("*", "a", "b", "a*", "*b", "a*b")
+            : "`" + String.join("", randomList(1, 3, () -> randomFrom("a", "*", "\\", ".", "``"))) + "`";
+    }
+
+    private static String randomCandidateName() {
+        return String.join("", randomList(0, 7, () -> randomFrom("a", "b", "*", "\\", "`", ".")));
     }
 
     public void testWildcardProjectKeep() {
@@ -666,8 +772,12 @@ public class ExpressionTests extends ESTestCase {
         return (Project) parse("from a | keep " + e);
     }
 
+    private String keepPatternGlob(String e) {
+        return as(singleValue(projectExpression(e).projections()), UnresolvedNamePattern.class).glob();
+    }
+
     private LogicalPlan parse(String s) {
-        return EsqlParser.INSTANCE.parseQuery(s);
+        return TEST_PARSER.parseQuery(s);
     }
 
     private Literal l(Object value, DataType type) {

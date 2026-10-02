@@ -1,0 +1,4 @@
+FROM employees
+| WHERE emp_no IN (FROM employees
+                  | STATS max_emp = max(emp_no) BY languages
+                  | KEEP max_emp)

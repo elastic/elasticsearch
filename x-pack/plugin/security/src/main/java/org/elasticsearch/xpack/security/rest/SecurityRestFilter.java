@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
@@ -17,11 +18,14 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -34,17 +38,21 @@ public class SecurityRestFilter implements RestInterceptor {
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
+    private final boolean httpSslEnabled;
     private final ThreadContext threadContext;
     private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
+    private final AuthenticationContextSerializer authenticationSerializer = new AuthenticationContextSerializer();
 
     public SecurityRestFilter(
         boolean enabled,
+        boolean httpSslEnabled,
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
         this.enabled = enabled;
+        this.httpSslEnabled = httpSslEnabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
@@ -76,7 +84,12 @@ public class SecurityRestFilter implements RestInterceptor {
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
-            auditTrailService.get().authenticationSuccess(wrappedRequest);
+            try {
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+            } catch (ElasticsearchStatusException e) {
+                handleException(aggregatedRestRequest, e, listener);
+                return;
+            }
             secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     logger.trace(
@@ -96,6 +109,20 @@ public class SecurityRestFilter implements RestInterceptor {
             aggregationCallback.accept(request);
         }
 
+    }
+
+    @Override
+    public boolean allowsBrowserSafelistedContentType(RestRequest request) {
+        if (enabled == false || httpSslEnabled == false) {
+            return false;
+        }
+        try {
+            final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
+            return authentication != null && authentication.getAuthenticationType() != Authentication.AuthenticationType.ANONYMOUS;
+        } catch (IOException e) {
+            logger.debug(() -> format("failed to read authentication for REST request [%s]", request.uri()), e);
+            return false;
+        }
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {

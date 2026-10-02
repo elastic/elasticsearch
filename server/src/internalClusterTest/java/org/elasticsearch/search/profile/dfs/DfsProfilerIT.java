@@ -87,9 +87,9 @@ public class DfsProfilerIT extends ESIntegTestCase {
                     .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setKnnSearch(randomList(2, 5, () -> knnSearchBuilder)),
                 response -> {
-                    assertNotNull("Profile response element should not be null", response.getProfileResults());
-                    assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
-                    for (Map.Entry<String, SearchProfileShardResult> shard : response.getProfileResults().entrySet()) {
+                    assertNotNull("Profile response element should not be null", response.getSearchProfileShardResults());
+                    assertThat("Profile response should not be an empty array", response.getSearchProfileShardResults().size(), not(0));
+                    for (Map.Entry<String, SearchProfileShardResult> shard : response.getSearchProfileShardResults().entrySet()) {
                         for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
                             for (ProfileResult result : searchProfiles.getQueryResults()) {
                                 assertNotNull(result.getQueryName());

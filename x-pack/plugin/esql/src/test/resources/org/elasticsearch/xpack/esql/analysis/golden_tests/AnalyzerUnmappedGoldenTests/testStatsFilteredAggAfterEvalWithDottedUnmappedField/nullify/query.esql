@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; ROW x = 1
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id

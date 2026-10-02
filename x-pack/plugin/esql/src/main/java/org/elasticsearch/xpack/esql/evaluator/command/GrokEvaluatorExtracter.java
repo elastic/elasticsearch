@@ -10,17 +10,18 @@ package org.elasticsearch.xpack.esql.evaluator.command;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureExtracter;
+import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.joni.Region;
 
 import java.util.ArrayList;
@@ -37,24 +38,30 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
 
     private final Grok parser;
     private final String pattern;
+    private final Warnings warnings;
 
     private final List<GrokCaptureExtracter> fieldExtracters;
 
-    private final boolean[] valuesSet;
+    // Values extracted from the current row are buffered here and only written to the block
+    // builders once the whole row was extracted successfully. This way a failed type conversion
+    // (eg. %{NUMBER:n:int} matching "1.5") can discard the row's values and emit nulls instead,
+    // without leaving partially written block builders behind.
     private final Object[] firstValues;
+    private final List<Object>[] extraValues;
     private final ElementType[] positionToType;
-    private Block.Builder[] blocks;
 
-    public GrokEvaluatorExtracter(
+    private GrokEvaluatorExtracter(
         final Grok parser,
         final String pattern,
         final Map<String, Integer> keyToBlock,
-        final Map<String, ElementType> types
+        final Map<String, ElementType> types,
+        final Warnings warnings
     ) {
         this.parser = parser;
         this.pattern = pattern;
-        this.valuesSet = new boolean[types.size()];
+        this.warnings = warnings;
         this.firstValues = new Object[types.size()];
+        this.extraValues = newExtraValues(types.size());
         this.positionToType = new ElementType[types.size()];
 
         fieldExtracters = new ArrayList<>(parser.captureConfig().size());
@@ -67,108 +74,69 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
             fieldExtracters.add(config.nativeExtracter(new GrokCaptureConfig.NativeExtracterMap<>() {
                 @Override
                 public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
-                    return buildExtracter.apply(value -> {
-                        if (firstValues[blockIdx] == null) {
-                            firstValues[blockIdx] = value;
-                        } else {
-                            BytesRefBlock.Builder block = (BytesRefBlock.Builder) blocks()[blockIdx];
-                            if (valuesSet[blockIdx] == false) {
-                                block.beginPositionEntry();
-                                block.appendBytesRef(new BytesRef((String) firstValues[blockIdx]));
-                                valuesSet[blockIdx] = true;
-                            }
-                            block.appendBytesRef(new BytesRef(value));
-                        }
-                    });
+                    return buildExtracter.apply(value -> addValue(blockIdx, value));
                 }
 
                 @Override
                 public GrokCaptureExtracter forInt(Function<IntConsumer, GrokCaptureExtracter> buildExtracter) {
-                    return buildExtracter.apply(value -> {
-                        if (firstValues[blockIdx] == null) {
-                            firstValues[blockIdx] = value;
-                        } else {
-                            IntBlock.Builder block = (IntBlock.Builder) blocks()[blockIdx];
-                            if (valuesSet[blockIdx] == false) {
-                                block.beginPositionEntry();
-                                block.appendInt((int) firstValues[blockIdx]);
-                                valuesSet[blockIdx] = true;
-                            }
-                            block.appendInt(value);
-                        }
-                    });
+                    return buildExtracter.apply(value -> addValue(blockIdx, value));
                 }
 
                 @Override
                 public GrokCaptureExtracter forLong(Function<LongConsumer, GrokCaptureExtracter> buildExtracter) {
-                    return buildExtracter.apply(value -> {
-                        if (firstValues[blockIdx] == null) {
-                            firstValues[blockIdx] = value;
-                        } else {
-                            LongBlock.Builder block = (LongBlock.Builder) blocks()[blockIdx];
-                            if (valuesSet[blockIdx] == false) {
-                                block.beginPositionEntry();
-                                block.appendLong((long) firstValues[blockIdx]);
-                                valuesSet[blockIdx] = true;
-                            }
-                            block.appendLong(value);
-                        }
-                    });
+                    return buildExtracter.apply(value -> addValue(blockIdx, value));
                 }
 
                 @Override
                 public GrokCaptureExtracter forFloat(Function<FloatConsumer, GrokCaptureExtracter> buildExtracter) {
-                    return buildExtracter.apply(value -> {
-                        if (firstValues[blockIdx] == null) {
-                            firstValues[blockIdx] = value;
-                        } else {
-                            DoubleBlock.Builder block = (DoubleBlock.Builder) blocks()[blockIdx];
-                            if (valuesSet[blockIdx] == false) {
-                                block.beginPositionEntry();
-                                block.appendDouble(((Float) firstValues[blockIdx]).doubleValue());
-                                valuesSet[blockIdx] = true;
-                            }
-                            block.appendDouble(value);
-                        }
-                    });
+                    return buildExtracter.apply(value -> addValue(blockIdx, value));
                 }
 
                 @Override
                 public GrokCaptureExtracter forDouble(Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
-                    return buildExtracter.apply(value -> {
-                        if (firstValues[blockIdx] == null) {
-                            firstValues[blockIdx] = value;
-                        } else {
-                            DoubleBlock.Builder block = (DoubleBlock.Builder) blocks()[blockIdx];
-                            if (valuesSet[blockIdx] == false) {
-                                block.beginPositionEntry();
-                                block.appendDouble((double) firstValues[blockIdx]);
-                                valuesSet[blockIdx] = true;
-                            }
-                            block.appendDouble(value);
-                        }
-                    });
+                    return buildExtracter.apply(value -> addValue(blockIdx, value));
                 }
 
                 @Override
                 public GrokCaptureExtracter forBoolean(Function<Consumer<Boolean>, GrokCaptureExtracter> buildExtracter) {
-                    return buildExtracter.apply(value -> {
-                        if (firstValues[blockIdx] == null) {
-                            firstValues[blockIdx] = value;
-                        } else {
-                            BooleanBlock.Builder block = (BooleanBlock.Builder) blocks()[blockIdx];
-                            if (valuesSet[blockIdx] == false) {
-                                block.beginPositionEntry();
-                                block.appendBoolean((boolean) firstValues[blockIdx]);
-                                valuesSet[blockIdx] = true;
-                            }
-                            block.appendBoolean(value);
-                        }
-                    });
+                    return buildExtracter.apply(value -> addValue(blockIdx, value));
                 }
             }));
         }
 
+    }
+
+    // Arrays of generics cannot be created directly; the array is only ever accessed per element, so this is safe.
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static List<Object>[] newExtraValues(int size) {
+        return new List[size];
+    }
+
+    private void addValue(int blockIdx, Object value) {
+        if (firstValues[blockIdx] == null) {
+            firstValues[blockIdx] = value;
+        } else {
+            if (extraValues[blockIdx] == null) {
+                extraValues[blockIdx] = new ArrayList<>();
+            }
+            extraValues[blockIdx].add(value);
+        }
+    }
+
+    public record Factory(Source source, Grok parser, String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types)
+        implements
+            ColumnExtractOperator.Evaluator.Factory {
+
+        @Override
+        public GrokEvaluatorExtracter create(DriverContext driverContext) {
+            Warnings warnings = (driverContext == null || source == null) ? Warnings.NOOP_WARNINGS : driverContext.createWarnings(source);
+            return new GrokEvaluatorExtracter(parser, pattern, keyToBlock, types, warnings);
+        }
+
+        @Override
+        public String describe() {
+            return "GrokEvaluatorExtracter[pattern=" + pattern + "]";
+        }
     }
 
     private static void append(Object value, Block.Builder block, ElementType type) {
@@ -182,28 +150,39 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         }
     }
 
-    public Block.Builder[] blocks() {
-        return blocks;
-    }
-
     @Override
     public void computeRow(BytesRefBlock inputBlock, int row, Block.Builder[] blocks, BytesRef spare) {
-        this.blocks = blocks;
         int position = inputBlock.getFirstValueIndex(row);
         int valueCount = inputBlock.getValueCount(row);
-        Arrays.fill(valuesSet, false);
         Arrays.fill(firstValues, null);
+        Arrays.fill(extraValues, null);
         for (int c = 0; c < valueCount; c++) {
             BytesRef input = inputBlock.getBytesRef(position + c, spare);
-            parser.match(input.bytes, input.offset, input.length, this);
+            try {
+                parser.match(input.bytes, input.offset, input.length, this);
+            } catch (NumberFormatException e) {
+                // A typed capture (eg. %{NUMBER:n:int}) matched a value it could not convert.
+                // Treat the row as a failed match instead of failing the whole query.
+                warnings.registerException(e);
+                Arrays.fill(firstValues, null);
+                Arrays.fill(extraValues, null);
+                break;
+            } catch (RuntimeException e) {
+                throw new EsqlClientException(e.getMessage(), e);
+            }
         }
         for (int i = 0; i < firstValues.length; i++) {
             if (firstValues[i] == null) {
-                this.blocks[i].appendNull();
-            } else if (valuesSet[i]) {
-                this.blocks[i].endPositionEntry();
-            } else {
+                blocks[i].appendNull();
+            } else if (extraValues[i] == null) {
                 append(firstValues[i], blocks[i], positionToType[i]);
+            } else {
+                blocks[i].beginPositionEntry();
+                append(firstValues[i], blocks[i], positionToType[i]);
+                for (Object value : extraValues[i]) {
+                    append(value, blocks[i], positionToType[i]);
+                }
+                blocks[i].endPositionEntry();
             }
         }
     }

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -25,26 +24,17 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import java.util.Collections;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.extractRequestId;
 
 public final class ResizeRequestInterceptor implements RequestInterceptor {
 
     private final ThreadContext threadContext;
-    private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
     private final boolean dlsFlsEnabled;
 
-    public ResizeRequestInterceptor(
-        ThreadPool threadPool,
-        XPackLicenseState licenseState,
-        AuditTrailService auditTrailService,
-        boolean dlsFlsEnabled
-    ) {
+    public ResizeRequestInterceptor(ThreadPool threadPool, AuditTrailService auditTrailService, boolean dlsFlsEnabled) {
         this.threadContext = threadPool.getThreadContext();
-        this.licenseState = licenseState;
         this.auditTrailService = auditTrailService;
         this.dlsFlsEnabled = dlsFlsEnabled;
     }
@@ -57,9 +47,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
     ) {
         if (requestInfo.getRequest() instanceof ResizeRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
-            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            if (dlsFlsEnabled && (isDlsLicensed || isFlsLicensed)) {
+            if (dlsFlsEnabled && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext)) {
                 IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                     request.getSourceIndex()

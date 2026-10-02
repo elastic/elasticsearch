@@ -10,10 +10,12 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.instrumentation.CheckMethod;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
+import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.objectweb.asm.AnnotationVisitor;
@@ -21,69 +23,81 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.util.CheckClassAdapter;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.analysis.Analyzer;
+import org.objectweb.asm.tree.analysis.AnalyzerException;
+import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.BasicVerifier;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
-import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
 public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
+    private static final String JAVA_LANG_OBJECT = "java/lang/Object";
 
-    private final String getCheckerClassMethodDescriptor;
+    private static final boolean ASSERTIONS_ENABLED;
+    static {
+        boolean enabled = false;
+        assert (enabled = true);
+        ASSERTIONS_ENABLED = enabled;
+    }
+
+    private final String registryClassMethodDescriptor;
     private final String handleClass;
-
-    /**
-     * To avoid class name collisions during testing without an agent to replace classes in-place.
-     */
-    private final String classNameSuffix;
-    private final Map<MethodKey, CheckMethod> checkMethods;
+    private final Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass;
 
     InstrumenterImpl(
         String handleClass,
-        String getCheckerClassMethodDescriptor,
-        String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods
+        String registryClassMethodDescriptor,
+        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass
     ) {
         this.handleClass = handleClass;
-        this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
-        this.classNameSuffix = classNameSuffix;
-        this.checkMethods = checkMethods;
+        this.registryClassMethodDescriptor = registryClassMethodDescriptor;
+        this.rulesByClass = rulesByClass;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
-
-        Type checkerClassType = Type.getType(checkerClass);
-        String handleClass = checkerClassType.getInternalName() + "Handle";
-        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
+    public static InstrumenterImpl create(Class<?> registryClass, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass) {
+        Type registryClassType = Type.getType(registryClass);
+        String handleClass = registryClassType.getInternalName() + "Handle";
+        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(registryClassType);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, rulesByClass);
     }
 
-    static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
-        String internalName = Type.getInternalName(clazz);
-        String fileName = "/" + internalName + ".class";
-        byte[] originalBytecodes;
-        try (InputStream classStream = clazz.getResourceAsStream(fileName)) {
-            if (classStream == null) {
-                throw new IllegalStateException("Classfile not found in jar: " + fileName);
-            }
-            originalBytecodes = classStream.readAllBytes();
-        }
-        return new ClassFileInfo(fileName, originalBytecodes);
+    private static boolean isJvmConstant(Object value) {
+        return value == null
+            || value instanceof String
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Float
+            || value instanceof Double
+            || value instanceof Character
+            || value instanceof Short
+            || value instanceof Byte
+            || value instanceof Boolean;
     }
 
     private enum VerificationPhase {
@@ -91,11 +105,32 @@ public final class InstrumenterImpl implements Instrumenter {
         AFTER_INSTRUMENTATION
     }
 
+    /**
+     * Verifies bytecode using {@link BasicVerifier} instead of ASM's {@code SimpleVerifier}.
+     * {@code SimpleVerifier} resolves type hierarchies via {@link Class#forName}, which triggers
+     * class loading during transformation. The JVM suppresses recursive transformer invocations
+     * during an active {@code ClassFileTransformer} callback, so any class loaded by the verifier
+     * bypasses instrumentation entirely.
+     * <p>
+     * {@link BasicVerifier} performs frame-level checks (stack depth, operand types, jump targets)
+     * without resolving class hierarchies, which is sufficient for catching instrumentation bugs.
+     */
     private static String verify(byte[] classfileBuffer) {
         ClassReader reader = new ClassReader(classfileBuffer);
+        ClassNode classNode = new ClassNode();
+        reader.accept(classNode, ClassReader.SKIP_DEBUG);
+
         StringWriter stringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stringWriter);
-        CheckClassAdapter.verify(reader, false, printWriter);
+
+        for (MethodNode method : classNode.methods) {
+            Analyzer<BasicValue> analyzer = new Analyzer<>(new BasicVerifier());
+            try {
+                analyzer.analyze(classNode.name, method);
+            } catch (AnalyzerException e) {
+                printWriter.println(method.name + method.desc + ": " + e.getMessage());
+            }
+        }
         return stringWriter.toString();
     }
 
@@ -108,12 +143,7 @@ public final class InstrumenterImpl implements Instrumenter {
                 logger.info("Bytecode verification ({}) for class [{}] passed", phase, className);
             }
         } catch (ClassCircularityError e) {
-            // Apparently, verification during instrumentation is challenging for class resolution and loading
-            // Treat this not as an error, but as "inconclusive"
             logger.warn(Strings.format("Cannot perform bytecode verification (%s) for class [%s]", phase, className), e);
-        } catch (IllegalArgumentException e) {
-            // The ASM CheckClassAdapter in some cases throws this instead of printing the error
-            logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed", phase, className), e);
         }
     }
 
@@ -142,6 +172,8 @@ public final class InstrumenterImpl implements Instrumenter {
 
         private final String className;
 
+        private String superClassName;
+        private String[] interfaceNames = new String[0];
         private boolean isAnnotationPresent;
         private boolean annotationNeeded = true;
 
@@ -152,7 +184,9 @@ public final class InstrumenterImpl implements Instrumenter {
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-            super.visit(version, access, name + classNameSuffix, signature, superName, interfaces);
+            this.superClassName = superName;
+            this.interfaceNames = interfaces != null ? interfaces : new String[0];
+            super.visit(version, access, name, signature, superName, interfaces);
         }
 
         @Override
@@ -198,19 +232,106 @@ public final class InstrumenterImpl implements Instrumenter {
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
             addClassAnnotationIfNeeded();
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-            if (isAnnotationPresent == false) {
+            boolean isAbstract = (access & Opcodes.ACC_ABSTRACT) != 0;
+            boolean isNative = (access & Opcodes.ACC_NATIVE) != 0;
+            if (isAnnotationPresent == false && isAbstract == false && isNative == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
-                var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
-                var instrumentationMethod = checkMethods.get(key);
+                List<String> paramTypes = Stream.of(Type.getArgumentTypes(descriptor)).map(EntitlementClassVisitor::getTypeName).toList();
+                var sig = new MethodSignature(name, paramTypes);
+                var classRules = rulesByClass.get(className);
+                var instrumentationMethod = classRules != null ? classRules.get(sig) : null;
+                if (instrumentationMethod == null && isStatic == false && isCtor == false) {
+                    instrumentationMethod = findInheritedRule(name, paramTypes);
+                }
                 if (instrumentationMethod != null) {
-                    logger.debug("Will instrument {}", key);
-                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
+                    logger.debug("Will instrument [{}.{}]", className, sig);
+                    return new EntitlementMethodVisitor(
+                        Opcodes.ASM9,
+                        mv,
+                        isStatic,
+                        isCtor,
+                        descriptor,
+                        instrumentationMethod.instrumentationId(),
+                        instrumentationMethod.handler()
+                    );
                 } else {
-                    logger.trace("Will not instrument {}", key);
+                    logger.trace("Will not instrument [{}.{}]", className, sig);
                 }
             }
             return mv;
+        }
+
+        /**
+         * Walk the supertype hierarchy (superclasses and interfaces) looking for an inherited rule
+         * matching this method signature. At most one rule should exist in the hierarchy; if assertions
+         * are enabled, the entire hierarchy is walked to verify this invariant.
+         */
+        private InstrumentationInfo findInheritedRule(String methodName, List<String> paramTypes) {
+            var sig = new MethodSignature(methodName, paramTypes);
+            InstrumentationInfo result = null;
+            String resultClass = null;
+            Set<String> visited = new HashSet<>();
+            Deque<String> queue = new ArrayDeque<>();
+            if (superClassName != null) queue.add(superClassName);
+            Collections.addAll(queue, interfaceNames);
+            while (queue.isEmpty() == false) {
+                String current = queue.poll();
+                if (visited.add(current) == false) continue;
+                var classRules = rulesByClass.get(current);
+                if (classRules != null) {
+                    var info = classRules.get(sig);
+                    if (info != null) {
+                        if (result == null) {
+                            result = info;
+                            resultClass = current;
+                            if (ASSERTIONS_ENABLED == false) {
+                                return result;
+                            }
+                        } else {
+                            throw new AssertionError(
+                                "Duplicate inherited rules for ["
+                                    + className
+                                    + "."
+                                    + sig
+                                    + "]: found on both ["
+                                    + resultClass
+                                    + "] and ["
+                                    + current
+                                    + "]"
+                            );
+                        }
+                    }
+                }
+                Collections.addAll(queue, readDirectSupertypes(current));
+            }
+            return result;
+        }
+
+        private static String getTypeName(Type type) {
+            switch (type.getSort()) {
+                case Type.BOOLEAN:
+                    return Boolean.class.getName();
+                case Type.CHAR:
+                    return Character.class.getName();
+                case Type.BYTE:
+                    return Byte.class.getName();
+                case Type.SHORT:
+                    return Short.class.getName();
+                case Type.INT:
+                    return Integer.class.getName();
+                case Type.FLOAT:
+                    return Float.class.getName();
+                case Type.DOUBLE:
+                    return Double.class.getName();
+                case Type.LONG:
+                    return Long.class.getName();
+                case Type.ARRAY:
+                case Type.OBJECT:
+                    return type.getClassName();
+                default:
+                    throw new IllegalStateException("Unexpected type sort: " + type.getSort());
+            }
         }
 
         /**
@@ -236,7 +357,9 @@ public final class InstrumenterImpl implements Instrumenter {
         private final boolean instrumentedMethodIsStatic;
         private final boolean instrumentedMethodIsCtor;
         private final String instrumentedMethodDescriptor;
-        private final CheckMethod checkMethod;
+        private final String instrumentationId;
+        private final DeniedEntitlementStrategy strategy;
+
         private boolean hasCallerSensitiveAnnotation = false;
 
         EntitlementMethodVisitor(
@@ -245,13 +368,15 @@ public final class InstrumenterImpl implements Instrumenter {
             boolean instrumentedMethodIsStatic,
             boolean instrumentedMethodIsCtor,
             String instrumentedMethodDescriptor,
-            CheckMethod checkMethod
+            String instrumentationId,
+            DeniedEntitlementStrategy strategy
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
             this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
-            this.checkMethod = checkMethod;
+            this.instrumentationId = instrumentationId;
+            this.strategy = strategy;
         }
 
         @Override
@@ -262,18 +387,51 @@ public final class InstrumenterImpl implements Instrumenter {
             return super.visitAnnotation(descriptor, visible);
         }
 
+        @SuppressWarnings("rawtypes")
         @Override
         public void visitCode() {
             pushEntitlementChecker();
+            pushInstrumentationId();
             pushCallerClass();
-            forwardIncomingArguments();
-            invokeInstrumentationMethod();
+            pushArguments();
+            switch (strategy) {
+                case DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy returnEarly -> {
+                    // For return early strategy we want to catch not entitled and return early
+                    catchNotEntitledAndReturnEarly();
+                }
+                case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
+                    // For default value strategy we want to catch not entitled and return a default value;
+                    // null, String, and boxed primitives are embedded as JVM constants, all other reference
+                    // types are retrieved at runtime via defaultValue$
+                    Object value = defaultValue.getDefaultValue();
+                    if (isJvmConstant(value)) {
+                        catchNotEntitledAndReturnValue(value);
+                    } else {
+                        catchNotEntitledAndReturnReferenceDefault();
+                    }
+                }
+                case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
+                    // For method argument value strategy we want to catch not entitled and return the method argument at the given index
+                    catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
+                }
+                case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
+                    // For not entitled strategy we just want to let the not entitled exception propagate
+                    invokeInstrumentationMethod();
+                }
+                case DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exception -> {
+                    // Custom exception strategy is handled by invoking the instrumentation method
+                    invokeInstrumentationMethod();
+                }
+            }
             super.visitCode();
         }
 
         private void pushEntitlementChecker() {
-            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
-            mv.visitTypeInsn(CHECKCAST, checkMethod.className());
+            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", registryClassMethodDescriptor, false);
+        }
+
+        private void pushInstrumentationId() {
+            mv.visitLdcInsn(instrumentationId);
         }
 
         private void pushCallerClass() {
@@ -296,33 +454,252 @@ public final class InstrumenterImpl implements Instrumenter {
             }
         }
 
-        private void forwardIncomingArguments() {
-            int localVarIndex = 0;
-            if (instrumentedMethodIsCtor) {
-                localVarIndex++;
-            } else if (instrumentedMethodIsStatic == false) {
-                mv.visitVarInsn(Opcodes.ALOAD, localVarIndex++);
+        private void pushArguments() {
+            Type[] argumentTypes = Type.getArgumentTypes(instrumentedMethodDescriptor);
+            boolean passThis = instrumentedMethodIsStatic == false && instrumentedMethodIsCtor == false;
+            int numArgs = argumentTypes.length + (passThis ? 1 : 0);
+
+            pushInt(numArgs);
+            mv.visitTypeInsn(Opcodes.ANEWARRAY, JAVA_LANG_OBJECT);
+
+            int arrayIndex = 0;
+            if (passThis) {
+                mv.visitInsn(Opcodes.DUP);
+                pushInt(arrayIndex++);
+                mv.visitVarInsn(Opcodes.ALOAD, 0);
+                mv.visitInsn(Opcodes.AASTORE);
             }
-            for (Type type : Type.getArgumentTypes(instrumentedMethodDescriptor)) {
+
+            int localVarIndex = instrumentedMethodIsStatic ? 0 : 1;
+
+            for (int i = 0; i < argumentTypes.length; i++) {
+                mv.visitInsn(Opcodes.DUP);
+                pushInt(arrayIndex++);
+                Type type = argumentTypes[i];
                 mv.visitVarInsn(type.getOpcode(Opcodes.ILOAD), localVarIndex);
+                box(type);
+                mv.visitInsn(Opcodes.AASTORE);
                 localVarIndex += type.getSize();
             }
+        }
+
+        private void pushInt(int value) {
+            if (value >= -1 && value <= 5) {
+                mv.visitInsn(Opcodes.ICONST_0 + value);
+            } else if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
+                mv.visitIntInsn(Opcodes.BIPUSH, value);
+            } else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
+                mv.visitIntInsn(Opcodes.SIPUSH, value);
+            } else {
+                mv.visitLdcInsn(value);
+            }
+        }
+
+        private void box(Type type) {
+            if (type.getSort() == Type.OBJECT || type.getSort() == Type.ARRAY) {
+                return;
+            }
+            String descriptor = type.getDescriptor();
+            String owner;
+            switch (type.getSort()) {
+                case Type.BOOLEAN:
+                    owner = "java/lang/Boolean";
+                    break;
+                case Type.CHAR:
+                    owner = "java/lang/Character";
+                    break;
+                case Type.BYTE:
+                    owner = "java/lang/Byte";
+                    break;
+                case Type.SHORT:
+                    owner = "java/lang/Short";
+                    break;
+                case Type.INT:
+                    owner = "java/lang/Integer";
+                    break;
+                case Type.FLOAT:
+                    owner = "java/lang/Float";
+                    break;
+                case Type.LONG:
+                    owner = "java/lang/Long";
+                    break;
+                case Type.DOUBLE:
+                    owner = "java/lang/Double";
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unexpected type sort: " + type.getSort());
+            }
+            mv.visitMethodInsn(INVOKESTATIC, owner, "valueOf", "(" + descriptor + ")L" + owner + ";", false);
         }
 
         private void invokeInstrumentationMethod() {
             mv.visitMethodInsn(
                 INVOKEINTERFACE,
-                checkMethod.className(),
-                checkMethod.methodName(),
-                Type.getMethodDescriptor(
-                    Type.VOID_TYPE,
-                    checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
-                ),
+                Type.getReturnType(registryClassMethodDescriptor).getInternalName(),
+                "check$",
+                "(Ljava/lang/String;Ljava/lang/Class;[Ljava/lang/Object;)V",
                 true
             );
         }
 
+        private void catchNotEntitledAndReturnReferenceDefault() {
+            wrapInstrumentationInTryCatch(() -> {
+                mv.visitInsn(Opcodes.POP);
+                pushEntitlementChecker();
+                mv.visitLdcInsn(instrumentationId);
+                mv.visitMethodInsn(
+                    INVOKEINTERFACE,
+                    Type.getReturnType(registryClassMethodDescriptor).getInternalName(),
+                    "defaultValue$",
+                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    true
+                );
+                Type returnType = Type.getReturnType(instrumentedMethodDescriptor);
+                mv.visitTypeInsn(Opcodes.CHECKCAST, returnType.getInternalName());
+                mv.visitInsn(Opcodes.ARETURN);
+            });
+        }
+
+        private void catchNotEntitledAndReturnValue(Object defaultValue) {
+            wrapInstrumentationInTryCatch(() -> { returnConstantValue(defaultValue); });
+        }
+
+        private void catchNotEntitledAndReturnEarly() {
+            wrapInstrumentationInTryCatch(() -> {
+                // Pop the exception from the stack
+                mv.visitInsn(Opcodes.POP);
+                // Return immediately, making the method a no-op
+                mv.visitInsn(Opcodes.RETURN);
+            });
+        }
+
+        private void catchNotEntitledAndReturnMethodArgument(int argumentIndex) {
+            wrapInstrumentationInTryCatch(() -> {
+                // Pop the exception from the stack
+                mv.visitInsn(Opcodes.POP);
+
+                // Calculate the local variable index for the method argument
+                Type[] argumentTypes = Type.getArgumentTypes(instrumentedMethodDescriptor);
+                int localVarIndex = instrumentedMethodIsStatic ? 0 : 1;
+
+                // Advance to the specified argument index
+                for (int i = 0; i < argumentIndex && i < argumentTypes.length; i++) {
+                    localVarIndex += argumentTypes[i].getSize();
+                }
+
+                // Load the method argument at the specified index
+                if (argumentIndex < argumentTypes.length) {
+                    Type argType = argumentTypes[argumentIndex];
+                    mv.visitVarInsn(argType.getOpcode(Opcodes.ILOAD), localVarIndex);
+                    mv.visitInsn(argType.getOpcode(Opcodes.IRETURN));
+                } else {
+                    throw new IllegalStateException("Invalid argument index: " + argumentIndex);
+                }
+            });
+        }
+
+        private void wrapInstrumentationInTryCatch(Runnable catchHandler) {
+            Label tryStart = new Label();
+            Label tryEnd = new Label();
+            Label catchStart = new Label();
+            Label catchEnd = new Label();
+            // Use a string literal instead of Type.getType(NotEntitledException.class).getInternalName() to avoid
+            // loading the class across module boundaries; NotEntitledException is injected into java.base via the
+            // bridge, and this module cannot access it directly.
+            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "org/elasticsearch/entitlement/bridge/NotEntitledException");
+            mv.visitLabel(tryStart);
+            invokeInstrumentationMethod();
+            mv.visitLabel(tryEnd);
+            mv.visitJumpInsn(Opcodes.GOTO, catchEnd);
+            mv.visitLabel(catchStart);
+            catchHandler.run();
+            mv.visitLabel(catchEnd);
+        }
+
+        private void returnConstantValue(Object constant) {
+            if (constant == null) {
+                mv.visitInsn(Opcodes.ACONST_NULL);
+                mv.visitInsn(Opcodes.ARETURN);
+            } else {
+                mv.visitLdcInsn(constant);
+                if (constant instanceof String) {
+                    mv.visitInsn(Opcodes.ARETURN);
+                } else if (constant instanceof Double) {
+                    mv.visitInsn(Opcodes.DRETURN);
+                } else if (constant instanceof Float) {
+                    mv.visitInsn(Opcodes.FRETURN);
+                } else if (constant instanceof Long) {
+                    mv.visitInsn(Opcodes.LRETURN);
+                } else if (constant instanceof Integer
+                    || constant instanceof Character
+                    || constant instanceof Short
+                    || constant instanceof Byte
+                    || constant instanceof Boolean) {
+                        mv.visitInsn(Opcodes.IRETURN);
+                    } else {
+                        throw new IllegalStateException(
+                            "unsupported default return value [" + constant + "] of type [" + constant.getClass().getName() + "]"
+                        );
+                    }
+            }
+        }
     }
 
-    record ClassFileInfo(String fileName, byte[] bytecodes) {}
+    @Override
+    public String[] readDirectSupertypes(byte[] classfileBuffer) {
+        return readDirectSupertypes(new ByteArrayInputStream(classfileBuffer));
+    }
+
+    @Override
+    public boolean hasRuleInHierarchy(byte[] classfileBuffer) {
+        Set<String> visited = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        Collections.addAll(queue, readDirectSupertypes(classfileBuffer));
+        while (queue.isEmpty() == false) {
+            String current = queue.poll();
+            if (visited.add(current) == false) {
+                continue;
+            }
+            if (rulesByClass.containsKey(current)) {
+                return true;
+            }
+            Collections.addAll(queue, readDirectSupertypes(current));
+        }
+        return false;
+    }
+
+    /**
+     * Reads the direct supertypes of a class from its classfile resource, without triggering class loading.
+     * Returns an empty array for {@code java/lang/Object}, or {@code ["java/lang/Object"]} if the
+     * class resource cannot be found.
+     */
+    @SuppressForbidden(reason = "reads classfile resources to resolve hierarchy without triggering class loading")
+    static String[] readDirectSupertypes(String internalName) {
+        if (JAVA_LANG_OBJECT.equals(internalName)) {
+            return new String[0];
+        }
+        try (InputStream is = ClassLoader.getSystemResourceAsStream(internalName + ".class")) {
+            if (is == null) {
+                return new String[] { JAVA_LANG_OBJECT };
+            }
+            return readDirectSupertypes(is);
+        } catch (IOException e) {
+            return new String[] { JAVA_LANG_OBJECT };
+        }
+    }
+
+    private static String[] readDirectSupertypes(InputStream classfileStream) {
+        try {
+            ClassReader reader = new ClassReader(classfileStream);
+            String superName = reader.getSuperName();
+            String[] interfaces = reader.getInterfaces();
+            if (superName == null) return interfaces;
+            String[] result = new String[interfaces.length + 1];
+            result[0] = superName;
+            System.arraycopy(interfaces, 0, result, 1, interfaces.length);
+            return result;
+        } catch (IOException e) {
+            return new String[] { JAVA_LANG_OBJECT };
+        }
+    }
 }

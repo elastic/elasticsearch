@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.Collections;
@@ -23,9 +24,13 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isMetadataField;
     private boolean isSearchable;
     private boolean isAggregatable;
+    private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
     private Map<String, String> meta;
+    private @Nullable String indexAnalyzer;
+    private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+    private boolean indexLocalAnalyzer;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -52,6 +57,11 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder isInference(boolean isInference) {
+        this.isInference = isInference;
+        return this;
+    }
+
     public IndexFieldCapabilitiesBuilder isDimension(boolean isDimension) {
         this.isDimension = isDimension;
         return this;
@@ -67,7 +77,36 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder indexAnalyzer(@Nullable String indexAnalyzer) {
+        this.indexAnalyzer = indexAnalyzer;
+        return this;
+    }
+
+    public IndexFieldCapabilitiesBuilder indexAnalyzerPositionIncrementGap(int indexAnalyzerPositionIncrementGap) {
+        this.indexAnalyzerPositionIncrementGap = indexAnalyzerPositionIncrementGap;
+        return this;
+    }
+
+    /** Withheld {@code index.analysis} name. Only meaningful when {@code indexAnalyzer} is null. */
+    public IndexFieldCapabilitiesBuilder indexLocalAnalyzer(boolean indexLocalAnalyzer) {
+        this.indexLocalAnalyzer = indexLocalAnalyzer;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
-        return new IndexFieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, meta);
+        return new IndexFieldCapabilities(
+            name,
+            type,
+            isMetadataField,
+            isSearchable,
+            isAggregatable,
+            isInference,
+            isDimension,
+            metricType,
+            meta,
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
+        );
     }
 }

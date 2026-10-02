@@ -34,13 +34,13 @@ public final class SampleIntAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public SampleIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleIntAggregatorFunction.create(driverContext, channels, limit);
+    return new SampleIntAggregatorFunction(driverContext, channels, limit);
   }
 
   @Override
   public SampleIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleIntGroupingAggregatorFunction.create(channels, driverContext, limit);
+    return new SampleIntGroupingAggregatorFunction(channels, driverContext, limit);
   }
 
   @Override

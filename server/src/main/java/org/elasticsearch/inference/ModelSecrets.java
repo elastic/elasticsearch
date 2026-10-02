@@ -26,6 +26,14 @@ import java.util.Objects;
 public class ModelSecrets implements ToXContentObject, VersionedNamedWriteable {
     public static final String SECRET_SETTINGS = "secret_settings";
     private static final String NAME = "inference_model_secrets";
+
+    /**
+     * Temporary helper until we transition the constructors over to using the {@link EmptySecretSettings#INSTANCE}.
+     */
+    public static ModelSecrets emptySecrets() {
+        return new ModelSecrets(EmptySecretSettings.INSTANCE);
+    }
+
     private final SecretSettings secretSettings;
 
     public ModelSecrets() {

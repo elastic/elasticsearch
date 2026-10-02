@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class StreamsStatusAction {
 
@@ -41,10 +43,10 @@ public class StreamsStatusAction {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final boolean logs_enabled;
+        private final Map<StreamType, Boolean> enabled;
 
-        public Response(boolean logsEnabled) {
-            logs_enabled = logsEnabled;
+        public Response(Map<StreamType, Boolean> enabled) {
+            this.enabled = enabled;
         }
 
         @Override
@@ -56,9 +58,11 @@ public class StreamsStatusAction {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            builder.startObject("logs");
-            builder.field("enabled", logs_enabled);
-            builder.endObject();
+            for (Map.Entry<StreamType, Boolean> entry : new TreeMap<>(enabled).entrySet()) {
+                builder.startObject(entry.getKey().getStreamName());
+                builder.field("enabled", entry.getValue());
+                builder.endObject();
+            }
 
             builder.endObject();
             return builder;

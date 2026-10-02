@@ -21,7 +21,8 @@ public enum OperationPurpose {
     REPOSITORY_ANALYSIS("RepositoryAnalysis"),
     CLUSTER_STATE("ClusterState"),
     INDICES("Indices"),
-    TRANSLOG("Translog");
+    TRANSLOG("Translog"),
+    RESHARDING("Resharding");
 
     private final String key;
 

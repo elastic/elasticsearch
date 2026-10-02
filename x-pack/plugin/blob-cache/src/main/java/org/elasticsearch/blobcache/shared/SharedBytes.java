@@ -19,12 +19,17 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
+import org.elasticsearch.nativeaccess.MadviseAdvice;
+import org.elasticsearch.nativeaccess.MappedSegment;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -75,6 +80,9 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final boolean mmap;
 
+    // parent mmap closeables whose arenas must be explicitly closed to unmap the shared cache file
+    private final Closeable[] mmapCloseables;
+
     SharedBytes(int numRegions, int regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
         throws IOException {
         this.numRegions = numRegions;
@@ -102,26 +110,36 @@ public class SharedBytes extends AbstractRefCounted {
             int mapSize = regionsPerMmap * regionSize;
             int lastMapSize = Math.toIntExact(fileSize % mapSize);
             int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
-            CloseableMappedByteBuffer[] mmaps = new CloseableMappedByteBuffer[mapCount];
+            MappedSegment[] parentMmaps = new MappedSegment[mapCount];
             for (int i = 0; i < mapCount - 1; i++) {
-                mmaps[i] = map(fileChannel, MapMode.READ_ONLY, (long) mapSize * i, mapSize);
+                parentMmaps[i] = map(fileChannel, MapMode.READ_ONLY, (long) mapSize * i, mapSize);
             }
-            mmaps[mapCount - 1] = map(
+            parentMmaps[mapCount - 1] = map(
                 fileChannel,
                 MapMode.READ_ONLY,
                 (long) mapSize * (mapCount - 1),
                 lastMapSize == 0 ? mapSize : lastMapSize
             );
             for (int i = 0; i < numRegions; i++) {
-                ios[i] = new IO(i, mmaps[i / regionsPerMmap].slice((long) (i % regionsPerMmap) * regionSize, regionSize));
+                ios[i] = new IO(i, parentMmaps[i / regionsPerMmap].slice((long) (i % regionsPerMmap) * regionSize, regionSize));
             }
+            this.mmapCloseables = getMmapCloseables(parentMmaps);
         } else {
             for (int i = 0; i < numRegions; i++) {
                 ios[i] = new IO(i, null);
             }
+            this.mmapCloseables = null;
         }
         this.writeBytes = writeBytes;
         this.readBytes = readBytes;
+    }
+
+    private Closeable[] getMmapCloseables(MappedSegment[] mappedSegments) {
+        Closeable[] closeables = new Closeable[mappedSegments.length];
+        for (int i = 0; i < mappedSegments.length; i++) {
+            closeables[i] = mappedSegments[i]::close;
+        }
+        return closeables;
     }
 
     /**
@@ -305,9 +323,17 @@ public class SharedBytes extends AbstractRefCounted {
     @Override
     protected void closeInternal() {
         try {
-            IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
+            if (mmapCloseables != null) {
+                IOUtils.close(mmapCloseables);
+            }
         } catch (IOException e) {
-            logger.warn("Failed to clean up shared bytes file", e);
+            logger.warn("Failed to unmap shared bytes", e);
+        } finally {
+            try {
+                IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
+            } catch (IOException e) {
+                logger.warn("Failed to clean up shared bytes file", e);
+            }
         }
     }
 
@@ -316,25 +342,64 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
+    public static final int MADV_NORMAL = MadviseAdvice.NORMAL;
+    public static final int MADV_RANDOM = MadviseAdvice.RANDOM;
+
     public final class IO {
+
+        private static final VarHandle VH_CURRENT_ADVICE;
+
+        static {
+            try {
+                VH_CURRENT_ADVICE = MethodHandles.lookup().findVarHandle(IO.class, "currentAdvice", int.class);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
 
         private final long pageStart;
 
-        private final CloseableMappedByteBuffer mappedByteBuffer;
+        private final MappedSegment mappedSegment;
 
-        private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
+        // Cached reference to the region's MemorySegment
+        private final MemorySegment mmapSegment;
+
+        // Racy but safe: opaque access avoids a memory fence on the hot read path.
+        // A stale read may cause a redundant (but idempotent) madvise syscall.
+        private int currentAdvice = MADV_NORMAL;
+
+        private IO(final int sharedBytesPos, MappedSegment mappedSegment) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
             assert physicalOffset <= (long) numRegions * regionSize;
             this.pageStart = physicalOffset;
-            this.mappedByteBuffer = mappedByteBuffer;
+            this.mappedSegment = mappedSegment;
+            this.mmapSegment = mappedSegment != null ? mappedSegment.segment() : null;
         }
 
         public boolean prefetch(long offset, long length) {
             if (mmap) {
-                mappedByteBuffer.prefetch(offset, length);
+                mappedSegment.prefetch(offset, length);
                 return true;
             }
             return false;
+        }
+
+        /**
+         * Advises the OS about the expected access pattern for this region.
+         * Skips the syscall if the advice matches what was previously set.
+         *
+         * @param advice the posix_madvise access pattern advice constant
+         */
+        public void madvise(int advice) {
+            if (mmap && (int) VH_CURRENT_ADVICE.getOpaque(this) != advice) {
+                mappedSegment.madvise(0, regionSize, advice);
+                VH_CURRENT_ADVICE.setOpaque(this, advice);
+            }
+        }
+
+        // visible for testing
+        int currentAdvice() {
+            return (int) VH_CURRENT_ADVICE.getOpaque(this);
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")
@@ -344,13 +409,45 @@ public class SharedBytes extends AbstractRefCounted {
             final int bytesRead;
             if (mmap) {
                 bytesRead = remaining;
-                int startPosition = dst.position();
-                dst.put(startPosition, mappedByteBuffer.buffer(), position, bytesRead).position(startPosition + bytesRead);
+                MemorySegment.copy(mmapSegment, position, MemorySegment.ofBuffer(dst), 0, bytesRead);
+                dst.position(dst.position() + bytesRead);
             } else {
                 bytesRead = fileChannel.read(dst, pageStart + position);
             }
             readBytes.accept(bytesRead);
             return bytesRead;
+        }
+
+        /**
+         * Returns a {@link MemorySegment} slice of the memory-mapped region,
+         * or {@code null} if not memory-mapped.
+         *
+         * @param position the starting position within the region, must be non-negative
+         * @param length   the number of bytes, {@code position + length} must not exceed the region size
+         * @throws IllegalArgumentException if the position/length are out of bounds
+         */
+        public MemorySegment memorySegmentSlice(int position, int length) {
+            if (mmap) {
+                checkOffsets(position, length);
+                return mmapSegment.asSlice(position, length);
+            }
+            return null;
+        }
+
+        /**
+         * Returns the raw native address of the byte at {@code position} within this
+         * memory-mapped region, or {@code -1L} if the region is not memory-mapped.
+         *
+         * <p>Callers are responsible for ensuring {@code position} is within bounds.
+         *
+         * @param position the starting position within the region, in bytes
+         * @return the raw native address, or {@code -1L} if not memory-mapped
+         */
+        public long addressAt(int position) {
+            if (mmap && mmapSegment.address() > 0) {
+                return mmapSegment.address() + position;
+            }
+            return -1L;
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
@@ -378,7 +475,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     static final NativeAccess NATIVE_ACCESS = NativeAccess.instance();
 
-    private static CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
+    private static MappedSegment map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
         return NATIVE_ACCESS.map(fileChannel, mode, position, size);
     }
 }

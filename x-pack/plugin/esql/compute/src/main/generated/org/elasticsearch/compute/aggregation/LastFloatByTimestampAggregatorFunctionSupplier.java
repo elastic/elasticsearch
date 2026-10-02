@@ -31,13 +31,13 @@ public final class LastFloatByTimestampAggregatorFunctionSupplier implements Agg
   @Override
   public LastFloatByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return LastFloatByTimestampAggregatorFunction.create(driverContext, channels);
+    return new LastFloatByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public LastFloatByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return LastFloatByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new LastFloatByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

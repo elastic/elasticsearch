@@ -1,0 +1,1 @@
+FROM (ROW a = 1, b = "x"), (ROW a = 2, b = "y"), (ROW a = 3, b = "z")

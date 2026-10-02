@@ -1,0 +1,285 @@
+version: 9.4.2
+released: true
+generated: 2026-05-28T17:03:43.351862108Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 132166
+    summary: Upgrade to log4j 2.26.0
+    area: Infra/Logging
+    type: upgrade
+    issues:
+      - 132035
+  - pr: 145304
+    summary: Fix CCR follow to handle `indexing_complete` race
+    area: CCR
+    type: bug
+    issues: []
+  - pr: 145960
+    summary: Node-reduce driver should not release search contexts on failure
+    area: ES|QL
+    type: bug
+    issues:
+      - 145509
+  - pr: 146117
+    summary: Fix `InvalidMappedField` equals/hashCode and lazy error message
+    area: ES|QL
+    type: bug
+    issues:
+      - 145907
+  - pr: 147427
+    summary: "Aggs: Fix auto_date_histogram/date_histogram inside a global agg"
+    area: Aggregations
+    type: bug
+    issues:
+      - 92570
+  - pr: 147695
+    summary: Fix synonym reloads not propagating through AnalyzerWrapper subclasses
+    area: Search
+    type: bug
+    issues:
+      - 146914
+  - pr: 147860
+    summary: Use `toTruncatedString` in chunked objects `toString`
+    area: Infra/Core
+    type: bug
+    issues:
+      - 143694
+  - pr: 147934
+    summary: Propagate deprecation warnings
+    area: Transform
+    type: bug
+    issues:
+      - 82935
+      - 82936
+  - pr: 148087
+    summary: Add logging tracking to _xpack/usage
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 148268
+    summary: Only run next search once
+    area: Transform
+    type: bug
+    issues:
+      - 147716
+  - pr: 148362
+    summary: Monitor exceptions in processing queries and log them as failures
+    area: Infra/Logging
+    type: bug
+    issues: []
+  - pr: 148489
+    summary: Default PromQL index to metrics-*
+    area: PromQL
+    type: bug
+    issues: []
+  - pr: 148527
+    summary: Default `exclude_inference_fields` to `exclude_vectors` at REST
+    area: Search
+    type: bug
+    issues:
+      - 146425
+  - pr: 148542
+    summary: Pin server-launcher native -march to x86-64-v2
+    area: Infra/Core
+    type: bug
+    issues:
+      - 148326
+  - pr: 148607
+    summary: Pass `CircuitBreakingException` through `SearchExecutionContext#toQuery`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 148616
+    summary: Fix REPLACE with empty pattern
+    area: SQL
+    type: bug
+    issues: []
+  - pr: 148716
+    summary: Normalize `_timeseries` to JSON for stored source
+    area: ES|QL
+    type: bug
+    issues:
+      - 148414
+  - pr: 148754
+    summary: Fix UOE in CanMatch empty-shards skipped-by-cluster map
+    area: Search
+    type: bug
+    issues: []
+  - pr: 148765
+    summary: Fix `ArrayIndexOutOfBoundsException` in `date_histogram` with `hard_bounds` outside data
+    area: Aggregations
+    type: bug
+    issues:
+      - 148763
+  - pr: 148770
+    summary: Default Prometheus discovery APIs to metrics-*
+    area: PromQL
+    type: bug
+    issues: []
+  - pr: 148777
+    summary: Fix `FsBlobContainer.moveBlobAtomic` fallback on CIFS filesystems
+    area: Distributed
+    type: bug
+    issues:
+      - 148811
+  - pr: 148793
+    summary: "[Inference API] Use image/jpeg instead of image/jpg for inference validation MIME type"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 148813
+    summary: Disallow casting to snapshot-only type
+    area: ES|QL
+    type: bug
+    issues:
+      - 147867
+  - pr: 148815
+    summary: Fix ArrayIndexOutOfBoundsException in centroid grouping evaluateFinal
+    area: ES|QL
+    type: bug
+    issues:
+      - 141318
+  - pr: 148885
+    summary: "Aggs: Account aggs uncompressed size on coordinator reduction"
+    area: Aggregations
+    type: bug
+    issues:
+      - 147190
+  - pr: 148921
+    summary: "[Inference API] Fixing potential NPE if `InferenceContext` is null"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 148983
+    summary: Fix errors in blockloaders when filtering nulls on histograms
+    area: ES|QL
+    type: bug
+    issues:
+      - 147854
+  - pr: 149013
+    summary: Add deprecation message for ES|QL query log
+    area: ES|QL
+    type: deprecation
+    issues: []
+    deprecation:
+      area: ES|QL
+      title: Add deprecation message for ES|QL query log
+      details: ES|QL query logging is deprecated - please use core query logging.
+      impact: This will produce a deprecation message if ES|QL query logging setting is enabled.
+      notable: false
+      essSettingChange: false
+  - pr: 149034
+    summary: Use search threadpool for coordination in ES|QL
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149053
+    summary: Fix "optimized incorrectly" error from project reorder
+    area: ES|QL
+    type: bug
+    issues:
+      - 148612
+  - pr: 149054
+    summary: Fix gpu close resource ordering
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 149268
+    summary: Honor task settings for Amazon Bedrock and Google Vertex chat completion
+    area: Inference
+    type: bug
+    issues:
+      - 148792
+  - pr: 149297
+    summary: Lucene `TermsEnum` and `PostingsEnum` may only be used from acquiring thread
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149323
+    summary: Update `RuleQueryBuilder` to eagerly rewrite organic query
+    area: Search
+    type: bug
+    issues:
+      - 146106
+  - pr: 149373
+    summary: "GPU codec: fall back to CPU graph build on flush when GPU is busy"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 149395
+    summary: Fix FROM *_logs index name validation
+    area: ES|QL
+    type: bug
+    issues:
+      - 146073
+  - pr: 149636
+    summary: "[Inference API] Fix NPE for Inference usage when referencing a embedding task type"
+    area: Inference
+    type: bug
+    issues: []

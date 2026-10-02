@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.chunking;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingStrategy;
@@ -18,6 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings.MAX_CHUNK_SIZE_LOWER_LIMIT;
+import static org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings.MAX_SEPARATOR_COUNT;
+import static org.hamcrest.Matchers.containsString;
 
 public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestCase<RecursiveChunkingSettings> {
 
@@ -72,10 +77,99 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
     }
 
+    public void testValidateWithValidSettings() {
+        var settings = new RecursiveChunkingSettings(randomIntBetween(MAX_CHUNK_SIZE_LOWER_LIMIT, 300), List.of("\n\n", "\n"));
+        settings.validate(); // should not throw
+    }
+
+    public void testValidateWithBoundaryMaxChunkSize() {
+        var settings = new RecursiveChunkingSettings(MAX_CHUNK_SIZE_LOWER_LIMIT, List.of("\n\n", "\n"));
+        settings.validate(); // should not throw
+    }
+
+    public void testValidateWithInvalidMaxChunkSize() {
+        var invalidMaxChunkSize = randomIntBetween(0, MAX_CHUNK_SIZE_LOWER_LIMIT - 1);
+        var settings = new RecursiveChunkingSettings(invalidMaxChunkSize, List.of("\n\n", "\n"));
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(
+            e.getMessage(),
+            containsString(Strings.format("max_chunk_size [%s] must be above %s", invalidMaxChunkSize, MAX_CHUNK_SIZE_LOWER_LIMIT))
+        );
+    }
+
+    public void testValidateWithEmptySeparators() {
+        var settings = new RecursiveChunkingSettings(randomIntBetween(MAX_CHUNK_SIZE_LOWER_LIMIT, 300), List.of());
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("can not have an empty list of separators"));
+    }
+
+    public void testValidateWithInvalidMaxChunkSizeAndEmptySeparators() {
+        var invalidMaxChunkSize = randomIntBetween(0, MAX_CHUNK_SIZE_LOWER_LIMIT - 1);
+        var settings = new RecursiveChunkingSettings(invalidMaxChunkSize, List.of());
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(
+            e.getMessage(),
+            containsString(Strings.format("max_chunk_size [%s] must be above %s", invalidMaxChunkSize, MAX_CHUNK_SIZE_LOWER_LIMIT))
+        );
+        assertThat(e.getMessage(), containsString("can not have an empty list of separators"));
+    }
+
     public void testFromMapEmptySeparators() {
         Map<String, Object> invalidSettings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.empty(), Optional.of(List.of()));
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
+    }
+
+    public void testFromMapTooManySeparatorsEnforced() {
+        int count = MAX_SEPARATOR_COUNT + randomIntBetween(1, 100);
+        List<String> separators = buildSeparatorList(count);
+        Map<String, Object> invalidSettings = buildChunkingSettingsMap(
+            randomIntBetween(10, 300),
+            Optional.empty(),
+            Optional.of(separators)
+        );
+
+        var e = assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings, true));
+        assertThat(
+            e.getMessage(),
+            containsString(Strings.format("separators list size [%s] must not exceed [%s]", count, MAX_SEPARATOR_COUNT))
+        );
+    }
+
+    public void testFromMapTooManySeparatorsNotEnforced() {
+        int count = MAX_SEPARATOR_COUNT + randomIntBetween(1, 100);
+        List<String> separators = buildSeparatorList(count);
+        Map<String, Object> settings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.empty(), Optional.of(separators));
+
+        RecursiveChunkingSettings result = RecursiveChunkingSettings.fromMap(settings);
+        assertEquals(count, result.getSeparators().size());
+    }
+
+    public void testFromMapSeparatorsAtMaxLimit() {
+        List<String> separators = buildSeparatorList(MAX_SEPARATOR_COUNT);
+        Map<String, Object> validSettings = buildChunkingSettingsMap(randomIntBetween(10, 300), Optional.empty(), Optional.of(separators));
+
+        RecursiveChunkingSettings settings = RecursiveChunkingSettings.fromMap(validSettings, true);
+        assertEquals(MAX_SEPARATOR_COUNT, settings.getSeparators().size());
+    }
+
+    public void testValidateWithTooManySeparators() {
+        int count = MAX_SEPARATOR_COUNT + randomIntBetween(1, 100);
+        List<String> separators = buildSeparatorList(count);
+        var settings = new RecursiveChunkingSettings(randomIntBetween(MAX_CHUNK_SIZE_LOWER_LIMIT, 300), separators);
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(
+            e.getMessage(),
+            containsString(Strings.format("separators list size [%s] must not exceed [%s]", count, MAX_SEPARATOR_COUNT))
+        );
+    }
+
+    private static List<String> buildSeparatorList(int count) {
+        List<String> separators = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            separators.add("SEP_" + i);
+        }
+        return separators;
     }
 
     private Map<String, Object> buildChunkingSettingsMap(

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.core;
 
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -454,5 +455,9 @@ public class TimeValue implements Comparable<TimeValue> {
         double thisValue = ((double) duration) * timeUnit.toNanos(1);
         double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
         return Double.compare(thisValue, otherValue);
+    }
+
+    public Duration toDuration() {
+        return Duration.ofNanos(nanos());
     }
 }

@@ -16,12 +16,14 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -51,6 +53,8 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -66,6 +70,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -87,6 +92,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -96,6 +102,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -107,6 +114,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -119,6 +127,7 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -162,7 +171,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -241,12 +249,17 @@ public class SecurityTests extends ESTestCase {
     }
 
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
+        return createComponentsUtil(settings, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+    }
+
+    private Collection<Object> createComponentsUtil(Settings settings, ProjectResolver projectResolver) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null, new CrossClusterAccessSecurityExtension.Provider()));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allowedSettings.add(XPackSettings.AUDIT_ENABLED);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
@@ -270,12 +283,20 @@ public class SecurityTests extends ESTestCase {
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
-            TestProjectResolvers.alwaysThrow(),
-            ProjectRoutingResolver.NOOP
+            projectResolver,
+            CrossProjectModeDecider.NOOP,
+            ProjectRoutingResolver.NOOP,
+            new SystemIndices(List.of()),
+            new UsageService()
         );
     }
 
     private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {
+        return createComponents(testSettings, TestProjectResolvers.DEFAULT_PROJECT_ONLY, extensions);
+    }
+
+    private Collection<Object> createComponents(Settings testSettings, ProjectResolver projectResolver, SecurityExtension... extensions)
+        throws Exception {
         if (security != null) {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }
@@ -291,7 +312,7 @@ public class SecurityTests extends ESTestCase {
                 return List.of();
             }
         });
-        return createComponentsUtil(settings);
+        return createComponentsUtil(settings, projectResolver);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -340,8 +361,12 @@ public class SecurityTests extends ESTestCase {
         assertNull(fileServiceAccountTokenStore);
         IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
         assertNull(indexServiceAccountTokenStore);
-        var account = randomFrom(ServiceAccountService.getServiceAccounts().values());
-        assertThrows(IllegalStateException.class, () -> serviceAccountService.createIndexToken(null, null, null));
+        assertNull(findComponent(UserManagedServiceAccountStore.class, components));
+        var account = randomFrom(ServiceAccountService.getBuiltInServiceAccounts().values());
+        var createTokenFuture = new PlainActionFuture<CreateServiceAccountTokenResponse>();
+        serviceAccountService.createBuiltInToken(null, null, createTokenFuture);
+        var e = expectThrows(IllegalStateException.class, createTokenFuture::actionGet);
+        assertEquals("Can't create token because index service account token store not configured", e.getMessage());
         var future = new PlainActionFuture<Authentication>();
         serviceAccountService.authenticateToken(ServiceAccountToken.newToken(account.id(), "test"), "test", future);
         assertTrue(future.get().isServiceAccount());
@@ -379,6 +404,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(fileServiceAccountTokenStore);
         IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
         assertNotNull(indexServiceAccountTokenStore);
+        assertNotNull(findComponent(UserManagedServiceAccountStore.class, components));
+    }
+
+    public void testUserManagedServiceAccountStoreIsWithheldFromMultiProjectClusters() throws Exception {
+        Collection<Object> components = createComponents(Settings.EMPTY, TestProjectResolvers.allProjects());
+        assertNull(findComponent(UserManagedServiceAccountStore.class, components));
+
+        ServiceAccountService serviceAccountService = findComponent(ServiceAccountService.class, components);
+        assertNotNull(serviceAccountService);
+        var future = new PlainActionFuture<UserManagedServiceAccountStore.PutResult>();
+        serviceAccountService.putUserManagedAccount(
+            new ServiceAccountId("foo", "bar"),
+            List.of("role"),
+            true,
+            null,
+            AuthenticationTestHelper.builder().build(),
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            future
+        );
+        var e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("user-managed service accounts are not available"));
     }
 
     public void testAuditEnabled() throws Exception {
@@ -393,7 +439,7 @@ public class SecurityTests extends ESTestCase {
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
-        assertThat(auditTrailService.getAuditTrail(), nullValue());
+        assertThat(auditTrailService.get(), instanceOf(AuditTrail.class));
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -486,7 +532,8 @@ public class SecurityTests extends ESTestCase {
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -967,8 +1014,6 @@ public class SecurityTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
@@ -983,7 +1028,8 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);

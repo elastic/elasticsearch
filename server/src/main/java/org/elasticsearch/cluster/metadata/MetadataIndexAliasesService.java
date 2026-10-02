@@ -150,6 +150,10 @@ public class MetadataIndexAliasesService {
                     if (view != null) {
                         return view.name();
                     }
+                    Dataset dataset = metadata.dataset(name);
+                    if (dataset != null) {
+                        return dataset.getName();
+                    }
                     return null;
                 };
 

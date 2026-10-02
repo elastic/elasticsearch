@@ -34,13 +34,13 @@ public final class SampleBytesRefAggregatorFunctionSupplier implements Aggregato
   @Override
   public SampleBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleBytesRefAggregatorFunction.create(driverContext, channels, limit);
+    return new SampleBytesRefAggregatorFunction(driverContext, channels, limit);
   }
 
   @Override
   public SampleBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleBytesRefGroupingAggregatorFunction.create(channels, driverContext, limit);
+    return new SampleBytesRefGroupingAggregatorFunction(channels, driverContext, limit);
   }
 
   @Override

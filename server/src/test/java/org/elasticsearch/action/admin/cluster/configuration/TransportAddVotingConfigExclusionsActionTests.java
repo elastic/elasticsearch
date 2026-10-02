@@ -131,7 +131,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             reconfigurator
         ); // registers action
 
@@ -378,7 +378,6 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
             TransportAddVotingConfigExclusionsAction.TYPE.name(),

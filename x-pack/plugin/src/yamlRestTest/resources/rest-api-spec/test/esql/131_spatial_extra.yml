@@ -1,0 +1,312 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fn_st_geometrytype ]
+      reason: "ST_GEOMETRYTYPE, ST_DIMENSION, ST_ISEMPTY added at same time"
+
+  - do:
+      indices.create:
+        index: geo_points_extra
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+              id:
+                type: integer
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: geo_points_extra
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "name": "has_point", "location": "POINT(1 -1)" }
+          - { "index": { } }
+          - { "id": 2, "name": "missing_point" }
+          - { "index": { } }
+          - { "id": 3, "name": "has_point_2", "location": "POINT(-1 1)" }
+
+  - do:
+      indices.create:
+        index: cartesian_points_extra
+        body:
+          mappings:
+            properties:
+              location:
+                type: point
+              id:
+                type: integer
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: cartesian_points_extra
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "name": "has_point", "location": "POINT(4321 -1234)" }
+          - { "index": { } }
+          - { "id": 2, "name": "missing_point" }
+          - { "index": { } }
+          - { "id": 3, "name": "has_point_2", "location": "POINT(-4321 1234)" }
+
+  - do:
+      indices.create:
+        index: geo_shapes_extra
+        body:
+          mappings:
+            properties:
+              shape:
+                type: geo_shape
+              id:
+                type: integer
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: geo_shapes_extra
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "name": "point", "shape": "POINT(0 0)" }
+          - { "index": { } }
+          - { "id": 2, "name": "missing_shape" }
+          - { "index": { } }
+          - { "id": 3, "name": "polygon", "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+          - { "index": { } }
+          - { "id": 4, "name": "linestring", "shape": "LINESTRING(0 0, 1 1, 2 0)" }
+          - { "index": { } }
+          - { "id": 5, "name": "multivalue", "shape": ["POINT(0 0)", "LINESTRING(0 0, 1 1)"] }
+
+  - do:
+      indices.create:
+        index: cartesian_shapes_extra
+        body:
+          mappings:
+            properties:
+              shape:
+                type: shape
+              id:
+                type: integer
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: cartesian_shapes_extra
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "name": "point", "shape": "POINT(0 0)" }
+          - { "index": { } }
+          - { "id": 2, "name": "missing_shape" }
+          - { "index": { } }
+          - { "id": 3, "name": "polygon", "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+          - { "index": { } }
+          - { "id": 4, "name": "linestring", "shape": "LINESTRING(0 0, 1 1, 2 0)" }
+          - { "index": { } }
+          - { "id": 5, "name": "multivalue", "shape": ["POINT(0 0)", "LINESTRING(0 0, 1 1)"] }
+
+---
+st_geometrytype on geo_point with missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_points_extra | EVAL type = ST_GEOMETRYTYPE(location) | SORT id | KEEP id, name, type'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: name }
+  - match: { columns.2.name: type }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, "has_point", "ST_Point"] }
+  - match: { values.1: [2, "missing_point", null] }
+  - match: { values.2: [3, "has_point_2", "ST_Point"] }
+
+---
+st_geometrytype on geo_shape with mixed types and missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_shapes_extra | EVAL type = ST_GEOMETRYTYPE(shape) | SORT id | KEEP id, name, type'
+  - match: { columns.2.name: type }
+  - match: { columns.2.type: keyword }
+  - length: { values: 5 }
+  - match: { values.0: [1, "point", "ST_Point"] }
+  - match: { values.1: [2, "missing_shape", null] }
+  - match: { values.2: [3, "polygon", "ST_Polygon"] }
+  - match: { values.3: [4, "linestring", "ST_LineString"] }
+  - match: { values.4: [5, "multivalue", "ST_GeometryCollection"] }
+
+---
+st_geometrytype on cartesian_point with missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM cartesian_points_extra | EVAL type = ST_GEOMETRYTYPE(location) | SORT id | KEEP id, name, type'
+  - match: { columns.2.name: type }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, "has_point", "ST_Point"] }
+  - match: { values.1: [2, "missing_point", null] }
+  - match: { values.2: [3, "has_point_2", "ST_Point"] }
+
+---
+st_geometrytype on cartesian_shape with mixed types and missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM cartesian_shapes_extra | EVAL type = ST_GEOMETRYTYPE(shape) | SORT id | KEEP id, name, type'
+  - match: { columns.2.name: type }
+  - match: { columns.2.type: keyword }
+  - length: { values: 5 }
+  - match: { values.0: [1, "point", "ST_Point"] }
+  - match: { values.1: [2, "missing_shape", null] }
+  - match: { values.2: [3, "polygon", "ST_Polygon"] }
+  - match: { values.3: [4, "linestring", "ST_LineString"] }
+  - match: { values.4: [5, "multivalue", "ST_GeometryCollection"] }
+
+---
+st_dimension on geo_point with missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_points_extra | EVAL dim = ST_DIMENSION(location) | SORT id | KEEP id, name, dim'
+  - match: { columns.2.name: dim }
+  - match: { columns.2.type: integer }
+  - length: { values: 3 }
+  - match: { values.0: [1, "has_point", 0] }
+  - match: { values.1: [2, "missing_point", null] }
+  - match: { values.2: [3, "has_point_2", 0] }
+
+---
+st_dimension on geo_shape with mixed types and missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_shapes_extra | EVAL dim = ST_DIMENSION(shape) | SORT id | KEEP id, name, dim'
+  - match: { columns.2.name: dim }
+  - match: { columns.2.type: integer }
+  - length: { values: 5 }
+  - match: { values.0: [1, "point", 0] }
+  - match: { values.1: [2, "missing_shape", null] }
+  - match: { values.2: [3, "polygon", 2] }
+  - match: { values.3: [4, "linestring", 1] }
+  - match: { values.4: [5, "multivalue", 1] }
+
+---
+st_dimension on cartesian_point with missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM cartesian_points_extra | EVAL dim = ST_DIMENSION(location) | SORT id | KEEP id, name, dim'
+  - match: { columns.2.name: dim }
+  - match: { columns.2.type: integer }
+  - length: { values: 3 }
+  - match: { values.0: [1, "has_point", 0] }
+  - match: { values.1: [2, "missing_point", null] }
+  - match: { values.2: [3, "has_point_2", 0] }
+
+---
+st_dimension on cartesian_shape with mixed types and missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM cartesian_shapes_extra | EVAL dim = ST_DIMENSION(shape) | SORT id | KEEP id, name, dim'
+  - match: { columns.2.name: dim }
+  - match: { columns.2.type: integer }
+  - length: { values: 5 }
+  - match: { values.0: [1, "point", 0] }
+  - match: { values.1: [2, "missing_shape", null] }
+  - match: { values.2: [3, "polygon", 2] }
+  - match: { values.3: [4, "linestring", 1] }
+  - match: { values.4: [5, "multivalue", 1] }
+
+---
+st_isempty on geo_point with missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_points_extra | EVAL empty = ST_ISEMPTY(location) | SORT id | KEEP id, name, empty'
+  - match: { columns.2.name: empty }
+  - match: { columns.2.type: boolean }
+  - length: { values: 3 }
+  - match: { values.0: [1, "has_point", false] }
+  - match: { values.1: [2, "missing_point", null] }
+  - match: { values.2: [3, "has_point_2", false] }
+
+---
+st_isempty on geo_shape with mixed types and missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_shapes_extra | EVAL empty = ST_ISEMPTY(shape) | SORT id | KEEP id, name, empty'
+  - match: { columns.2.name: empty }
+  - match: { columns.2.type: boolean }
+  - length: { values: 5 }
+  - match: { values.0: [1, "point", false] }
+  - match: { values.1: [2, "missing_shape", null] }
+  - match: { values.2: [3, "polygon", false] }
+  - match: { values.3: [4, "linestring", false] }
+  - match: { values.4: [5, "multivalue", false] }
+
+---
+st_isempty on cartesian_point with missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM cartesian_points_extra | EVAL empty = ST_ISEMPTY(location) | SORT id | KEEP id, name, empty'
+  - match: { columns.2.name: empty }
+  - match: { columns.2.type: boolean }
+  - length: { values: 3 }
+  - match: { values.0: [1, "has_point", false] }
+  - match: { values.1: [2, "missing_point", null] }
+  - match: { values.2: [3, "has_point_2", false] }
+
+---
+st_isempty on cartesian_shape with mixed types and missing values:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM cartesian_shapes_extra | EVAL empty = ST_ISEMPTY(shape) | SORT id | KEEP id, name, empty'
+  - match: { columns.2.name: empty }
+  - match: { columns.2.type: boolean }
+  - length: { values: 5 }
+  - match: { values.0: [1, "point", false] }
+  - match: { values.1: [2, "missing_shape", null] }
+  - match: { values.2: [3, "polygon", false] }
+  - match: { values.3: [4, "linestring", false] }
+  - match: { values.4: [5, "multivalue", false] }

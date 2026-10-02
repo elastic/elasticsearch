@@ -32,10 +32,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -44,6 +42,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -69,6 +68,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -87,7 +87,6 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestInterceptor;
@@ -143,7 +142,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         InternalSearchPlugin,
         ShutdownAwarePlugin,
         RestServerActionPlugin,
-        InternalVectorFormatProviderPlugin {
+        InternalVectorFormatProviderPlugin,
+        HealthPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -219,6 +219,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        List<HealthIndicatorService> services = new ArrayList<>();
+        filterPlugins(HealthPlugin.class).forEach(p -> services.addAll(p.getHealthIndicatorServices()));
+        return services;
+    }
+
+    @Override
     public void loadExtensions(ExtensionLoader loader) {
         super.loadExtensions(loader);
         filterPlugins(ExtensiblePlugin.class).forEach(p -> p.loadExtensions(loader));
@@ -247,43 +254,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        List<RestHandler> handlers = new ArrayList<>(
-            super.getRestHandlers(
-                settings,
-                namedWriteableRegistry,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster,
-                clusterSupportsFeature
-            )
-        );
+        List<RestHandler> handlers = new ArrayList<>(super.getRestHandlers(restHandlersServices, nodesInCluster, clusterSupportsFeature));
         filterPlugins(ActionPlugin.class).forEach(
-            p -> handlers.addAll(
-                p.getRestHandlers(
-                    settings,
-                    namedWriteableRegistry,
-                    restController,
-                    clusterSettings,
-                    indexScopedSettings,
-                    settingsFilter,
-                    indexNameExpressionResolver,
-                    nodesInCluster,
-                    clusterSupportsFeature
-                )
-            )
+            p -> handlers.addAll(p.getRestHandlers(restHandlersServices, nodesInCluster, clusterSupportsFeature))
         );
         return handlers;
     }
@@ -648,8 +625,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
-        final Map<String, RecoveryStateFactory> factories = new HashMap<>();
+    public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> factories = new HashMap<>();
         filterPlugins(IndexStorePlugin.class).forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
         return factories;
     }

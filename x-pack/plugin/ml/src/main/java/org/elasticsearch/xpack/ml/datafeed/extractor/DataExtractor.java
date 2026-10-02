@@ -7,14 +7,21 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public interface DataExtractor {
 
-    record Result(SearchInterval searchInterval, Optional<InputStream> data) {}
+    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates) {
+        public Result {
+            linkedClusterStates = List.copyOf(Objects.requireNonNull(linkedClusterStates));
+        }
+    }
 
     record DataSummary(Long earliestTime, Long latestTime, long totalHits) {
         public boolean hasData() {
@@ -56,4 +63,18 @@ public interface DataExtractor {
      * @return the end time to which this extractor will search
      */
     long getEndTime();
+
+    /**
+     * Returns the per-cluster states from the most recent search attempt, including from
+     * failed attempts where the extractor threw rather than returning a {@link Result}.
+     * Used by {@link org.elasticsearch.xpack.ml.datafeed.DatafeedJob} to update
+     * {@link org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats} even when
+     * extraction fails due to skipped remote clusters.
+     *
+     * @return immutable list of cluster states; empty for local-only datafeeds or if no
+     *         search has been attempted yet
+     */
+    default List<LinkedClusterState> getLinkedClusterStates() {
+        return List.of();
+    }
 }

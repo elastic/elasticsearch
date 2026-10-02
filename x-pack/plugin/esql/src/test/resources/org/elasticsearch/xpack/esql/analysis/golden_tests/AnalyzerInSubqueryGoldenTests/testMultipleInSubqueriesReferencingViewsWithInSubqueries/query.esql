@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no IN (FROM view_a) AND salary IN (FROM view_b)

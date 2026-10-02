@@ -1,5 +1,0 @@
-pr: 139034
-summary: Ensure that the buffer used for ES93BloomFilterStoredFieldsFormat is zeroed
-area: Distributed
-type: bug
-issues: []

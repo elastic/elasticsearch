@@ -79,17 +79,18 @@ final class LongLongBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
-        int positions = (int) hash.size();
+    public Block[] getKeys(IntVector selected) {
+        int positions = selected.getPositionCount();
         LongVector k1 = null;
         LongVector k2 = null;
         try (
             LongVector.Builder keys1 = blockFactory.newLongVectorBuilder(positions);
             LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
         ) {
-            for (long i = 0; i < positions; i++) {
-                keys1.appendLong(hash.getKey1(i));
-                keys2.appendLong(hash.getKey2(i));
+            for (int i = 0; i < positions; i++) {
+                int groupId = selected.getInt(i);
+                keys1.appendLong(hash.getKey1(groupId));
+                keys2.appendLong(hash.getKey2(groupId));
             }
             k1 = keys1.build();
             k2 = keys2.build();

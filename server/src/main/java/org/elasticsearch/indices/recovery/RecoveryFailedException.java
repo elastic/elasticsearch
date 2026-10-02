@@ -33,10 +33,10 @@ public class RecoveryFailedException extends ElasticsearchException {
 
     public RecoveryFailedException(
         ShardId shardId,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         @Nullable String extraInfo,
-        Throwable cause
+        @Nullable Throwable cause
     ) {
         super(
             shardId

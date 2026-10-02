@@ -203,14 +203,10 @@ public final class MetadataMigrateToDataTiersRoutingService {
         ProjectMetadata.Builder newProjectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
 
         // remove ENFORCE_DEFAULT_TIER_PREFERENCE from the persistent settings
-        Settings.Builder persistentSettingsBuilder = Settings.builder().put(mb.persistentSettings());
-        persistentSettingsBuilder.remove(ENFORCE_DEFAULT_TIER_PREFERENCE);
-        mb.persistentSettings(persistentSettingsBuilder.build());
+        mb.persistentSettings(Settings.builder().put(mb.persistentSettings()).remove(ENFORCE_DEFAULT_TIER_PREFERENCE).build());
 
         // and remove it from the transient settings, just in case it was there
-        Settings.Builder transientSettingsBuilder = Settings.builder().put(mb.transientSettings());
-        transientSettingsBuilder.remove(ENFORCE_DEFAULT_TIER_PREFERENCE);
-        mb.transientSettings(transientSettingsBuilder.build());
+        mb.transientSettings(Settings.builder().put(mb.transientSettings()).remove(ENFORCE_DEFAULT_TIER_PREFERENCE).build());
 
         String removedIndexTemplateName = null;
         if (Strings.hasText(indexTemplateToDelete)) {

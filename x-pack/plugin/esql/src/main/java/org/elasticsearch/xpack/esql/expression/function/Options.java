@@ -134,14 +134,15 @@ public class Options {
                 );
             }
 
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionValue = BytesRefs.toString(valueExprLiteral);
             // validate the optionExpr is supported
             if (dataType == null) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, source.text(), allowedOptions.keySet())
                 );
             }
+
+            Object valueExprLiteral = ((Literal) valueExpr).value();
+            String optionValue = BytesRefs.toString(valueExprLiteral);
             try {
                 optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
             } catch (InvalidArgumentException e) {

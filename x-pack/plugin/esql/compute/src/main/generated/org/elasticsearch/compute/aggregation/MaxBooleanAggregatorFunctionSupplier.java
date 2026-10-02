@@ -31,13 +31,13 @@ public final class MaxBooleanAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public MaxBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxBooleanAggregatorFunction.create(driverContext, channels);
+    return new MaxBooleanAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MaxBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxBooleanGroupingAggregatorFunction.create(channels, driverContext);
+    return new MaxBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

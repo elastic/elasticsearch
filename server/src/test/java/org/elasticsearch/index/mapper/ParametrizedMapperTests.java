@@ -16,6 +16,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -36,7 +38,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_RECOVERY;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -44,6 +50,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ParametrizedMapperTests extends MapperServiceTestCase {
+
+    private static final NodeFeature FEATURE_A = new NodeFeature("test_mapper.feature_a");
+    private static final NodeFeature FEATURE_B = new NodeFeature("test_mapper.feature_b");
 
     public enum DummyEnumType {
         NAME1,
@@ -147,6 +156,19 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             EnumSet.of(DummyEnumType.NAME1, DummyEnumType.NAME2)
         );
 
+        final Parameter<String> gated = new Parameter<>("gated", true, () -> "default", (n, c, o) -> {
+            String value = XContentMapValues.nodeStringValue(o);
+            if ("b".equals(value) && c.clusterHasFeature(FEATURE_B) == false) {
+                throw new MapperParsingException(
+                    "value [b] for parameter [gated] on mapper [" + n + "] is not supported until all nodes in the cluster support it"
+                );
+            }
+            return value;
+        }, m -> toType(m).gated, XContentBuilder::field, Function.identity()).requiresFeatures(FEATURE_A);
+
+        final Parameter<Boolean> doubleGated = Parameter.boolParam("double_gated", true, m -> toType(m).doubleGated, false)
+            .requiresFeatures(FEATURE_A, FEATURE_B);
+
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
@@ -168,7 +190,14 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 searchAnalyzer,
                 required,
                 enumField,
-                restrictedEnumField };
+                restrictedEnumField,
+                gated,
+                doubleGated };
+        }
+
+        @Override
+        public String contentType() {
+            return "test_mapper";
         }
 
         @Override
@@ -201,6 +230,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final String required;
         private final DummyEnumType enumField;
         private final DummyEnumType restrictedEnumField;
+        private final String gated;
+        private final boolean doubleGated;
 
         protected TestMapper(String simpleName, String fullName, BuilderParams builderParams, ParametrizedMapperTests.Builder builder) {
             super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), builderParams);
@@ -215,6 +246,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             this.required = builder.required.getValue();
             this.enumField = builder.enumField.getValue();
             this.restrictedEnumField = builder.restrictedEnumField.getValue();
+            this.gated = builder.gated.getValue();
+            this.doubleGated = builder.doubleGated.getValue();
         }
 
         @Override
@@ -233,11 +266,25 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper fromMapping(
+    private static Builder builderFromMapping(String mapping) {
+        return builderFromMapping(mapping, IndexVersion.current(), TransportVersion.current(), false);
+    }
+
+    private static Builder builderFromMapping(
         String mapping,
         IndexVersion version,
         TransportVersion transportVersion,
         boolean fromDynamicTemplate
+    ) {
+        return builderFromMapping(mapping, version, transportVersion, fromDynamicTemplate, f -> true);
+    }
+
+    private static Builder builderFromMapping(
+        String mapping,
+        IndexVersion version,
+        TransportVersion transportVersion,
+        boolean fromDynamicTemplate,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(
@@ -265,11 +312,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             name -> null,
             version,
             () -> transportVersion,
+            clusterSupportsFeature,
             () -> null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData(),
             query -> {
                 throw new UnsupportedOperationException();
             },
@@ -278,8 +325,18 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateContext(null);
         }
-        return (TestMapper) new TypeParser().parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(MapperBuilderContext.root(false, false));
+        return (Builder) new TypeParser().parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc);
+    }
+
+    private static TestMapper fromMapping(
+        String mapping,
+        IndexVersion version,
+        TransportVersion transportVersion,
+        boolean fromDynamicTemplate
+    ) {
+        return (TestMapper) builderFromMapping(mapping, version, transportVersion, fromDynamicTemplate).build(
+            MapperBuilderContext.root(false, false)
+        );
     }
 
     private static TestMapper fromMapping(String mapping, IndexVersion version, TransportVersion transportVersion) {
@@ -288,6 +345,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
     private static TestMapper fromMapping(String mapping) {
         return fromMapping(mapping, IndexVersion.current(), TransportVersion.current());
+    }
+
+    private static TestMapper fromMapping(String mapping, boolean fromDynamicTemplate, Predicate<NodeFeature> clusterSupportsFeature) {
+        return (TestMapper) builderFromMapping(
+            mapping,
+            IndexVersion.current(),
+            TransportVersion.current(),
+            fromDynamicTemplate,
+            clusterSupportsFeature
+        ).build(MapperBuilderContext.root(false, false));
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {
@@ -325,7 +392,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "analyzer": "_keyword",
                 "required": "value",
                 "enum_field": "name1",
-                "restricted_enum_field": "name1"
+                "restricted_enum_field": "name1",
+                "gated": "default",
+                "double_gated": false
               }
             }"""), toStringWithDefaults(mapper));
     }
@@ -337,11 +406,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper mapper = fromMapping(mapping);
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
-        TestMapper badMerge = fromMapping("""
+        Builder existingBuilder = builderFromMapping(mapping);
+        Builder badMergeBuilder = builderFromMapping("""
             {"type":"test_mapper","fixed":true,"fixed2":true,"required":"value"}""");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.merge(badMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> existingBuilder.mergeWith(badMergeBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
         );
         String expectedError = """
             Mapper for [field] conflicts with existing mapper:
@@ -351,10 +421,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
 
-        // TODO: should we have to include 'fixed' here? Or should updates take as 'defaults' the existing values?
-        TestMapper goodMerge = fromMapping("""
+        Builder existingBuilder2 = builderFromMapping(mapping);
+        Builder goodMergeBuilder = builderFromMapping("""
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
-        TestMapper merged = (TestMapper) mapper.merge(goodMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
+        MapperMergeContext mergeContext = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
+        TestMapper merged = (TestMapper) existingBuilder2.mergeWith(goodMergeBuilder, mergeContext)
+            .build(mergeContext.getMapperBuilderContext());
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
         assertEquals("""
@@ -371,8 +443,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         String addSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"keyword"}}}""";
-        TestMapper toMerge = fromMapping(addSubField);
-        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
+        MapperMergeContext mergeContext = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
+        Builder existingBuilder = builderFromMapping(mapping);
+        Builder toMergeBuilder = builderFromMapping(addSubField);
+        TestMapper merged = (TestMapper) existingBuilder.mergeWith(toMergeBuilder, mergeContext)
+            .build(mergeContext.getMapperBuilderContext());
         assertEquals(XContentHelper.stripWhitespace("""
             {
               "field": {
@@ -392,10 +467,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         String badSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"binary"}}}""";
-        TestMapper badToMerge = fromMapping(badSubField);
+        Builder mergedBuilder = builderFromMapping(mapping);
+        Builder toMergeBuilder2 = builderFromMapping(addSubField);
+        mergedBuilder.mergeWith(toMergeBuilder2, mergeContext);
+        Builder badToMergeBuilder = builderFromMapping(badSubField);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> merged.merge(badToMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> mergedBuilder.mergeWith(badToMergeBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
         );
         assertEquals("mapper [field.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
     }
@@ -407,20 +485,23 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper mapper = fromMapping(mapping);
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
-        // On update, copy_to is completely replaced
+        MapperMergeContext mergeContext = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
 
-        TestMapper toMerge = fromMapping("""
+        Builder existingBuilder = builderFromMapping(mapping);
+        Builder toMergeBuilder = builderFromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}""");
-        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
+        TestMapper merged = (TestMapper) existingBuilder.mergeWith(toMergeBuilder, mergeContext)
+            .build(mergeContext.getMapperBuilderContext());
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}}""", Strings.toString(merged));
 
-        TestMapper removeCopyTo = fromMapping("""
+        Builder mergedBuilder = builderFromMapping(mapping);
+        mergedBuilder.mergeWith(builderFromMapping("""
+            {"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}"""), mergeContext);
+        Builder removeCopyToBuilder = builderFromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value"}""");
-        TestMapper noCopyTo = (TestMapper) merged.merge(
-            removeCopyTo,
-            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
-        );
+        TestMapper noCopyTo = (TestMapper) mergedBuilder.mergeWith(removeCopyToBuilder, mergeContext)
+            .build(mergeContext.getMapperBuilderContext());
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value"}}""", Strings.toString(noCopyTo));
     }
@@ -505,10 +586,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         String conflict = """
             {"type":"test_mapper","wrapper":"new value","required":"value"}""";
-        TestMapper toMerge = fromMapping(conflict);
+        Builder existingBuilder = builderFromMapping(mapping);
+        Builder conflictBuilder = builderFromMapping(conflict);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.merge(toMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> existingBuilder.mergeWith(conflictBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
         );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n"
@@ -564,11 +646,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(badAnalyzer));
         assertEquals("analyzer [wibble] has not been configured in mappings", e.getMessage());
 
-        TestMapper original = mapper;
-        TestMapper toMerge = fromMapping(mapping);
+        Builder originalBuilder = builderFromMapping(withDef);
+        Builder toMergeBuilder = builderFromMapping(mapping);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.merge(toMerge, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> originalBuilder.mergeWith(toMergeBuilder, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
         );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [analyzer] from [default] to [_standard]",
@@ -621,7 +703,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "analyzer": "default",
                 "required": "value",
                 "enum_field": "name1",
-                "restricted_enum_field": "name1"
+                "restricted_enum_field": "name1",
+                "gated": "default",
+                "double_gated": false
               }
             }"""), toStringWithDefaults(mapper));
     }
@@ -701,5 +785,171 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             b.field("int_value", 5);    // custom merge validator says that int_value can only increase
         })));
         assertThat(e.getMessage(), containsString("int_value"));
+    }
+
+    public void testFeatureGatedParameter() {
+        for (boolean fromDynamicTemplate : List.of(true, false)) {
+            String mappingWithValue = """
+                {"type":"test_mapper","required":"value","gated":"a"}""";
+            TestMapper mapper = fromMapping(mappingWithValue, fromDynamicTemplate, f -> true);
+            assertEquals("a", mapper.gated);
+            assertEquals("{\"field\":" + mappingWithValue + "}", Strings.toString(mapper));
+
+            MapperParsingException mappingWithValueException = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingWithValue, fromDynamicTemplate, f -> false)
+            );
+            assertEquals(
+                "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
+                mappingWithValueException.getMessage()
+            );
+
+            // the gate only applies to parameters that are actually present in the mapping
+            String mappingWithoutValue = """
+                {"type":"test_mapper","required":"value"}""";
+            mapper = fromMapping(mappingWithoutValue, fromDynamicTemplate, f -> false);
+            assertEquals("default", mapper.gated);
+            assertEquals("{\"field\":" + mappingWithoutValue + "}", Strings.toString(mapper));
+
+            // a parameter gated on several features is only allowed once every one of them is supported
+            String doubleGatedMapping = """
+                {"type":"test_mapper","required":"value","double_gated":true}""";
+            MapperParsingException doubleGatedMappingException = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(doubleGatedMapping, fromDynamicTemplate, FEATURE_A::equals)
+            );
+            assertEquals(
+                "parameter [double_gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster"
+                    + " support it",
+                doubleGatedMappingException.getMessage()
+            );
+
+            mapper = fromMapping(doubleGatedMapping, fromDynamicTemplate, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
+            assertTrue(mapper.doubleGated);
+            assertEquals("{\"field\":" + doubleGatedMapping + "}", Strings.toString(mapper));
+        }
+    }
+
+    // recovering an existing mapping must never fail on the gate, otherwise an index whose mapping was
+    // written while the feature was supported could no longer be recovered
+    public void testFeatureGatedParameterMappingRecovery() throws IOException {
+        // use "b" so that both the key-level gate (FEATURE_A) and the value-level gate (FEATURE_B) must be bypassed
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+        String mapping = """
+            {"_doc":{"properties":{"field":{"type":"test_mapper","required":"value","gated":"b"}}}}""";
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, MAPPING_UPDATE, mapping));
+        assertEquals(
+            "Failed to parse mapping: parameter [gated] on mapper [field] of type [test_mapper] "
+                + "is not supported until all nodes in the cluster support it",
+            e.getMessage()
+        );
+
+        merge(mapperService, MAPPING_RECOVERY, mapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TestMapper.class));
+    }
+
+    // value "a" is always allowed (once the key-level FEATURE_A gate is satisfied); value "b" additionally
+    // requires FEATURE_B, enforced inside the parser lambda
+    public void testFeatureGatedParameterValue() {
+        for (boolean fromDynamicTemplate : List.of(true, false)) {
+            // value "a" is allowed with FEATURE_A alone
+            String mappingValueA = """
+                {"type":"test_mapper","required":"value","gated":"a"}""";
+            TestMapper mapper = fromMapping(mappingValueA, fromDynamicTemplate, FEATURE_A::equals);
+            assertEquals("a", mapper.gated);
+            assertEquals("{\"field\":" + mappingValueA + "}", Strings.toString(mapper));
+
+            // value "b" is rejected when FEATURE_B is absent
+            String mappingValueB = """
+                {"type":"test_mapper","required":"value","gated":"b"}""";
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingValueB, fromDynamicTemplate, FEATURE_A::equals)
+            );
+            assertEquals(
+                "value [b] for parameter [gated] on mapper [field] is not supported until all nodes in the cluster support it",
+                e.getMessage()
+            );
+
+            // value "b" is accepted when both features are supported
+            mapper = fromMapping(mappingValueB, fromDynamicTemplate, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
+            assertEquals("b", mapper.gated);
+            assertEquals("{\"field\":" + mappingValueB + "}", Strings.toString(mapper));
+
+            // the key-level gate (FEATURE_A) fires before the parser lambda, so supplying only FEATURE_B
+            // produces the key-level error message, not the value-level one
+            MapperParsingException keyLevelError = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingValueB, fromDynamicTemplate, FEATURE_B::equals)
+            );
+            assertEquals(
+                "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
+                keyLevelError.getMessage()
+            );
+        }
+    }
+
+    public void testFeatureGatedParameterInDynamicTemplate() throws IOException {
+        String templateValueA = dynamicTemplateMapping("value", "a");
+        String templateValueB = dynamicTemplateMapping("value", "b");
+
+        // key-level gate rejects the template when it is stored
+        MapperService unsupported = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(unsupported, MAPPING_UPDATE, templateValueA));
+        assertThat(e.getMessage(), containsString("dynamic template [gated_tmpl] has invalid content"));
+        assertEquals(
+            "parameter [gated] on mapper [__dynamic__gated_tmpl] of type [test_mapper] is not supported until all nodes in the cluster"
+                + " support it",
+            e.getRootCause().getMessage()
+        );
+
+        // value-level gate rejects the template when it is stored
+        MapperService featureAOnly = new TestMapperServiceBuilder().clusterSupportsFeature(FEATURE_A::equals).build();
+        e = expectThrows(MapperParsingException.class, () -> merge(featureAOnly, MAPPING_UPDATE, templateValueB));
+        assertThat(e.getMessage(), containsString("dynamic template [gated_tmpl] has invalid content"));
+        assertEquals(
+            "value [b] for parameter [gated] on mapper [__dynamic__gated_tmpl] is not supported until all nodes in the cluster support it",
+            e.getRootCause().getMessage()
+        );
+
+        // recovering a stored template must never fail on the gate
+        merge(unsupported, MAPPING_RECOVERY, templateValueB);
+        assertEquals(templateValueB, unsupported.documentMapper().mappingSource().toString());
+
+        for (String template : List.of(templateValueA, templateValueB)) {
+            MapperService supported = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
+            merge(supported, MAPPING_UPDATE, template);
+            assertEquals(template, supported.documentMapper().mappingSource().toString());
+        }
+    }
+
+    // {name} templates are not validated when stored and building the dynamic field during document parsing bypasses the
+    // gate, so the gate is only enforced when the resulting mapping update is merged
+    public void testFeatureGatedParameterInNameTemplateRejectedOnIndexing() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+        merge(mapperService, MAPPING_UPDATE, dynamicTemplateMapping("{name}", "a"));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "x")));
+        CompressedXContent update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(update.string(), containsString("\"gated\":\"a\""));
+
+        String expectedMessage =
+            "parameter [gated] on mapper [foo] of type [test_mapper] is not supported until all nodes in the cluster support it";
+
+        // primary-side preflight check
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.isNoOpUpdate(update));
+        assertThat(e.getMessage(), containsString(expectedMessage));
+
+        // master-side merge
+        e = expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", update, MAPPING_AUTO_UPDATE));
+        assertThat(e.getMessage(), containsString(expectedMessage));
+    }
+
+    private static String dynamicTemplateMapping(String required, String gated) {
+        return Strings.format("""
+            {"_doc":{"dynamic_templates":[{"gated_tmpl":{"match":"*","mapping":\
+            {"gated":"%s","required":"%s","type":"test_mapper"}}}]}}""", gated, required);
     }
 }

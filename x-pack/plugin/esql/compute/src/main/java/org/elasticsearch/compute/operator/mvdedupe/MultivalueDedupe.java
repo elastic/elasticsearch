@@ -13,12 +13,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 import java.util.function.BiFunction;
 
@@ -37,6 +38,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockAdaptive(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockAdaptive(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory);
+            case DOUBLE_RANGE -> new MultivalueDedupeDoubleRange((DoubleRangeBlock) block).dedupeToBlockAdaptive(blockFactory);
             case NULL -> block;
             default -> throw new IllegalArgumentException();
         };
@@ -55,6 +57,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
+            case DOUBLE_RANGE -> new MultivalueDedupeDoubleRange((DoubleRangeBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case NULL -> block;
             default -> throw new IllegalArgumentException();
         };
@@ -75,6 +78,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
+            case DOUBLE_RANGE -> new MultivalueDedupeDoubleRange((DoubleRangeBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case NULL -> block;
             default -> throw new IllegalArgumentException();
         };
@@ -106,6 +110,10 @@ public final class MultivalueDedupe {
                 field,
                 (blockFactory, block) -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory)
             );
+            case DOUBLE_RANGE -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupeDoubleRange((DoubleRangeBlock) block).dedupeToBlockAdaptive(blockFactory)
+            );
             case NULL -> field; // The page is all nulls and when you dedupe that it's still all nulls
             default -> throw new IllegalArgumentException("unsupported type [" + elementType + "]");
         };
@@ -118,7 +126,7 @@ public final class MultivalueDedupe {
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
+     * and then encodes the results into a {@code byte[]} which can be used for
      * things like hashing many fields together.
      */
     public static BatchEncoder batchEncoder(Block block, int batchSize, boolean allowDirectEncoder) {
@@ -136,6 +144,7 @@ public final class MultivalueDedupe {
                 case INT -> new BatchEncoder.DirectInts((IntBlock) block);
                 case LONG -> new BatchEncoder.DirectLongs((LongBlock) block);
                 case DOUBLE -> new BatchEncoder.DirectDoubles((DoubleBlock) block);
+                case DOUBLE_RANGE -> new BatchEncoder.DirectDoubleRanges((DoubleRangeBlock) block);
                 default -> throw new IllegalArgumentException("Unknown [" + elementType + "]");
             };
         } else {
@@ -145,6 +154,7 @@ public final class MultivalueDedupe {
                 case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
                 case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
                 case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
+                case DOUBLE_RANGE -> new MultivalueDedupeDoubleRange((DoubleRangeBlock) block).batchEncoder(batchSize);
                 default -> throw new IllegalArgumentException();
             };
         }

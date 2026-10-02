@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -47,9 +48,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
@@ -62,6 +61,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -253,6 +253,16 @@ public class AbstractAuditorTests extends ESTestCase {
         // the back log will be written some point later
         assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any()));
 
+        // Replace the template put mock with a synchronous response. The latch-based
+        // mock was needed for the first round to avoid blocking the test thread, but
+        // the latch is already open and submitting to threadPool.generic() introduces
+        // a race between the generic thread completing and the test thread proceeding.
+        doAnswer(ans -> {
+            ActionListener<AcknowledgedResponse> listener = ans.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
+
         // "delete" the index
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(2);
@@ -267,6 +277,109 @@ public class AbstractAuditorTests extends ESTestCase {
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any()));
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportCreateIndexAction.TYPE), any(), any()));
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), any(), any()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocRecoversFromIndexNotFound() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            listener.onFailure(new IndexNotFoundException("test_index"));
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message that hits IndexNotFoundException");
+        // writeDoc gets INFE → handleIndexNotFound → reset → indexDoc → backlog → writeBacklog (bulk)
+        assertBusy(() -> verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), any(), any()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocRetriesOnTransientFailure() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        AtomicInteger writeAttempts = new AtomicInteger(0);
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            if (writeAttempts.incrementAndGet() < 3) {
+                listener.onFailure(new RuntimeException("transient write error"));
+            } else {
+                listener.onResponse(mock(DocWriteResponse.class));
+            }
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message that fails then succeeds on retry");
+
+        assertBusy(() -> assertThat(writeAttempts.get(), equalTo(3)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocGivesUpAfterMaxRetries() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        AtomicInteger writeAttempts = new AtomicInteger(0);
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            writeAttempts.incrementAndGet();
+            listener.onFailure(new RuntimeException("persistent write error"));
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message that always fails");
+
+        // 1 optimistic attempt + 1 initial RetryableAction attempt + MAX_WRITE_RETRIES retries = 4 total
+        assertBusy(() -> assertThat(writeAttempts.get(), equalTo(1 + 1 + AbstractAuditor.MAX_WRITE_RETRIES)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInstallTemplateRetriesOnTransientFailure() throws Exception {
+        AtomicInteger createIndexAttempts = new AtomicInteger(0);
+
+        doAnswer(ans -> {
+            ActionListener<AcknowledgedResponse> listener = ans.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
+
+        doAnswer(ans -> {
+            ActionListener<CreateIndexResponse> listener = ans.getArgument(2);
+            if (createIndexAttempts.incrementAndGet() < 3) {
+                listener.onFailure(new RuntimeException("transient create index error"));
+            } else {
+                listener.onResponse(new CreateIndexResponse(true, true, "foo"));
+            }
+            return null;
+        }).when(client).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+
+        doAnswer(ans -> {
+            ActionListener<ClusterHealthResponse> listener = ans.getArgument(2);
+            listener.onResponse(new ClusterHealthResponse());
+            return null;
+        }).when(client).execute(eq(TransportClusterHealthAction.TYPE), any(), any());
+
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        when(client.admin()).thenReturn(adminClient);
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+
+        TestAuditor auditor = new TestAuditor(client, TEST_NODE_NAME, clusterService);
+
+        auditor.info("foobar", "Message queued during index creation");
+
+        assertBusy(() -> assertThat(createIndexAttempts.get(), equalTo(3)));
+        assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any()));
     }
 
     public void testMaxBufferSize() throws Exception {
@@ -325,6 +438,7 @@ public class AbstractAuditorTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.threadPool()).thenReturn(threadPool);
         return clusterService;
     }
 
@@ -381,6 +495,7 @@ public class AbstractAuditorTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.threadPool()).thenReturn(threadPool);
 
         return new TestAuditor(client, TEST_NODE_NAME, clusterService);
     }
@@ -413,9 +528,9 @@ public class AbstractAuditorTests extends ESTestCase {
                     NotificationsIndex.mapping()
                 )
             );
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+            try {
                 return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                    ComposableIndexTemplate.parse(parser)
+                    templateConfig.load(ComposableIndexTemplate::parse)
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);

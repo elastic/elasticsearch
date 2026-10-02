@@ -1,7 +1,6 @@
 ---
 applies_to:
-  stack: preview 9.3
-  serverless: preview
+  stack: preview 9.3, ga 9.4
 navigation_title: "Exponential histogram"
 ---
 
@@ -68,7 +67,7 @@ If the histogram is empty (no positive/negative buckets and zero count is `0`), 
 
 `exponential_histogram` fields are primarily intended for use with aggregations. To make them efficient for aggregations, the histogram is stored as compact [doc values](/reference/elasticsearch/mapping-reference/doc-values.md) and not indexed.
 
-Exponential histograms are supported in ES|QL; see the [ES|QL reference](/reference/query-languages/esql.md) for details.
+Exponential histograms are supported in ES|QL. Refer to [](/reference/query-languages/esql/esql-histogram-fields.md) for supported aggregation functions, casting, and query examples.
 
 In Query DSL, because the data is not indexed, you can use `exponential_histogram` fields only with the following aggregations:
 
@@ -76,6 +75,12 @@ In Query DSL, because the data is not indexed, you can use `exponential_histogra
 - [avg](/reference/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation
 - [value_count](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md) aggregation
 - [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) aggregation
+- [min](/reference/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [max](/reference/aggregations/search-aggregations-metrics-max-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [percentiles](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [percentile ranks](/reference/aggregations/search-aggregations-metrics-percentile-rank-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [boxplot](/reference/aggregations/search-aggregations-metrics-boxplot-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
 
 ## Synthetic `_source` [exponential-histogram-synthetic-source]
 

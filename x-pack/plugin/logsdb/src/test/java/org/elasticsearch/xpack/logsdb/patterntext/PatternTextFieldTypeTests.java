@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
@@ -224,7 +223,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenTemplatingIsEnabled() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         BlockLoader blockLoader = ft.blockLoader(null);
-        assertThat(blockLoader, Matchers.instanceOf(PatternTextBlockLoader.class));
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryBlockLoader.class));
     }
 
     public void testBlockLoaderWhenTemplatingIsDisabledAndBinaryDocValuesAreUsed() {
@@ -266,7 +265,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
             false
         );
         BlockLoader blockLoader = ft.blockLoader(null);
-        assertThat(blockLoader, Matchers.instanceOf(BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader.class));
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryBlockLoader.class));
     }
 
 }

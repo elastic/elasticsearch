@@ -66,7 +66,6 @@ public class TagVersionsTask extends AbstractVersionsTask {
 
         for (var v : versions.entrySet()) {
             Path recordFile = switch (v.getKey()) {
-                case TRANSPORT_VERSION_TYPE -> rootDir.resolve(TRANSPORT_VERSIONS_RECORD);
                 case INDEX_VERSION_TYPE -> rootDir.resolve(INDEX_VERSIONS_RECORD);
                 default -> throw new IllegalArgumentException("Unknown version type " + v.getKey());
             };
@@ -95,7 +94,7 @@ public class TagVersionsTask extends AbstractVersionsTask {
         Integer v7Version = tagVersions.get("Version");
         if (v7Version == null) return tagVersions;
 
-        return Map.of(TRANSPORT_VERSION_TYPE, v7Version, INDEX_VERSION_TYPE, v7Version);
+        return Map.of(INDEX_VERSION_TYPE, v7Version);
     }
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");

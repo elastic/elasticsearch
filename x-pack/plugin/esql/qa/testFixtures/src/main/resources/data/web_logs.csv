@@ -1,0 +1,11 @@
+timestamp:date,uri:keyword,user_agent:keyword,domain:keyword,public_ip:ip
+2024-01-10T10:00:00.000Z,https://www.elastic.co/downloads/elasticsearch,Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36,www.elastic.co,8.8.8.8
+2024-01-10T10:01:30.500Z,/app/login?session=expired,curl/7.68.0,app.example.com,208.67.222.222
+2024-01-10T10:02:15.123Z,https://discuss.elastic.co/c/elasticsearch,Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X),discuss.elastic.co,1.1.1.1
+2024-01-10T10:03:00.000Z,/status,Uptime-Robot/1.0,monitoring.service.internal,127.0.0.1
+2024-01-10T10:04:45.987Z,https://www.google.com/search?q=elasticsearch,Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36,www.google.com,208.67.220.220
+2024-01-10T10:05:05.246Z,ftp://user:pass@files.internal/data.zip,FileZilla/3.57.0,files.internal,10.0.0.5
+2024-01-10T10:06:50.789Z,https://github.com/elastic/elasticsearch,Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36,github.com,8.8.4.4
+2024-01-10T10:07:22.111Z,https://www.elastic.co/guide/en/elasticsearch/reference/current/esql.html,Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0,www.elastic.co,1.0.0.1
+2024-01-10T10:08:33.444Z,/api/v1/users/123,Go-http-client/1.1,api.example.com,192.168.1.100
+2024-01-10T10:09:59.999Z,https://www.iana.org/domains/reserved,Lynx/2.8.9rel.1 libwww-FM/2.14,www.iana.org,2001:4860:4860::8888

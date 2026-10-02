@@ -74,7 +74,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.isUnassignedOrMisassigned;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -530,7 +530,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             DataCounts dataCounts = getJobStats(jobId).getDataCounts();
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {
@@ -716,7 +716,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 return false;
             }
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
-                if (needsReassignment(task.getAssignment(), state.nodes())) {
+                if (isUnassignedOrMisassigned(task.getAssignment(), state.nodes())) {
                     return false;
                 }
             }

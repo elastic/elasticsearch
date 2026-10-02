@@ -12,7 +12,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -62,7 +62,7 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     }
 
     private SortedNumericLongValues longMultiValues(SortedNumericLongValues values) {
-        return new SortedNumericLongValues() {
+        return new SortedNumericLongValues(values.docIdIterator()) {
             @Override
             public long nextValue() throws IOException {
                 return round(values.nextValue());
@@ -95,7 +95,7 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+    public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 

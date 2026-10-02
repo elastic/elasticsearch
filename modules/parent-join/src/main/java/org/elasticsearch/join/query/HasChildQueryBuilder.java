@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -50,7 +51,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * A query builder for {@code has_child} query.
  */
-public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
+public class HasChildQueryBuilder extends LeafQueryBuilder<HasChildQueryBuilder> {
 
     private static final MatchNoDocsQuery CANNOT_LOAD_EMPTY_READER = new MatchNoDocsQuery("Can't load against an empty reader");
     public static final String NAME = "has_child";

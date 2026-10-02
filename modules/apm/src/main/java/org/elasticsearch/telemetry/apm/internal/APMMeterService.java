@@ -9,38 +9,48 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 
-import java.util.function.Supplier;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 public class APMMeterService extends AbstractLifecycleComponent {
-    private final APMMeterRegistry meterRegistry;
 
-    private final Supplier<Meter> otelMeterSupplier;
-    private final Supplier<Meter> noopMeterSupplier;
+    private static final Logger LOGGER = LogManager.getLogger(APMMeterService.class);
+
+    private final APMMeterRegistry meterRegistry;
+    private final MeterSupplier otelMeterSupplier;
+    private final MeterSupplier noopMeterSupplier;
+    private final SystemMetrics systemMetrics;
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings) {
-        this(settings, APMMeterService.otelMeter(), APMMeterService.noopMeter());
+    public APMMeterService(Settings settings, Path diskBufferPath, @Nullable MetricReaderProvider metricReaderProvider) {
+        this(settings, new OtelSdkExportMeterSupplier(settings, diskBufferPath, metricReaderProvider), new NoOpMeterSupplier());
     }
 
-    public APMMeterService(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
-        this(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings), otelMeterSupplier, noopMeterSupplier);
-    }
-
-    public APMMeterService(boolean enabled, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
-        this.enabled = enabled;
+    public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
+        this.enabled = APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
-        this.meterRegistry = new APMMeterRegistry(enabled ? createOtelMeter() : createNoopMeter());
+        this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
+        this.meterRegistry.setInstrumentTimingEnabled(OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED.get(settings));
+        this.systemMetrics = new SystemMetrics(meterRegistry, OtelSdkSettings.NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING.get(settings));
     }
 
     public APMMeterRegistry getMeterRegistry() {
@@ -48,45 +58,68 @@ public class APMMeterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
+     * Not intended for general metric recording; use {@link #getMeterRegistry()} for that.
+     * Returns {@link MeterProvider#noop()} when {@code telemetry.export.endpoint} is not configured.
+     */
+    MeterProvider getHealthMeterProvider() {
+        return otelMeterSupplier.getMeterProvider();
+    }
+
+    /**
+     * Pushes buffered metrics to the OTLP exporter on a best-effort basis.
+     */
+    public CompletableResultCode attemptFlushMetrics() {
+        if (enabled) {
+            return otelMeterSupplier.attemptFlushMetrics();
+        }
+        return CompletableResultCode.ofSuccess();
+    }
+
+    /**
      * @see APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider)
      */
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        meterRegistry.setProvider(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
+    }
+
+    @Override
+    protected void doStart() {
+        systemMetrics.start();
+    }
+
+    @Override
+    protected void doStop() {
         if (enabled) {
-            meterRegistry.setProvider(createOtelMeter());
-        } else {
-            meterRegistry.setProvider(createNoopMeter());
+            try {
+                otelMeterSupplier.attemptFlushMetrics().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                LOGGER.warn("Exception flushing OTel MeterSupplier", e);
+            }
         }
     }
 
     @Override
-    protected void doStart() {}
-
-    @Override
-    protected void doStop() {
-        meterRegistry.setProvider(createNoopMeter());
+    protected void doClose() {
+        systemMetrics.close();
+        try {
+            otelMeterSupplier.close();
+        } catch (Exception e) {
+            LOGGER.warn("Exception closing OTel MeterSupplier", e);
+        }
+        meterRegistry.setProvider(noopMeterSupplier.get());
     }
 
-    @Override
-    protected void doClose() {}
+    private static final class NoOpMeterSupplier implements MeterSupplier {
+        @Override
+        public Meter get() {
+            return OpenTelemetry.noop().getMeter("noop");
+        }
 
-    protected Meter createOtelMeter() {
-        assert this.enabled;
-        return otelMeterSupplier.get();
-    }
-
-    protected Meter createNoopMeter() {
-        return noopMeterSupplier.get();
-    }
-
-    protected static Supplier<Meter> noopMeter() {
-        return () -> OpenTelemetry.noop().getMeter("noop");
-    }
-
-    // to be used within doPrivileged block
-    private static Supplier<Meter> otelMeter() {
-        var openTelemetry = GlobalOpenTelemetry.get();
-        var meter = openTelemetry.getMeter("elasticsearch");
-        return () -> meter;
+        @Override
+        public CompletableResultCode attemptFlushMetrics() {
+            return CompletableResultCode.ofSuccess();
+        }
     }
 }

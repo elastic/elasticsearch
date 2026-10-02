@@ -27,10 +27,10 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -177,6 +177,7 @@ public class AsyncOperatorTests extends ESTestCase {
             sourceOperator,
             intermediateOperators,
             outputOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
             () -> assertFalse(it.hasNext())
         );
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
@@ -314,7 +315,14 @@ public class AsyncOperatorTests extends ESTestCase {
         };
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            sourceOperator,
+            List.of(asyncOperator),
+            outputOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
+            localBreaker
+        );
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
@@ -435,9 +443,8 @@ public class AsyncOperatorTests extends ESTestCase {
 
     protected BlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(factory);
         return factory;
     }

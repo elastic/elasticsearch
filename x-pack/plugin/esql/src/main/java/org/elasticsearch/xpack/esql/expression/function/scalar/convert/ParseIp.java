@@ -13,13 +13,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 import java.net.InetAddress;
 
 /**
- * Fast IP parsing suitable for embedding in an {@link EvalOperator.ExpressionEvaluator}
+ * Fast IP parsing suitable for embedding in an {@link ExpressionEvaluator}
  * because they don't allocate memory on every run. Instead, it converts directly from
  * utf-8 encoded strings into {@link InetAddressPoint} encoded ips.
  * <p>
@@ -205,6 +205,9 @@ public class ParseIp {
                     v = v * 10 + digit(string, offset++);
                 }
                 offset++;
+            }
+            if (v > 255) {
+                throw invalid(string);
             }
             scratch.bytes()[dest] = (byte) v;
         }

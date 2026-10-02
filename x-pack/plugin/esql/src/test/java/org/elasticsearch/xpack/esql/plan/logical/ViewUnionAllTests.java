@@ -1,0 +1,160 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.plan.logical;
+
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class ViewUnionAllTests extends ESTestCase {
+
+    public void testIsInstanceOfUnionAll() {
+        ViewUnionAll viewUnion = viewUnionAll();
+        assertThat(viewUnion, instanceOf(UnionAll.class));
+        assertThat(viewUnion, instanceOf(MergePlan.class));
+    }
+
+    public void testReplaceChildrenPreservesType() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+        ViewUnionAll original = viewUnionAll(child1);
+
+        LogicalPlan replaced = original.replaceChildren(List.of(child2));
+        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        assertEquals(List.of(child2), replaced.children());
+    }
+
+    public void testReplaceSubPlansPreservesType() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+        ViewUnionAll original = viewUnionAll(child1);
+        assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
+
+        ViewUnionAll replaced = original.replaceSubPlans(List.of(child2));
+        assertEquals(List.of(child2), replaced.children());
+        assertThat(replaced.namedSubqueries(), equalTo(Map.of("view_0", child2)));
+    }
+
+    public void testReplaceSubPlansAndOutputPreservesType() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+        ViewUnionAll original = viewUnionAll(child1);
+        assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
+
+        Attribute col1 = new ReferenceAttribute(Source.EMPTY, null, "col", DataType.KEYWORD);
+        ViewUnionAll replaced = original.replaceSubPlansAndOutput(List.of(child2), List.of(col1));
+        assertEquals(List.of(child2), replaced.children());
+        assertThat(replaced.namedSubqueries(), equalTo(Map.of("view_0", child2)));
+        assertThat(replaced.output(), contains(col1));
+    }
+
+    public void testEqualsAndHashCode() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+
+        ViewUnionAll a = viewUnionAll(child1, child2);
+        ViewUnionAll b = viewUnionAll(child1, child2);
+        ViewUnionAll c = viewUnionAll(child1);
+        ViewUnionAll d = viewUnionAll(child2, child1);
+
+        // a and b are identical
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+
+        // a and c are different
+        assertNotEquals(a, c);
+        assertNotEquals(a.hashCode(), c.hashCode());
+
+        // a and d are different
+        assertNotEquals(a, d);
+        assertNotEquals(a.hashCode(), d.hashCode());
+
+        // If we replace subplans we can make d match a
+        d = d.replaceSubPlans(List.of(child1, child2));
+        assertEquals(a, d);
+        assertEquals(a.hashCode(), d.hashCode());
+    }
+
+    /**
+     * {@code asSubqueryMap} used to read a live view over {@code namedSubqueries} and drain it as
+     * a side effect of {@code replaceChildren}, corrupting the <em>original</em> instance. That
+     * mattered because {@code EsqlSession.analyzeWithRetry} can re-run {@code Analyzer.analyze} on
+     * the same parsed plan a second time (the "second attempt, without filter" retry after a
+     * {@code VerificationException}), revisiting the same instance. Pins that {@code replaceChildren}
+     * leaves the original instance untouched and can be called repeatedly.
+     */
+    public void testReplaceChildrenDoesNotMutateOriginalInstance() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+        ViewUnionAll original = viewUnionAll(child1, child2);
+
+        original.replaceChildren(List.of(child1, child2));
+        assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1, "view_1", child2)));
+
+        // Re-analyzing the same instance a second time (what analyzeWithRetry does) still works.
+        LogicalPlan replaced = original.replaceChildren(List.of(child1, child2));
+        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        assertEquals(List.of(child1, child2), replaced.children());
+    }
+
+    public void testNotEqualToPlainUnionAll() {
+        LogicalPlan child = relation("index1");
+
+        ViewUnionAll viewUnion = viewUnionAll(child);
+        UnionAll plainUnion = new UnionAll(Source.EMPTY, List.of(child), List.of());
+
+        // ViewUnionAll and UnionAll with same children should NOT be equal (different getClass())
+        assertNotEquals(viewUnion, plainUnion);
+        assertNotEquals(plainUnion, viewUnion);
+    }
+
+    /**
+     * {@link MergePlan#refreshOutput()} must keep this a {@link ViewUnionAll}, carrying both the named-subqueries map and
+     * the view-branch keys. It used to be implemented per subclass, and {@link UnionAll}'s version named its own
+     * constructor — so a {@code ViewUnionAll} came back as a plain {@code UnionAll} with its view boundaries erased,
+     * which silently sent the request filter down the Lucene push-in path instead of onto the view's output. Reachable
+     * from {@code ResolveUnmapped} and {@code DetermineUnmappedFieldsToKeep}, i.e. {@code unmapped_fields} over a view.
+     */
+    public void testRefreshOutputPreservesTypeAndViewBranchKeys() {
+        LogicalPlan child = relation("index1");
+        ViewUnionAll original = viewUnionAll(child);
+
+        MergePlan refreshed = original.refreshOutput();
+
+        assertThat(refreshed, instanceOf(ViewUnionAll.class));
+        ViewUnionAll refreshedView = (ViewUnionAll) refreshed;
+        assertThat(refreshedView.namedSubqueries(), equalTo(Map.of("view_0", child)));
+        assertThat(refreshedView.viewBranchKeys(), equalTo(Set.of("view_0")));
+        assertTrue("the sole branch must still be recognised as a view branch", refreshedView.isViewBranch("view_0"));
+    }
+
+    /** Builds a {@link ViewUnionAll} where every branch is a view branch (keys {@code "view_0"}, {@code "view_1"}, …). */
+    private static ViewUnionAll viewUnionAll(LogicalPlan... children) {
+        LinkedHashMap<String, LogicalPlan> namedChildren = LinkedHashMap.newLinkedHashMap(children.length);
+        for (int i = 0; i < children.length; i++) {
+            namedChildren.put("view_" + i, children[i]);
+        }
+        return new ViewUnionAll(Source.EMPTY, namedChildren, namedChildren.keySet(), List.of());
+    }
+
+    private static UnresolvedRelation relation(String name) {
+        return new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, name), false, List.of(), IndexMode.STANDARD, null);
+    }
+}

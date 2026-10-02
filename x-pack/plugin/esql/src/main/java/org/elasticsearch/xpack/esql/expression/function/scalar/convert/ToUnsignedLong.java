@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -46,6 +47,9 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         "ToUnsignedLong",
         ToUnsignedLong::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToUnsignedLong.class)
+        .unary(ToUnsignedLong::new)
+        .name("to_unsigned_long", "to_ulong", "to_ul");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(UNSIGNED_LONG, (source, fieldEval) -> fieldEval),
@@ -62,6 +66,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         returnType = "unsigned_long",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Converts a value to an unsigned long.",
         description = """
             Converts an input value to an unsigned long value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.

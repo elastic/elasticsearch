@@ -19,16 +19,19 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.flow.FlowControlHandler;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
@@ -407,6 +410,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
+                // withholds the request while validation runs, so it does its own flow control for that window: it
+                // queues the rest of the read and releases one message per read
+                // TODO: drop that buffering and move flow control above the validator, leaving one place that does it
                 ch.pipeline()
                     .addLast(
                         "header_validator",
@@ -417,46 +423,84 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
 
-            ch.pipeline()
-                .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
-                .addLast("encoder", new HttpResponseEncoder() {
-                    @Override
-                    protected boolean isContentAlwaysEmpty(HttpResponse msg) {
-                        // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
-                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
-                        if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
-                            assert netty4FullHttpResponse.content().isReadable() == false;
-                            return true;
-                        }
-                        return super.isContentAlwaysEmpty(msg);
+            // the HTTP decoder above reads socket bytes and emits multiple HttpObjects per read, content still compressed.
+            // Releasing one at a time caps how much the decompressor below can expand at once.
+            ch.pipeline().addLast("decoder_flow_control", new Netty4HttpFlowControlHandler());
+
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() { // this handles request body decompression
+                private String currentUri;
+
+                @Override
+                protected void decode(ChannelHandlerContext ctx, HttpObject msg, java.util.List<Object> out) throws Exception {
+                    if (msg instanceof HttpRequest request) {
+                        currentUri = request.uri();
                     }
-                })
-                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+                    super.decode(ctx, msg, out);
+                }
+
+                @Override
+                protected EmbeddedChannel newContentDecoder(String contentEncoding) throws Exception {
+                    if (currentUri != null && currentUri.startsWith("/_prometheus") && "snappy".equalsIgnoreCase(contentEncoding)) {
+                        // Prometheus remote write uses raw Snappy block format, not the framed
+                        // format that Netty's SnappyFrameDecoder expects. Skip auto-decompression
+                        // and let the application layer handle it.
+                        return null;
+                    }
+                    return super.newContentDecoder(contentEncoding);
+                }
+            }).addLast("encoder", new HttpResponseEncoder() {
+                @Override
+                protected boolean isContentAlwaysEmpty(HttpResponse msg) {
+                    // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
+                    // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                    if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                        assert netty4FullHttpResponse.content().isReadable() == false;
+                        return true;
+                    }
+                    return super.isContentAlwaysEmpty(msg);
+                }
+            }).addLast(new Netty4HttpContentSizeHandler(handlingSettings.maxContentLength()));
 
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
-                    @Override
-                    protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
-                        if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
-                            return null;
-                        } else {
-                            return super.beginEncode(httpResponse, acceptEncoding);
+                final int compressionLevel = handlingSettings.compressionLevel();
+                final int maxPipelineDepth = transport.pipeliningMaxEvents;
+                ch.pipeline()
+                    .addLast(
+                        "encoder_compress",
+                        // Only gzip and deflate are offered; the ES compression level setting is a
+                        // gzip/deflate concept and does not apply to snappy, brotli, or zstd.
+                        new HttpContentCompressor(
+                            0,
+                            maxPipelineDepth,
+                            StandardCompressionOptions.gzip(compressionLevel, 15, 8),
+                            StandardCompressionOptions.deflate(compressionLevel, 15, 8)
+                        ) {
+                            @Override
+                            protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+                                if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
+                                    return null;
+                                }
+                                return super.beginEncode(httpResponse, acceptEncoding);
+                            }
                         }
-                    }
-                });
+                    );
             }
             if (ResourceLeakDetector.isEnabled()) {
                 ch.pipeline().addLast(new Netty4LeakDetectionHandler());
             }
             ch.pipeline().addLast(new Netty4EmptyChunkHandler());
-            // See https://github.com/netty/netty/issues/15053: the combination of FlowControlHandler and HttpContentDecompressor above
-            // can emit multiple chunks per read, but HttpBody.Stream requires chunks to arrive one-at-a-time so until that issue is
-            // resolved we must add another flow controller here:
-            ch.pipeline().addLast(new FlowControlHandler());
+            // the decompressor above turns a single compressed HttpContent into multiple decompressed ones: at the default
+            // 8KB http.max_chunk_size and a worst case 1:1000 ratio, one chunk expands to 8MB, emitted as 128 x 64KB
+            ch.pipeline().addLast("decoder_compress_flow_control", new Netty4HttpFlowControlHandler());
             ch.pipeline()
                 .addLast(
                     "pipelining",
-                    new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
+                    new Netty4HttpPipeliningHandler(
+                        transport.pipeliningMaxEvents,
+                        transport,
+                        threadWatchdogActivityTracker,
+                        tlsConfig.isTLSEnabled() ? "https" : "http"
+                    )
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
 

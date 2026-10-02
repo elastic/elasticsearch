@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -54,10 +56,12 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMa
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -82,7 +87,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper.routingTable;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
@@ -186,7 +190,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         clusterStateBuilder.routingTable(
@@ -197,7 +202,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
                         IndexShardRoutingTable.builder(new ShardId(index, 0))
                             .addShard(
                                 shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                     )
                     .build()
@@ -221,14 +229,16 @@ public class SecurityIndexManagerTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         ShardRouting replica = ShardRouting.newUnassigned(
             shardId,
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
-            ShardRouting.Role.SEARCH_ONLY
+            ShardRouting.Role.SEARCH_ONLY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         String nodeId2 = ESTestCase.randomAlphaOfLength(8);
@@ -237,11 +247,17 @@ public class SecurityIndexManagerTests extends ESTestCase {
         IndexShardRoutingTable.Builder indxShardRoutingTableBuilder = IndexShardRoutingTable.builder(shardId)
             .addShard(
                 primary.initialize(nodeId, null, primary.getExpectedShardSize())
-                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                    .moveToUnassigned(
+                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    )
             )
             .addShard(
                 replica.initialize(nodeId2, null, replica.getExpectedShardSize())
-                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                    .moveToUnassigned(
+                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    )
             );
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index).addIndexShard(indxShardRoutingTableBuilder);
         GlobalRoutingTable routingTable = GlobalRoutingTable.builder()
@@ -419,10 +435,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                     true,
                                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                                    ShardRouting.Role.DEFAULT
+                                    ShardRouting.Role.DEFAULT,
+                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                         )
                         .build()
@@ -699,7 +719,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfFeature() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -728,7 +748,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfMappingVersion() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -757,7 +777,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfPrecondition() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -835,7 +855,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // No role mappings in cluster state yet
-            metadataBuilder.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
+            metadataBuilder.getProject(projectId).putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -859,10 +879,13 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // Role mappings in cluster state with fallback name
-            metadataBuilder.putCustom(
-                RoleMappingMetadata.TYPE,
-                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true)))
-            );
+            metadataBuilder.getProject(projectId)
+                .putCustom(
+                    RoleMappingMetadata.TYPE,
+                    new RoleMappingMetadata(
+                        Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true))
+                    )
+                );
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -886,10 +909,11 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // Role mappings in cluster state
-            metadataBuilder.putCustom(
-                RoleMappingMetadata.TYPE,
-                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
-            );
+            metadataBuilder.getProject(projectId)
+                .putCustom(
+                    RoleMappingMetadata.TYPE,
+                    new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
+                );
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -934,6 +958,126 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(false));
     }
 
+    public void testWhenIndexAvailableForSearchRespondsImmediatelyTryAwaitSearchableAvailable() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+
+        final AtomicReference<IndexState> response = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(response::set, e -> { throw new AssertionError("unexpected failure", e); })
+        );
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
+    }
+
+    public void testWhenIndexFailsFastOnClosedIndexAvailableForSearch() {
+        final ClusterState.Builder closedState = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.CLOSE
+        );
+        manager.clusterChanged(event(closedState.build()));
+
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(IndexClosedException.class));
+    }
+
+    public void testWaitForSearchThenGetIndexFailsFastWhenWaitTimeoutIsZeroAvailableForSearch() {
+        markShardsUnavailable();
+
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(UnavailableShardsException.class));
+    }
+
+    public void testWhenIndexAvailableForSearchReturnsFreshSnapshotTryAwaitSearchableShardsBecomeAvailable() {
+        markShardsUnavailable();
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
+
+        final AtomicReference<IndexState> response = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(response::set, e -> { throw new AssertionError("unexpected failure", e); }),
+            TimeValue.timeValueSeconds(30)
+        );
+        assertThat(response.get(), nullValue());
+
+        manager.clusterChanged(
+            event(
+                markShardsAvailable(
+                    createClusterState(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7, SecuritySystemIndices.SECURITY_MAIN_ALIAS)
+                )
+            )
+        );
+
+        assertThat(response.get(), notNullValue());
+        assertThat(response.get().isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
+    }
+
+    public void testWaitForSearchThenGetIndexSurfacesFreshReasonWhenWaitTimesOutAvailableForSearch() {
+        markShardsUnavailable();
+        final ArgumentCaptor<Runnable> scheduled = ArgumentCaptor.forClass(Runnable.class);
+        when(threadPool.schedule(scheduled.capture(), any(TimeValue.class), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
+
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.tryAwaitIndexAvailableForSearch(
+            ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set),
+            TimeValue.timeValueSeconds(30)
+        );
+        assertThat(failure.get(), nullValue());
+
+        scheduled.getValue().run();
+
+        assertThat("wait timeout should not be surfaced to caller", failure.get(), instanceOf(UnavailableShardsException.class));
+    }
+
+    private void markShardsUnavailable() {
+        final ClusterState cs = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        ).build();
+        final Index index = cs.metadata().getProject(projectId).index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        );
+        final String nodeId = ESTestCase.randomAlphaOfLength(8);
+        final ClusterState.Builder clusterStateBuilder = ClusterState.builder(cs)
+            .routingTable(
+                routingTable(
+                    projectId,
+                    IndexRoutingTable.builder(index)
+                        .addIndexShard(
+                            IndexShardRoutingTable.builder(new ShardId(index, 0))
+                                .addShard(
+                                    shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                        .moveToUnassigned(
+                                            new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                        )
+                                )
+                        )
+                        .build()
+                )
+            );
+        manager.clusterChanged(event(clusterStateBuilder.build()));
+        assertThat(manager.getProject(projectId).isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(false));
+    }
+
     public void testAddRemoveProjects() {
         final ProjectId projectId1 = randomUniqueProjectId();
         final ProjectId projectId2 = randomUniqueProjectId();
@@ -942,18 +1086,18 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Map<ProjectId, Tuple<IndexState, IndexState>> listeners = new HashMap<>();
         manager.addStateListener((projId, oldState, newState) -> listeners.put(projId, Tuple.tuple(oldState, newState)));
 
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(false));
         manager.clusterChanged(new ClusterChangedEvent("initial", ClusterState.EMPTY_STATE, ClusterState.EMPTY_STATE));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId3).isProjectAvailable(), is(false));
 
         assertThat(listeners, aMapWithSize(1));
-        assertThat(listeners.keySet(), contains(DEFAULT_PROJECT_ID));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().isProjectAvailable(), is(false));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().isProjectAvailable(), is(true));
+        assertThat(listeners.keySet(), contains(ProjectId.DEFAULT));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().isProjectAvailable(), is(false));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().isProjectAvailable(), is(true));
         listeners.clear();
 
         ClusterState oldState = ClusterState.EMPTY_STATE;
@@ -963,8 +1107,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         manager.clusterChanged(new ClusterChangedEvent("add-project-1", newState, oldState));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId1).indexExists(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(false));
@@ -983,8 +1127,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         manager.clusterChanged(new ClusterChangedEvent("add-project-2", newState, oldState));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId1).indexExists(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(true));
@@ -999,7 +1143,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         oldState = newState;
         metadata = Metadata.builder(oldState.metadata())
-            .put(createProjectMetadata(DEFAULT_PROJECT_ID)) // <- adds security index to project
+            .put(createProjectMetadata(ProjectId.DEFAULT)) // <- adds security index to project
             .put(createProjectMetadata(projectId1)) // <- adds security index to project
             .build();
         newState = ClusterState.builder(oldState)
@@ -1007,8 +1151,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         manager.clusterChanged(new ClusterChangedEvent("add-indices", newState, oldState));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(true));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId1).indexExists(), is(true));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(true));
@@ -1016,12 +1160,12 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.getProject(projectId3).isProjectAvailable(), is(false));
 
         assertThat(listeners, aMapWithSize(2));
-        assertThat(listeners.keySet(), containsInAnyOrder(DEFAULT_PROJECT_ID, projectId1));
+        assertThat(listeners.keySet(), containsInAnyOrder(ProjectId.DEFAULT, projectId1));
 
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().indexExists(), is(false));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().indexExists(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().indexExists(), is(false));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().indexExists(), is(true));
 
         assertThat(listeners.get(projectId1).v1().isProjectAvailable(), is(true));
         assertThat(listeners.get(projectId1).v1().indexExists(), is(false));
@@ -1038,8 +1182,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .build();
         manager.clusterChanged(new ClusterChangedEvent("remove-project1 + add-project-3", newState, oldState));
 
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(true));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId2).indexExists(), is(true));
@@ -1064,19 +1208,19 @@ public class SecurityIndexManagerTests extends ESTestCase {
         newState = ClusterState.EMPTY_STATE;
         manager.clusterChanged(new ClusterChangedEvent("reset-to-empty", newState, oldState));
 
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId3).isProjectAvailable(), is(false));
 
         assertThat(listeners, aMapWithSize(3));
-        assertThat(listeners.keySet(), containsInAnyOrder(DEFAULT_PROJECT_ID, projectId2, projectId3));
+        assertThat(listeners.keySet(), containsInAnyOrder(ProjectId.DEFAULT, projectId2, projectId3));
 
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().indexExists(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().indexExists(), is(false));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().indexExists(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().indexExists(), is(false));
 
         assertThat(listeners.get(projectId2).v1().isProjectAvailable(), is(true));
         assertThat(listeners.get(projectId2).v1().indexExists(), is(true));
@@ -1091,7 +1235,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     private void assertInitialState() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final var projectIndex = manager.getProject(projectId);
         assertThat(projectIndex.indexExists(), Matchers.equalTo(false));
         assertThat(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));

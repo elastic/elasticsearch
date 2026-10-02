@@ -56,7 +56,7 @@ public enum Releasables {
         }
     }
 
-    /** Release the provided {@link Releasable}s expecting no exception to by thrown by any of them. */
+    /** Release the provided {@link Releasable}s expecting no exception to be thrown by any of them. */
     public static void closeExpectNoException(Releasable... releasables) {
         try {
             close(releasables);
@@ -66,8 +66,13 @@ public enum Releasables {
         }
     }
 
-    /** Release the provided {@link Releasable} expecting no exception to by thrown. */
-    public static void closeExpectNoException(Releasable releasable) {
+    /** Release the provided {@link Releasable}s expecting no exception to be thrown by any of them. */
+    public static void closeExpectNoException(Iterable<? extends Releasable> releasables) {
+        close(Releasables.wrap(releasables));
+    }
+
+    /** Release the provided {@link Releasable} expecting no exception to be thrown. */
+    public static void closeExpectNoException(@Nullable Releasable releasable) {
         try {
             close(releasable);
         } catch (RuntimeException e) {
@@ -155,6 +160,9 @@ public enum Releasables {
 
     /**
      * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double-releasing.
+     * <p>
+     * Crucially, this drops the reference to the provided resource as soon as it is complete, allowing it and its dependencies to be GCd
+     * even though the small {@code releaseOnce()} wrapper might remain reachable in a collection of pending-release resources somewhere.
      */
     public static Releasable releaseOnce(final Releasable releasable) {
         return new ReleaseOnce(releasable);

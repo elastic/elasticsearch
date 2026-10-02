@@ -19,7 +19,25 @@ import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 public class Clusters {
 
     public static ElasticsearchCluster oldVersionCluster(String user, String pass) {
-        return clusterBuilder(user, pass).build();
+        return oldVersionCluster(user, pass, () -> false);
+    }
+
+    /**
+     * Creates an old-version cluster whose {@code logsdb_columnar} index mode is controlled by
+     * the {@code columnar} supplier. The supplier is evaluated lazily when the cluster starts, so
+     * callers can resolve the value (e.g. via {@code randomBoolean()}) after this method returns.
+     * <p>
+     * The {@code logsdb_columnar} setting is only applied when the old cluster version already
+     * supports it (≥ 9.5.0). For older versions the supplier is ignored and the setting is not
+     * applied.
+     */
+    public static ElasticsearchCluster oldVersionCluster(String user, String pass, Supplier<Boolean> columnar) {
+        var cluster = clusterBuilder(user, pass);
+        String oldVersionProp = System.getProperty("tests.old_cluster_version");
+        if (oldVersionProp != null && Version.fromString(oldVersionProp).onOrAfter(Version.fromString("9.5.0"))) {
+            cluster.setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnar.get()));
+        }
+        return cluster.build();
     }
 
     public static ElasticsearchCluster oldVersionClusterWithLogsDisabled(String user, String pass, Supplier<Boolean> useTrialLicense) {

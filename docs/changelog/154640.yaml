@@ -1,0 +1,5 @@
+area: Infra/Logging
+issues: []
+pr: 154640
+summary: "OTel export support for Query Logging"
+type: enhancement

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -89,14 +90,17 @@ public class AggregatorImplementer {
     private final List<Argument> aggParams;
     private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
+    private final boolean processNulls;
 
     public AggregatorImplementer(
         Elements elements,
         javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions
+        List<TypeMirror> warnExceptions,
+        boolean processNulls
     ) {
+        this.processNulls = processNulls;
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
 
@@ -128,7 +132,9 @@ public class AggregatorImplementer {
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
-            .filter(f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT))
+            .filter(
+                f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT) && false == f.type().equals(WARNINGS)
+            )
             .toList();
 
         this.first = aggState.declaredType.isPrimitive()
@@ -158,6 +164,10 @@ public class AggregatorImplementer {
         return createParameters;
     }
 
+    boolean hasWarningsObject() {
+        return warnExceptions.isEmpty() == false || init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
+    }
+
     public static String capitalize(String s) {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
@@ -180,11 +190,11 @@ public class AggregatorImplementer {
         builder.addSuperinterface(AGGREGATOR_FUNCTION);
         builder.addField(
             FieldSpec.builder(LIST_AGG_FUNC_DESC, "INTERMEDIATE_STATE_DESC", Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .initializer(initInterState())
+                .initializer(initIntermediateStateDescription())
                 .build()
         );
 
-        if (warnExceptions.isEmpty() == false) {
+        if (hasWarningsObject()) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
 
@@ -196,7 +206,6 @@ public class AggregatorImplementer {
             builder.addField(p.type(), p.name(), Modifier.PRIVATE, Modifier.FINAL);
         }
 
-        builder.addMethod(create());
         builder.addMethod(ctor());
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
@@ -204,8 +213,8 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
         if (tryToUseVectors) {
-            builder.addMethod(addRawVector(false));
-            builder.addMethod(addRawVector(true));
+            addAddRawVectorMethods(builder, false);
+            addAddRawVectorMethods(builder, true);
         }
         builder.addMethod(addRawBlock(false));
         builder.addMethod(addRawBlock(true));
@@ -217,51 +226,7 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec create() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
-        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
-        if (warnExceptions.isEmpty() == false) {
-            builder.addParameter(WARNINGS, "warnings");
-        }
-        builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addParameter(LIST_INTEGER, "channels");
-        for (Parameter p : createParameters) {
-            builder.addParameter(p.type(), p.name());
-        }
-        if (createParameters.isEmpty()) {
-            builder.addStatement(
-                "return new $T($LdriverContext, channels, $L)",
-                implementation,
-                warnExceptions.isEmpty() ? "" : "warnings, ",
-                callInit()
-            );
-        } else {
-            builder.addStatement(
-                "return new $T($LdriverContext, channels, $L, $L)",
-                implementation,
-                warnExceptions.isEmpty() ? "" : "warnings, ",
-                callInit(),
-                createParameters.stream().map(p -> p.name()).collect(joining(", "))
-            );
-        }
-        return builder.build();
-    }
-
-    private CodeBlock callInit() {
-        String initParametersCall = init.getParameters()
-            .stream()
-            .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
-            .collect(joining(", "));
-        CodeBlock.Builder builder = CodeBlock.builder();
-        if (aggState.declaredType().isPrimitive()) {
-            builder.add("new $T($T.$L($L))", aggState.type(), declarationType, init.getSimpleName(), initParametersCall);
-        } else {
-            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
-        }
-        return builder.build();
-    }
-
-    private CodeBlock initInterState() {
+    private CodeBlock initIntermediateStateDescription() {
         CodeBlock.Builder builder = CodeBlock.builder();
         builder.add("List.of(");
         boolean addComma = false;
@@ -275,23 +240,42 @@ public class AggregatorImplementer {
     }
 
     private MethodSpec ctor() {
-        MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        if (warnExceptions.isEmpty() == false) {
+        MethodSpec.Builder builder = MethodSpec.constructorBuilder();
+        if (hasWarningsObject()) {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
-        builder.addParameter(aggState.type, "state");
 
-        if (warnExceptions.isEmpty() == false) {
+        for (Parameter p : createParameters()) {
+            p.buildCtor(builder);
+        }
+
+        if (hasWarningsObject()) {
             builder.addStatement("this.warnings = warnings");
         }
         builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.channels = channels");
-        builder.addStatement("this.state = state");
+        builder.addStatement("this.state = $L", initState());
+        return builder.build();
+    }
 
-        for (Parameter p : createParameters()) {
-            p.buildCtor(builder);
+    private CodeBlock initState() {
+        String initParametersCall = init.getParameters().stream().map(p -> {
+            TypeName type = TypeName.get(p.asType());
+            if (type.equals(BIG_ARRAYS)) {
+                return "driverContext.bigArrays()";
+            }
+            if (type.equals(WARNINGS)) {
+                return "warnings";
+            }
+            return p.getSimpleName().toString();
+        }).collect(joining(", "));
+        CodeBlock.Builder builder = CodeBlock.builder();
+        if (aggState.declaredType().isPrimitive()) {
+            builder.add("new $T($T.$L($L))", aggState.type(), declarationType, init.getSimpleName(), initParametersCall);
+        } else {
+            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
         }
         return builder.build();
     }
@@ -332,6 +316,33 @@ public class AggregatorImplementer {
         return hasMask ? "addRawInputMasked" : "addRawInputNotMasked";
     }
 
+    /**
+     * Adds code to skip processing a block when all values are null.
+     */
+    static void skipIfAllNull(MethodSpec.Builder builder, String blockName) {
+        builder.beginControlFlow("if ($L.areAllValuesNull())", blockName);
+        emitAllNullSkipBody(builder);
+        builder.endControlFlow();
+    }
+
+    /**
+     * Emits the body of an all-null skip block: the explanatory comment plus {@code return}.
+     */
+    static void emitAllNullSkipBody(MethodSpec.Builder builder) {
+        builder.addCode("""
+            /*
+             * All values are null so we can skip processing this block.
+             * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+             *       being fast without this. Likely the branch predictor is kicking
+             *       in there. But we do this anyway, just so we don't have to trust
+             *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+             *       always have long sequences of ConstantNullBlock. And this code
+             *       shows readers we've thought about this.
+             */
+            """);
+        builder.addStatement("return");
+    }
+
     private MethodSpec addRawInputExploded(boolean hasMask) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawInputExplodedName(hasMask));
         builder.addModifiers(Modifier.PRIVATE).addParameter(PAGE, "page");
@@ -344,6 +355,12 @@ public class AggregatorImplementer {
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
 
+        if (processNulls == false && tryToUseVectors == false) {
+            for (Argument a : aggParams) {
+                skipIfAllNull(builder, a.blockName());
+            }
+        }
+
         if (tryToUseVectors) {
             for (Argument a : aggParams) {
                 String rawBlock = "addRawBlock("
@@ -351,7 +368,11 @@ public class AggregatorImplementer {
                     + (hasMask ? ", mask" : "")
                     + ")";
 
-                a.resolveVectors(builder, rawBlock, "return");
+                Consumer<MethodSpec.Builder> onAllNull = processNulls == false ? AggregatorImplementer::emitAllNullSkipBody : null;
+                a.resolveVectors(builder, b -> {
+                    b.addStatement(rawBlock);
+                    b.addStatement("return");
+                }, onAllNull);
             }
         }
 
@@ -369,6 +390,161 @@ public class AggregatorImplementer {
 
     private String addRawName(boolean blockStyle) {
         return blockStyle ? "addRawBlock" : "addRawVector";
+    }
+
+    private static final ClassName MEMORY_SEGMENT = ClassName.get("java.lang.foreign", "MemorySegment");
+    private static final ClassName VALUE_LAYOUT = ClassName.get("java.lang.foreign", "ValueLayout");
+
+    /**
+     * Emits {@code addRawVector}. When the first argument's Vector type has a dispatch catalog and the
+     * aggregator has the simple loop shape, emit a single folded method that dispatches inline on the
+     * concrete type (one {@code getClass()} check per block, then a monomorphic per-type body) — every
+     * Arrow arm with a known native layout (including narrower signed widths, which widen on read)
+     * reduces the off-heap buffer via {@code MemorySegment}. This avoids a
+     * dispatcher + one leaf method per subtype, which would bloat the class and destabilize the JIT's
+     * inlining of the unchanged block path. {@code first}/scratch aggregators keep the plain
+     * single-loop {@link #addRawVector}.
+     */
+    private void addAddRawVectorMethods(TypeSpec.Builder typeBuilder, boolean masked) {
+        if (aggParams.getFirst() instanceof BlockArgument) {
+            throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
+        }
+        if (foldVectorDispatch() && vectorDispatchSubtypes().isEmpty() == false) {
+            typeBuilder.addMethod(buildAddRawVectorFolded(masked, vectorDispatchSubtypes()));
+            return;
+        }
+        typeBuilder.addMethod(addRawVector(masked));
+    }
+
+    /** Fold is only safe for the simple loop shape: no {@code first}-value semantics and no scratch state. */
+    private boolean foldVectorDispatch() {
+        if (first != null) {
+            return false;
+        }
+        for (Argument a : aggParams) {
+            if (a.scratchType() != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<ClassName> vectorDispatchSubtypes() {
+        TypeName firstVectorType = aggParams.getFirst().dataType(false);
+        if (firstVectorType instanceof ClassName c) {
+            return Types.VECTOR_DISPATCH_SUBTYPES.getOrDefault(c, List.of());
+        }
+        return List.of();
+    }
+
+    /**
+     * Whether the same-width Arrow arm can use the bulk {@code MemorySegment} reduction: a single
+     * primitive {@code StandardArgument} folded by a primitive-returning {@code combine}, no warning-
+     * wrapped exceptions, and a known {@code ValueLayout}.
+     */
+    private boolean bulkArrowReducible() {
+        if (warnExceptions.isEmpty() == false || aggParams.size() != 1) {
+            return false;
+        }
+        Argument a = aggParams.getFirst();
+        if (a instanceof StandardArgument == false || a.scratchType() != null) {
+            return false;
+        }
+        return TypeName.get(combine.getReturnType()).isPrimitive() && valueLayoutField(a.type()) != null;
+    }
+
+    private static String valueLayoutField(TypeName elementType) {
+        if (elementType.equals(TypeName.INT)) {
+            return "JAVA_INT_UNALIGNED";
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return "JAVA_LONG_UNALIGNED";
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return "JAVA_DOUBLE_UNALIGNED";
+        }
+        if (elementType.equals(TypeName.FLOAT)) {
+            return "JAVA_FLOAT_UNALIGNED";
+        }
+        return null;
+    }
+
+    private MethodSpec buildAddRawVectorFolded(boolean masked, List<ClassName> subtypes) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawName(false)).addModifiers(Modifier.PRIVATE);
+        for (Argument a : aggParams) {
+            a.declareProcessParameter(builder, false);
+        }
+        if (masked) {
+            builder.addParameter(BOOLEAN_VECTOR, "mask");
+        }
+        String vec = aggParams.getFirst().vectorName();
+        boolean bulkReducible = bulkArrowReducible();
+        for (ClassName subtype : subtypes) {
+            // Exact-class (==) so the cast pins the concrete final type and the body devirtualizes.
+            builder.beginControlFlow("if ($L.getClass() == $T.class)", vec, subtype);
+            builder.addStatement("$T specialized = ($T) $L", subtype, subtype, vec);
+            // Any Arrow-buffer subtype with a known native layout reduces through a MemorySegment loop,
+            // widening (signed) to the element type for narrower buffers; everything else loops per element.
+            String segmentLayout = bulkReducible ? Types.ARROW_VECTOR_VALUE_LAYOUT.get(subtype) : null;
+            if (segmentLayout != null) {
+                emitSegmentVectorLoop(builder, masked, "specialized", segmentLayout);
+            } else {
+                emitPerElementVectorLoop(builder, masked, "specialized");
+            }
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
+        emitPerElementVectorLoop(builder, masked, vec);
+        return builder.build();
+    }
+
+    /** Per-element vector loop over {@code accessor} (typed get + {@code combine} into state). */
+    private void emitPerElementVectorLoop(MethodSpec.Builder builder, boolean masked, String accessor) {
+        if (aggState.hasSeen()) {
+            builder.addStatement("state.seen(true)");
+        }
+        builder.beginControlFlow("for (int valuesPosition = 0; valuesPosition < $L.getPositionCount(); valuesPosition++)", accessor);
+        if (masked) {
+            builder.beginControlFlow("if (mask.getBoolean(valuesPosition) == false)").addStatement("continue").endControlFlow();
+        }
+        for (Argument a : aggParams) {
+            a.read(builder, a == aggParams.getFirst() ? accessor : a.vectorName(), "valuesPosition");
+        }
+        combineRawInput(builder, false);
+        builder.endControlFlow();
+    }
+
+    /**
+     * Bulk MemorySegment reduction over {@code accessor}'s off-heap Arrow buffer, accumulating in a local.
+     * {@code valueLayout} is the buffer's native element layout (e.g. {@code JAVA_SHORT_UNALIGNED} for a
+     * 16-bit Arrow vector feeding an {@code int} aggregator); the read value widens (signed) to the
+     * aggregator's element type.
+     */
+    private void emitSegmentVectorLoop(MethodSpec.Builder builder, boolean masked, String accessor, String valueLayout) {
+        Argument arg = aggParams.getFirst();
+        TypeName returnType = TypeName.get(combine.getReturnType());
+        // JAVA_BYTE has no getAtIndex overload; for a single-byte layout the element index equals the byte offset.
+        boolean byteIndexed = valueLayout.equals("JAVA_BYTE");
+        builder.addStatement("$T bulkSegment = $L.valuesSegment()", MEMORY_SEGMENT, accessor);
+        builder.addStatement("int bulkCount = $L.getPositionCount()", accessor);
+        builder.addStatement("$T bulkAcc = state.$TValue()", returnType, returnType);
+        builder.beginControlFlow("for (int p = 0; p < bulkCount; p++)");
+        if (masked) {
+            builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
+        }
+        builder.addStatement(
+            byteIndexed ? "$T $L = bulkSegment.get($T.$L, p)" : "$T $L = bulkSegment.getAtIndex($T.$L, p)",
+            arg.type(),
+            arg.valueName(),
+            VALUE_LAYOUT,
+            valueLayout
+        );
+        builder.addStatement("bulkAcc = $T.combine(bulkAcc, $L)", declarationType, arg.valueName());
+        builder.endControlFlow();
+        builder.addStatement("state.$TValue(bulkAcc)", returnType);
+        if (aggState.hasSeen()) {
+            builder.addStatement("state.seen(true)");
+        }
     }
 
     private MethodSpec addRawVector(boolean masked) {
@@ -733,14 +909,10 @@ public class AggregatorImplementer {
         }
 
         public void assignToVariable(MethodSpec.Builder builder, int offset, boolean forcePassDown) {
-            builder.addStatement("Block $L = page.getBlock(channels.get($L))", name + "Uncast", offset);
+            builder.addStatement("$T $L = page.getBlock(channels.get($L))", BLOCK, name + "Uncast", offset);
             ClassName blockType = blockType(elementType());
             if (forcePassDown == false) {
-                builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
-                {
-                    builder.addStatement("return");
-                    builder.endControlFlow();
-                }
+                skipIfAllNull(builder, name + "Uncast");
             }
 
             if (block || vectorType(elementType) == null || forcePassDown) {

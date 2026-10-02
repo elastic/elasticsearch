@@ -11,7 +11,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
@@ -22,6 +27,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
@@ -55,6 +61,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
@@ -63,6 +70,7 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.r
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.containsString;
 
 public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
@@ -73,7 +81,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         registerSimplifiedConnectorIndexTemplates(indicesAdmin());
-        this.connectorIndexService = new ConnectorIndexService(client());
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.addAll(ConnectorsConfig.getSettings());
+        this.connectorIndexService = new ConnectorIndexService(client(), new ClusterSettings(Settings.EMPTY, settingsSet));
     }
 
     @Override
@@ -99,6 +109,15 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(resp.getId());
         assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
+    }
+
+    public void testPutConnector_WithTooLongDescription_ExpectFailure() {
+        String description = randomAlphaOfLength(ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING.getDefault(Settings.EMPTY) + 1);
+        PlainActionFuture<ConnectorCreateActionResponse> future = new PlainActionFuture<>();
+        connectorIndexService.createConnector(randomUUID(), description, randomAlphaOfLength(10), false, null, null, null, future);
+
+        Exception e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("The description cannot exceed"));
     }
 
     public void testDeleteConnector_expectSoftDeletionSingle() throws Exception {
@@ -225,22 +244,18 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         // More comprehensive tests are defined in yamlRestTest.
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testUpdateConnectorConfiguration_PartialValuesUpdate() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
+        indexConnectorConfiguration(connectorId, connector.getConfiguration());
+
         Map<String, Object> connectorNewConfiguration = connector.getConfiguration()
             .entrySet()
             .stream()
-            .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey,
-                    entry -> Map.of(ConnectorConfiguration.VALUE_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10))
-                )
-            );
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> randomAlphaOfLengthBetween(3, 10)));
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connectorId,
@@ -260,24 +275,20 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testUpdateConnectorConfiguration_PartialValuesUpdate_SelectedKeys() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
+        indexConnectorConfiguration(connectorId, connector.getConfiguration());
+
         Set<String> configKeys = connector.getConfiguration().keySet();
 
         Set<String> keysToUpdate = new HashSet<>(randomSubsetOf(configKeys));
 
         Map<String, Object> connectorNewConfigurationPartialValuesUpdate = keysToUpdate.stream()
-            .collect(
-                Collectors.toMap(
-                    key -> key,
-                    key -> Map.of(ConnectorConfiguration.VALUE_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10))
-                )
-            );
+            .collect(Collectors.toMap(key -> key, key -> randomAlphaOfLengthBetween(3, 10)));
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connectorId,
@@ -877,6 +888,17 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updateNameDescriptionRequest.getName(), equalTo(indexedConnector.getName()));
         assertThat(updateNameDescriptionRequest.getDescription(), equalTo(indexedConnector.getDescription()));
+    }
+
+    public void testUpdateConnectorNameOrDescription_WithTooLongDescription_ExpectFailure() {
+        UpdateConnectorNameAction.Request request = new UpdateConnectorNameAction.Request(
+            randomUUID(),
+            null,
+            randomAlphaOfLength(ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING.getDefault(Settings.EMPTY) + 1)
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> awaitUpdateConnectorName(request));
+        assertThat(e.getMessage(), containsString("The description cannot exceed"));
     }
 
     public void testUpdateConnectorNative() throws Exception {
@@ -1543,6 +1565,36 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
         assertNotNull("Received null response from update error request", resp.get());
         return resp.get();
+    }
+
+    private void indexConnectorConfiguration(String connectorId, Map<String, ConnectorConfiguration> configuration) throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.xContentValuesMap(Connector.CONFIGURATION_FIELD.getPreferredName(), configuration);
+        builder.endObject();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        client().update(
+            new UpdateRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME, connectorId).doc(builder)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(UpdateResponse updateResponse) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    exc.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue("Timeout waiting for index configuration", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
     }
 
     private UpdateResponse awaitUpdateConnectorApiKeyIdOrApiKeySecretId(

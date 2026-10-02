@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -52,20 +53,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class ResultsPersisterService {
-    /**
-     * List of rest statuses that we consider irrecoverable
-     */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
-        RestStatus.GONE,
-        RestStatus.NOT_IMPLEMENTED,
-        // Not found is returned when we require an alias but the index is NOT an alias.
-        RestStatus.NOT_FOUND,
-        RestStatus.BAD_REQUEST,
-        RestStatus.UNAUTHORIZED,
-        RestStatus.FORBIDDEN,
-        RestStatus.METHOD_NOT_ALLOWED,
-        RestStatus.NOT_ACCEPTABLE
-    );
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
 
@@ -320,8 +307,12 @@ public class ResultsPersisterService {
      * @return true when the failure will persist no matter how many times we retry.
      */
     private static boolean isIrrecoverable(Exception ex) {
-        Throwable t = ExceptionsHelper.unwrapCause(ex);
-        return IRRECOVERABLE_REST_STATUSES.contains(status(t));
+        // RecoverableException is our internal retry signal; always treat as recoverable.
+        if (ex instanceof RecoverableException) {
+            return false;
+        }
+        // Delegate to the centralised classifier, which uses an explicit allowlist.
+        return MlRecoverableErrorClassifier.isRecoverable(ex) == false;
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")

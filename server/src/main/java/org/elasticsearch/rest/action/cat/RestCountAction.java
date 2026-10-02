@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -39,8 +38,8 @@ public class RestCountAction extends AbstractCatAction {
 
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestCountAction(Settings settings) {
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestCountAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

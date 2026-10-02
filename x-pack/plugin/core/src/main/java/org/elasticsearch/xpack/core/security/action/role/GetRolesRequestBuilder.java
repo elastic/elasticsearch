@@ -27,4 +27,9 @@ public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest
         request.nativeOnly(nativeOnly);
         return this;
     }
+
+    public GetRolesRequestBuilder includeImplicit(boolean includeImplicit) {
+        request.includeImplicit(includeImplicit);
+        return this;
+    }
 }

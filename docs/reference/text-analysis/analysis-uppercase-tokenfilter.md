@@ -9,7 +9,7 @@ mapped_pages:
 
 Changes token text to uppercase. For example, you can use the `uppercase` filter to change `the Lazy DoG` to `THE LAZY DOG`.
 
-This filter uses Lucene’s [UpperCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/UpperCaseFilter.md).
+This filter uses Lucene’s [UpperCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/UpperCaseFilter.html).
 
 ::::{warning}
 Depending on the language, an uppercase character can map to multiple lowercase characters. Using the `uppercase` filter could result in the loss of lowercase character information.

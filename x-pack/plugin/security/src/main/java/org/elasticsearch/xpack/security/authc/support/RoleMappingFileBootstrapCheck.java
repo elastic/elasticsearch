@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * A BootstrapCheck that {@link DnRoleMapper} files exist and are valid (valid YAML and valid DNs)
@@ -33,15 +31,7 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         try {
-            AccessController.doPrivileged(
-                (PrivilegedAction<?>) () -> DnRoleMapper.parseFile(
-                    path,
-                    LogManager.getLogger(getClass()),
-                    realmConfig.type(),
-                    realmConfig.name(),
-                    true
-                )
-            );
+            DnRoleMapper.parseFile(path, LogManager.getLogger(getClass()), realmConfig.type(), realmConfig.name(), true);
             return BootstrapCheckResult.success();
         } catch (Exception e) {
             return BootstrapCheckResult.failure(e.getMessage());

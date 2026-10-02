@@ -14,16 +14,15 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
-import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
 
-public class CohereRerankModel extends CohereModel {
-    public static CohereRerankModel of(CohereRerankModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = CohereRerankTaskSettings.fromMap(taskSettings);
+public class CohereRerankModel extends CohereModel<CohereRerankServiceSettings> {
+    public static CohereRerankModel createWithOverriddenTaskSettings(CohereRerankModel model, Map<String, Object> taskSettings) {
+        var requestTaskSettings = CohereRerankTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         return new CohereRerankModel(model, CohereRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
@@ -37,8 +36,8 @@ public class CohereRerankModel extends CohereModel {
         this(
             modelId,
             CohereRerankServiceSettings.fromMap(serviceSettings, context),
-            CohereRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            CohereRerankTaskSettings.fromMap(taskSettings, context),
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -55,12 +54,7 @@ public class CohereRerankModel extends CohereModel {
     }
 
     public CohereRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(
-            modelConfigurations,
-            modelSecrets,
-            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            (CohereRateLimitServiceSettings) modelConfigurations.getServiceSettings()
-        );
+        super(modelConfigurations, modelSecrets, ((CohereRerankServiceSettings) modelConfigurations.getServiceSettings()).commonSettings());
     }
 
     private CohereRerankModel(CohereRerankModel model, CohereRerankTaskSettings taskSettings) {
@@ -69,11 +63,6 @@ public class CohereRerankModel extends CohereModel {
 
     public CohereRerankModel(CohereRerankModel model, CohereRerankServiceSettings serviceSettings) {
         super(model, serviceSettings);
-    }
-
-    @Override
-    public CohereRerankServiceSettings getServiceSettings() {
-        return (CohereRerankServiceSettings) super.getServiceSettings();
     }
 
     @Override

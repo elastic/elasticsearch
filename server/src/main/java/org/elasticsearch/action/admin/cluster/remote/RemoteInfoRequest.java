@@ -10,12 +10,12 @@
 package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public final class RemoteInfoRequest extends LegacyActionRequest {
+public final class RemoteInfoRequest extends UntypedActionRequest {
 
     public RemoteInfoRequest() {}
 

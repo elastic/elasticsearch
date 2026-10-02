@@ -11,7 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,7 +39,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     @Override
     public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
         final SortedNumericDoubleValues values = vs.doubleValues(context);
-        final DoubleValues singleton = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
             return org.elasticsearch.index.fielddata.FieldData.singleton(doubleSingleValues(singleton));
         } else {
@@ -48,7 +48,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     }
 
     private SortedNumericDoubleValues doubleMultiValues(SortedNumericDoubleValues values) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(values.isSingleton(), values.docIdIterator()) {
             @Override
             public double nextValue() throws IOException {
                 return Math.floor(values.nextValue() / interval) * interval;
@@ -81,7 +81,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+    public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 

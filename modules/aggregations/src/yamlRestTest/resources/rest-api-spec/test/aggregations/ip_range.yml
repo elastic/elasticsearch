@@ -7,6 +7,9 @@ setup:
               properties:
                 ip:
                    type: ip
+  - do:
+      indices.refresh:
+        index: test
 
 ---
 "IP range":

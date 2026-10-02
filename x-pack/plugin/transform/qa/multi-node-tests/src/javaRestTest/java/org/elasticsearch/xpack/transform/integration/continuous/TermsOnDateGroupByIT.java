@@ -184,7 +184,6 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
                 equalTo(XContentMapValues.extractValue(MAX_RUN_FIELD, source))
             );
         }
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 }

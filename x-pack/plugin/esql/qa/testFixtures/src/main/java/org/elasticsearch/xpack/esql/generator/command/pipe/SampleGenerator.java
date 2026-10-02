@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -26,7 +27,8 @@ public class SampleGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         double n = randomDoubleBetween(0.0, 1.0, false);
         String cmd = " | SAMPLE " + n;
@@ -42,6 +44,6 @@ public class SampleGenerator implements CommandGenerator {
         List<Column> columns,
         List<List<Object>> output
     ) {
-        return CommandGenerator.expectSameColumns(previousColumns, columns);
+        return CommandGenerator.expectSameColumns(previousCommands, previousColumns, columns);
     }
 }

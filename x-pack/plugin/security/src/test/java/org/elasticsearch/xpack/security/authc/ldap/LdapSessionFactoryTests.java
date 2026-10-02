@@ -13,7 +13,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -90,22 +90,22 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         if (listenAddress == null) {
             listenAddress = InetAddress.getLoopbackAddress();
         }
-        String ldapUrl = new LDAPURL(
-            protocol,
-            NetworkAddress.format(listenAddress),
-            ldapServer.getListenPort(protocol),
-            null,
-            null,
-            null,
-            null
-        ).toString();
+        String host = InetAddresses.toUriString(listenAddress);
+
+        String ldapUrl = new LDAPURL(protocol, host, ldapServer.getListenPort(protocol), null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
+        // The response timeout must be well below the server-side processing delay (below) so that the client gives up
+        // waiting for the bind response. It must not be too small either: the LDAP SDK also applies this value as the
+        // socket SO_TIMEOUT and as the deadline for *sending* the request (enforced by a timer that closes the socket
+        // if a write is still in progress when it ticks). With a very small value (e.g. 1ms) a slow TLS write on a busy
+        // CI host can be aborted mid-flight, yielding a "socket closed" or TLS error instead of the expected timeout.
+        final String responseTimeout = "100ms";
         Settings settings = Settings.builder()
             .put(globalSettings)
             .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "1ms")
+            .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), responseTimeout)
             .put("path.home", createTempDir())
             .build();
 
@@ -293,15 +293,9 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         if (listenAddress == null) {
             listenAddress = InetAddress.getLoopbackAddress();
         }
-        String ldapUrl = new LDAPURL(
-            "ldaps",
-            NetworkAddress.format(listenAddress),
-            ldapServer.getListenPort("ldaps"),
-            null,
-            null,
-            null,
-            null
-        ).toString();
+
+        String address = InetAddresses.toUriString(listenAddress);
+        String ldapUrl = new LDAPURL("ldaps", address, ldapServer.getListenPort("ldaps"), null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 

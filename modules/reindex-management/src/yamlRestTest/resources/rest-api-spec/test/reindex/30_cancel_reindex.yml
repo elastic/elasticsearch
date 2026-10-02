@@ -46,15 +46,16 @@ setup:
         human: true
   - match: { completed: true }
   - exists: id
+  - match: { description: "reindex from [source] to [dest]" }
   - exists: start_time
   - gte: { start_time_in_millis: 0 }
   - exists: running_time
   - gte: { running_time_in_nanos: 0 }
   - match: { cancelled: true }
-  - match: { status.canceled: "by user request" }
+  # the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+  - exists: status.canceled
   - gte: { status.total: 0 }
-  # different from `GET _reindex`
-  - not_exists: response
+  # depending on how quickly we cancel, we might either get an error (shard failure) or response, so not asserting
 
   - do:
       reindex_get:
@@ -64,7 +65,8 @@ setup:
   - match: { id: $taskId }
   # cancelled is not serialized to tasks index, so returns default boolean value (yes, confusing.)
   - match: { cancelled: false }
-  - match: { status.canceled: "by user request" }
+  # the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+  - exists: status.canceled
 
 
 ---

@@ -315,6 +315,22 @@ public class SlicedInputStreamTests extends ESTestCase {
         input.close();
     }
 
+    public void testReadNBytesAcrossSlices() throws IOException {
+        final int sliceSize = randomIntBetween(10000, 20000);
+        final int numSlices = randomIntBetween(2, 5);
+        final byte[] data = randomByteArrayOfLength(sliceSize * numSlices);
+
+        final SlicedInputStream input = new SlicedInputStream(numSlices) {
+            @Override
+            protected InputStream openSlice(int slice) {
+                return new ByteArrayInputStream(data, slice * sliceSize, sliceSize);
+            }
+        };
+
+        assertArrayEquals(data, input.readNBytes(data.length));
+        input.close();
+    }
+
     private int readFully(InputStream stream, byte[] buffer) throws IOException {
         for (int i = 0; i < buffer.length;) {
             int read = stream.read(buffer, i, buffer.length - i);

@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Response;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
@@ -42,12 +45,14 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
-
     private final Client client;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportValidateTransformAction(
@@ -57,7 +62,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
-        IngestService ingestService
+        IngestService ingestService,
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -75,34 +82,41 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> rawListener) {
+        // Ensure the credential's SecureString is closed once validation completes (success or failure).
+        final ActionListener<Response> listener = ActionListener.releaseAfter(rawListener, request);
+
         final ClusterState clusterState = clusterService.state();
         if (request.isDeferValidation() == false) {
-            TransformNodes.throwIfNoTransformNodes(clusterState);
-            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
-            if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                clusterState,
-                nodeSettings,
-                requiresRemote,
-                transportService,
-                actionName,
-                request,
-                Response::new,
-                listener
-            )) {
+            if (TransformNodes.hasNoTransformNodes(clusterState)) {
+                TransformNodes.completeWithNoTransformNodeException(listener);
                 return;
+            } else {
+                boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
+                if (TransformNodes.redirectToAnotherNodeIfNeeded(
+                    clusterState,
+                    nodeSettings,
+                    requiresRemote,
+                    transportService,
+                    actionName,
+                    request,
+                    Response::new,
+                    listener
+                )) {
+                    return;
+                }
             }
         }
 
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         var config = request.getConfig();
-        var function = FunctionFactory.create(config);
-        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
@@ -118,7 +132,15 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             return;
         }
 
-        // <5> Final listener
+        var function = FunctionFactory.create(config);
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
+        // These validation searches run under the caller's live credential (not the stored config
+        // headers). Scope cross-project resolution to whether that credential can actually fan out.
+        var sourceIndicesOptions = config.getSource().indicesOptions(request.cloudCredential() != null);
+
+        // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             listener.onResponse(new Response(deducedMappings));
         },
@@ -127,28 +149,74 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             )
         );
 
-        // <4> Deduce destination index mappings
+        // <5> Deduce destination index mappings
         ActionListener<Boolean> validateQueryListener = ActionListener.wrap(validateQueryResponse -> {
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getId(),
+                    config.getSource(),
+                    sourceIndicesOptions,
+                    deduceMappingsListener
+                );
             }
         }, listener::onFailure);
 
-        // <3> Validate transform query
-        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(validateConfigResponse -> {
+        // <4> Validate transform query
+        ActionListener<Boolean> validateConfigListener = validateQueryListener.delegateFailureAndWrap((l, ignored) -> {
             if (request.isDeferValidation()) {
-                validateQueryListener.onResponse(true);
+                l.onResponse(true);
             } else {
-                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), validateQueryListener);
+                function.validateQuery(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getSource(),
+                    sourceIndicesOptions,
+                    request.ackTimeout(),
+                    l
+                );
             }
-        }, listener::onFailure);
+        });
+
+        // <3.5> A caller with no cloud credential cannot fan out cross-project, so reject an explicit
+        // remote/cross-project source before deduce-mappings tries (and fails) to obtain a request-scoped
+        // token for it. Only relevant when CPS is enabled; a cloud caller is allowed through to resolution
+        // (which surfaces "No such project" for an unknown linked project).
+        ActionListener<Boolean> validateRemoteSourceListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+            if (SourceDestValidations.isCrossProjectSource(crossProjectModeDecider)
+                && request.cloudCredential() == null
+                && hasExplicitNonOriginRemoteSource(config.getSource().getIndex())) {
+                l.onFailure(
+                    new ValidationException().addValidationError(
+                        SourceDestValidator.REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED
+                    )
+                );
+            } else {
+                l.onResponse(true);
+            }
+        });
+
+        // <3> Validate Project Routing is not set when CPS is not supported
+        ActionListener<Boolean> validateProjectRoutingListener = validateRemoteSourceListener.delegateFailureAndWrap((l, ignored) -> {
+            if (config.getSource().getProjectRouting() == null || crossProjectModeDecider.crossProjectEnabled()) {
+                l.onResponse(true);
+            } else {
+                l.onFailure(
+                    new ValidationException().addValidationError(
+                        "Cross-project calls are not supported, but project_routing was requested: "
+                            + config.getSource().getProjectRouting()
+                    )
+                );
+            }
+        });
 
         // <2> Validate transform function config
-        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(validateSourceDestResponse -> {
-            function.validateConfig(validateConfigListener);
-        }, listener::onFailure);
+        ActionListener<Boolean> validateSourceDestListener = validateProjectRoutingListener.delegateFailureAndWrap(
+            (l, ignored) -> function.validateConfig(l)
+        );
 
         // <1> Validate source and destination indices
         sourceDestValidator.validate(
@@ -156,8 +224,23 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalSourceDestValidations()),
+            SourceDestValidations.getValidations(
+                request.isDeferValidation(),
+                crossProjectModeDecider,
+                config.getAdditionalSourceDestValidations()
+            ),
             validateSourceDestListener
         );
+    }
+
+    // An explicit remote/cross-project source ("cluster:index"), other than the CPS local qualifier
+    // "_origin:", cannot be resolved by a caller that holds no cloud credential.
+    private static boolean hasExplicitNonOriginRemoteSource(String[] indices) {
+        for (String index : indices) {
+            if (RemoteClusterLicenseChecker.isRemoteIndex(index) && index.startsWith("_origin:") == false) {
+                return true;
+            }
+        }
+        return false;
     }
 }

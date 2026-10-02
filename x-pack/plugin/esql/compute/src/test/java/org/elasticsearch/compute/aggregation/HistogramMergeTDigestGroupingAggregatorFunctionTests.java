@@ -12,10 +12,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.operator.LongTDigestHistogramBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TDigestTestUtils;
+import org.elasticsearch.compute.test.operator.blocksource.LongTDigestHistogramBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -56,7 +56,8 @@ public class HistogramMergeTDigestGroupingAggregatorFunctionTests extends Groupi
 
         TDigestHolder value = null;
         if (result.isNull(position) == false) {
-            value = ((TDigestBlock) result).getTDigestHolder(position);
+            TDigestBlock tDigestBlock = (TDigestBlock) result;
+            value = tDigestBlock.getTDigestHolder(tDigestBlock.getFirstValueIndex(position), new TDigestHolder());
         }
 
         if (allHistograms.isEmpty()) {
@@ -68,6 +69,6 @@ public class HistogramMergeTDigestGroupingAggregatorFunctionTests extends Groupi
 
     protected static Stream<TDigestHolder> allTDigests(Page page, Long group) {
         TDigestBlock b = page.getBlock(1);
-        return allValueOffsets(page, group).mapToObj(b::getTDigestHolder);
+        return allValueOffsets(page, group).mapToObj(offset -> b.getTDigestHolder(offset, new TDigestHolder()));
     }
 }

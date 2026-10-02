@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -38,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -58,7 +58,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -66,6 +68,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -93,15 +96,22 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedSha
 import static org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction.getIndexDiskUsageInBytes;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -192,10 +202,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertEquals(clusterState.metadata().projects().size(), numberOfProjects);
 
         // Verify that the initial state has no unassigned shards
-        {
-            RoutingAllocation allocation = createRoutingAllocation(clusterState);
-            assertThat(allocation.routingNodes().unassigned().size(), is(0));
-        }
+        assertThat(clusterState.getRoutingNodes().unassigned().size(), is(0));
 
         // add new index to a random project
         var origProject = randomFrom(clusterState.metadata().projects().values());
@@ -214,8 +221,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).putProjectMetadata(updatedProject).routingTable(routingTable).build();
         // Verify that new state has 1 unassigned shard (with the expected name)
         {
-            RoutingAllocation allocation = createRoutingAllocation(clusterState);
-            final RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
+            final var unassigned = clusterState.getRoutingNodes().unassigned();
             assertThat(unassigned.size(), is(1));
             assertThat(unassigned.iterator().next().getIndexName(), equalTo(indexName));
         }
@@ -644,7 +650,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 TEST_WRITE_LOAD_FORECASTER,
                 PrefixBalancingWeightsFactory.withDefaultThreshold(
                     Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0), "weightsOnly", new WeightFunction(0, 0, 1, 0))
-                )
+                ),
+                BalancedShardsAllocatorMetrics.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
@@ -715,7 +722,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                         "100_threshold",
                         new PrefixBalancingWeightsFactory.WeightFunctionAndThreshold(new WeightFunction(1, 0, 0, 0), 100)
                     )
-                )
+                ),
+                BalancedShardsAllocatorMetrics.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
@@ -800,7 +808,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 public boolean diskUsageIgnored() {
                     return true; // This makes the computation ignore disk usage
                 }
-            }
+            },
+            BalancedShardsAllocatorMetrics.NOOP
         );
 
         final String indexName = randomIdentifier();
@@ -812,7 +821,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .shardSizes(Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()))
             .build();
         allocator.allocate(
-            new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, clusterInfo, null, 0L).mutableCloneForSimulation()
+            TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation()
         );
 
         final var modelNodes = modelNodesRef.get();
@@ -1072,10 +1081,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var balancedShardsAllocator = new BalancedShardsAllocator(
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
+            BalancedShardsAllocatorMetrics.NOOP
         );
 
-        final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AllocationDecider() {
             @Override
             public Decision canRemain(
                 IndexMetadata indexMetadata,
@@ -1085,7 +1095,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             ) {
                 return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
             }
-        })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
+        }).mutable();
 
         final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not_preferred";
         MockLog.assertThatLogger(
@@ -1140,21 +1150,15 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
         assertThat(allShards, hasSize(numberOfShardsWithNoWriteLoad));
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes(),
-            System.nanoTime()
-        );
+        final ClusterInfo clusterInfo = ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build();
 
         // Assign all shards to node
-        final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
+        final var allocatedRoutingNodes = clusterState.getRoutingNodes().mutableCopy();
         for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
             allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), RoutingChangesObserver.NOOP);
         }
 
-        final var comparator = new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), allocatedRoutingNodes.node(nodeId));
+        final var comparator = new PrioritiseByShardWriteLoadComparator(clusterInfo, allocatedRoutingNodes.node(nodeId));
 
         logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, writeLoadThreshold);
         var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();
@@ -1198,7 +1202,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         logger.info("--> expecting {} missing", numberOfShardsWithNoWriteLoad);
         for (int i = 0; i < numberOfShardsWithNoWriteLoad; i++) {
             final var currentShardId = sortedShards.get(currentIndex++);
-            assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
+            assertThat(shardWriteLoads, not(Matchers.hasKey(currentShardId.shardId())));
         }
     }
 
@@ -1308,21 +1312,183 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
             .build();
 
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(notPreferredDecider)),
-            clusterState.getRoutingNodes().mutableCopy(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(notPreferredDecider)
+            .mutable();
 
         // This would throw an assertion error when the bug was present
-        new BalancedShardsAllocator(BalancerSettings.DEFAULT, WriteLoadForecaster.DEFAULT, new NodeNameDrivenBalancingWeightsFactory())
-            .allocate(allocation);
+        new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            WriteLoadForecaster.DEFAULT,
+            new NodeNameDrivenBalancingWeightsFactory(),
+            BalancedShardsAllocatorMetrics.NOOP
+        ).allocate(allocation);
 
         // We should have relocated the shard to the YES node
         assertThat(allocation.routingNodes().getRelocatingShardCount(), equalTo(1));
+    }
+
+    /**
+     * Verifies that when a node has canRemain:NO shards, those with YES targets are moved before those with only NOT_PREFERRED targets.
+     * Shards with only NOT_PREFERRED targets are deferred and re-evaluated after YES moves complete.
+     * <p>
+     * Runs in two randomly chosen configurations:
+     * <ul>
+     *   <li>Partial drain: moving the YES shards reduces load enough that the deferred shard can remain — no NOT_PREFERRED move needed</li>
+     *   <li>Full drain: the node must be fully evacuated, so the deferred shards are eventually moved to a NOT_PREFERRED target</li>
+     * </ul>
+     */
+    public void testCanRemainNoShardsWithOnlyNotPreferredTargetsAreDeferredUntilAfterYesMoves() {
+        final String sourceNode = randomIdentifier("source");
+        final String yesTargetNode = randomIdentifier("yes-target");
+        final String notPreferredTargetNode = randomIdentifier("not-preferred-target");
+
+        // drainCompletely=false: canRemain:NO while startedCount > `nonPreferredShardCount` (moving `shardCount` shards resolves pressure)
+        // drainCompletely=true: canRemain:NO while startedCount > 0 (source must be fully evacuated)
+        final boolean drainCompletely = randomBoolean();
+        final int preferredShardCount = 5;
+        final int nonPreferredShardCount = 100;
+
+        final var decider = new AllocationDecider() {
+            @Override
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
+                if (node.nodeId().equals(sourceNode) == false) {
+                    return Decision.YES;
+                }
+                final var sourceRoutingNode = allocation.routingNodes().node(sourceNode);
+                final long startedCount = StreamSupport.stream(sourceRoutingNode.spliterator(), false)
+                    .filter(ShardRouting::started)
+                    .count();
+                return startedCount > (drainCompletely ? 0 : nonPreferredShardCount) ? Decision.NO : Decision.YES;
+            }
+
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                if (node.nodeId().equals(sourceNode)) {
+                    return Decision.NO;
+                }
+                if (shardRouting.index().getName().startsWith("preferred-")) {
+                    return node.nodeId().equals(yesTargetNode) ? Decision.YES : Decision.NOT_PREFERRED;
+                }
+                return Decision.NOT_PREFERRED;
+            }
+        };
+
+        final var allocationService = new MockAllocationService(
+            new AllocationDeciders(List.of(decider)),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        // Simulate a node under pressure, all shards on `source` return canRemain: NO, 100 shards
+        // return canAllocate: NOT_PREFERRED and 5 shards returns canAllocate: YES.
+        // We can't control the order the BalancedShardsAllocator considers shards for movement
+        // but with 105 shards the chance of it picking the 5 preferred shards first from the 105
+        // on the node is 1 in 96,560,646, assuming iteration orders are random.
+        final var preferredIndices = IntStream.range(0, preferredShardCount).mapToObj(i -> randomIdentifier("preferred-" + i + "-"));
+        final var nonPreferredIndices = IntStream.range(0, nonPreferredShardCount)
+            .mapToObj(i -> randomIdentifier("non_preferred-" + i + "-"));
+        var clusterState = generateClusterStateForSingleShardIndices(
+            Stream.concat(preferredIndices, nonPreferredIndices).toList(),
+            sourceNode,
+            yesTargetNode,
+            notPreferredTargetNode
+        );
+
+        // The preferred shards should be moved to the `yesTargetNode` first
+        for (int i = 0; i < preferredShardCount; i++) {
+            clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        }
+        // The last shard moved will need to be started
+        clusterState = startInitializingShards(allocationService, clusterState);
+        {
+            final var routingNodes = clusterState.getRoutingNodes();
+            final var shardsOnYesTargetNode = routingNodes.node(yesTargetNode).shardsWithState(ShardRoutingState.STARTED).toList();
+            // The `preferredShardCount` preferred shards should have moved to `yesTargetNode`
+            assertThat(shardsOnYesTargetNode.size(), equalTo(preferredShardCount));
+            assertThat(shardsOnYesTargetNode.stream().map(ShardRouting::getIndexName).toList(), everyItem(startsWith("preferred-")));
+            // No shards should have moved to `notPreferredTargetNode`
+            assertThat(routingNodes.node(notPreferredTargetNode).shardsWithState(ShardRoutingState.STARTED).count(), equalTo(0L));
+        }
+
+        // Only then are the non-preferred shards moved
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+        {
+            final var routingNodes = clusterState.getRoutingNodes();
+            final var shardsOnYesTargetNode = routingNodes.node(yesTargetNode).shardsWithState(ShardRoutingState.STARTED).toList();
+            final var shardsOnNotPreferredTargetNode = routingNodes.node(notPreferredTargetNode)
+                .shardsWithState(ShardRoutingState.STARTED)
+                .toList();
+            final var shardsOnSourceNode = routingNodes.node(sourceNode).shardsWithState(ShardRoutingState.STARTED).toList();
+            if (drainCompletely) {
+                // All shards should have moved to `yesTargetNode` or `notPreferredTargetNode`
+                assertThat(
+                    shardsOnYesTargetNode.size() + shardsOnNotPreferredTargetNode.size(),
+                    equalTo(preferredShardCount + nonPreferredShardCount)
+                );
+                // Only non_preferred shards have moved to the notPreferredTargetNode (they are NOT_PREFERRED anywhere)
+                assertThat(
+                    shardsOnNotPreferredTargetNode.stream().map(ShardRouting::getIndexName).toList(),
+                    everyItem(startsWith("non_preferred-"))
+                );
+                // No shards remain on `source`
+                assertThat(shardsOnSourceNode.size(), equalTo(0));
+            } else {
+                // The preferred shards remain on `yesTargetNode`
+                assertThat(shardsOnYesTargetNode.size(), equalTo(preferredShardCount));
+                assertThat(shardsOnYesTargetNode.stream().map(ShardRouting::getIndexName).toList(), everyItem(startsWith("preferred-")));
+                // The non-preferred shards remain on `source`
+                assertThat(shardsOnSourceNode.size(), equalTo(nonPreferredShardCount));
+                assertThat(shardsOnSourceNode.stream().map(ShardRouting::getIndexName).toList(), everyItem(startsWith("non_preferred-")));
+            }
+        }
+    }
+
+    private ClusterState generateClusterStateForSingleShardIndices(
+        Collection<String> indexNames,
+        String sourceNode,
+        String yesTargetNode,
+        String notPreferredTargetNode
+    ) {
+        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final var indexMetadatas = new HashMap<String, IndexMetadata>(indexNames.size());
+        for (String indexName : indexNames) {
+            final var metadata = anIndex(indexName).putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID())).build();
+            indexMetadatas.put(indexName, metadata);
+            projectMetadataBuilder.put(metadata, false);
+        }
+
+        // Put all the shards on the `source` node
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        for (var indexName : indexNames) {
+            final var metadata = indexMetadatas.get(indexName);
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(metadata.getIndex())
+                    .addShard(
+                        shardRoutingBuilder(indexName, 0, sourceNode, true, ShardRoutingState.STARTED).withAllocationId(
+                            AllocationId.newInitializing(metadata.inSyncAllocationIds(0).iterator().next())
+                        ).build()
+                    )
+            );
+        }
+        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (var nodeName : shuffledList(sourceNode, yesTargetNode, notPreferredTargetNode)) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .putProjectMetadata(projectMetadataBuilder)
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
     }
 
     private void assertUnassigned(
@@ -1368,14 +1534,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         BalancingWeightsFactory balancingWeightsFactory,
         ClusterState clusterState
     ) {
-        final var routingAllocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState.getRoutingNodes().mutableCopy(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .mutable();
 
         // Debug mode should not change the outcome
         routingAllocation.setDebugMode(randomFrom(RoutingAllocation.DebugMode.values()));
@@ -1383,7 +1544,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var balancedShardsAllocator = new BalancedShardsAllocator(
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
-            balancingWeightsFactory
+            balancingWeightsFactory,
+            BalancedShardsAllocatorMetrics.NOOP
         );
         balancedShardsAllocator.allocate(routingAllocation);
         return ClusterState.builder(clusterState)
@@ -1499,14 +1661,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation createRoutingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            RoutingNodes.mutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        return TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
     }
 
     private static ClusterInfo createClusterInfo(Map<String, Long> indexSizes) {
@@ -1688,6 +1843,207 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
+    public void testCanRemainNoMovesWithoutLabelAreCountedAsMissing() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new NoLabelCanRemainDecider()).mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "missing"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    public void testCanRemainNotPreferredMovesWithoutLabelAreCountedAsMissing() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new NoLabelNotPreferredCanRemainDecider())
+                .mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NOT_PREFERRED"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "missing"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    public void testCanRemainNoWithNotPreferredTargetAndMissingLabelsAreCountedAsMissing() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var allNodeIds = clusterState.nodes().stream().map(DiscoveryNode::getId).map(n -> (Object) n).collect(toSet());
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new NoLabelMustMoveToNotPreferredTargetDecider())
+                .mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "missing"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "NOT_PREFERRED"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "missing"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry(equalTo("es_target_node"), allOf(is(Matchers.in(allNodeIds)), not(equalTo(sourceNodeId)))));
+    }
+
+    public void testCanRemainNotPreferredMovesAreCountedWithDeciderLabel() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new AlwaysNotPreferredCanRemainDecider())
+                .mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NOT_PREFERRED"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNotPreferredCanRemainDecider"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    public void testCanRemainNoMovesAreCountedWithDeciderLabel() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AlwaysNoCanRemainDecider()).mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNoCanRemainDecider"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    public void testCanRemainNoWithNotPreferredTargetIncludesTargetNodeInCounter() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        // The nodes we get don't have names, and the decider falls back to the IDs if the node has no name
+        final var sourceNodeId = startedShardSourceNodeName(clusterState);
+        final var allNodeIds = clusterState.nodes().stream().map(DiscoveryNode::getId).map(n -> (Object) n).collect(toSet());
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new MustMoveToNotPreferredTargetDecider())
+                .mutable()
+        );
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "MustMoveToNotPreferredTargetDecider"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "NOT_PREFERRED"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "MustMoveToNotPreferredTargetDecider"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
+        assertThat(attributes, hasEntry(equalTo("es_target_node"), allOf(is(Matchers.in(allNodeIds)), not(equalTo(sourceNodeId)))));
+    }
+
+    public void testCanRemainIgnoredShardMovesAreCountedWithIgnoredShardsDeciderLabel() {
+        // When the ignored-shard short-circuit fires, canRemain returns a constant with label "ignored_shards_for_node".
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var projectId = clusterState.metadata().projects().keySet().iterator().next();
+        final var startedShard = clusterState.globalRoutingTable()
+            .routingTable(projectId)
+            .allShards()
+            .filter(ShardRouting::started)
+            .findFirst()
+            .orElseThrow();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
+        allocation.addIgnoreShardForNode(startedShard.shardId(), startedShard.currentNodeId());
+        final var attributes = allocateAndGetCanRemainMetricAttributes(allocation);
+        assertThat(attributes, hasEntry("es_can_remain_decision", "NO"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "ignored_shards_for_node"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "YES"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasKey("es_source_node"));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
+    }
+
+    private static String startedShardSourceNodeName(ClusterState clusterState) {
+        final var projectId = clusterState.metadata().projects().keySet().iterator().next();
+        final var sourceNodeId = clusterState.globalRoutingTable()
+            .routingTable(projectId)
+            .allShards()
+            .filter(ShardRouting::started)
+            .findFirst()
+            .orElseThrow()
+            .currentNodeId();
+        final var name = clusterState.nodes().get(sourceNodeId).getName();
+        return name != null && name.isEmpty() == false ? name : sourceNodeId;
+    }
+
+    public void testNoCanRemainMetricsRecordedWhenAllShardsCanRemain() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        assertThat(allocateAndGetCanRemainMeasurements(TestRoutingAllocationFactory.forClusterState(clusterState).mutable()), empty());
+    }
+
+    public void testNoCanRemainMetricsRecordedWhenNoTargetNodeCanAcceptShard() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(new CannotRemainAndNoTargetDecider())
+            .mutable();
+        assertThat(allocateAndGetCanRemainMeasurements(allocation), empty());
+        // The shard wanted to move but had nowhere to go
+        assertThat(allocation.routingNodes().getRelocatingShardCount(), equalTo(0));
+    }
+
+    public void testNoCanRemainMetricsRecordedForRebalanceMoves() {
+        final var discoveryNodes = DiscoveryNodes.builder().add(newNode("node-0")).add(newNode("node-1"));
+        final var metadataBuilder = Metadata.builder();
+        final var routingTableBuilder = RoutingTable.builder();
+        // Add an index, placing all 4 shards on a single node
+        addIndex(metadataBuilder, routingTableBuilder, randomIdentifier(), Map.of("node-0", 4));
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
+        assertThat(allocateAndGetCanRemainMeasurements(allocation), empty());
+        // The shards were moved to balance the cluster, not because they couldn't remain
+        assertThat(allocation.routingNodes().getRelocatingShardCount(), greaterThan(0));
+    }
+
+    private Map<String, Object> allocateAndGetCanRemainMetricAttributes(RoutingAllocation allocation) {
+        final var measurements = allocateAndGetCanRemainMeasurements(allocation);
+        assertThat(measurements, hasSize(1));
+        final var measurement = measurements.getFirst();
+        assertThat(measurement.getLong(), is(1L));
+        return measurement.attributes();
+    }
+
+    private List<Measurement> allocateAndGetCanRemainMeasurements(RoutingAllocation allocation) {
+        final var meterRegistry = new RecordingMeterRegistry();
+        new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
+            new BalancedShardsAllocatorMetrics(meterRegistry)
+        ).allocate(allocation);
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocatorMetrics.CANNOT_REMAIN_MOVE_METRIC);
+    }
+
+    /** canRemain is NO everywhere and no node can accept the shard, so no move is possible. */
+    private static class CannotRemainAndNoTargetDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+    }
+
     /**
      * Allocation deciders that trigger movements based on specific index names
      *
@@ -1754,5 +2110,72 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     private static String prefix(String value) {
         assert value != null && value.contains("-") : "Invalid name passed: " + value;
         return value.substring(0, value.indexOf("-"));
+    }
+
+    private static class AlwaysNotPreferredCanRemainDecider extends AllocationDecider {
+        static final String NAME = "AlwaysNotPreferredCanRemainDecider";
+        private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
+
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return NOT_PREFERRED_DECISION;
+        }
+    }
+
+    private static class AlwaysNoCanRemainDecider extends AllocationDecider {
+        static final String NAME = "AlwaysNoCanRemainDecider";
+        private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
+
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return NO_DECISION;
+        }
+    }
+
+    /** canRemain always returns NO without a label. */
+    private static class NoLabelCanRemainDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+    }
+
+    /** canRemain always returns NOT_PREFERRED without a label. */
+    private static class NoLabelNotPreferredCanRemainDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NOT_PREFERRED;
+        }
+    }
+
+    /** Forces canRemain=NO (no label) and allows only NOT_PREFERRED canAllocate targets
+     * (no label; NO on the source to prevent bounce-back). */
+    private static class NoLabelMustMoveToNotPreferredTargetDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return node.nodeId().equals(shardRouting.currentNodeId()) ? Decision.NO : Decision.NOT_PREFERRED;
+        }
+    }
+
+    /** Forces canRemain=NO and allows only NOT_PREFERRED canAllocate targets (NO on the source to prevent bounce-back). */
+    private static class MustMoveToNotPreferredTargetDecider extends AllocationDecider {
+        static final String NAME = "MustMoveToNotPreferredTargetDecider";
+        private static final Decision NO_DECISION = Decision.single(Decision.Type.NO, NAME, null);
+        private static final Decision NOT_PREFERRED_DECISION = Decision.single(Decision.Type.NOT_PREFERRED, NAME, null);
+
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return NO_DECISION;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return node.nodeId().equals(shardRouting.currentNodeId()) ? NO_DECISION : NOT_PREFERRED_DECISION;
+        }
     }
 }

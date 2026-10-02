@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +42,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -85,6 +88,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private static final String ALIAS_READ_WRITE_DEST = "alias-read-write-dest";
     private static final String REMOTE_BASIC = "remote-basic";
     private static final String REMOTE_PLATINUM = "remote-platinum";
+    private static final ProjectId PROJECT_ID = ProjectId.fromId("not-default");
 
     private static final ClusterState CLUSTER_STATE;
 
@@ -145,12 +149,10 @@ public class SourceDestValidatorTests extends ESTestCase {
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).build())
             .build();
+
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.metadata(
-            Metadata.builder()
-                .put(IndexMetadata.builder(source1).build(), false)
-                .put(IndexMetadata.builder(source2).build(), false)
-                .put(IndexMetadata.builder(aliasedDest).build(), false)
+            Metadata.builder().put(ProjectMetadata.builder(PROJECT_ID).put(source1, false).put(source2, false).put(aliasedDest, false))
         );
         CLUSTER_STATE = state.build();
     }
@@ -204,6 +206,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(clientWithBasicLicense, feature);
         clientWithPlatinumLicense = new MockClientLicenseCheck(clientThreadPool, "platinum", LicenseStatus.ACTIVE);
         clientWithTrialLicense = new MockClientLicenseCheck(clientThreadPool, "trial", LicenseStatus.ACTIVE);
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, PROJECT_ID.id());
     }
 
     @After
@@ -919,7 +922,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             } else if (e instanceof ValidationException) {
                 onException.accept((ValidationException) e);
             } else {
-                fail("got unexpected exception type: " + e);
+                fail(e, "got unexpected exception type: " + e);
             }
         }), latch);
 

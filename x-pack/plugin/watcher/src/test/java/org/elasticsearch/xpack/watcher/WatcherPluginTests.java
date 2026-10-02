@@ -18,9 +18,11 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -49,7 +51,7 @@ public class WatcherPluginTests extends ESTestCase {
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
         assertThat(executorBuilders, hasSize(0));
         assertThat(watcher.getActions(), hasSize(2));
-        assertThat(watcher.getRestHandlers(settings, null, null, null, null, null, null, null, null), hasSize(0));
+        assertThat(watcher.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null), hasSize(0));
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
@@ -78,7 +80,8 @@ public class WatcherPluginTests extends ESTestCase {
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);

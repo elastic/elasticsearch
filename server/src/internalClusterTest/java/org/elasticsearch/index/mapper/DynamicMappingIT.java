@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -19,14 +20,18 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.ingest.IngestFeatures;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.field.WriteField;
@@ -92,6 +97,37 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
+    public void testDynamicStringMappingWithoutAutoTextSubfield() {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        FeatureService featureService = internalCluster().getInstance(FeatureService.class);
+        assumeTrue(
+            "cluster must advertise ingest.dynamic_strings.auto_keyword_setting",
+            featureService.clusterHasFeature(state, IngestFeatures.DYNAMIC_STRINGS_AUTO_TEXT_SETTING)
+        );
+
+        assertAcked(
+            indicesAdmin().prepareCreate("test-auto-kw-off")
+                .setSettings(Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false))
+                .get()
+        );
+        prepareIndex("test-auto-kw-off").setId("1").setSource("msg", "hello").get();
+
+        // Wait for all pending cluster state events (including the dynamic mapping update) to be
+        // applied on all nodes before retrieving mappings, to avoid a race where GetMappings hits
+        // a node that hasn't yet received the new mapping in its cluster state.
+        clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForEvents(Priority.LANGUID)).actionGet();
+
+        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test-auto-kw-off").get();
+        Map<String, Object> source = mappings.mappings().get("test-auto-kw-off").sourceAsMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) source.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> msg = (Map<String, Object>) props.get("msg");
+        assertThat(msg.get("type"), equalTo("keyword"));
+        assertThat(msg.containsKey("fields"), is(false));
+    }
+
     public void testSimpleDynamicMappingsSuccessful() {
         createIndex("index");
         client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
@@ -123,9 +159,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
             .get();
 
         assertTrue(bulkResponse.hasFailures());
-        assertEquals(
-            "mapper [foo] cannot be changed from type [long] to [text]",
-            bulkResponse.getItems()[0].getFailure().getCause().getMessage()
+        assertThat(
+            bulkResponse.getItems()[0].getFailure().getCause().getMessage(),
+            containsString("failed to parse field [foo] of type [long]")
         );
     }
 
@@ -251,8 +287,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         .endObject()
                         .endArray()
                         .endObject()
-                ),
-                XContentType.JSON
+                )
             )
             .get();
         prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
@@ -278,7 +313,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         masterBlockedLatch.await();
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
+                expectThrows(MapperParsingException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
                     .getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
@@ -511,10 +546,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             );
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                exc.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [4] has been exceeded while adding new fields [2]")
-            );
+            assertThat(exc.getCause().getMessage(), Matchers.containsString("Limit of total fields [4] has been exceeded"));
         }
 
         {
@@ -531,7 +563,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         "rfield2" : null
                       }
                     }
-                """, XContentType.JSON));
+                """));
 
             // introduction of a new object with 2 new sub-fields succeeds
             prepareIndex("index1").setId("1")
@@ -776,7 +808,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""", XContentType.JSON));
+            }"""));
 
         // the parent object has been mapped dynamic:true, hence the field gets indexed
         // we use a fixed doc id here to make sure this document and the one we sent later with a conflicting type

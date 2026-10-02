@@ -7,14 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.groq.completion;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -29,11 +36,14 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
+
 /**
  * Service settings for Groq chat completion models.
  * Groq reuses the OpenAI wire format, so this largely mirrors the OpenAI settings class
- * but applies Groq-specific defaults such as the base URL and rate limits documented at
- * https://console.groq.com/docs/rate-limits.
+ * but applies Groq-specific defaults such as the base URL and rate limits documented in
+ * <a href="https://console.groq.com/docs/rate-limits">Groq Documentation</a>.
  */
 public class GroqChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, GroqRateLimitServiceSettings {
 
@@ -42,38 +52,46 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     // The rate limit for dev tier depends on the model used. For example, the rate limit for the `openai/gpt-oss-20b` model is 1,000
     // requests per minute.
     // To find this information you need to access your account's limits https://console.groq.com/docs/rate-limits.
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
+    static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
-    public static GroqChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
-        String modelId = ServiceUtils.extractRequiredString(
-            map,
-            ServiceFields.MODEL_ID,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        String organizationId = ServiceUtils.extractOptionalString(
-            map,
-            OpenAiServiceFields.ORGANIZATION,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        String url = ServiceUtils.extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = ServiceUtils.convertToUri(url, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
+    /**
+     * Creates an {@link ObjectParser} for the Groq chat completion service settings.
+     *
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     * @return the parser
+     */
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        var parser = ServiceSettingsOPBuilder.of(
+            ignoreUnknownFields,
+            Builder::new,
             DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GroqService.NAME,
-            context
-        );
+            Builder::setRateLimitSettings
+        ).build();
+        parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
+        parser.declareString(Builder::setUrl, new ParseField(ServiceFields.URL));
+        parser.declareString(Builder::setOrganizationId, new ParseField(OpenAiServiceFields.ORGANIZATION));
+        return parser;
+    }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
+    /**
+     * Creates a new instance from a map of settings.
+     *
+     * @param map     the map containing the service settings
+     * @param context the context for parsing configuration settings
+     * @return a new instance of {@link GroqChatCompletionServiceSettings}
+     */
+    public static GroqChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
-
-        return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
     }
 
     private final String modelId;
@@ -95,20 +113,20 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    GroqChatCompletionServiceSettings(
-        String modelId,
-        @Nullable String uri,
-        @Nullable String organizationId,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, ServiceUtils.createOptionalUri(uri), organizationId, rateLimitSettings);
-    }
-
     public GroqChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.uri = ServiceUtils.createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public GroqChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Groq chat completion service settings update", e);
+        }
     }
 
     @Override
@@ -184,5 +202,75 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     @Override
     public int hashCode() {
         return Objects.hash(modelId, uri, organizationId, rateLimitSettings);
+    }
+
+    /**
+     * Accumulates the parsed fields and assembles a {@link GroqChatCompletionServiceSettings}, enforcing that the required
+     * {@code model_id} field is present.
+     */
+    public static class Builder {
+
+        private String modelId;
+        private String url;
+        private String organizationId;
+        private RateLimitSettings rateLimitSettings;
+
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public void setOrganizationId(String organizationId) {
+            this.organizationId = organizationId;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        public GroqChatCompletionServiceSettings build() {
+            validateStringIsNotNullOrEmpty(modelId, ServiceFields.MODEL_ID);
+            URI uri = url != null ? ServiceUtils.createUri(url) : null;
+            return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code organization_id} and {@code rate_limit} fields. Including
+     * any immutable field causes the strict parser to reject the request.
+     */
+    private static class Update {
+
+        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
+            Update::new,
+            Update::setRateLimitSettings
+        ).build();
+
+        static {
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.organizationId = value, p -> {
+                var value = p.text();
+                validateStringIsNotNullOrEmpty(value, OpenAiServiceFields.ORGANIZATION);
+                return value;
+            }, new ParseField(OpenAiServiceFields.ORGANIZATION), ObjectParser.ValueType.STRING_OR_NULL);
+        }
+
+        private StatefulValue<String> organizationId = StatefulValue.undefined();
+        private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        public GroqChatCompletionServiceSettings mergeInto(GroqChatCompletionServiceSettings existing) {
+            return new GroqChatCompletionServiceSettings(
+                existing.modelId,
+                existing.uri,
+                applyUpdate(organizationId, existing.organizationId),
+                applyUpdate(rateLimitSettings, existing.rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS)
+            );
+        }
     }
 }

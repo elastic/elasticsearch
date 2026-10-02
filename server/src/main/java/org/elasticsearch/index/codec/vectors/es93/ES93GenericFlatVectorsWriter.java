@@ -18,7 +18,6 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
@@ -29,6 +28,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     private final String rawVectorFormatName;
     private final boolean useDirectIOReads;
+    private final boolean onDiskMerge;
     private final FlatVectorsWriter rawVectorWriter;
     private final IndexOutput metaOut;
     private final List<Integer> fieldNumbers = new ArrayList<>();
@@ -38,12 +38,14 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         GenericFormatMetaInformation metaInfo,
         String rawVectorsFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         SegmentWriteState state,
         FlatVectorsWriter rawWriter
     ) throws IOException {
         super(rawWriter.getFlatVectorScorer());
         this.rawVectorFormatName = rawVectorsFormatName;
         this.useDirectIOReads = useDirectIOReads;
+        this.onDiskMerge = onDiskMerge;
         this.rawVectorWriter = rawWriter;
 
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
@@ -70,16 +72,9 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     }
 
     @Override
-    public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        rawVectorWriter.mergeOneField(fieldInfo, mergeState);
+    public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        rawVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
         writeMeta(fieldInfo.number);
-    }
-
-    @Override
-    public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        var supplier = rawVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState);
-        writeMeta(fieldInfo.number);
-        return supplier;
     }
 
     @Override
@@ -95,6 +90,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         metaOut.writeInt(field);
         metaOut.writeString(rawVectorFormatName);
         metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        metaOut.writeByte(onDiskMerge ? (byte) 1 : 0);
     }
 
     @Override

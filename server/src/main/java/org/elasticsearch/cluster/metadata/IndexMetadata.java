@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -91,7 +95,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
-public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment, Accountable {
 
     private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
 
@@ -277,7 +281,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
@@ -710,6 +715,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean useTimeSeriesSyntheticId;
 
+    private final boolean sequenceNumbersDisabled;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -761,7 +768,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast,
         @Nullable IndexReshardingMetadata reshardingMetadata,
-        final boolean useTimeSeriesSyntheticId
+        final boolean useTimeSeriesSyntheticId,
+        final boolean sequenceNumbersDisabled
     ) {
         this.index = index;
         this.version = version;
@@ -824,6 +832,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
         this.reshardingMetadata = reshardingMetadata;
         this.useTimeSeriesSyntheticId = useTimeSeriesSyntheticId;
+        this.sequenceNumbersDisabled = sequenceNumbersDisabled;
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -881,7 +890,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -946,7 +956,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1019,7 +1030,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1083,7 +1095,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1142,7 +1155,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1300,6 +1314,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isPartialSearchableSnapshot() {
         return isPartialSearchableSnapshot;
+    }
+
+    public boolean sequenceNumbersDisabled() {
+        return sequenceNumbersDisabled;
     }
 
     /**
@@ -1477,6 +1495,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
     // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
+
+    // Defined here (rather than in x-pack LifecycleSettings) so that modules without an x-pack dependency
+    // (e.g. data-streams) can read this setting.
+    public static final String LIFECYCLE_SKIP = "index.lifecycle.skip";
+    public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(
+        LIFECYCLE_SKIP,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     Map<String, DiffableStringMap> getCustomData() {
         return this.customData;
@@ -2088,11 +2116,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder priority(int priority) {
+            settings = Settings.builder().put(settings).put(SETTING_PRIORITY, priority).build();
+            return this;
+        }
+
         /**
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
-         * The new shard count must be a multiple of the original shardcount as well as a factor
+         * The new shard count must be a multiple of the original shard count as well as a factor
          * of routingNumShards.
-         * We do not support shrinking the shard count.
          * @param targetShardCount   target shard count after resharding
          */
         public Builder reshardAddShards(int targetShardCount) {
@@ -2113,6 +2145,34 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var newPrimaryTerms = new long[targetShardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
+            primaryTerms = newPrimaryTerms;
+            routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceNumShards, this.routingNumShards);
+            return this;
+        }
+
+        /**
+         * Builder to create IndexMetadata that has descreased shard count (used in scope of resharding functionality).
+         * The new shard count must be a factor of the original shard count as well as a factor
+         * of routingNumShards.
+         * @param targetShardCount   target shard count
+         */
+        public Builder reshardRemoveShards(int targetShardCount) {
+            final int sourceNumShards = numberOfShards();
+            if (sourceNumShards % targetShardCount != 0) {
+                throw new IllegalArgumentException(
+                    "New shard count ["
+                        + targetShardCount
+                        + "] should be a factor"
+                        + " of current shard count ["
+                        + sourceNumShards
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, targetShardCount).build();
+            var newPrimaryTerms = new long[targetShardCount];
+            System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, newPrimaryTerms.length);
             primaryTerms = newPrimaryTerms;
             routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceNumShards, this.routingNumShards);
             return this;
@@ -2533,17 +2593,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             String indexModeString = settings.get(IndexSettings.MODE.getKey());
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
-            final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
-            boolean useTimeSeriesSyntheticId = false;
-            if (isTsdb
-                && IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
-                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
-                var setting = settings.get(IndexSettings.SYNTHETIC_ID.getKey());
-                if (setting != null && setting.equalsIgnoreCase(Boolean.TRUE.toString())) {
-                    assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-                    useTimeSeriesSyntheticId = true;
-                }
-            }
+            final boolean isTsdb = IndexMode.isTsdb(indexMode);
+            boolean useTimeSeriesSyntheticId = shouldUseTimeSeriesSyntheticId(isTsdb, indexCreatedVersion, settings);
+            final boolean sequenceNumbersDisabled = indexCreatedVersion.onOrAfter(
+                IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT
+            ) && settings.getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2595,8 +2649,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast,
                 shardSizeInBytesForecast,
                 reshardingMetadata,
-                useTimeSeriesSyntheticId
+                useTimeSeriesSyntheticId,
+                sequenceNumbersDisabled
             );
+        }
+
+        private static boolean shouldUseTimeSeriesSyntheticId(boolean isTsdb, IndexVersion version, Settings settings) {
+            String codecSetting = settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey());
+            if (isTsdb
+                && version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)
+                && (codecSetting == null || IndexSettings.isValidCodecForSyntheticId(codecSetting, version))) {
+                boolean defaultValue = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
+                return settings.getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), defaultValue);
+            }
+            return false;
         }
 
         @SuppressWarnings("unchecked")
@@ -3336,5 +3402,64 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Float weight
     ) {
         matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
+    }
+
+    // takes into account references to enums such as state
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
+
+    private volatile long ramBytesUsed = -1;
+
+    /**
+     * Returns an estimated heap footprint for this index metadata instance. Each owned object that implements
+     * {@link Accountable} contributes its own recursive {@link Accountable#ramBytesUsed()}; leaf value types (and Lucene types that
+     * cannot implement {@link Accountable}) are sized shallowly here. The result is memoized because {@link IndexMetadata} is immutable.
+     * <p>
+     * Shared instances (e.g. deduplicated {@link MappingMetadata} in {@link ProjectMetadata}) may be counted multiple times when this
+     * value is summed across indices; callers that need accurate cross-index totals should deduplicate shared mappings using
+     * {@link MappingMetadata#ramBytesUsed()}.
+     */
+    @Override
+    public long ramBytesUsed() {
+        if (ramBytesUsed == -1L) {
+            ramBytesUsed = computeRamBytesUsed();
+        }
+        return ramBytesUsed;
+    }
+
+    private long computeRamBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOfCollection(routingPaths);
+        size += RamUsageEstimator.sizeOfCollection(timeSeriesDimensions);
+        size += index.ramBytesUsed();
+        size += transportVersion.ramBytesUsed();
+        size += RamUsageEstimator.sizeOf(primaryTerms);
+        size += aliases.ramBytesUsed();
+        size += settings.estimatedRamBytesUsed();
+        size += RamUsageEstimates.safeSizeOfObject(mapping);
+        size += inferenceFields.ramBytesUsed();
+        size += customData.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
+        size += RamUsageEstimates.safeSizeOfObject(requireFilters);
+        size += RamUsageEstimates.safeSizeOfObject(includeFilters);
+        size += RamUsageEstimates.safeSizeOfObject(excludeFilters);
+        size += RamUsageEstimates.safeSizeOfObject(initialRecoveryFilters);
+        size += indexCreatedVersion.ramBytesUsed();
+        size += mappingsUpdatedVersion.ramBytesUsed();
+        size += indexCompatibilityVersion.ramBytesUsed();
+        size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
+        size += rolloverInfos.ramBytesUsed();
+        size += RamUsageEstimates.safeSizeOfObject(timestampRange);
+        size += RamUsageEstimates.safeSizeOfObject(eventIngestedRange);
+        size += RamUsageEstimator.sizeOfCollection(tierPreference);
+        size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
+        size += RamUsageEstimates.safeSizeOfObject(lifecycleExecutionState);
+        size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
+        size += RamUsageEstimates.safeSizeOfObject(stats);
+        size += RamUsageEstimator.shallowSizeOf(writeLoadForecast);
+        size += RamUsageEstimator.shallowSizeOf(shardSizeInBytesForecast);
+        size += RamUsageEstimates.safeSizeOfObject(reshardingMetadata);
+        return size;
     }
 }

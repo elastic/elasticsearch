@@ -1,0 +1,5 @@
+FROM employees, (FROM employees_incompatible | WHERE languages > 0)
+| EVAL emp_no = emp_no::long
+| WHERE emp_no > 10000
+| EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
+| SORT still_hired, is_rehired

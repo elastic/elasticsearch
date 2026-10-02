@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Performs "secondary user authentication" (that is, a second user, _not_ second factor authentication).
@@ -122,21 +124,29 @@ public class SecondaryAuthenticator {
         final Map<String, String> additionalHeaders = mapAdditionalSecondaryAuthHeaders(threadContext);
 
         final Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
-        final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(
+
+        final ActionListener<SecondaryAuthentication> contextRestoringListener = new ContextPreservingActionListener<>(
             originalContext,
-            ActionListener.wrap(authentication -> {
-                if (authentication == null) {
-                    logger.debug("secondary authentication failed - authentication service returned a null authentication object");
-                    listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user"));
-                } else {
-                    logger.debug("secondary authentication succeeded [{}]", authentication);
-                    listener.onResponse(new SecondaryAuthentication(securityContext, authentication));
-                }
-            }, e -> {
-                logger.debug("secondary authentication failed - authentication service responded with failure", e);
-                listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user", e));
-            })
+            listener
         );
+
+        final ActionListener<Authentication> authenticationListener = ActionListener.wrap(authentication -> {
+            if (authentication == null) {
+                logger.debug("secondary authentication failed - authentication service returned a null authentication object");
+                contextRestoringListener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user"));
+            } else {
+                Map<String, Object> transients = threadContext.getTransientHeaders()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue() instanceof AuthenticationToken)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                logger.debug("secondary authentication succeeded [{}]", authentication);
+                contextRestoringListener.onResponse(new SecondaryAuthentication(securityContext, authentication, transients));
+            }
+        }, e -> {
+            logger.debug("secondary authentication failed - authentication service responded with failure", e);
+            contextRestoringListener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user", e));
+        });
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             logger.trace(

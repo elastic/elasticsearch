@@ -8,23 +8,23 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 
 public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
@@ -47,16 +47,14 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
             validationException
         );
 
         Boolean autoTruncate = extractOptionalBoolean(map, AUTO_TRUNCATE, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputType);
     }
@@ -165,9 +163,12 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

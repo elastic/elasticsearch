@@ -50,7 +50,7 @@ public class FilteredExpression extends Expression {
     }
 
     public Expression surrogate() {
-        return delegate.transformUp(AggregateFunction.class, af -> af.withFilter(filter));
+        return AggregateFunction.withFilter(delegate, filter);
     }
 
     @Override

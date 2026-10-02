@@ -113,6 +113,17 @@ public class SubscribableListenerTests extends ESTestCase {
         assertEquals(subscriberCount + 2, order.get());
     }
 
+    public void testOnNullResponse() throws Exception {
+        final var nullSuccess = SubscribableListener.nullSuccess();
+        assertSame(nullSuccess, SubscribableListener.newSucceeded(null));
+        assertNull(nullSuccess.rawResult());
+
+        final var listener = new SubscribableListener<>();
+        assertNotSame(nullSuccess, listener);
+        listener.onResponse(null);
+        assertNull(listener.rawResult());
+    }
+
     public void testOnFailure() {
         var listener = new SubscribableListener<>();
         var order = new AtomicInteger();
@@ -678,6 +689,32 @@ public class SubscribableListenerTests extends ESTestCase {
 
         assertEquals("simulated rejection", expectThrows(EsRejectedExecutionException.class, subscribedListener::rawResult).getMessage());
         assertEquals("simulated rejection", expectThrows(EsRejectedExecutionException.class, andThenListener::rawResult).getMessage());
+    }
+
+    public void testSubscriptionLoop() throws Exception {
+        // the one-shot completion semantics means that it's ok to have a cycle of listeners subscribing to each other, even if the
+        // subscriptions happen concurrently to each other and to the completion
+
+        final var loopLength = between(1, 10);
+        final var listeners = new ArrayList<SubscribableListener<Object>>(loopLength);
+        while (listeners.size() < loopLength) {
+            listeners.add(new SubscribableListener<>());
+        }
+
+        final var result = new Object();
+        runInParallel(loopLength + 1, i -> {
+            if (i == 0) {
+                listeners.getFirst().addListener(listeners.getLast());
+            } else if (i < loopLength) {
+                listeners.get(i).addListener(listeners.get(i - 1));
+            } else {
+                listeners.getFirst().onResponse(result);
+            }
+        });
+
+        for (var listener : listeners) {
+            assertSame(result, listener.rawResult());
+        }
     }
 
     public void testJavaDocExample() {

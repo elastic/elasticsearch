@@ -8,12 +8,19 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 
 /**
+ * This class is {@code public} for testing.
  * @param nodeReducePlan The plan to be executed on the node_reduce driver. This should <i>not</i> contain a
  * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}, but be a plan "sandwiched" between an {@link ExchangeSinkExec} and an
  * {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec}.
  * @param dataNodePlan The plan to be executed on the data driver. This may contain a
  * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}.
  */
-record ReductionPlan(ExchangeSinkExec nodeReducePlan, ExchangeSinkExec dataNodePlan) {}
+public record ReductionPlan(ExchangeSinkExec nodeReducePlan, ExchangeSinkExec dataNodePlan) {
+
+    public boolean isPassThrough() {
+        return nodeReducePlan.child() instanceof ExchangeSourceExec;
+    }
+}

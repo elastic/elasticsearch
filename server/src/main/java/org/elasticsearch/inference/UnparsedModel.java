@@ -9,7 +9,12 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
+
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Semi parsed model where inference entity id, task type and service
@@ -20,5 +25,37 @@ public record UnparsedModel(
     TaskType taskType,
     String service,
     Map<String, Object> settings,
-    Map<String, Object> secrets
-) {}
+    Map<String, Object> secrets,
+    EndpointMetadata endpointMetadata
+) {
+    public UnparsedModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> settings,
+        Map<String, Object> secrets
+    ) {
+        this(inferenceEntityId, taskType, service, settings, secrets, EndpointMetadata.EMPTY_INSTANCE);
+    }
+
+    public UnparsedModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        @Nullable Map<String, Object> settings,
+        @Nullable Map<String, Object> secrets,
+        EndpointMetadata endpointMetadata
+    ) {
+        this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
+        this.taskType = Objects.requireNonNull(taskType);
+        this.service = Objects.requireNonNull(service);
+
+        // We ensure that settings and secrets maps are modifiable because during parsing we are removing from them
+        this.settings = settings == null ? null : new HashMap<>(settings);
+        // Additionally, an empty secrets map is treated as null in order to skip potential validations for missing keys
+        // which should not be necessary when parsing a persisted model.
+        this.secrets = secrets == null || secrets.isEmpty() ? null : new HashMap<>(secrets);
+
+        this.endpointMetadata = Objects.requireNonNull(endpointMetadata);
+    }
+}

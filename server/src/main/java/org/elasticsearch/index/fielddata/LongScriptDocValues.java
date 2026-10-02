@@ -18,6 +18,7 @@ public final class LongScriptDocValues extends SortedNumericLongValues {
     private int cursor;
 
     LongScriptDocValues(AbstractLongFieldScript script) {
+        super(null);
         this.script = script;
     }
 

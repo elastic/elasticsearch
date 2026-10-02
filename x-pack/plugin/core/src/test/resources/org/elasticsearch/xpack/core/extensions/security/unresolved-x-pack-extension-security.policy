@@ -1,4 +1,0 @@
-grant {
-  // an unresolved permission
-  permission org.fake.FakePermission "fakeName";
-};

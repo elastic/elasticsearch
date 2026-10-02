@@ -48,10 +48,10 @@ $$$xpack-watcher-encrypt-sensitive-data$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Protocol used to communicate with the proxy server. Valid values are `http` and `https`. Defaults to the protocol used in the request.
 
 `xpack.http.default_connection_timeout`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period to wait until abortion of the request, when a connection is being initiated.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period to wait until abortion of the request, when a connection is being initiated. Defaults to `10s`.
 
 `xpack.http.default_read_timeout`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period of inactivity between two data packets, before the request is aborted.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period of inactivity between two data packets, before the request is aborted. Defaults to `10s`.
 
 `xpack.http.tcp.keep_alive`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Whether to enable TCP keepalives on HTTP connections. Defaults to `true`.

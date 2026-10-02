@@ -12,13 +12,14 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 
@@ -30,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public abstract class CohereRequest implements Request, ToXContentObject {
+public abstract class CohereRequest implements OutboundRequest, ToXContentObject {
 
     public static void decorateWithAuthHeader(HttpPost request, CohereAccount account) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -51,7 +52,7 @@ public abstract class CohereRequest implements Request, ToXContentObject {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(this).getBytes(StandardCharsets.UTF_8));
@@ -59,7 +60,7 @@ public abstract class CohereRequest implements Request, ToXContentObject {
 
         decorateWithAuthHeader(httpPost, account);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -100,7 +101,7 @@ public abstract class CohereRequest implements Request, ToXContentObject {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // no truncation
         return this;
     }

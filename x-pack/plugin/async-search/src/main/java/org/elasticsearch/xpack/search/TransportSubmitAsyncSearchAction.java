@@ -39,6 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
+
     private final ClusterService clusterService;
     private final NodeClient nodeClient;
     private final SearchService searchService;
@@ -84,7 +85,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     @Override
     protected void doExecute(Task submitTask, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
-        final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
+        final TimeValue keepAlive;
+        try {
+            keepAlive = store.resolveKeepAlive(request.getKeepAlive());
+        } catch (Exception e) {
+            submitListener.onFailure(e);
+            return;
+        }
+        final SearchRequest searchRequest = createSearchRequest(request, submitTask, keepAlive);
         try (var ignored = threadContext.newTraceContext()) {
             AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
                 "transport",
@@ -179,7 +187,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                     // the completion listener once the wait for completion timeout expires.
                     onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
                 }
-            }, request.getWaitForCompletionTimeout());
+            }, request.getWaitForCompletionTimeout(), true); // TODO do we want have the option for partial results in the submit?
         }
     }
 

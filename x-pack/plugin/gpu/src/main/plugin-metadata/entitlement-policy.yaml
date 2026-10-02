@@ -1,2 +1,8 @@
 com.nvidia.cuvs:
   - load_native_libraries
+
+org.elasticsearch.gpu:
+  - files:
+      - relative_path: indices
+        relative_to: data
+        mode: read_write

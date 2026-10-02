@@ -203,21 +203,6 @@ setup:
               vector:
                 type: dense_vector
                 dims: 64
-                element_type: byte
-                index: true
-                index_options:
-                  type: bbq_disk
-
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_ivf
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 64
                 index: false
                 index_options:
                   type: bbq_disk

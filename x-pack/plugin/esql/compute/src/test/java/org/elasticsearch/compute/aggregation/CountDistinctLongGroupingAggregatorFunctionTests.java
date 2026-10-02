@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -23,7 +23,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class CountDistinctLongGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new CountDistinctLongAggregatorFunctionSupplier(40000);

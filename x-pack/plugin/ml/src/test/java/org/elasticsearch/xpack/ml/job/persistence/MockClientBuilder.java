@@ -33,6 +33,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -111,6 +112,14 @@ public class MockClientBuilder {
     }
 
     /**
+     * Mocks sequential {@link Client#prepareSearch(String...)} calls with the given index patterns as varargs.
+     */
+    public MockClientBuilder prepareSearches(String[] indices, SearchRequestBuilder first, SearchRequestBuilder... searches) {
+        when(client.prepareSearch(indices)).thenReturn(first, searches);
+        return this;
+    }
+
+    /**
      * Creates a {@link SearchResponse} with a {@link SearchHit} for each element of {@code docs}
      * @param indexName Index being searched
      * @param docs Returned in the SearchResponse
@@ -137,14 +146,14 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(response.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(response, searchHits);
 
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-                listener.onResponse(response);
+                ActionListener.respondAndRelease(listener, response);
                 return null;
             }
         }).when(client).search(eq(request), any());
@@ -177,14 +186,14 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(response.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(response, searchHits);
 
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-                listener.onResponse(response);
+                ActionListener.respondAndRelease(listener, response);
                 return null;
             }
         }).when(client).search(eq(request), any());

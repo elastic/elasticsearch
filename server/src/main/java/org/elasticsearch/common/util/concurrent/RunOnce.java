@@ -14,6 +14,9 @@ import java.util.Objects;
 
 /**
  * Runnable that prevents running its delegate more than once.
+ * <p>
+ * Crucially, this drops the reference to the provided delegate as soon as it executes, allowing it and its dependencies to be GCd even
+ * though the small {@code RunOnce} wrapper might remain reachable in a collection of pending-execution callbacks somewhere.
  */
 public class RunOnce implements Runnable {
 

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.rules.TestRule;
@@ -46,7 +46,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     }
 
     public String getUrl() {
-        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return format("http://%s", webServer.getHttpAddress());
     }
 
     @Override

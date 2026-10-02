@@ -1,0 +1,100 @@
+//
+// Invalid PromQL queries that the verifier (analysis phase) should reject.
+//
+// These are bare PromQL expressions. The test wraps each in
+// "PROMQL index=test step=5m (%s)" before passing to the analyzer.
+//
+// The file contains the failing query on one line, terminated by ;
+//
+
+//1;
+//|unexpected op:*;
+//test;
+//|unexpected op:*;
+
+
+//
+// set operators
+//
+1 and 1;
+|set operator "and" not allowed in binary scalar expression;
+1 == 1;
+|1:3: parse error: comparisons between scalars must use BOOL modifier;
+1 or 1;
+|set operator "or" not allowed in binary scalar expression;
+1 unless 1;
+|set operator "unless" not allowed in binary scalar expression;
+foo and 1;
+|set operator "and" not allowed in binary scalar expression;
+1 and foo;
+|set operator "and" not allowed in binary scalar expression;
+foo or 1;
+|set operator "or" not allowed in binary scalar expression;
+1 or foo;
+|set operator "or" not allowed in binary scalar expression;
+foo unless 1;
+|set operator "unless" not allowed in binary scalar expression;
+1 unless foo;
+|set operator "unless" not allowed in binary scalar expression;
+1 or on(bar) foo;
+|vector matching only allowed between instant vectors;
+foo == on(bar) 10;
+|vector matching only allowed between instant vectors;
+
+//
+// unary negation of range vector
+//
+-test[5m];
+|unary expression only allowed on expressions of type scalar or instant vector, got "range vector";
+
+//
+// function arity errors
+//
+floor();
+|expected 1 argument(s) in call to "floor", got 0;
+floor(some_metric, other_metric);
+|expected 1 argument(s) in call to "floor", got 2;
+floor(some_metric, 1);
+|expected 1 argument(s) in call to "floor", got 2;
+hour(some_metric, some_metric, some_metric);
+|expected at most 1 argument(s) in call to "hour", got 3;
+time(some_metric);
+|expected 0 argument(s) in call to "time", got 1;
+topk(some_metric);
+|wrong number of arguments for aggregate expression provided, expected 2, got 1;
+
+//
+// function type errors
+//
+floor(1);
+|expected type instant vector in call to function "floor", got scalar;
+topk(some_metric, other_metric);
+|1:6: parse error: expected type scalar in aggregation parameter, got instant vector;
+count_values(5, other_metric);
+|1:14: parse error: expected type string in aggregation parameter, got scalar;
+
+//
+// BY/WITHOUT on non-aggregation function
+//
+rate(some_metric[5m]) by (label);
+|1:1 sadf
+ceil(some_metric) without (label);
+|1:1 sadf
+
+//
+// unknown functions
+//
+non_existent_function_far_bar();
+|unknown function with name "non_existent_function_far_bar";
+a>b();
+|unknown function;
+info(rate(http_request_counter_total{}[5m]), target_info{foo="bar"});
+|1:46: parse error: expected label selectors only, got vector selector instead;
+
+//
+// subquery on matrix
+//
+test[5d] OFFSET 10s [10m:5s];
+|1:1: parse error: subquery is only allowed on instant vector, got matrix;
+(foo + bar{nm="val"})[5m:][10m:5s];
+|1:1: parse error: subquery is only allowed on instant vector, got matrix;

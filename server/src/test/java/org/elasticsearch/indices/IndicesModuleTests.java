@@ -66,7 +66,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
-    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
+    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override

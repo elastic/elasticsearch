@@ -34,10 +34,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.rank.FailingQueryPlugin;
 import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
@@ -116,7 +116,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             """;
         int shardCount = randomIntBetween(1, 5);
         createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).build());
-        admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
+        admin().indices().preparePutMapping(INDEX).setSource(mapping).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
         indexDoc(
             INDEX,
@@ -808,7 +808,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // this will too retrieve just doc 7
         KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
             "vector",
-            null,
+            (VectorData) null,
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
             10,
             10,
@@ -866,7 +866,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 throw new IllegalStateException("Should not be called");
             }
         };
-        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
+        var knn = new KnnRetrieverBuilder("vector", (VectorData) null, vectorBuilder, 10, 10, null, null, null);
         var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new LinearRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),

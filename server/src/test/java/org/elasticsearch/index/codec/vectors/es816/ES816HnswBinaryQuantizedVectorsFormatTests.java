@@ -32,7 +32,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {

@@ -215,85 +215,87 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        {
-            SearchHit hit = SearchHit.unpooled(0, "first_foo");
-            hit.version(1L);
-            hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-            hit.sourceRef(source);
-            when(searchResponse1.getHits()).thenReturn(
-                SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
-            );
-        }
+        SearchHit firstHit = new SearchHit(0, "first_foo");
+        firstHit.version(1L);
+        firstHit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+        firstHit.sourceRef(source);
+        SearchHits firstResponseHits = new SearchHits(new SearchHit[] { firstHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        when(searchResponse1.getHits()).thenReturn(firstResponseHits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(searchResponse1);
-            return null;
-        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+        try {
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
+                listener.onResponse(searchResponse1);
+                return null;
+            }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
-        doAnswer(invocation -> {
-            SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
-            @SuppressWarnings("unchecked")
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            if (request.scrollId().equals("_scrollId")) {
-                // First return a scroll response with a single hit and then with no hits
-                var hit = SearchHit.unpooled(0, "second_foo");
-                hit.version(1L);
-                hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-                hit.sourceRef(source);
-                ActionListener.respondAndRelease(
-                    listener,
-                    SearchResponseUtils.response(
-                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
-                    ).scrollId("_scrollId1").build()
-                );
-            } else if (request.scrollId().equals("_scrollId1")) {
-                ActionListener.respondAndRelease(listener, SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null));
-            } else {
-                listener.onFailure(new ElasticsearchException("test issue"));
+            doAnswer(invocation -> {
+                SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
+                @SuppressWarnings("unchecked")
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
+                if (request.scrollId().equals("_scrollId")) {
+                    // First return a scroll response with a single hit and then with no hits
+                    var hit = new SearchHit(0, "second_foo");
+                    hit.version(1L);
+                    hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+                    hit.sourceRef(source);
+                    SearchHits trigHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                    var trigResponse = SearchResponseUtils.response(trigHits).scrollId("_scrollId1").build();
+                    trigHits.decRef(); // transfer ownership to trigResponse
+                    ActionListener.respondAndRelease(listener, trigResponse);
+                } else if (request.scrollId().equals("_scrollId1")) {
+                    ActionListener.respondAndRelease(
+                        listener,
+                        SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null)
+                    );
+                } else {
+                    listener.onFailure(new ElasticsearchException("test issue"));
+                }
+                return null;
+            }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
+
+            TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
+            when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
+
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
+                listener.onResponse(new ClearScrollResponse(true, 1));
+                return null;
+
+            }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(), any());
+
+            assertThat(TriggeredWatchStore.validate(cs), is(true));
+            ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+            ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
+
+            Watch watch1 = mock(Watch.class);
+            when(watch1.id()).thenReturn("first");
+            TriggeredWatch triggeredWatch1 = new TriggeredWatch(new Wid("first", now), triggerEvent);
+            when(parser.parse(eq("first_foo"), anyLong(), eq(source))).thenReturn(triggeredWatch1);
+
+            Watch watch2 = mock(Watch.class);
+            when(watch2.id()).thenReturn("second");
+            TriggeredWatch triggeredWatch2 = new TriggeredWatch(new Wid("second", now), triggerEvent);
+            when(parser.parse(eq("second_foo"), anyLong(), eq(source))).thenReturn(triggeredWatch2);
+
+            Collection<Watch> watches = new ArrayList<>();
+            watches.add(watch1);
+            if (randomBoolean()) {
+                watches.add(watch2);
             }
-            return null;
-        }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
+            Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, cs);
+            assertThat(triggeredWatches, notNullValue());
+            assertThat(triggeredWatches, hasSize(watches.size()));
 
-        TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
-        when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
-            listener.onResponse(new ClearScrollResponse(true, 1));
-            return null;
-
-        }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(), any());
-
-        assertThat(TriggeredWatchStore.validate(cs), is(true));
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
-
-        Watch watch1 = mock(Watch.class);
-        when(watch1.id()).thenReturn("first");
-        TriggeredWatch triggeredWatch1 = new TriggeredWatch(new Wid("first", now), triggerEvent);
-        when(parser.parse(eq("first_foo"), anyLong(), eq(source))).thenReturn(triggeredWatch1);
-
-        Watch watch2 = mock(Watch.class);
-        when(watch2.id()).thenReturn("second");
-        TriggeredWatch triggeredWatch2 = new TriggeredWatch(new Wid("second", now), triggerEvent);
-        when(parser.parse(eq("second_foo"), anyLong(), eq(source))).thenReturn(triggeredWatch2);
-
-        Collection<Watch> watches = new ArrayList<>();
-        watches.add(watch1);
-        if (randomBoolean()) {
-            watches.add(watch2);
+            verify(client, times(1)).execute(eq(RefreshAction.INSTANCE), any(), any());
+            verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
+            verify(client, times(2)).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
+            verify(client, times(1)).execute(eq(TransportClearScrollAction.TYPE), any(), any());
+        } finally {
+            firstResponseHits.decRef();
         }
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, cs);
-        assertThat(triggeredWatches, notNullValue());
-        assertThat(triggeredWatches, hasSize(watches.size()));
-
-        verify(client, times(1)).execute(eq(RefreshAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
-        verify(client, times(2)).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
-        verify(client, times(1)).execute(eq(TransportClearScrollAction.TYPE), any(), any());
     }
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to

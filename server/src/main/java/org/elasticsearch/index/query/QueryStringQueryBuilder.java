@@ -12,15 +12,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -45,7 +48,7 @@ import java.util.TreeMap;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
  */
-public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
+public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -866,6 +869,7 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
         if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
@@ -896,7 +900,8 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
                     context,
                     QueryParserHelper.parseFieldsAndWeights(defaultFields)
                 );
-                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+                boolean forceLenient = lenient == null && context.hasAllFieldsWildcardDefaultField();
+                queryParser = new QueryStringQueryParser(context, resolvedFields, forceLenient || isLenient);
             }
         }
 
@@ -945,6 +950,14 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
             query = queryParser.parse(rewrittenQueryString);
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
             throw new QueryShardException(context, "Failed to parse query [" + this.queryString + "]", e);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error so it does not reach the uncaught exception handler and halt the node.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                Strings.cleanTruncate(this.queryString, 1024)
+            );
         }
 
         if (query == null) {
@@ -958,7 +971,7 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
             query = boostQuery.getQuery();
         }
 
-        query = Queries.fixNegativeQueryIfNeeded(query);
+        query = Queries.fixNegativeQueryIfNeeded(query, QueryVisitor.EMPTY_VISITOR);
         query = Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);
 
         // restore the previous BoostQuery wrapping

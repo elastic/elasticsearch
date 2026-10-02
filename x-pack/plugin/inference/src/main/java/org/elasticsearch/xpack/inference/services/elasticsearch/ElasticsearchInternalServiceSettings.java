@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
@@ -64,20 +63,13 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     public static Builder fromRequestMap(Map<String, Object> map) {
         var validationException = new ValidationException();
         var builder = fromMap(map, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return builder;
     }
 
     protected static Builder fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractOptionalPositiveInteger(
-            map,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer numAllocations = extractOptionalPositiveInteger(map, NUM_ALLOCATIONS, SERVICE_SETTINGS, validationException);
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
             ADAPTIVE_ALLOCATIONS,
@@ -85,18 +77,15 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         );
 
         // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                ServiceUtils.missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), SERVICE_SETTINGS)
             );
         }
 
-        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, SERVICE_SETTINGS, validationException);
 
         // if an error occurred while parsing, we'll set these to an invalid value, so we don't accidentally get a
         // null pointer when doing unboxing
@@ -230,30 +219,21 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var mutableServiceSettings = new HashMap<>(serviceSettings);
 
         if (serviceSettings.containsKey(NUM_THREADS)) {
             validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
         }
 
-        var numAllocations = extractOptionalPositiveInteger(
-            mutableServiceSettings,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var numAllocations = extractOptionalPositiveInteger(serviceSettings, NUM_ALLOCATIONS, SERVICE_SETTINGS, validationException);
         var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
-            mutableServiceSettings,
+            serviceSettings,
             ADAPTIVE_ALLOCATIONS,
             validationException
         );
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                ServiceUtils.missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), SERVICE_SETTINGS)
             );
         }
         if (numAllocations != null && adaptiveAllocationsSettings != null) {

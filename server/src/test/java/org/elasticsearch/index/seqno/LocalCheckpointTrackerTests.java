@@ -36,10 +36,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         return new LocalCheckpointTracker(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTracker() throws Exception {
         tracker = createEmptyTracker();
     }
 
@@ -231,6 +229,14 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         if (tracker.processedSeqNo.size() == 1) {
             assertThat(tracker.processedSeqNo.keySet().iterator().next(), equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
+    }
+
+    public void testGenerateSeqNos() {
+        assertThat(tracker.generateSeqNos(1), equalTo(0L));
+        assertThat(tracker.generateSeqNos(3), equalTo(1L));
+        assertThat(tracker.getMaxSeqNo(), equalTo(3L));
+        assertThat(tracker.generateSeqNos(1), equalTo(4L));
+        assertThat(tracker.getMaxSeqNo(), equalTo(4L));
     }
 
     public void testContains() {

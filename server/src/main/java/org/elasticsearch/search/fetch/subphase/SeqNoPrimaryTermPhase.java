@@ -20,10 +20,30 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
+
+    private static final FetchSubPhaseProcessor UNASSIGNED_PROCESSOR = new FetchSubPhaseProcessor() {
+        @Override
+        public void setNextReader(LeafReaderContext readerContext) {}
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+
+        @Override
+        public void process(HitContext hitContext) {
+            hitContext.hit().setSeqNo(SequenceNumbers.UNASSIGNED_SEQ_NO);
+            hitContext.hit().setPrimaryTerm(SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        }
+    };
+
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.seqNoAndPrimaryTerm() == false) {
             return null;
+        }
+        if (context.getSearchExecutionContext().getIndexSettings().sequenceNumbersDisabled()) {
+            return UNASSIGNED_PROCESSOR;
         }
         return new FetchSubPhaseProcessor() {
 

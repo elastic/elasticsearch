@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.MasterService;
@@ -214,7 +216,7 @@ public class SnapshotsServiceUtils {
                         : "Found shard snapshot actively executing in ["
                             + entry
                             + "] when it should be blocked by a running delete ["
-                            + Strings.toString(snapshotDeletionsInProgress)
+                            + Strings.toTruncatedString(snapshotDeletionsInProgress)
                             + "]";
                 }
             }
@@ -529,6 +531,13 @@ public class SnapshotsServiceUtils {
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
+                            // INITIALIZING is intentionally absent: restore always requires a prior delete
+                            // (indexShardRoutingTable == null, above) or close (primary UNASSIGNED, below),
+                            // either of which re-evaluates and fails any WAITING shards before the primary can
+                            // reach INITIALIZING. New WAITING shards promoted by startShardSnapshot while the
+                            // primary is already INITIALIZING come from initShardSnapshotStatus, which handles
+                            // the partial=true case (MISSING) at assignment time; partial=false WAITING shards
+                            // are unblocked here once the primary reaches STARTED.
                             if (shardRouting.started() && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId()) == false
                                 || shardRouting.unassigned()) {
                                 return true;
@@ -960,7 +969,8 @@ public class SnapshotsServiceUtils {
         Collection<IndexId> indices,
         boolean useShardGenerations,
         RepositoryData repositoryData,
-        String repoName
+        String repoName,
+        boolean partial
     ) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
@@ -968,6 +978,7 @@ public class SnapshotsServiceUtils {
             snapshotsInProgress.forRepo(currentState.projectId(), repoName)
         );
         final boolean readyToExecute = deletionsInProgress.hasExecutingDeletion(currentState.projectId(), repoName) == false;
+        final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState.cluster());
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
@@ -1004,7 +1015,9 @@ public class SnapshotsServiceUtils {
                         shardSnapshotStatus = initShardSnapshotStatus(
                             shardRepoGeneration,
                             indexRoutingTable.shard(i).primaryShard(),
-                            snapshotsInProgress::isNodeIdForRemoval
+                            snapshotsInProgress::isNodeIdForRemoval,
+                            partial,
+                            restoreInProgress
                         );
                     }
                     builder.put(shardId, shardSnapshotStatus);
@@ -1021,13 +1034,22 @@ public class SnapshotsServiceUtils {
      * @param shardRepoGeneration    repository generation of the shard in the repository
      * @param primary                primary routing entry for the shard
      * @param nodeIdRemovalPredicate tests whether a node ID is currently marked for removal from the cluster
+     * @param partial                whether the snapshot was created with {@code partial=true}; when {@code true}, an
+     *                               actively-restoring INITIALIZING primary causes the shard to be recorded as
+     *                               {@link SnapshotsInProgress.ShardState#MISSING} (terminal — snapshot completes
+     *                               {@link SnapshotState#PARTIAL}); when {@code false} the shard is recorded as
+     *                               {@link SnapshotsInProgress.ShardState#WAITING} and captured after the restore finishes
+     * @param restoreInProgress      the restore custom from the current cluster state, used to detect actively-restoring primaries
      * @return                       shard snapshot status
      */
     public static SnapshotsInProgress.ShardSnapshotStatus initShardSnapshotStatus(
         ShardGeneration shardRepoGeneration,
         ShardRouting primary,
-        Predicate<String> nodeIdRemovalPredicate
+        Predicate<String> nodeIdRemovalPredicate,
+        boolean partial,
+        RestoreInProgress restoreInProgress
     ) {
+        Objects.requireNonNull(restoreInProgress, "restoreInProgress");
         SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
@@ -1036,12 +1058,35 @@ public class SnapshotsServiceUtils {
                 shardRepoGeneration,
                 "primary shard is not allocated"
             );
-        } else if (primary.relocating() || primary.initializing()) {
+        } else if (primary.relocating()) {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
                 primary.currentNodeId(),
                 SnapshotsInProgress.ShardState.WAITING,
                 shardRepoGeneration
             );
+        } else if (primary.initializing()) {
+            if (partial && RestoreService.isRestoringShardFromSnapshot(restoreInProgress, primary)) {
+                // safe: isRestoringShardFromSnapshot only returns true when recoverySource is a SnapshotRecoverySource
+                var source = (SnapshotRecoverySource) primary.recoverySource();
+                logger.debug(
+                    "not snapshotting shard [{}]: primary is being restored from [{}] (restore [{}])",
+                    primary.shardId(),
+                    source.snapshot(),
+                    source.restoreUUID()
+                );
+                shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                    primary.currentNodeId(),
+                    SnapshotsInProgress.ShardState.MISSING,
+                    shardRepoGeneration,
+                    SnapshotsService.SHARD_BEING_RESTORED_REASON
+                );
+            } else {
+                shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                    primary.currentNodeId(),
+                    SnapshotsInProgress.ShardState.WAITING,
+                    shardRepoGeneration
+                );
+            }
         } else if (nodeIdRemovalPredicate.test(primary.currentNodeId())) {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
                 primary.currentNodeId(),
@@ -1076,10 +1121,18 @@ public class SnapshotsServiceUtils {
     }
 
     /**
-     * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
+     * Returns the non-partial, non-clone snapshots that are currently snapshotting one or more of the indices in
+     * {@code indicesToCheck}, each mapped to the subset of those indices it covers. The relation is many-to-many: a single index may be
+     * held by several concurrent snapshots, and a single snapshot may hold several of the indices. Callers that report a conflict to the
+     * user should render the whole map so the user knows which snapshots to take action on.
+     *
+     * @see #describeSnapshottingIndices(Map)
      */
-    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
-        final Set<Index> indices = new HashSet<>();
+    public static Map<Snapshot, Set<Index>> snapshottingIndicesBySnapshot(
+        final ProjectState projectState,
+        final Set<Index> indicesToCheck
+    ) {
+        Map<Snapshot, Set<Index>> result = new HashMap<>();
         for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster())
             .entriesByRepo(projectState.projectId())) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
@@ -1087,13 +1140,36 @@ public class SnapshotsServiceUtils {
                     for (String indexName : entry.indices().keySet()) {
                         IndexMetadata indexMetadata = projectState.metadata().index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
-                            indices.add(indexMetadata.getIndex());
+                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
                         }
                     }
                 }
             }
         }
-        return indices;
+        return result;
+    }
+
+    /**
+     * Renders the result of {@link #snapshottingIndicesBySnapshot} for use in a user-facing error message. Each snapshot is identified
+     * as {@code repository/snapshotName} (the form a user needs for the snapshots API). Output is capped at 5 KB; any snapshots beyond
+     * that limit are omitted with a count of how many were dropped.
+     */
+    public static String describeSnapshottingIndices(Map<Snapshot, Set<Index>> indicesBySnapshot) {
+        StringBuilder sb = new StringBuilder();
+        var collector = new Strings.BoundedDelimitedStringCollector(sb, ", ", 5 * 1024);
+        for (Map.Entry<Snapshot, Set<Index>> entry : indicesBySnapshot.entrySet()) {
+            Snapshot snapshot = entry.getKey();
+            collector.appendItem(
+                "["
+                    + snapshot.getRepository()
+                    + "/"
+                    + snapshot.getSnapshotId().getName()
+                    + "] indices:"
+                    + entry.getValue().stream().map(i -> i.getName() + "/" + i.getUUID()).toList()
+            );
+        }
+        collector.finish();
+        return sb.toString();
     }
 
     /**

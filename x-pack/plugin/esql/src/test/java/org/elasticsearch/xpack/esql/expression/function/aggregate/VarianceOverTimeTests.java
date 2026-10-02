@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 
-public class VarianceOverTimeTests extends AbstractFunctionTestCase {
+public class VarianceOverTimeTests extends AbstractAggregationTestCase {
     public VarianceOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
     }
@@ -49,5 +49,13 @@ public class VarianceOverTimeTests extends AbstractFunctionTestCase {
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         copies.add(window);
         return copies;
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        return params;
     }
 }

@@ -1,0 +1,3 @@
+FROM sample_data METADATA _index
+| WHERE _index RLIKE "sample_.*"
+| KEEP message

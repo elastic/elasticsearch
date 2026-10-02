@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| RENAME emp_no AS employee_number
+| EVAL x = does_not_exist::DOUBLE + 1

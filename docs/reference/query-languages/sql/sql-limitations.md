@@ -1,12 +1,9 @@
 # SQL limitations [sql-limitations]
 
 
-## Large queries may throw `ParsingException` [large-parsing-trees]
+## Maximum query length [large-parsing-trees]
 
-Extremely large queries can consume too much memory during the parsing phase, in which case the {{es-sql}} engine will
-abort parsing and throw an error. In such cases, consider reducing the query to a smaller size by potentially
-simplifying it or splitting it into smaller queries.
-
+Queries longer than `xpack.sql.max_query_length` characters (default: `1000000`) are rejected before parsing begins. This limit exists because ANTLR, the parser used by {{es-sql}}, may buffer significant memory when processing large inputs. Adjust this [dynamic cluster setting](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting) if your workload requires longer queries. Extremely large queries can consume too much memory during the parsing phase.
 
 ## Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE` [sys-columns-describe-table-nested-fields]
 
@@ -102,7 +99,7 @@ It is possible to run the same queries without a `LIMIT` however in that case if
 an exception will be returned as {{es-sql}} is unable to track (and sort) all the results returned.
 
 Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
-functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
+functions or operators can be used, and therefore no complex columns that combine two or more aggregate
 functions can be used for ordering. Here are some examples of queries that are *not allowed*:
 
 ```sql

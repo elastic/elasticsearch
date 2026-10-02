@@ -10,130 +10,195 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
+import org.elasticsearch.xpack.esql.expression.function.GeometryDocSvg;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matchers;
-import org.junit.AssumptionViolatedException;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
-import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import java.util.zip.GZIPInputStream;
 
 @FunctionName("st_simplify")
-public class StSimplifyTests extends AbstractScalarFunctionTestCase {
+public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
     public StSimplifyTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
+        super(testCaseSupplier);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        var geoPoint = new TestCaseSupplier.TypedDataSupplier(
-            "geo point",
-            () -> UNSPECIFIED.wktToWkb("POINT(3.141592 -3.141592)"),
-            GEO_POINT
-        );
-        var cartesianPoint = new TestCaseSupplier.TypedDataSupplier(
-            "geo point",
-            () -> UNSPECIFIED.wktToWkb("POINT(3.141592 500)"),
-            CARTESIAN_POINT
-        );
-        var geoShape = new TestCaseSupplier.TypedDataSupplier(
-            "geo shape",
-            () -> UNSPECIFIED.wktToWkb("POLYGON ((-73.97 40.78, -73.98 40.75, -73.95 40.74, -73.93 40.76, -73.97 40.78))"),
-            GEO_SHAPE
-        );
-        var cartesianShape = new TestCaseSupplier.TypedDataSupplier(
-            "cartesian shape",
-            () -> UNSPECIFIED.wktToWkb("POLYGON ((2 3, 4 8, 7 6, 6 2, 2 3))"),
-            CARTESIAN_SHAPE
-        );
-
-        final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        // Random test case suppliers
-        addTestCaseSuppliers(suppliers, GEO_POINT, testCaseSupplier(GEO_POINT));
-        addTestCaseSuppliers(suppliers, CARTESIAN_POINT, testCaseSupplier(CARTESIAN_POINT));
-        addTestCaseSuppliers(suppliers, GEO_SHAPE, testCaseSupplier(GEO_SHAPE));
-        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, testCaseSupplier(CARTESIAN_SHAPE));
-        // Adds hardcoded test cases so we avoid failing if the above none of the test cases were valid for a specific typed data
-        addTestCaseSuppliers(suppliers, GEO_POINT, geoPoint);
-        addTestCaseSuppliers(suppliers, CARTESIAN_POINT, cartesianPoint);
-        addTestCaseSuppliers(suppliers, GEO_SHAPE, geoShape);
-        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, cartesianShape);
-
-        var testSuppliers = anyNullIsNull(
-            randomizeBytesRefsOffset(suppliers),
-            (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
-        );
-
-        return parameterSuppliersFromTypedData(testSuppliers);
+        return buildParameters("StSimplify", "tolerance", DouglasPeuckerSimplifier::simplify, (spatial, param) -> spatial, 0, 100);
     }
 
-    public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
-        return switch (dataType) {
-            case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-            case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
-            case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-            case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
-            default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
-        };
+    @Override
+    protected BiFunction<Geometry, Double, Geometry> jtsOperation() {
+        return DouglasPeuckerSimplifier::simplify;
     }
 
-    protected static void addTestCaseSuppliers(
-        List<TestCaseSupplier> suppliers,
-        DataType spatialType,
-        TestCaseSupplier.TypedDataSupplier geometrySupplier
-    ) {
-        String testName = spatialType.typeName() + " with tolerance.";
-
-        suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, DOUBLE), () -> {
-            TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
-            BytesRef geometry = (BytesRef) geoTypedData.data();
-            double tolerance = randomDoubleBetween(0, 100, true);
-            TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
-            toleranceData = toleranceData.forceLiteral();
-            String evaluatorName = "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[geometry=Attribute[channel=0], tolerance="
-                + tolerance
-                + "]";
-            var expectedResult = valueOf(geometry, tolerance);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(geoTypedData, toleranceData),
-                evaluatorName,
-                spatialType,
-                Matchers.equalTo(expectedResult)
-            );
-        }));
+    @Override
+    protected String evaluatorPrefix() {
+        return "StSimplify";
     }
 
-    private static BytesRef valueOf(BytesRef wkb, double tolerance) {
-        if (wkb == null) {
-            return null;
-        }
-        try {
-            org.locationtech.jts.geom.Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(wkb);
-            org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, tolerance);
-            return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
-        } catch (Exception e) {
-            throw new AssumptionViolatedException("Skipping invalid test case");
-        }
+    @Override
+    protected String secondParameterName() {
+        return "tolerance";
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new StSimplify(source, args.get(0), args.get(1));
+    }
+
+    /**
+     * Diagrams shown in the generated docs to illustrate how tolerance affects simplification.
+     * Each diagram shows the original geometry as a gray outline with the simplified result
+     * filled on top.
+     */
+    public static List<DocsV3Support.GeometryDiagram> geometryDiagrams() {
+        // A bumpy polygon: a square with small dents along the top and bottom edges.
+        String bumpy = "POLYGON((0 0, 1 0.1, 2 0, 3 0.1, 4 0, 4 2, 3 1.9, 2 2, 1 1.9, 0 2, 0 0))";
+        // A rough circle approximated with many vertices, taken from the PostGIS docs example.
+        String circle = "POLYGON((11 3,10.91 1.69,10.66 0.41,10.24 -0.83,9.66 -2,8.93 -3.09,8.07 -4.07,7.09 -4.93,"
+            + "6 -5.66,4.83 -6.24,3.59 -6.66,2.31 -6.91,1 -7,-0.31 -6.91,-1.59 -6.66,-2.83 -6.24,-4 -5.66,"
+            + "-5.09 -4.93,-6.07 -4.07,-6.93 -3.09,-7.66 -2,-8.24 -0.83,-8.66 0.41,-8.91 1.69,-9 3,"
+            + "-8.91 4.31,-8.66 5.59,-8.24 6.83,-7.66 8,-6.93 9.09,-6.07 10.07,-5.09 10.93,-4 11.66,"
+            + "-2.83 12.24,-1.59 12.66,-0.31 12.91,1 13,2.31 12.91,3.59 12.66,4.83 12.24,6 11.66,"
+            + "7.09 10.93,8.07 10.07,8.93 9.09,9.66 8,10.24 6.83,10.66 5.59,10.91 4.31,11 3))";
+        GeometryDocSvg.Config bumpyConfig = GeometryDocSvg.Config.DEFAULT.width(460).height(240);
+        GeometryDocSvg.Config circleConfig = GeometryDocSvg.Config.DEFAULT.width(340).height(340);
+        GeometryDocSvg.Config franceConfig = GeometryDocSvg.Config.DEFAULT.width(460).height(420).aspectRatio(0.75);
+        return List.of(
+            diagram(
+                "low_tolerance",
+                "Low tolerance keeps almost every vertex",
+                "With a small tolerance, only collinear or near-collinear vertices are removed.",
+                bumpy,
+                0.05,
+                bumpyConfig
+            ),
+            diagram(
+                "mid_tolerance",
+                "Mid tolerance smooths out the bumps",
+                "A tolerance of `0.2` is large enough to remove the small dents along each edge, leaving the underlying square.",
+                bumpy,
+                0.2,
+                bumpyConfig
+            ),
+            diagram(
+                "circle_quarter",
+                "Simplifying a circle with tolerance 0.5",
+                "Higher tolerances drop more vertices and the circle becomes a rough polygon.",
+                circle,
+                0.5,
+                circleConfig
+            ),
+            diagram(
+                "circle_octagon",
+                "Simplifying a circle to an octagon",
+                "Tolerance `1.0` reduces the circle to a regular octagon.",
+                circle,
+                1.0,
+                circleConfig
+            ),
+            // Real-world coastline (France, MultiPolygon) at two tolerance levels. Each diagram
+            // shows the simplified result on its own — both shapes visibly differ from the
+            // unsimplified original and from each other.
+            simplifiedDiagram(
+                "france_medium",
+                "Simplifying a coastline at moderate tolerance",
+                "France's coastline simplified at tolerance `0.1` (roughly 10 km). Small bays and "
+                    + "peninsulas survive but the coastline is noticeably smoother.",
+                loadResourceWkt("France.wkt.gz"),
+                0.1,
+                franceConfig
+            ),
+            simplifiedDiagram(
+                "france_coarse",
+                "Simplifying a coastline at coarse tolerance",
+                "France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the high-level shape of the country remains.",
+                loadResourceWkt("France.wkt.gz"),
+                0.5,
+                franceConfig
+            )
+        );
+    }
+
+    private static DocsV3Support.GeometryDiagram diagram(
+        String name,
+        String title,
+        String description,
+        String inputWkt,
+        double tolerance,
+        GeometryDocSvg.Config config
+    ) {
+        Geometry input = jts(inputWkt);
+        Geometry simplified = DouglasPeuckerSimplifier.simplify(input, tolerance);
+        return new DocsV3Support.GeometryDiagram(
+            name,
+            title,
+            description,
+            config,
+            List.of(GeometryDocSvg.Layer.filled(toEs(simplified)), GeometryDocSvg.Layer.outline(parseEs(inputWkt)))
+        );
+    }
+
+    /** A diagram showing only the simplified geometry — useful when the original would be too dense to read. */
+    private static DocsV3Support.GeometryDiagram simplifiedDiagram(
+        String name,
+        String title,
+        String description,
+        String inputWkt,
+        double tolerance,
+        GeometryDocSvg.Config config
+    ) {
+        Geometry simplified = DouglasPeuckerSimplifier.simplify(jts(inputWkt), tolerance);
+        return new DocsV3Support.GeometryDiagram(name, title, description, config, List.of(GeometryDocSvg.Layer.filled(toEs(simplified))));
+    }
+
+    private static String loadResourceWkt(String name) {
+        try (
+            InputStream raw = StSimplifyTests.class.getResourceAsStream(name);
+            GZIPInputStream gz = new GZIPInputStream(raw);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(gz, StandardCharsets.UTF_8))
+        ) {
+            return reader.readLine();
+        } catch (IOException e) {
+            throw new AssertionError("failed to load test resource " + name, e);
+        }
+    }
+
+    private static Geometry jts(String wkt) {
+        try {
+            return new org.locationtech.jts.io.WKTReader().read(wkt);
+        } catch (org.locationtech.jts.io.ParseException e) {
+            throw new AssertionError("invalid wkt: " + wkt, e);
+        }
+    }
+
+    /** Convert a JTS geometry to an Elasticsearch geometry by round-tripping through WKT. */
+    private static org.elasticsearch.geometry.Geometry toEs(Geometry jtsGeom) {
+        return parseEs(jtsGeom.toText());
+    }
+
+    private static org.elasticsearch.geometry.Geometry parseEs(String wkt) {
+        try {
+            return WellKnownText.fromWKT(StandardValidator.instance(false), false, wkt);
+        } catch (IOException | ParseException e) {
+            throw new AssertionError("invalid wkt: " + wkt, e);
+        }
     }
 }

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,15 +20,21 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
+import static org.elasticsearch.inference.DataType.TEXT;
+import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringGroup.CONTENT_FIELD;
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -39,13 +45,13 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testStringConstructor() {
         String stringValue = "a string";
         var input = new InferenceStringGroup(stringValue);
-        assertThat(input.inferenceStrings(), contains(new InferenceString(TEXT, DataFormat.TEXT, stringValue)));
+        assertThat(input.inferenceStrings(), contains(InferenceString.ofText(stringValue)));
         assertThat(input.containsNonTextEntry(), is(false));
         assertThat(input.containsMultipleInferenceStrings(), is(false));
     }
 
     public void testSingleInferenceStringConstructor() {
-        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "a string");
+        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
         var input = new InferenceStringGroup(inferenceString);
         assertThat(input.inferenceStrings(), contains(inferenceString));
         assertThat(input.containsNonTextEntry(), is(true));
@@ -53,12 +59,21 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testInferenceStringListConstructor() {
-        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "a string");
-        InferenceString inferenceString2 = new InferenceString(TEXT, DataFormat.TEXT, "a string");
+        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
+        InferenceString inferenceString2 = InferenceString.ofText("a string");
         var input = new InferenceStringGroup(List.of(inferenceString1, inferenceString2));
         assertThat(input.inferenceStrings(), contains(inferenceString1, inferenceString2));
         assertThat(input.containsNonTextEntry(), is(true));
         assertThat(input.containsMultipleInferenceStrings(), is(true));
+    }
+
+    public void testInferenceStringListConstructor_withNullList_throws() {
+        assertThrows(NullPointerException.class, () -> new InferenceStringGroup((List<InferenceString>) null));
+    }
+
+    public void testInferenceStringListConstructor_withEmptyList_throws() {
+        var exception = assertThrows(IllegalArgumentException.class, () -> new InferenceStringGroup(List.of()));
+        assertThat(exception.getMessage(), is("InferenceStringGroup constructor argument cannot be an empty list"));
     }
 
     public void testParser_withEmptyContentObject_throws() throws IOException {
@@ -68,10 +83,38 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
                 }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            // Need to call nextToken() so that the parser is at the correct element
-            parser.nextToken();
-            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.PARSER.apply(parser, null));
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
             assertThat(exception.getMessage(), containsString("[InferenceStringGroup] failed to parse field [content]"));
+            assertThat(exception.getCause().getMessage(), containsString("Required [type, value]"));
+        }
+    }
+
+    public void testParser_withEmptyContentObjectArray_throws() throws IOException {
+        var requestJson = """
+                {
+                    "content": []
+                }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
+            assertThat(exception.getMessage(), containsString("[InferenceStringGroup] failed to parse field [content]"));
+            assertThat(
+                exception.getCause().getMessage(),
+                containsString("failed to build [InferenceStringGroup] after last required field arrived")
+            );
+            assertThat(exception.getCause().getCause().getMessage(), containsString("[content] field cannot be an empty array"));
+        }
+    }
+
+    public void testParser_withNullContent_throws() throws IOException {
+        var requestJson = """
+                {
+                    "content": null
+                }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
+            assertThat(exception.getMessage(), containsString("[InferenceStringGroup] content doesn't support values of type: VALUE_NULL"));
         }
     }
 
@@ -97,7 +140,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testToInferenceStringList_withMoreThanOneElement_throws() {
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toInferenceStringList(input));
-        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
 
     public void testToStringList() {
@@ -110,7 +153,17 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testToStringList_withMoreThanOneElement_throws() {
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
-        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
+    }
+
+    public void testToStringList_WithNonTextValue_Throws() {
+        var input = randomList(1, 5, () -> new InferenceStringGroup(randomAlphaOfLength(5)));
+        var nonTextInput = new InferenceStringGroup(
+            InferenceStringTests.createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(TEXT)))
+        );
+        input.add(randomInt(input.size()), nonTextInput);
+        var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
+        assertThat(expectedException.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
 
     public void testContainsNonTextEntry_withOnlyTextInputs() {
@@ -122,7 +175,12 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         DataType nonTextDataType = randomValueOtherThan(TEXT, () -> randomFrom(DataType.values()));
         var inputs = List.of(
             new InferenceStringGroup("string1"),
-            new InferenceStringGroup(new InferenceString(nonTextDataType, "non text"))
+            new InferenceStringGroup(
+                new InferenceString(
+                    nonTextDataType,
+                    InferenceStringTests.convertToDataURIIfNeeded(nonTextDataType, null, randomAlphanumericOfLength(10))
+                )
+            )
         );
         assertThat(containsNonTextEntry(inputs), is(true));
     }
@@ -138,7 +196,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         // Add an InferenceStringGroup with multiple InferenceStrings at a random point in the input list
         var indexToAdd = randomIntBetween(0, inputs.size() - 1);
         var multipleInferenceStrings = new InferenceStringGroup(
-            List.of(new InferenceString(TEXT, "a_string"), new InferenceString(TEXT, "a_string"))
+            List.of(InferenceString.ofText("a_string"), InferenceString.ofText("a_string"))
         );
         inputs.add(indexToAdd, multipleInferenceStrings);
         assertThat(indexContainingMultipleInferenceStrings(inputs), is(indexToAdd));
@@ -153,6 +211,80 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         return inputs;
     }
 
+    /**
+     * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing audio,
+     * video or pdf content, and versions before {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when
+     * serializing URL-format inputs, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible} and
+     * {@link #testUrlFormatIsNotBackwardsCompatible}.
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream()
+            .filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED))
+            .filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED))
+            .toList();
+    }
+
+    /**
+     * Verifies that audio, video and pdf inputs cannot be sent to nodes that do not support
+     * {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED}.
+     * <p>
+     * We use a specific BASE64-format instance rather than a random one to avoid interference from the later
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} gate: random generation could produce URL-format instances,
+     * which would fail with the URL-format error rather than the audio/video/pdf error and break the assertion.
+     */
+    public void testAudioVideoPdfAreNotBackwardsCompatible() throws IOException {
+        var audioGroup = new InferenceStringGroup(new InferenceString(DataType.AUDIO, DataFormat.BASE64, TEST_DATA_URI));
+        var preAvpVersions = super.bwcVersions().stream()
+            .filter(v -> v.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false)
+            .toList();
+        assertGroupNotBackwardsCompatible(
+            audioGroup,
+            preAvpVersions,
+            "Cannot send an inference request with audio, video or pdf inputs to an older node. "
+                + "Please wait until all nodes are upgraded before using audio, video or pdf inputs"
+        );
+    }
+
+    /**
+     * Verifies that URL-format inputs cannot be sent to nodes that do not support
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED}.
+     * <p>
+     * We use an {@link DataType#IMAGE} instance since IMAGE pre-dates the audio/video/pdf gate and will not
+     * trigger it, ensuring we always get the URL-specific error on any pre-URL node.
+     */
+    public void testUrlFormatIsNotBackwardsCompatible() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        var urlGroup = new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png"));
+        var preUrlVersions = super.bwcVersions().stream().filter(v -> v.supports(URL_INPUT_FORMAT_SUPPORT_ADDED) == false).toList();
+        assertGroupNotBackwardsCompatible(
+            urlGroup,
+            preUrlVersions,
+            "Cannot send an inference request with URL format inputs to an older node. "
+                + "Please wait until all nodes are upgraded before using URL format inputs"
+        );
+    }
+
+    /**
+     * Asserts that serializing {@code group} to each of the given {@code unsupportedVersions} throws an
+     * {@link ElasticsearchStatusException} with {@link RestStatus#BAD_REQUEST} and the given {@code expectedMessage}.
+     */
+    private void assertGroupNotBackwardsCompatible(
+        InferenceStringGroup group,
+        List<TransportVersion> unsupportedVersions,
+        String expectedMessage
+    ) throws IOException {
+        for (var version : unsupportedVersions) {
+            var ex = assertThrows(
+                ElasticsearchStatusException.class,
+                () -> copyWriteable(group, getNamedWriteableRegistry(), instanceReader(), version)
+            );
+            assertThat(ex.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(ex.getMessage(), is(expectedMessage));
+        }
+    }
+
     @Override
     protected InferenceStringGroup mutateInstanceForVersion(InferenceStringGroup instance, TransportVersion version) {
         return instance;
@@ -160,7 +292,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected InferenceStringGroup doParseInstance(XContentParser parser) throws IOException {
-        return InferenceStringGroup.PARSER.parse(parser, null);
+        return InferenceStringGroup.parse(parser);
     }
 
     @Override
@@ -174,8 +306,8 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public static InferenceStringGroup createRandom() {
-        var inferenceStrings = new ArrayList<InferenceString>();
-        int inferenceStringsToCreate = randomInt(5);
+        int inferenceStringsToCreate = randomIntBetween(1, 5);
+        var inferenceStrings = new ArrayList<InferenceString>(inferenceStringsToCreate);
         for (int j = 0; j < inferenceStringsToCreate; ++j) {
             inferenceStrings.add(InferenceStringTests.createRandom());
         }
@@ -186,10 +318,17 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     protected InferenceStringGroup mutateInstance(InferenceStringGroup instance) throws IOException {
         var inferenceStrings = instance.inferenceStrings();
         List<InferenceString> newInferenceStrings = new ArrayList<>(inferenceStrings);
-        if (inferenceStrings.isEmpty() || randomBoolean()) {
-            newInferenceStrings.add(InferenceStringTests.createRandom());
+        var maintainListSize = randomBoolean();
+        if (maintainListSize) {
+            var firstElement = newInferenceStrings.getFirst();
+            newInferenceStrings.set(0, randomValueOtherThan(firstElement, InferenceStringTests::createRandom));
         } else {
-            newInferenceStrings.removeLast();
+            // Don't remove from the list if there is only one element
+            if (inferenceStrings.size() == 1 || randomBoolean()) {
+                newInferenceStrings.add(InferenceStringTests.createRandom());
+            } else {
+                newInferenceStrings.removeLast();
+            }
         }
         return new InferenceStringGroup(newInferenceStrings);
     }

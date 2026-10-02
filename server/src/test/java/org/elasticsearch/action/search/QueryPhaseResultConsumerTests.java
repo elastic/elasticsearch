@@ -12,79 +12,119 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {
 
+    private static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE = TransportVersion.fromName(
+        "batched_query_execution_delayable_writeable"
+    );
+
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
     private EsThreadPoolExecutor executor;
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
+    }
 
     @Before
     public void setup() {
         searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction() {
+            public AggregationReduceContext forPartialReduction(
+                @Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
+            ) {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     t,
                     mock(AggregationBuilder.class),
-                    b -> {}
+                    b -> {},
+                    topHitsToRelease
                 );
             }
 
-            public AggregationReduceContext forFinalReduction() {
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     t,
                     mock(AggregationBuilder.class),
                     b -> {},
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    topHitsToRelease
                 );
-            };
+            }
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
         executor = EsExecutors.newFixed(
@@ -117,7 +157,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             timestamp,
             () -> timestamp + 1000
         );
-        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, timeProvider);
+        searchProgressListener.notifyListShards(searchShards, Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
@@ -157,6 +197,356 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
+        }
+    }
+
+    public void testResultArrivingAfterCloseIsDiscarded() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                2,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            QuerySearchResult early = queryResultWithAggs(0);
+            consumer.consumeResult(early, () -> {});
+            early.decRef();
+            assertThat(circuitBreaker.getUsed(), greaterThan(0L));
+
+            // a failed phase closes the consumer while its shard requests are still in flight
+            consumer.close();
+            assertEquals(0L, circuitBreaker.getUsed());
+            assertFalse(early.hasReferences());
+
+            // this result arrives too late to be buffered into state doClose released, or charged to a breaker that
+            // nothing will credit back
+            QuerySearchResult late = queryResultWithAggs(1);
+            AtomicBoolean nextRan = new AtomicBoolean();
+            consumer.consumeResult(late, () -> nextRan.set(true));
+
+            assertTrue("the shard still has to be counted down", nextRan.get());
+            assertEquals("a discarded result must not charge the breaker", 0L, circuitBreaker.getUsed());
+            assertNull("a discarded result must release its aggregations", late.aggregations());
+            late.decRef();
+            assertFalse("the caller's reference must be the last one", late.hasReferences());
+        }
+    }
+
+    public void testConcurrentConsumeAndCloseDiscardsLateResults() {
+        // repeated because a single round usually misses the window below
+        for (int round = 0; round < 50; round++) {
+            int numShards = randomIntBetween(2, 8);
+            SearchRequest searchRequest = new SearchRequest("index");
+            searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+            CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+
+            // One expected result per shard, so batchReduceSize is numShards and no partial merge is ever queued.
+            // A merge still running at close is a separate, pre-existing problem.
+            List<QuerySearchResult> shardResults = new ArrayList<>(numShards);
+            for (int i = 0; i < numShards; i++) {
+                shardResults.add(queryResultWithAggs(i));
+            }
+
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            );
+
+            // the check inside consume's lock only matters when a close lands between the unlocked check and the
+            // lock, where the consume charges the breaker and then hits the buffer doClose already released
+            startInParallel(numShards + 1, i -> {
+                if (i == numShards) {
+                    consumer.close();
+                } else {
+                    consumer.consumeResult(shardResults.get(i), () -> {});
+                }
+            });
+
+            assertEquals("nothing may stay charged to the breaker", 0L, circuitBreaker.getUsed());
+            for (QuerySearchResult result : shardResults) {
+                assertNull("every result must have released its aggregations", result.aggregations());
+                result.decRef();
+                assertFalse(result.hasReferences());
+            }
+        }
+    }
+
+    public void testBatchedPartialResultIsReleasedOnceBeforeOrAfterClose() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+
+        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            () -> false,
+            SearchProgressListener.NOOP,
+            2,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+
+        AtomicInteger released = new AtomicInteger();
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), countingMergeResult(released));
+        assertEquals("a result added before close is still needed by the reduce", 0, released.get());
+
+        consumer.close();
+        assertEquals("close must release what it collected", 1, released.get());
+
+        // a node response for the batched path lands after the failed phase closed the consumer
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), countingMergeResult(released));
+        assertEquals("a result arriving after close must be released too", 2, released.get());
+    }
+
+    public void testBatchedTopHitsFromOldConnectionAreReleasedOnDiscard() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder("th").size(1)).size(0));
+
+        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            () -> false,
+            SearchProgressListener.NOOP,
+            2,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+
+        QueryPhaseResultConsumer.MergeResult drainedOnClose = mergeResultFromOldConnection();
+        SearchHits drainedHits = topHitsOf(drainedOnClose);
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), drainedOnClose);
+        assertTrue("a result added before close is still needed by the reduce", drainedHits.hasReferences());
+
+        consumer.close();
+        assertFalse("close must release the hits the referencing wrapper leaves behind", drainedHits.hasReferences());
+
+        QueryPhaseResultConsumer.MergeResult arrivingAfterClose = mergeResultFromOldConnection();
+        SearchHits lateHits = topHitsOf(arrivingAfterClose);
+        consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), arrivingAfterClose);
+        assertFalse("a result arriving after close must be released too", lateHits.hasReferences());
+    }
+
+    // MergeResult.readFrom below batched_query_execution_delayable_writeable is the only production site that
+    // produces a referencing wrapper, so the fixture goes through the wire rather than building one by hand
+    private QueryPhaseResultConsumer.MergeResult mergeResultFromOldConnection() throws IOException {
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE);
+        TopDocsAndMaxScore topDocs = new TopDocsAndMaxScore(
+            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+            1.0f
+        );
+        SearchHit hit = new SearchHit(0, "id");
+        hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+        hit.score(1.0f);
+        SearchHits sent = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        InternalAggregations aggs = InternalAggregations.from(List.of(new InternalTopHits("th", 0, 1, topDocs, sent, Map.of())));
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        try {
+            // the pre-batched branch of writeAggs writes a referencing wrapper out as a plain tree and releases nothing
+            new QueryPhaseResultConsumer.MergeResult(List.of(), null, DelayableWriteable.referencing(aggs), 0L).writeTo(out);
+        } finally {
+            sent.decRef();
+        }
+        try (StreamInput in = out.bytes().streamInput()) {
+            in.setTransportVersion(version);
+            return QueryPhaseResultConsumer.MergeResult.readFrom(new NamedWriteableAwareStreamInput(in, writableRegistry()));
+        }
+    }
+
+    private static SearchHits topHitsOf(QueryPhaseResultConsumer.MergeResult mergeResult) {
+        SearchHits hits = mergeResult.reducedAggs().expand().<InternalTopHits>get("th").getHits();
+        assertTrue("the round-trip must hand back pooled hits, otherwise nothing is at risk", hits.isPooled());
+        return hits;
+    }
+
+    private static QueryPhaseResultConsumer.MergeResult countingMergeResult(AtomicInteger released) {
+        var reducedAggs = new DelegatingDelayableWriteable<InternalAggregations>(() -> null) {
+            @Override
+            public void close() {
+                released.incrementAndGet();
+            }
+        };
+        return new QueryPhaseResultConsumer.MergeResult(List.of(), null, reducedAggs, 0L);
+    }
+
+    private static QuerySearchResult queryResultWithAggs(int shardIndex) {
+        QuerySearchResult result = new QuerySearchResult(
+            new ShardSearchContextId("", shardIndex),
+            new SearchShardTarget("node", new ShardId("index", "uuid", shardIndex), null),
+            null
+        );
+        result.topDocs(
+            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+            new DocValueFormat[0]
+        );
+        result.aggregations(InternalAggregations.from(List.of(new Sum("test", 1.0D, DocValueFormat.RAW, Map.of()))));
+        result.setShardIndex(shardIndex);
+        return result;
+    }
+
+    /**
+     * A remote reduction failure must complete callbacks held by a coordinator reduction that has not run yet.
+     */
+    public void testRemoteReductionFailureWithPendingMerge() {
+        assertPendingMergeCompletes(true);
+    }
+
+    /**
+     * Checks that the same queued reduction completes normally without a remote failure.
+     */
+    public void testPendingMergeWithoutRemoteFailure() {
+        assertPendingMergeCompletes(false);
+    }
+
+    /**
+     * A callback failure after the merge worker has selected its next task must cancel that task and complete its callback.
+     */
+    public void testMergeCallbackFailureCancelsCurrentMerge() {
+        assertMergeCallbackFailureCancelsCurrentMerge(false);
+    }
+
+    /**
+     * The next merge must retain its buffer until it starts so cancellation after a callback failure can release the buffered aggregations.
+     */
+    public void testMergeCallbackFailureReleasesCurrentMergeBuffer() {
+        assertMergeCallbackFailureCancelsCurrentMerge(true);
+    }
+
+    private void assertMergeCallbackFailureCancelsCurrentMerge(boolean withAggregations) {
+        var taskQueue = new DeterministicTaskQueue();
+        var request = new SearchRequest("index");
+        request.setBatchedReduceSize(2);
+        if (withAggregations) {
+            request.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
+        }
+        var completedShards = new AtomicInteger();
+        var callbackFailure = new RuntimeException("simulated callback failure");
+        var mergeFailure = new AtomicReference<Exception>();
+        var results = new ArrayList<QuerySearchResult>();
+        try (
+            var consumer = new QueryPhaseResultConsumer(
+                request,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                4,
+                mergeFailure::set
+            )
+        ) {
+            for (int i = 0; i < 4; i++) {
+                var target = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                var result = new QuerySearchResult(new ShardSearchContextId("", i), target, null);
+                results.add(result);
+                try {
+                    result.setShardIndex(i);
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    if (withAggregations) {
+                        result.aggregations(InternalAggregations.EMPTY);
+                    }
+                    final int shardIndex = i;
+                    consumer.consumeResult(result, () -> {
+                        completedShards.incrementAndGet();
+                        if (shardIndex == 2) {
+                            throw callbackFailure;
+                        }
+                    });
+                } finally {
+                    result.decRef();
+                }
+            }
+
+            assertEquals(2, completedShards.get());
+            taskQueue.runAllRunnableTasks();
+            assertFalse(taskQueue.hasRunnableTasks());
+            assertEquals("the selected merge task's callback must be completed", 4, completedShards.get());
+            assertSame(callbackFailure, mergeFailure.get());
+            assertSame(callbackFailure, expectThrows(RuntimeException.class, consumer::reduce));
+            if (withAggregations) {
+                assertNull("the selected merge task's buffer must be released", results.get(2).aggregations());
+            }
+        }
+    }
+
+    private void assertPendingMergeCompletes(boolean failRemoteReduction) {
+        var taskQueue = new DeterministicTaskQueue();
+        var request = new SearchRequest("index");
+        request.setBatchedReduceSize(2);
+        var completedShards = new AtomicInteger();
+        var remoteFailure = new EsRejectedExecutionException("remote partial reduction rejected");
+        try (
+            var consumer = new QueryPhaseResultConsumer(
+                request,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                4,
+                e -> {
+                    throw new AssertionError("unexpected local reduction failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                    assertEquals(2, completedShards.get());
+                    assertTrue(taskQueue.hasRunnableTasks());
+                    if (failRemoteReduction) {
+                        // Mirror SearchQueryThenFetchAsyncAction.handleResponse when a batched response carries a reduction failure.
+                        // The deterministic executor keeps the coordinator's local merge pending until that response arrives.
+                        consumer.setFailure(remoteFailure);
+                    }
+                }
+                var target = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                var result = new QuerySearchResult(new ShardSearchContextId("", i), target, null);
+                try {
+                    result.setShardIndex(i);
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    consumer.consumeResult(result, completedShards::incrementAndGet);
+                } finally {
+                    result.decRef();
+                }
+            }
+
+            taskQueue.runAllRunnableTasks();
+            assertFalse(taskQueue.hasRunnableTasks());
+            assertEquals("all shard callbacks must complete after the reduction executor drains", 4, completedShards.get());
+            if (failRemoteReduction) {
+                assertSame(remoteFailure, expectThrows(EsRejectedExecutionException.class, consumer::reduce));
+            }
         }
     }
 
@@ -254,6 +644,109 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     }
 
     /**
+     * Exercises {@link QueryPhaseResultConsumer} with real {@link InternalTopHits} reductions (production-shaped
+     * {@link AggregationReduceContext}) and verifies pooled per-shard {@link SearchHits} are released after the
+     * coordinator builds a {@link SearchResponse} and drops its reference.
+     */
+    public void testTopHitsShardSearchHitsReleasedAfterSearchResponseDecRef() throws Exception {
+        final String aggName = "th";
+        SearchPhaseController productionLikeController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(
+                @Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
+            ) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+
+        int numShards = 3;
+        SearchRequest request = new SearchRequest("index");
+        request.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder(aggName).size(1)).size(0));
+        request.setBatchedReduceSize(2);
+
+        List<SearchHits> shardHitsToTrack = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(numShards);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = productionLikeController.newSearchPhaseResults(
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < numShards; i++) {
+                SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                QuerySearchResult querySearchResult = new QuerySearchResult(new ShardSearchContextId("", i), searchShardTarget, null);
+                try {
+                    SearchHit hit = new SearchHit(0, "id-" + i);
+                    hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+                    hit.score(1.0f);
+                    SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                    assertTrue(searchHits.isPooled());
+                    shardHitsToTrack.add(searchHits);
+
+                    TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+                        1.0f
+                    );
+                    InternalTopHits internalTopHits = new InternalTopHits(aggName, 0, 1, topDocsAndMaxScore, searchHits, null);
+                    querySearchResult.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    querySearchResult.aggregations(InternalAggregations.from(Collections.singletonList(internalTopHits)));
+                    querySearchResult.setShardIndex(i);
+                    querySearchResult.size(0);
+                    consumer.consumeResult(querySearchResult, latch::countDown);
+                } finally {
+                    querySearchResult.decRef();
+                }
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertNotNull(reduce.aggregations());
+            InternalTopHits reducedTopHits = reduce.aggregations().get(aggName);
+            assertNotNull(reducedTopHits);
+            assertThat(reducedTopHits.getHits().getHits().length, equalTo(1));
+
+            SearchResponseSections sections = reduce.buildResponse(SearchHits.EMPTY_WITH_TOTAL_HITS, Collections.emptyList(), null);
+            SearchResponse response = new SearchResponse(
+                sections,
+                null,
+                numShards,
+                numShards,
+                0,
+                0,
+                null,
+                SearchResponse.Clusters.EMPTY,
+                null,
+                null,
+                null
+            );
+            try {
+                assertNotNull(response.getAggregations());
+            } finally {
+                response.decRef();
+            }
+        }
+
+        for (SearchHits shardHits : shardHitsToTrack) {
+            assertFalse(shardHits.hasReferences());
+        }
+    }
+
+    /**
      * DelayableWriteable that delegates expansion to a supplier.
      */
     private static class DelegatingDelayableWriteable<T extends Writeable> extends DelayableWriteable<T> {
@@ -284,7 +777,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
 
         @Override
-        public long getSerializedSize() {
+        public long getUncompressedSerializedSize() {
             return 0;
         }
 
@@ -302,7 +795,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         @Override
         protected void onListShards(
             List<SearchShard> shards,
-            List<SearchShard> skippedShards,
+            Map<String, Integer> skippedByClusterAlias,
             SearchResponse.Clusters clusters,
             boolean fetchPhase,
             TransportSearchAction.SearchTimeProvider timeProvider

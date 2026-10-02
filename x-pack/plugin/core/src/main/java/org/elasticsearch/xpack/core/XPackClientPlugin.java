@@ -25,7 +25,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.ColumnarFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.LogsDBColumnarFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.ProfilingUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
+import org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -173,6 +176,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     ConfigurableClusterPrivilege.class,
                     ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
                     ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.DatasourcePrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.DatasourcePrivileges::createFrom
                 ),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
@@ -335,7 +343,14 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     SecurityMigrationTaskParams.TASK_NAME,
                     SecurityMigrationTaskParams::new
                 ),
-                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB_COLUMNAR, LogsDBColumnarFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(
+                    XPackFeatureUsage.class,
+                    XPackField.GPU_VECTOR_INDEXING,
+                    GpuVectorIndexingFeatureSetUsage::new
+                ),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.COLUMNAR, ColumnarFeatureSetUsage::new)
             ),
             getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();

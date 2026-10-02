@@ -185,6 +185,17 @@ public class HistogramUnionStateTests extends ESTestCase {
         }
     }
 
+    public void testEmptySingletonWriteToReadRoundTripEquals() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        HistogramUnionState.EMPTY.writeTo(out);
+
+        try (HistogramUnionState roundTripped = HistogramUnionState.read(breaker(), out.bytes().streamInput())) {
+            assertThat(roundTripped, equalTo(HistogramUnionState.EMPTY));
+            assertThat(HistogramUnionState.EMPTY, equalTo(roundTripped));
+            assertThat(roundTripped.hashCode(), equalTo(HistogramUnionState.EMPTY.hashCode()));
+        }
+    }
+
     public void testPureTDigestSerializationCompatibility() throws IOException {
         try (RandomState state = randomState(false)) {
 
@@ -471,6 +482,36 @@ public class HistogramUnionStateTests extends ESTestCase {
             // Should no longer be equal
             assertThat(a, not(equalTo(b)));
             assertThat(a.hashCode(), not(equalTo(b.hashCode())));
+        }
+    }
+
+    public void testCreateUsingParamsFromEmptyState() {
+        try (HistogramUnionState original = HistogramUnionState.create(breaker(), TDigestState.Type.HYBRID, 42)) {
+            try (HistogramUnionState copy = HistogramUnionState.createUsingParamsFrom(original)) {
+
+                assertThat(copy.compression(), equalTo(42.0));
+
+                // Mutate the copy to ensure that the original is unaffected
+                try (RandomState randomState = randomState()) {
+                    copy.add(randomState.unionState());
+                }
+
+                assertThat(original.size(), equalTo(0L));
+            }
+        }
+    }
+
+    public void testCreateUsingParamsFromPopulatedState() {
+        try (RandomState randomState = randomState()) {
+            HistogramUnionState original = randomState.unionState();
+            try (HistogramUnionState copy = HistogramUnionState.createUsingParamsFrom(original)) {
+
+                assertThat(copy.size(), equalTo(0L));
+                assertThat(copy.compression(), equalTo(original.compression()));
+
+                // Verify original is unchanged
+                assertThat(original.size(), equalTo(randomState.reference().size()));
+            }
         }
     }
 

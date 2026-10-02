@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# On Windows, we need to refresh PATH
+if command -v choco > /dev/null; then
+  export PATH=$(cmd.exe //c "refreshenv > nul & bash -c 'echo \$PATH' ")
+fi
+
+if [[ -f build/task-status.json ]]; then
+  # pnpm creates symlinks for the packages inside node_modules
+  # But something in our build is deleting those symlinks (I'm not sure what)
+  # The other files/dirs in node_modules are fine, but the symlinks disappear during the build
+  # So, for now, we need to fix node_modules before we can run node scripts
+  cd "$WORKSPACE/.buildkite"
+  rm -rf node_modules
+  pnpm install
+
+  # Finalize the current run (stamp build scan URL from Buildkite metadata) and
+  # merge with any previous runs (saved by smart-retry pre-command). On the first
+  # attempt, build/previous-task-status.json won't exist — the script handles
+  # that by wrapping the current run as the sole entry.
+  node scripts/smart-retry/finalize-task-status.ts \
+    "$WORKSPACE/build/task-status.json" \
+    "$WORKSPACE/build/previous-task-status.json" \
+    "$WORKSPACE/build/task-status-merged.json" \
+    "$WORKSPACE/build/.buildscan-id" \
+    && mv "$WORKSPACE/build/task-status-merged.json" "$WORKSPACE/build/task-status.json"
+
+  cd "$WORKSPACE/build"
+  gzip -k task-status.json
+  buildkite-agent artifact upload task-status.json.gz
+  cd "$WORKSPACE/.buildkite"
+
+  echo "+++ Overall job status"
+  node scripts/smart-retry/summarize-task-status.ts "$WORKSPACE/build/task-status.json"
+  cd "$WORKSPACE"
+fi
+
+# Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in
+# Gradle 9, even with --no-daemon). When preempted, the Gradle build writes the desired
+# exit code (default 47) to a well-known file so retry rules (exit_status: 47) fire
+# correctly. run-gradle.sh and packaging-test.sh consume this file themselves; this hook
+# handles any remaining jobs that invoke ./gradlew directly.
+#
+# In the case that BUILDKITE_COMMAND_EXIT_STATUS is 0, that should mean that gradle completed its work before exiting,
+# so even though there was a preemption, we shouldn't need to retry
+PREEMPTION_FILE="/tmp/gradle-preemption-exit-${BUILDKITE_JOB_ID:-local}"
+if [[ -f "$PREEMPTION_FILE" && "${BUILDKITE_COMMAND_EXIT_STATUS:-}" != "0" ]]; then
+  PREEMPTION_EXIT=$(cat "$PREEMPTION_FILE")
+  rm -f "$PREEMPTION_FILE"
+  echo "+++ Exiting with preemption exit code $PREEMPTION_EXIT"
+  echo "GCP terminated this instance early."
+  echo "It should automatically retry and pick up where it left off in a new step."
+  echo "You should be able to ignore this failed step."
+  exit "$PREEMPTION_EXIT"
+fi

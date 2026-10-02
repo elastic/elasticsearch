@@ -30,11 +30,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,7 +177,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.FIELDDATA,
             validateAndCreateBreaker(
-                metrics.getTripCount(),
+                metrics,
                 new BreakerSettings(
                     CircuitBreaker.FIELDDATA,
                     FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -188,7 +190,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
-                metrics.getTripCount(),
+                metrics,
                 new BreakerSettings(
                     CircuitBreaker.IN_FLIGHT_REQUESTS,
                     IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -201,7 +203,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.REQUEST,
             validateAndCreateBreaker(
-                metrics.getTripCount(),
+                metrics,
                 new BreakerSettings(
                     CircuitBreaker.REQUEST,
                     REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -219,7 +221,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         + "] exists. Circuit breaker names must be unique"
                 );
             }
-            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(metrics.getTripCount(), breakerSettings));
+            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(metrics, breakerSettings));
         }
         this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
@@ -264,6 +266,42 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
+
+        metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
+    }
+
+    private Collection<LongWithAttributes> collectMemoryLimits() {
+        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+        for (CircuitBreaker breaker : this.breakers.values()) {
+            out.add(
+                new LongWithAttributes(
+                    breaker.getLimit(),
+                    Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())
+                )
+            );
+        }
+        out.add(
+            new LongWithAttributes(
+                this.parentSettings.getLimit(),
+                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            )
+        );
+        return out;
+    }
+
+    private Collection<LongWithAttributes> collectMemoryEstimates() {
+        List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
+        for (CircuitBreaker breaker : this.breakers.values()) {
+            long estimated = (long) (breaker.getUsed() * breaker.getOverhead());
+            out.add(new LongWithAttributes(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())));
+        }
+        out.add(
+            new LongWithAttributes(
+                memoryUsed(0L).totalUsage,
+                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            )
+        );
+        return out;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -409,14 +447,17 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     /**
-     * Checks whether the parent breaker has been tripped
+     * Checks whether the parent breaker has been tripped.
      */
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            this.parentTripCountTotalMetric.increment();
+            this.parentTripCountTotalMetric.incrementBy(
+                1L,
+                Map.of(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            );
             final String messageString = buildParentTripMessage(
                 newBytesReserved,
                 label,
@@ -493,13 +534,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(LongCounter trippedCountMeter, BreakerSettings breakerSettings) {
+    private CircuitBreaker validateAndCreateBreaker(CircuitBreakerMetrics metrics, BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] { breakerSettings });
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP
             ? new NoopCircuitBreaker(breakerSettings.getName())
             : new ChildMemoryCircuitBreaker(
-                trippedCountMeter,
+                metrics,
                 breakerSettings,
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,

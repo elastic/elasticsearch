@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -100,8 +101,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             1.0f
         );
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
         return searchResponse;
     }
 
@@ -115,8 +116,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
         SearchHits hits = new SearchHits(hitsArray, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(hits.asUnpooled());
-        hits.decRef();
+        when(searchResponse.getHits()).thenReturn(hits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, hits);
         return searchResponse;
     }
 

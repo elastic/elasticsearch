@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameUtils.locallyUniqueTemporaryName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator.locallyUniqueTemporaryName;
 
 /**
  * Pulls "up" an {@link OrderBy} node that is not preceded by a "sort breaker" (like LIMIT), but is preceded by an {@link InlineJoin}. The

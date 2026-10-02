@@ -19,8 +19,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -47,7 +51,19 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened").build(MapperBuilderContext.root(false, false));
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened", indexSettings).build(
+            MapperBuilderContext.root(false, false)
+        );
         MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();

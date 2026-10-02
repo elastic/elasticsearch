@@ -18,7 +18,6 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -28,16 +27,17 @@ import org.junit.rules.TestRule;
 
 import java.util.function.Supplier;
 
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
+
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3ImdsV2CredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "imdsv2_credentials_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
@@ -47,8 +47,9 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
-        BUCKET,
-        BASE_PATH,
+        null,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         dynamicCredentials::isAuthorized
     );
@@ -69,12 +70,12 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

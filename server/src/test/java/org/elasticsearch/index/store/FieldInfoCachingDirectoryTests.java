@@ -101,17 +101,17 @@ public class FieldInfoCachingDirectoryTests extends ESTestCase {
     public void testWeakReferenceReclaimsCanonical() throws Exception {
         try (Directory raw = newDirectory()) {
             FieldInfoCachingDirectory cache = new FieldInfoCachingDirectory(raw);
-            // Intern a one-off FieldInfo, do not hold any reference to it after returning.
-            cache.internFieldInfo("ephemeral", () -> makeFieldInfo("ephemeral", 0, 0L));
+
+            // Hold a strong reference to a trigger entry so it is never reclaimed.
+            FieldInfo trigger = cache.internFieldInfo("trigger", () -> makeFieldInfo("trigger", 1, 0L));
             assertEquals(1, cache.fieldInfoCacheSize());
 
-            // Hold a strong reference to a separate trigger entry so it is never reclaimed.
-            // Once the ephemeral entry is reclaimed and drained, only the trigger entry remains.
-            FieldInfo trigger = cache.internFieldInfo("trigger", () -> makeFieldInfo("trigger", 1, 0L));
+            // Intern a one-off FieldInfo, do not hold any reference to it after returning.
+            cache.internFieldInfo("ephemeral", () -> makeFieldInfo("ephemeral", 0, 0L));
             assertEquals(2, cache.fieldInfoCacheSize());
 
             // System.gc() is only a hint and the cleared reference is enqueued asynchronously on the ReferenceHandler thread, so retry
-            // until the ephemeral entry is drained.
+            // until the ephemeral entry is drained and only the trigger entry remains.
             assertBusy(() -> {
                 System.gc();
                 assertSame(trigger, cache.internFieldInfo("trigger", () -> { throw new AssertionError("trigger must stay cached"); }));

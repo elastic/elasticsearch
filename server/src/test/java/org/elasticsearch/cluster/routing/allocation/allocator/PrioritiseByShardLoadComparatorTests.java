@@ -10,22 +10,13 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -33,12 +24,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.DoubleSupplier;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.allocator.PrioritiseByShardLoadComparator.THRESHOLD_RATIO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -247,48 +235,5 @@ public class PrioritiseByShardLoadComparatorTests extends ESAllocationTestCase {
             shards.add(shard);
         }
         return shards;
-    }
-
-    private static ClusterState createStateWithIndices(
-        List<String> nodeNames,
-        Function<ShardId, String> shardAllocator,
-        boolean assignShards,
-        IndexMetadata.Builder... indexMetadataBuilders
-    ) {
-        var metadataBuilder = Metadata.builder();
-        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        if (assignShards == false) {
-            for (var index : indexMetadataBuilders) {
-                var indexMetadata = index.build();
-                metadataBuilder.put(indexMetadata, false);
-                routingTableBuilder.addAsNew(indexMetadata);
-            }
-        } else {
-            for (var index : indexMetadataBuilders) {
-                var inSyncId = UUIDs.randomBase64UUID();
-                var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
-                metadataBuilder.put(indexMetadata, false);
-                ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
-                routingTableBuilder.add(
-                    IndexRoutingTable.builder(indexMetadata.getIndex())
-                        .addShard(
-                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
-                                AllocationId.newInitializing(inSyncId)
-                            ).build()
-                        )
-                );
-            }
-        }
-
-        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
-        for (String nodeName : nodeNames) {
-            discoveryNodesBuilder.add(newNode(nodeName));
-        }
-
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodesBuilder)
-            .metadata(metadataBuilder)
-            .routingTable(routingTableBuilder)
-            .build();
     }
 }

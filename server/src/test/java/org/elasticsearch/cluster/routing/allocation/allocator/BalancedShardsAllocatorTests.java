@@ -69,7 +69,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1532,64 +1531,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private static IndexMetadata.Builder anIndex(String name, Settings.Builder settings) {
         return IndexMetadata.builder(name).settings(settings);
-    }
-
-    private static ClusterState createStateWithIndices(IndexMetadata.Builder... indexMetadataBuilders) {
-        return createStateWithIndices(List.of("node-1", "node-2"), shardId -> "node-1", indexMetadataBuilders);
-    }
-
-    private static ClusterState createStateWithIndices(
-        List<String> nodeNames,
-        Function<ShardId, String> shardAllocator,
-        IndexMetadata.Builder... indexMetadataBuilders
-    ) {
-        return createStateWithIndices(nodeNames, shardAllocator, randomBoolean(), indexMetadataBuilders);
-    }
-
-    private static ClusterState createStateWithIndices(
-        List<String> nodeNames,
-        Function<ShardId, String> shardAllocator,
-        boolean allocateShards,
-        IndexMetadata.Builder... indexMetadataBuilders
-    ) {
-        var metadataBuilder = Metadata.builder();
-        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        if (allocateShards == false) {
-            // allocate all shards from scratch
-            for (var index : indexMetadataBuilders) {
-                var indexMetadata = index.build();
-                metadataBuilder.put(indexMetadata, false);
-                routingTableBuilder.addAsNew(indexMetadata);
-            }
-        } else {
-            // ensure unbalanced cluster cloud be properly balanced
-            // simulates a case when we add a second node and ensure shards could be evenly spread across all available nodes
-            for (var index : indexMetadataBuilders) {
-                var inSyncId = UUIDs.randomBase64UUID();
-                var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
-                metadataBuilder.put(indexMetadata, false);
-                ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
-                routingTableBuilder.add(
-                    IndexRoutingTable.builder(indexMetadata.getIndex())
-                        .addShard(
-                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
-                                AllocationId.newInitializing(inSyncId)
-                            ).build()
-                        )
-                );
-            }
-        }
-
-        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
-        for (String nodeName : nodeNames) {
-            discoveryNodesBuilder.add(newNode(nodeName));
-        }
-
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodesBuilder)
-            .metadata(metadataBuilder)
-            .routingTable(routingTableBuilder)
-            .build();
     }
 
     private void addIndex(

@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -175,8 +176,18 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * @param type       {@code error.type}
      * @param reason     {@code error.reason} — the string every client surfaces
      * @param causeChain flattened {@code caused_by} chain, outermost first
+     * @param objectName last segment of the resource the probe's dataset points at, or {@code null} if it has none
      */
-    private record Probe(String group, String name, String expectation, int status, String type, String reason, List<String> causeChain) {}
+    private record Probe(
+        String group,
+        String name,
+        String expectation,
+        int status,
+        String type,
+        String reason,
+        List<String> causeChain,
+        String objectName
+    ) {}
 
     private final List<Probe> probes = new ArrayList<>();
 
@@ -1039,7 +1050,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         if (setup != null) {
             setup.run();
         }
-        record(group, name, expectation, () -> {
+        record(group, name, expectation, resource, () -> {
             putDataset(dataset, dataSource, resource, Map.of("region", regionSupplier.get()), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
@@ -1054,7 +1065,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         String resource,
         Map<String, Object> settings
     ) throws IOException {
-        record(group, name, expectation, () -> {
+        record(group, name, expectation, resource, () -> {
             Map<String, Object> withRegion = new HashMap<>(settings);
             withRegion.put("region", regionSupplier.get());
             putDataset(dataset, dataSource, resource, Map.copyOf(withRegion), null);
@@ -1076,16 +1087,34 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * the report (it usually means a misconfiguration was silently accepted).
      */
     private void record(String group, String name, String expectation, Action action) {
+        record(group, name, expectation, null, action);
+    }
+
+    private void record(String group, String name, String expectation, String resource, Action action) {
+        String objectName = resource == null ? null : resource.substring(resource.lastIndexOf('/') + 1);
         try {
             action.run();
-            probes.add(new Probe(group, name, expectation, 200, "<none>", "<request succeeded>", List.of()));
+            probes.add(new Probe(group, name, expectation, 200, "<none>", "<request succeeded>", List.of(), objectName));
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             Map<String, Object> body = parseBody(e);
             Map<?, ?> error = body.get("error") instanceof Map<?, ?> m ? m : Map.of();
-            probes.add(new Probe(group, name, expectation, status, str(error.get("type")), str(error.get("reason")), flattenCauses(error)));
+            probes.add(
+                new Probe(
+                    group,
+                    name,
+                    expectation,
+                    status,
+                    str(error.get("type")),
+                    str(error.get("reason")),
+                    flattenCauses(error),
+                    objectName
+                )
+            );
         } catch (IOException e) {
-            probes.add(new Probe(group, name, expectation, -1, e.getClass().getSimpleName(), String.valueOf(e.getMessage()), List.of()));
+            probes.add(
+                new Probe(group, name, expectation, -1, e.getClass().getSimpleName(), String.valueOf(e.getMessage()), List.of(), objectName)
+            );
         }
     }
 
@@ -1241,7 +1270,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         sb.append("\n\n## Reason collisions\n\n");
         Map<String, List<String>> byReason = new TreeMap<>();
         for (Probe p : probes) {
-            byReason.computeIfAbsent(normalize(p.reason()), k -> new ArrayList<>()).add(p.group() + "/" + p.name());
+            byReason.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(p.group() + "/" + p.name());
         }
         byReason.forEach((reason, cases) -> {
             if (cases.size() > 1) {
@@ -1277,12 +1306,21 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * collide: "Failed to resolve metadata for [s3://b/a.parquet]" and "...[s3://b/b.csv]" carry exactly the same
      * information, and counting them as two distinct messages would hide the collapse this suite exists to find.
      * <p>
-     * Only URIs are masked, deliberately — not every bracketed token. "Required [resource]" and "Required [type]"
+     * Errors name the object rather than its URI, and end with the dataset context; both vary with the probe, not the
+     * condition, so the probe's own object name and the dataset context are masked the same way.
+     * <p>
+     * Only these are masked, deliberately — not every bracketed token. "Required [resource]" and "Required [type]"
      * name different settings and really are different messages; masking all brackets would fuse them.
      */
-    private static String normalize(String reason) {
+    private static String normalize(Probe probe) {
+        String reason = DATASET_CONTEXT.matcher(probe.reason()).replaceAll(" in dataset [<dataset>]");
+        if (probe.objectName() != null && probe.objectName().isEmpty() == false) {
+            reason = reason.replace("[" + probe.objectName() + "]", "[<location>]");
+        }
         return reason.replaceAll("[A-Za-z0-9]+://[^\\s\\]\",]*", "<location>").toLowerCase(Locale.ROOT);
     }
+
+    private static final Pattern DATASET_CONTEXT = Pattern.compile(" in dataset \\[[^\\]]*] from data source \\[[^\\]]*] \\([^)]*\\)");
 
     /** True when every colliding probe belongs to one {@link #SHARED_CONDITIONS} group, i.e. they are one condition. */
     private static boolean isOneCondition(List<String> collidingNames) {
@@ -1312,7 +1350,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             if (p.status() == 200) {
                 continue;
             }
-            byReason.computeIfAbsent(normalize(p.reason()), k -> new ArrayList<>()).add(p.name());
+            byReason.computeIfAbsent(normalize(p), k -> new ArrayList<>()).add(p.name());
         }
         byReason.forEach((reason, cases) -> {
             List<String> unresolved = cases.stream().filter(c -> KNOWN_OPEN.containsKey(c) == false).toList();

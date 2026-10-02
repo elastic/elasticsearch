@@ -171,9 +171,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
-- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/147841
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
@@ -318,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
-- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
-  method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
-  issue: https://github.com/elastic/elasticsearch/issues/156435
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/156465
@@ -438,9 +432,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
-  method: testLargeMsearchTemplateDoesNotOom
-  issue: https://github.com/elastic/elasticsearch/issues/158428
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -452,9 +443,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testCancelUnnecessaryRequests
   issue: https://github.com/elastic/elasticsearch/issues/158868
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/158668
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/158911
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
@@ -660,9 +648,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testTrackOldSearchNodesWhenIndexingShardRelocates
   issue: https://github.com/elastic/elasticsearch/issues/160699
-- class: org.elasticsearch.xpack.shutdown.DesiredBalanceShutdownIT
-  method: testDesiredBalanceWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/160708
 - class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
   method: testRandomValueIndexing
   issue: https://github.com/elastic/elasticsearch/issues/160716
@@ -672,3 +657,21 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
+- class: org.elasticsearch.columnar.string.StringMatchTests
+  method: testWindowedCollectionOnAMultiValuedDictionary
+  issue: https://github.com/elastic/elasticsearch/issues/160837
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
+  method: testWatermarkEmptyQueueOverrunIsNodeWide
+  issue: https://github.com/elastic/elasticsearch/issues/160849
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testRemoteReductionRejectionWithPendingCoordinatorReduction
+  issue: https://github.com/elastic/elasticsearch/issues/160620
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
+  method: testProfileFailureStore
+  issue: https://github.com/elastic/elasticsearch/issues/160877
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/160885
+- class: org.elasticsearch.compute.operator.BreakingBytesRefBuilderTests
+  method: testCloseAllBatchesReleaseIntoOneCallAndReleasesTheArray
+  issue: https://github.com/elastic/elasticsearch/issues/160890

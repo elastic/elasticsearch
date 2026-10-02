@@ -527,7 +527,12 @@ public final class AsyncExternalSourceBuffer {
         this.formatReaderStatus = snapshot;
     }
 
-    /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */
+    /**
+     * Adds {@code delta} to the committed total. This is the non-tracking path: it must not run
+     * while {@link #trackStorageObject} is following an object. Mixing the two would publish
+     * {@code object=null} and drop that object's live in-flight delta. Slice-queue and multi-file
+     * producers track; single-file producers also track now and fold via {@link #finishInFlightBytes}.
+     */
     public void addBytesRead(long delta) {
         if (delta <= 0) {
             return;
@@ -595,6 +600,7 @@ public final class AsyncExternalSourceBuffer {
                     delta = Math.max(0L, metrics.bytesRead() - view.baseline());
                 }
             } catch (Exception e) {
+                logger.trace(() -> "telemetry: bytesRead snapshot failed", e);
                 delta = 0L;
             }
         }

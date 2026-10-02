@@ -47,7 +47,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
     private static final String MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE =
         "skipping monitor as the shared cache capacity decider or its canRemain check is disabled";
     private static final String MONITOR_NOT_REROUTING_NO_SHARD_FITS_LOG_MESSAGE =
-        "not rerouting for nodes * over the high watermark because none of their shards fits*";
+        "not rerouting for nodes * over the high watermark because each holds a shard that exceeds the low watermark*";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -529,7 +529,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
-    public void testMonitorSuppressesRerouteWhenNoShardFitsWithinSpareCacheCapacity() {
+    public void testMonitorSuppressesRerouteWhenShardExceedsLowWatermarkOnItsOwn() {
         startMasterOnlyNode();
         startIndexNode();
         final var searchNodeA = startSearchNode();
@@ -550,13 +550,13 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
 
-        // The hosting node exceeds the 95% high watermark. The other node sits at 0% leaving 750 bytes spare below the 75% low
-        // watermark. The shard's boosted requirement is 800 bytes, which exceeds the 750 spare, so the balancer has nowhere to
-        // move it. The monitor must suppress the reroute rather than firing it uselessly.
+        // The hosting node exceeds the 95% high watermark. The other node sits at 0%, below the 75% low watermark. The shard's
+        // boosted requirement is 800 bytes, which exceeds the 750 byte low watermark of every search node on its own, so the
+        // balancer has nowhere to move it. The monitor must suppress the reroute rather than firing it uselessly.
         final long hostedBoostedBytes = bytesForPercent(97);
         final long otherBoostedBytes = 0L;
         final long noUnboostedBytes = 0L;
-        final long shardRequirementBytes = bytesForPercent(80); // 800 bytes > 750 spare
+        final long shardRequirementBytes = bytesForPercent(80); // 800 bytes > 750 byte low watermark
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(

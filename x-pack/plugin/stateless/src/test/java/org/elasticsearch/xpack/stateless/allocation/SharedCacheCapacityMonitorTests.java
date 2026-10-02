@@ -64,6 +64,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
     private static final int LOW_WATERMARK_PERCENT = 75;
     private static final int HIGH_WATERMARK_PERCENT = 95;
+    private static final long LOW_WATERMARK_BYTES = CACHE_SIZE_IN_BYTES * LOW_WATERMARK_PERCENT / 100;
 
     private static final String EXCEEDED_HIGH_WATERMARK_REASON = SharedCacheCapacityMonitor.RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON;
     private static final String NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON =
@@ -475,22 +476,21 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------------------------------------------
-    // anyShardCanMove gate tests, asserted directly against decideReroute with explicit routing nodes and shard requirements.
+    // unplaceable shard gate tests, asserted directly against decideReroute with explicit routing nodes and shard requirements.
+    // The low watermark of every search node is LOW_WATERMARK_PERCENT of CACHE_SIZE_IN_BYTES, i.e. 750 bytes.
     // -----------------------------------------------------------------------------------------------------------------------
 
-    public void testNoRerouteWhenNoShardFitsWithinSpareCacheCapacity() {
+    public void testNoRerouteWhenShardExceedsLowWatermarkOnItsOwn() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // SEARCH_0 exceeds the high watermark (96%). SEARCH_1 sits just below the low watermark at 74%.
-        // spare bytes on SEARCH_1 = floor(1000 * 0.75) - 740 = 750 - 740 = 10 bytes.
-        // The one started shard on SEARCH_0 requires 11 bytes, which exceeds the 10 spare bytes on SEARCH_1.
-        // No shard can move, so the reroute is suppressed even though this is a new transition.
+        // The one started shard on SEARCH_0 requires more than any search node's low watermark, so it cannot be placed anywhere.
+        // The reroute is suppressed even though this is a new transition.
         final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final RoutingNodes routingNodes = routingNodesWithStartedShard(shardId, SEARCH_0);
         final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
             shardId,
-            new BoostedAndUnboostedCacheRequirements(11L, 0L)
+            new BoostedAndUnboostedCacheRequirements(LOW_WATERMARK_BYTES + 1, 0L)
         );
 
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
@@ -499,7 +499,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                     "suppression log names the over-committed nodes",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "not rerouting for nodes * over the high watermark because none of their shards fits*"
+                    "not rerouting for nodes * over the high watermark because each holds a shard that exceeds the low watermark*"
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
@@ -514,11 +514,83 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         }
     }
 
-    public void testRerouteWhenAtLeastOneShardFitsWithinSpareCacheCapacity() {
+    public void testNoRerouteWhenLargestShardExceedsLowWatermarkEvenIfOthersFit() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // Same spare-bytes setup as above (10 bytes spare on SEARCH_1). Two shards on SEARCH_0: shard 0 requires 11 bytes
-        // (doesn't fit) and shard 1 requires 9 bytes (fits). A single movable shard is enough to warrant a reroute.
+        // A deliberate approximation: SEARCH_0's other shard is small enough to move, but its largest shard cannot be placed
+        // anywhere, so the pressure is taken to be unrelievable and the reroute is suppressed.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId largeShardId = new ShardId("test", "_na_", 0);
+        final ShardId smallShardId = new ShardId("test", "_na_", 1);
+        final var largeShard = TestShardRouting.newShardRouting(largeShardId, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var smallShard = TestShardRouting.newShardRouting(smallShardId, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var routingNodes = RoutingNodes.immutable(
+            GlobalRoutingTableTestHelper.routingTable(
+                ProjectId.DEFAULT,
+                IndexRoutingTable.builder(largeShardId.getIndex()).addShard(largeShard).addShard(smallShard).build()
+            ),
+            DiscoveryNodes.builder().add(SEARCH_0).build()
+        );
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            largeShardId,
+            new BoostedAndUnboostedCacheRequirements(LOW_WATERMARK_BYTES + 1, 0L),
+            smallShardId,
+            new BoostedAndUnboostedCacheRequirements(9L, 0L)
+        );
+
+        assertThat(monitor.decideReroute(routingNodes, requirements, currentCommitments, Map.of(), false).shouldReroute(), equalTo(false));
+    }
+
+    public void testRerouteWhenNoShardExceedsLowWatermarkOnItsOwn() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // The shard exactly meets the low watermark rather than exceeding it, so an empty node could accept it.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId,
+            new BoostedAndUnboostedCacheRequirements(LOW_WATERMARK_BYTES, 0L)
+        );
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            routingNodesWithStartedShard(shardId, SEARCH_0),
+            requirements,
+            currentCommitments,
+            Map.of(),
+            false
+        );
+        assertThat(decision.shouldReroute(), equalTo(true));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
+    }
+
+    public void testRerouteWhenShardExceedsSmallerNodesLowWatermarkButFitsLargerNode() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // The shard exceeds the low watermark of the nodes in this cluster of 1000 byte caches, but search-1 has a cache twice
+        // that size, so the shard could be placed there once it has room.
+        final var currentCommitments = Map.of(
+            SEARCH_0,
+            new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(HIGH_WATERMARK_PERCENT + 1), 0L),
+            SEARCH_1,
+            new NodeCacheSizeAndCommitments(2 * CACHE_SIZE_IN_BYTES, 0L, 0L)
+        );
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId,
+            new BoostedAndUnboostedCacheRequirements(LOW_WATERMARK_BYTES + 1, 0L)
+        );
+
+        assertThat(
+            monitor.decideReroute(routingNodesWithStartedShard(shardId, SEARCH_0), requirements, currentCommitments, Map.of(), false)
+                .shouldReroute(),
+            equalTo(true)
+        );
+    }
+
+    public void testRerouteWhenNoOtherShardOnNodeExceedsLowWatermark() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // Same shards as above but both fit within the low watermark, so a movable shard exists and a reroute is warranted.
         final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         final ShardId shardId0 = new ShardId("test", "_na_", 0);
         final ShardId shardId1 = new ShardId("test", "_na_", 1);
@@ -594,12 +666,13 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
     }
 
-    public void testRerouteWhenOneOfTwoOverCommittedNodesHasAShardThatFits() {
+    public void testRerouteUnlessEveryOverCommittedNodeHasAnUnplaceableShard() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // SEARCH_0 and SEARCH_1 both over the high watermark; SEARCH_2 below the low watermark with 10 bytes spare.
-        // SEARCH_0's shard requires 11 bytes (doesn't fit). SEARCH_1's shard requires 9 bytes (fits).
-        // A single movable shard across any over-committed node is enough to warrant a reroute.
+        // SEARCH_0 and SEARCH_1 both over the high watermark; SEARCH_2 below the low watermark.
+        // SEARCH_0's shard exceeds the low watermark on its own. If SEARCH_1's shard is small enough to be placed, suppressing on
+        // SEARCH_0 alone would block relief for SEARCH_1, so the reroute fires. If both are unplaceable, it is suppressed.
+        final boolean bothUnplaceable = randomBoolean();
         final var currentCommitments = commitmentsAt(
             Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
         );
@@ -615,9 +688,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
         final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
             shardId0,
-            new BoostedAndUnboostedCacheRequirements(11L, 0L),
+            new BoostedAndUnboostedCacheRequirements(LOW_WATERMARK_BYTES + 1, 0L),
             shardId1,
-            new BoostedAndUnboostedCacheRequirements(9L, 0L)
+            new BoostedAndUnboostedCacheRequirements(bothUnplaceable ? LOW_WATERMARK_BYTES + 1 : 9L, 0L)
         );
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
@@ -627,8 +700,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             Map.of(),
             false
         );
-        assertThat(decision.shouldReroute(), equalTo(true));
-        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
+        assertThat(decision.shouldReroute(), equalTo(bothUnplaceable == false));
     }
 
     // -----------------------------------------------------------------------------------------------------------------------
@@ -844,6 +916,113 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+    }
+
+    public void testRetriesBackOffWhileTheyBringNoRelief() {
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, this::threeSearchNodeState);
+        final ClusterInfo clusterInfo = clusterInfoOf(
+            commitmentsAt(
+                Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+            )
+        );
+
+        monitor.onNewInfo(clusterInfo);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // Each retry that finds search-0's commitment unchanged doubles the wait for the next, up to 8x the configured interval.
+        long expectedWaitMillis = rerouteInterval.millis();
+        for (int retry = 0; retry < 6; retry++) {
+            currentTimeMillis.addAndGet(expectedWaitMillis - 1);
+            monitor.onNewInfo(clusterInfo);
+            verifyNoInteractions(rerouteService);
+
+            currentTimeMillis.addAndGet(1);
+            monitor.onNewInfo(clusterInfo);
+            assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+            reset(rerouteService);
+
+            expectedWaitMillis = Math.min(expectedWaitMillis * 2, rerouteInterval.millis() * 8);
+        }
+    }
+
+    public void testRetryBackOffResetsWhenACommitmentDrops() {
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, this::threeSearchNodeState);
+
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // The first retry finds no relief, so the next wait doubles.
+        currentTimeMillis.addAndGet(rerouteInterval.millis());
+        final ClusterInfo relieved = clusterInfoOf(
+            commitmentsAt(
+                Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+            )
+        );
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // search-0 sheds some commitment but stays over the high watermark, so the next retry sees relief and resets the back-off,
+        // after which the next wait is the configured interval again.
+        currentTimeMillis.addAndGet(rerouteInterval.millis() * 2);
+        monitor.onNewInfo(relieved);
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        currentTimeMillis.addAndGet(rerouteInterval.millis());
+        monitor.onNewInfo(relieved);
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+    }
+
+    public void testRetryBackOffResetsWhenAnotherNodeNewlyExceedsHighWatermark() {
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, this::threeSearchNodeState);
+        final ClusterInfo oneNodeOver = clusterInfoOf(
+            commitmentsAt(
+                Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+            )
+        );
+        final ClusterInfo twoNodesOver = clusterInfoOf(
+            commitmentsAt(
+                Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+            )
+        );
+
+        monitor.onNewInfo(oneNodeOver);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // The first retry finds no relief, so the next wait doubles.
+        currentTimeMillis.addAndGet(rerouteInterval.millis());
+        monitor.onNewInfo(oneNodeOver);
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // A newly exceeding node reroutes immediately and restarts the back-off, so the following retry is due after the
+        // configured interval rather than the doubled one.
+        monitor.onNewInfo(twoNodesOver);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        currentTimeMillis.addAndGet(rerouteInterval.millis());
+        monitor.onNewInfo(twoNodesOver);
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
     }
 

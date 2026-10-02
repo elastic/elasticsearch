@@ -157,7 +157,8 @@ public class AllocationServiceTests extends ESTestCase {
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            clusterSettings
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -272,7 +273,8 @@ public class AllocationServiceTests extends ESTestCase {
             () -> ClusterInfo.EMPTY,
             () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            createBuiltInClusterSettings()
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
@@ -388,7 +390,8 @@ public class AllocationServiceTests extends ESTestCase {
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            clusterSettings
         );
 
         final ProjectId project1 = randomUniqueProjectId();

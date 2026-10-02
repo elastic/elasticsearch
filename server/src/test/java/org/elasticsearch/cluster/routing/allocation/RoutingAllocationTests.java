@@ -101,6 +101,15 @@ public class RoutingAllocationTests extends ESTestCase {
         }
     }
 
+    public void testDecisionIsNotLabelledWhenPreservationDisabled() {
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            ClusterStateCreationUtils.state(randomIdentifier(), 1, 1)
+        ).preserveDecisionLabels(false).build();
+        for (Decision decision : new Decision[] { Decision.NO, Decision.NOT_PREFERRED }) {
+            assertSame(decision, routingAllocation.decision(decision, randomIdentifier(), "reason"));
+        }
+    }
+
     public void testDecisionDoesNotLabelUninterestingDecisionsWhenNotDebugging() {
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
             ClusterStateCreationUtils.state(randomIdentifier(), 1, 1)

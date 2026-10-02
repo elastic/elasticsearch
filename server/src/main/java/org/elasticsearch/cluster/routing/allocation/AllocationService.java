@@ -48,6 +48,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -89,6 +91,18 @@ public class AllocationService {
 
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
+    /**
+     * Whether allocation decisions should retain their decider label when not in debug mode. This supports metrics which attribute
+     * moves to the decider that caused them. It can be disabled if the cached labelled decisions cause problems. Changes apply to
+     * {@link RoutingAllocation} instances created after the change; an instance's value is fixed for its lifetime.
+     */
+    public static final Setting<Boolean> PRESERVE_DECISION_LABELS_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.preserve_decision_labels",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final AllocationDeciders allocationDeciders;
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
@@ -96,6 +110,7 @@ public class AllocationService {
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
     private final ShardChangesObserver shardChangesObserver;
+    private volatile boolean preserveDecisionLabels;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -107,7 +122,15 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, MeterRegistry.NOOP);
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            shardRoutingRoleStrategy,
+            MeterRegistry.NOOP,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -117,7 +140,8 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        MeterRegistry meterRegistry
+        MeterRegistry meterRegistry,
+        ClusterSettings clusterSettings
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
@@ -125,6 +149,7 @@ public class AllocationService {
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
         this.shardChangesObserver = new ShardChangesObserver(meterRegistry);
+        clusterSettings.initializeAndWatch(PRESERVE_DECISION_LABELS_SETTING, value -> this.preserveDecisionLabels = value);
     }
 
     /**
@@ -325,7 +350,8 @@ public class AllocationService {
                 clusterState,
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
-                currentNanoTime()
+                currentNanoTime(),
+                preserveDecisionLabels
             )
         );
         final Supplier<RoutingAllocation> allocationSupplier = lazyAllocation::getOrCompute;
@@ -791,7 +817,8 @@ public class AllocationService {
             clusterState,
             clusterInfo,
             snapshotShardSizeInfo,
-            System.nanoTime()
+            System.nanoTime(),
+            preserveDecisionLabels
         );
         return new AllocationQueryContext(allocation, allocationDeciders);
     }
@@ -802,7 +829,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            preserveDecisionLabels
         );
     }
 
@@ -815,7 +843,8 @@ public class AllocationService {
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime,
             false,
-            shardChangesObserver
+            shardChangesObserver,
+            preserveDecisionLabels
         );
     }
 

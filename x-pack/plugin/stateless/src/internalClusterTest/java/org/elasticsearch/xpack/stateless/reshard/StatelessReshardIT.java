@@ -100,6 +100,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -4104,16 +4105,19 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         indexDocs(indexName, randomIntBetween(10, 100));
         final Index index = resolveIndex(indexName);
 
-        // ensure first target is already in HANDOFF before second tries
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        var sourceShards = List.of(new ShardId(index, 0), new ShardId(index, 1));
+
+        // Ensure the first source shard has taken its slot before the second one asks for one
         var arrivals = new AtomicInteger();
         var secondPreHandoff = new CountDownLatch(1);
-        internalCluster().getInstance(SplitSourceService.class, indexNode).setPreHandoffHook(() -> {
+        splitSourceService.setPreHandoffHook(() -> {
             if (arrivals.incrementAndGet() == 2) {
                 safeAwait(secondPreHandoff, TimeValue.timeValueSeconds(30));
             }
         });
 
-        // block transition of first target to SPLIT
+        // Block transition of first target to SPLIT
         var splitBlocked = new CountDownLatch(1);
         MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)
@@ -4124,25 +4128,49 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
-        awaitClusterState(state -> {
-            var reshardingMetadata = indexMetadata(state, index).getReshardingMetadata();
-            return reshardingMetadata != null
-                && reshardingMetadata.getSplit()
-                    .targetStates()
-                    .anyMatch(targetState -> targetState == IndexReshardingState.Split.TargetShardState.HANDOFF);
-        });
+        // Block the first handoff by taking a permit on each source shard
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        var permits = new ArrayList<Releasable>();
+        try {
+            for (var sourceShardId : sourceShards) {
+                var permitFuture = new PlainActionFuture<Releasable>();
+                findIndexShard(index, sourceShardId.id(), indexNode).acquirePrimaryOperationPermit(permitFuture, threadPool.generic());
+                permits.add(Releasables.releaseOnce(safeGet(permitFuture)));
+            }
 
-        secondPreHandoff.countDown();
-        safeSleep(TimeValue.timeValueMillis(200));
+            client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+            assertBusy(() -> assertEquals(1, sourceShards.stream().filter(splitSourceService::isPreparingForHandoff).count()));
 
-        var reshardingMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index).getReshardingMetadata();
-        assertThat(
-            reshardingMetadata.getSplit().targetStates().toList(),
-            containsInAnyOrder(IndexReshardingState.Split.TargetShardState.HANDOFF, IndexReshardingState.Split.TargetShardState.CLONE)
-        );
+            // First source shard is in pre-handoff
+            secondPreHandoff.countDown();
+            safeSleep(TimeValue.timeValueMillis(200));
+            assertEquals(1, sourceShards.stream().filter(splitSourceService::isPreparingForHandoff).count());
+            var splitBeforeHandoff = indexMetadata(internalCluster().clusterService(indexNode).state(), index).getReshardingMetadata()
+                .getSplit();
+            assertThat(splitBeforeHandoff.targetStates().toList(), everyItem(equalTo(IndexReshardingState.Split.TargetShardState.CLONE)));
 
-        splitBlocked.countDown();
+            // First source shard completes its handoff preparation and its target moves to HANDOFF
+            Releasables.close(permits);
+            awaitClusterState(state -> {
+                var reshardingMetadata = indexMetadata(state, index).getReshardingMetadata();
+                return reshardingMetadata != null
+                    && reshardingMetadata.getSplit()
+                        .targetStates()
+                        .anyMatch(targetState -> targetState == IndexReshardingState.Split.TargetShardState.HANDOFF);
+            });
+            safeSleep(TimeValue.timeValueMillis(200));
+            var splitAfterHandoff = indexMetadata(internalCluster().clusterService(indexNode).state(), index).getReshardingMetadata()
+                .getSplit();
+            assertThat(
+                splitAfterHandoff.targetStates().toList(),
+                containsInAnyOrder(IndexReshardingState.Split.TargetShardState.HANDOFF, IndexReshardingState.Split.TargetShardState.CLONE)
+            );
+        } finally {
+            Releasables.close(permits);
+            secondPreHandoff.countDown();
+            splitBlocked.countDown();
+        }
+
         waitForReshardCompletion(indexName);
 
         var waits = getTelemetryPlugin(indexNode).getDoubleHistogramMeasurement(

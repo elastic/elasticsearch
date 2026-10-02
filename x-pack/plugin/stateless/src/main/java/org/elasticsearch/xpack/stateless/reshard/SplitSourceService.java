@@ -500,9 +500,12 @@ public class SplitSourceService {
             }
             var split = reshardingMetadata.getSplit();
             long totalTargetShards = split.targetStates().count();
+            long preHandoffCount = shardsPreparingForHandoff.stream()
+                .filter(shardId -> shardId.getIndex().equals(targetShardId.getIndex()))
+                .count();
             long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
             long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
-            return handoffCount < maxConcurrentHandoffs;
+            return preHandoffCount + handoffCount < maxConcurrentHandoffs;
         }, TimeValue.timeValueMinutes(10), logger);
     }
 

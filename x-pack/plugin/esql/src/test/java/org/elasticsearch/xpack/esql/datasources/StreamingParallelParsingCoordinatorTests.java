@@ -272,6 +272,108 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertTrue("an early close must publish a poison marker so the reconciler discards the incomplete cover", poisoned);
     }
 
+    /**
+     * A close that stops the segmentator mid-grow must poison the captured stats even when the consumer has
+     * drained every dispatched chunk. Here the first record is larger than a chunk, so the segmentator is
+     * still growing it when the close begins and nothing has been dispatched yet: the consumer is trivially
+     * "caught up" and the close is not an error, so only the missing EOF shows the file was not fully read.
+     */
+    public void testCloseMidGrowPoisonsCapturedStatsWhenConsumerCaughtUp() throws Exception {
+        assertCloseMidGrowPoisonsCapturedStats(false);
+    }
+
+    /**
+     * Like {@link #testCloseMidGrowPoisonsCapturedStatsWhenConsumerCaughtUp}, but the read after the close ends the
+     * record exactly at the grow buffer's size, so the grow finishes without allocating again after the close.
+     */
+    public void testCloseMidGrowPoisonsCapturedStatsWhenRecordFillsGrowBuffer() throws Exception {
+        assertCloseMidGrowPoisonsCapturedStats(true);
+    }
+
+    /**
+     * With a 512-byte chunk and 256-byte reads, the grow buffer is 1024 bytes and the stream parks before its
+     * fourth read. If {@code recordEndsAtGrowBufferFill}, that read ends the first record with a newline.
+     */
+    private void assertCloseMidGrowPoisonsCapturedStats(boolean recordEndsAtGrowBufferFill) throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        // An endless record that parks once mid-grow, after the first chunk-sized read.
+        InputStream stream = new InputStream() {
+            long delivered = 0;
+
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (delivered >= 768 && parked.getCount() > 0) {
+                    parked.countDown();
+                    try {
+                        resume.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted", e);
+                    }
+                }
+                int n = Math.min(len, 256);
+                Arrays.fill(b, off, off + n, (byte) 'x');
+                if (recordEndsAtGrowBufferFill && delivered == 768) {
+                    b[off + n - 1] = '\n';
+                }
+                delivered += n;
+                return n;
+            }
+        };
+        String path = "mem://streaming-close-before-eof-test";
+        StorageObject file = new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"));
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                new StatsPublishingLineReader(512, path),
+                stream,
+                file,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            safeAwait(parked);
+            // close() waits for the segmentator, so run it on its own thread and resume the stream only once
+            // close is polling: the segmentator must observe the close mid-grow, not race ahead of it.
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closer.start();
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, closer.getState()), 10, TimeUnit.SECONDS);
+            resume.countDown();
+            closer.join(TimeUnit.SECONDS.toMillis(30));
+            assertFalse("close() must return once the segmentator exits", closer.isAlive());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("a close mid-grow must publish a poison marker even when the consumer is caught up", poisoned);
+    }
+
     public void testParserErrorPropagates() throws Exception {
         String content = buildContent(100);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -572,6 +674,52 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Closing must unblock the segmentator when it is parked on {@code bufferPool.take()}: once close drains
+     * the page queues, each parser exits and releases its pool buffer, and that release wakes the {@code take()}.
+     * <p>
+     * With parallelism 2 (1 falls back to a sequential read) the pool holds three buffers. Each chunk yields
+     * more single-row pages than its page queue holds, and nothing consumes them, so all three parsers park
+     * holding their buffers and the segmentator has to park on the empty pool. We wait for that from its stack rather than a sleep.
+     */
+    public void testCloseWhileSegmentatorParkedOnBufferPool() throws Exception {
+        byte[] payload = "abc\n".repeat(1024).getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                new ByteArrayInputStream(payload),
+                List.of("line"),
+                1,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            assertBusy(
+                () -> assertTrue("segmentator not parked on the buffer pool", isParkedInTakeOrAllocateBuffer()),
+                5,
+                TimeUnit.SECONDS
+            );
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            iterator.close();
+            assertTrue("close() must return within 10s of segmentator being parked", System.nanoTime() <= deadlineNanos);
+            executor.shutdown();
+            assertTrue("segmentator and parsers must exit after close", executor.awaitTermination(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static boolean isParkedInTakeOrAllocateBuffer() {
+        for (Map.Entry<Thread, StackTraceElement[]> entry : Thread.getAllStackTraces().entrySet()) {
+            if (entry.getKey().getState() == Thread.State.WAITING
+                && Arrays.stream(entry.getValue()).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1510,6 +1658,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
             // LimitedBreaker's message does not carry the label; the pool alone fits, so the trip is the grow buffer.
             expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+            assertEquals(0L, breaker.getUsed());
         } finally {
             executor.shutdownNow();
         }

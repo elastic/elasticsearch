@@ -675,3 +675,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
   method: testWatermarkEmptyQueueOverrunIsNodeWide
   issue: https://github.com/elastic/elasticsearch/issues/160849
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testRemoteReductionRejectionWithPendingCoordinatorReduction
+  issue: https://github.com/elastic/elasticsearch/issues/160620

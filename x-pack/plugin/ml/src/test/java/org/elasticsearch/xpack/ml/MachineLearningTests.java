@@ -26,9 +26,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -233,6 +235,7 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(actions, not(hasItem(GetTrainedModelsAction.INSTANCE)));
             assertThat(actions, not(hasItem(GetDataFrameAnalyticsAction.INSTANCE)));
             assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
         }
     }
 
@@ -257,6 +260,7 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(actions, hasItem(GetTrainedModelsAction.INSTANCE));
             assertThat(actions, hasItem(GetDataFrameAnalyticsAction.INSTANCE));
             assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
         }
     }
 
@@ -281,6 +285,31 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(actions, hasItem(GetTrainedModelsAction.INSTANCE));
             assertThat(actions, not(hasItem(GetDataFrameAnalyticsAction.INSTANCE)));
             assertThat(actions, hasItem(StartTrainedModelDeploymentAction.INSTANCE));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
+        }
+    }
+
+    /**
+     * With all ML features disabled (as on VectorDB projects) the coordinated inference action must still be
+     * registered, so that search-time inference against inference endpoints (e.g. the text_embedding query vector
+     * builder) keeps working without ML nodes.
+     */
+    public void testAllFeaturesDisabled() throws IOException {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
+            .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
+            .put(XPackSettings.NLP_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
+            List<Object> actions = machineLearning.getActions().stream().map(h -> (Object) h.getAction()).toList();
+            assertThat(actions, hasItem(MlInfoAction.INSTANCE));
+            assertThat(actions, not(hasItem(GetJobsAction.INSTANCE)));
+            assertThat(actions, not(hasItem(GetTrainedModelsAction.INSTANCE)));
+            assertThat(actions, not(hasItem(InferModelAction.INSTANCE)));
+            assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
+            assertThat(actions, hasItem(CoordinatedInferenceAction.INSTANCE));
         }
     }
 

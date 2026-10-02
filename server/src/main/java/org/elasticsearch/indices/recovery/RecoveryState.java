@@ -128,6 +128,16 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, int localRetries) {
+        this(shardRouting, targetNode, sourceNode, new Index(), localRetries);
+    }
+
+    public RecoveryState(
+        ShardRouting shardRouting,
+        DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        Index index,
+        int localRetries
+    ) {
         this(
             shardRouting.shardId(),
             shardRouting.primary(),
@@ -135,7 +145,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             shardRouting.recoveryPriority(),
             sourceNode,
             targetNode,
-            new Index(),
+            index,
             new Timer(),
             localRetries
         );

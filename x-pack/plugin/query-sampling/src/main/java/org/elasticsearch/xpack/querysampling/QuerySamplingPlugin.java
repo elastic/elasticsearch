@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
@@ -22,11 +26,14 @@ import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsA
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Keeps a small, continuously maintained sample of live kNN queries so that production recall can be
@@ -34,6 +41,8 @@ import java.util.List;
  * to stay off the search critical path.
  */
 public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
+
+    public static final FeatureFlag QUERY_SAMPLING_FEATURE_FLAG = new FeatureFlag("query_sampling");
 
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
@@ -85,6 +94,18 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler> getActions() {
         return List.of(new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class));
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
+        return List.of(new RestQuerySamplingStatsAction());
     }
 
     @Override

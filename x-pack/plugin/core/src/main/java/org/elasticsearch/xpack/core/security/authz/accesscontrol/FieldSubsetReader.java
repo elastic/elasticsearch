@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
@@ -461,7 +462,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * re-encoding them into a blob that the caller would immediately parse apart again. {@link #binaryValue()} encodes on demand as a
      * fallback for anything that reads this instance as a plain {@link BinaryDocValues}.
      */
-    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues
+        implements
+            BlockLoader.OptionalDecodeMemoryUsageEstimator {
 
         private final BinaryDocValues delegate;
         private final MultiValuedSortableBinaryDocValues multiValues;
@@ -518,6 +521,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public int docValueCount() {
             return filteredValues.size();
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            // the decoder that holds the decompressed blocks sits behind this wrapper; the filtered copies are not counted
+            return multiValues.maxDecodeBytes();
         }
 
         @Override

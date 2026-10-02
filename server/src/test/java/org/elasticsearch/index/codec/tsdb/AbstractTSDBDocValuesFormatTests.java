@@ -85,6 +85,7 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -289,13 +290,20 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 var leaf = reader.leaves().getFirst().reader();
                 var binaryDV = leaf.getBinaryDocValues(binaryField);
                 assertNotNull(binaryDV);
+                long maxDecodeBytes = ((TSDBBinaryDocValues) binaryDV).maxDecodeBytes();
                 for (int i = 0; i < numDocs; i++) {
                     String expected = binaryValues.removeLast();
                     if (expected == null) {
                         assertFalse(binaryDV.advanceExact(i));
                     } else {
                         assertTrue(binaryDV.advanceExact(i));
-                        assertEquals(expected, binaryDV.binaryValue().utf8ToString());
+                        BytesRef value = binaryDV.binaryValue();
+                        assertEquals(expected, value.utf8ToString());
+                        if (maxDecodeBytes > 0) {
+                            // A compressed field reports the size of the buffer it decodes blocks into. The value is a view of that
+                            // buffer, and callers account for it in their breaker before any read, so it must cover the buffer.
+                            assertThat(maxDecodeBytes, greaterThanOrEqualTo((long) value.bytes.length));
+                        }
                     }
                 }
             }

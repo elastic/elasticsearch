@@ -21,6 +21,7 @@ import java.util.Map;
  */
 public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase {
     private static final String MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX = "unmapped_load_many_synthetic_source_fields";
+    private static final String MANY_DOC_VALUES_IGNORED_SOURCE_FIELDS_INDEX = "unmapped_load_many_doc_values_ignored_source_fields";
 
     /**
      * Index:
@@ -37,11 +38,45 @@ public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase 
      */
     public void testFetchTooManySyntheticSourceOnlyUnmappedFields() throws IOException {
         int fields = 1000;
-        initManySyntheticSourceOnlyFieldsIndex(500, fields);
+        initManySyntheticSourceOnlyFieldsIndex(MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX, false, 500, fields);
 
         try {
             setRequestBreakerLimit("40%");
-            assertCircuitBreaks(attempt -> fetchManySyntheticSourceOnlyFields(fields, attempt * 100));
+            assertCircuitBreaks(
+                attempt -> fetchManySyntheticSourceOnlyFields(MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX, fields, attempt * 100)
+            );
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    /**
+     * Same as {@link #testFetchTooManySyntheticSourceOnlyUnmappedFields} but {@code _ignored_source} is stored as binary doc values
+     * (the TSDB doc values format) instead of a stored field, which is what the reproduction in
+     * <a href="https://github.com/elastic/elasticsearch/issues/159349">#159349</a> used.
+     * <p>
+     * Index:
+     * <ul>
+     *     <li>Synthetic source</li>
+     *     <li>TSDB doc values format, so {@code _ignored_source} is binary doc values</li>
+     *     <li>Mapped sort key</li>
+     *     <li>Many small source-only fields</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Keep all source-only fields as unmapped LOAD columns</li>
+     * </ul>
+     * Expected: Circuit break
+     */
+    public void testFetchTooManyDocValuesIgnoredSourceUnmappedFields() throws IOException {
+        int fields = 1000;
+        initManySyntheticSourceOnlyFieldsIndex(MANY_DOC_VALUES_IGNORED_SOURCE_FIELDS_INDEX, true, 500, fields);
+
+        try {
+            setRequestBreakerLimit("40%");
+            assertCircuitBreaks(
+                attempt -> fetchManySyntheticSourceOnlyFields(MANY_DOC_VALUES_IGNORED_SOURCE_FIELDS_INDEX, fields, attempt * 100)
+            );
         } finally {
             setRequestBreakerLimit(null);
         }
@@ -54,22 +89,25 @@ public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase 
      *     <li>Mapped sort key</li>
      *     <li>Many small source-only fields</li>
      * </ul>
+     *
+     * @param docValuesIgnoredSource whether to store {@code _ignored_source} as binary doc values rather than a stored field
      */
-    private void initManySyntheticSourceOnlyFieldsIndex(int docs, int fields) throws IOException {
+    private void initManySyntheticSourceOnlyFieldsIndex(String index, boolean docValuesIgnoredSource, int docs, int fields)
+        throws IOException {
         logger.info("loading {} documents with {} 1KB synthetic source-only fields", docs, fields);
-        CreateIndexResponse response = createIndex(
-            MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX,
-            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
-            """
-                {
-                  "dynamic": false,
-                  "properties": {
-                    "sort_key": {
-                      "type": "long"
-                    }
-                  }
-                }"""
-        );
+        Settings.Builder settings = Settings.builder().put("index.mapping.source.mode", "synthetic");
+        if (docValuesIgnoredSource) {
+            settings.put("index.use_time_series_doc_values_format", true);
+        }
+        CreateIndexResponse response = createIndex(index, settings.build(), """
+            {
+              "dynamic": false,
+              "properties": {
+                "sort_key": {
+                  "type": "long"
+                }
+              }
+            }""");
         assertTrue(response.isAcknowledged());
 
         int docsPerBulk = 5;
@@ -85,17 +123,17 @@ public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase 
             }
             bulk.append("}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
-                bulk(MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX, bulk.toString());
+                bulk(index, bulk.toString());
                 bulk.setLength(0);
             }
         }
-        initIndex(MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX, bulk.toString());
+        initIndex(index, bulk.toString());
     }
 
-    private Map<String, Object> fetchManySyntheticSourceOnlyFields(int fields, int limit) throws IOException {
+    private Map<String, Object> fetchManySyntheticSourceOnlyFields(String index, int fields, int limit) throws IOException {
         StringBuilder query = startQuery();
         query.append("SET unmapped_fields=\\\"load\\\";\n");
-        query.append("FROM ").append(MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX).append("\n");
+        query.append("FROM ").append(index).append("\n");
         query.append("| SORT sort_key\n");
         query.append("| KEEP ");
         for (int f = 0; f < fields; f++) {

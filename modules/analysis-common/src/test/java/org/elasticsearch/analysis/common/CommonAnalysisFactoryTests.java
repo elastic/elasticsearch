@@ -102,6 +102,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
         filters.put("telugunormalization", TeluguNormalizationFilterFactory.class);
         filters.put("telugustem", TeluguStemFilterFactory.class);
+        filters.put("thainormalization", ThaiNormalizationFilterFactory.class);
+        filters.put("thairepeat", ThaiRepeatFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);
         filters.put("synonym", SynonymTokenFilterFactory.class);
         filters.put("synonymgraph", SynonymGraphTokenFilterFactory.class);
@@ -152,6 +154,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("htmlstrip", HtmlStripCharFilterFactory.class);
         filters.put("mapping", MappingCharFilterFactory.class);
         filters.put("patternreplace", PatternReplaceCharFilterFactory.class);
+        filters.put("thai", ThaiCharFilterFactory.class);
 
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
@@ -208,6 +211,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("sorani_normalization", null);
         filters.put("stemmer", PorterStemFilterFactory.class);
         filters.put("stop", null);
+        filters.put("thai_normalization", null);
+        filters.put("thai_repeat", null);
         filters.put("trim", null);
         filters.put("truncate", null);
         filters.put("type_as_payload", null);
@@ -322,6 +327,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "scandinavian_normalization",
             "serbian_normalization",
             "sorani_normalization",
+            "thai_normalization",
+            "thai_repeat",
             "trim",
             "uppercase"
         )) {
@@ -412,7 +419,9 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "html_strip",
             settings().affects("escaped_tags", List.of("b")),
             "pattern_replace",
-            settings(Map.of("pattern", "a")).affects("pattern", "b").affects("flags", "CASE_INSENSITIVE").affects("replacement", "x")
+            settings(Map.of("pattern", "a")).affects("pattern", "b").affects("flags", "CASE_INSENSITIVE").affects("replacement", "x"),
+            "thai",
+            alwaysShares()
         );
     }
 

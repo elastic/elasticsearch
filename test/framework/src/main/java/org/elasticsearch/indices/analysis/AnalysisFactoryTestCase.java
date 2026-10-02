@@ -154,6 +154,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("synonymgraph", MovedToAnalysisCommon.class),
         entry("telugunormalization", MovedToAnalysisCommon.class),
         entry("telugustem", MovedToAnalysisCommon.class),
+        entry("thainormalization", MovedToAnalysisCommon.class),
+        entry("thairepeat", MovedToAnalysisCommon.class),
         entry("trim", MovedToAnalysisCommon.class),
         entry("truncate", MovedToAnalysisCommon.class),
         entry("turkishlowercase", MovedToAnalysisCommon.class),
@@ -228,6 +230,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         "mapping",
         MovedToAnalysisCommon.class,
         "patternreplace",
+        MovedToAnalysisCommon.class,
+        "thai",
         MovedToAnalysisCommon.class,
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian

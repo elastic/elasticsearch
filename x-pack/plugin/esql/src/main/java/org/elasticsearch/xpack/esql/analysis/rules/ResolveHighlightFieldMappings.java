@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -39,19 +40,22 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.beforeRenames;
+import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.renamedBy;
 import static org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey.rowSourceOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
- * Gives HIGHLIGHT the mapping of each text ON column that comes unchanged out of a FORK or UNION ALL. Those commands
- * output each merged column as a {@link ReferenceAttribute}, which has no mapping. For each such column, HIGHLIGHT gets
- * one of these mappings:
+ * Gives HIGHLIGHT the mapping of each text ON column that RENAME renamed from a mapped field, or that comes unchanged out
+ * of a FORK or UNION ALL. Those commands output the column as a {@link ReferenceAttribute}, which has no mapping. A renamed
+ * field gets its own mapping, so it is analyzed exactly as the field is. A merged column gets one of these mappings:
  * <ul>
  *     <li>the mapping every branch agrees on;</li>
  *     <li>a mapping that names each index's analyzer, when branches over different indices disagree;</li>
  *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT}, which falls back to {@code standard} with a warning.</li>
  * </ul>
- * A column no branch maps gets no mapping, and HIGHLIGHT analyzes it like any computed column.
+ * A column EVAL copies is a new column with no mapping, and so is a column no branch maps. HIGHLIGHT analyzes those like
+ * any computed column.
  * <p>
  * Runs before {@link ResolveHighlightIndexKey}, which threads each row's {@code _index} through every branch when a mapping
  * names each index's analyzer.
@@ -72,7 +76,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         });
     }
 
-    /** The mapping of each text ON column that comes unchanged out of a FORK or UNION ALL, by name. */
+    /** The mapping of each text ON column that renames a mapped field or comes unchanged out of a FORK or UNION ALL, by name. */
     private static Map<String, TextEsField> mergedMappings(Highlight highlight) {
         Map<String, TextEsField> mappings = new HashMap<>();
         BranchOutputs outputs = new BranchOutputs();
@@ -80,24 +84,36 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
             if (field instanceof Attribute column && (column instanceof FieldAttribute) == false && column.dataType() == TEXT) {
                 TextEsField mapping = mergedMapping(highlight.child(), column, outputs);
                 if (mapping != null) {
-                    mappings.put(column.name(), mapping);
+                    mappings.put(column.name(), mapping(column.name(), mapping));
                 }
             }
         }
         return Map.copyOf(mappings);
     }
 
-    /** The mapping of {@code column}, an output of {@code plan}, if the column comes unchanged out of a FORK or UNION ALL. */
+    /**
+     * The mapping of {@code column}, an output of {@code plan}, if the column is a mapped field, renames one, or comes
+     * unchanged out of a FORK or UNION ALL.
+     */
     private static @Nullable TextEsField mergedMapping(LogicalPlan plan, Attribute column, BranchOutputs outputs) {
+        if (column instanceof FieldAttribute) {
+            return HighlightAnalyzers.mappingOf(column, Map.of());
+        }
         if (plan instanceof MergePlan merge) {
             return branchesMapping(merge, column.name(), outputs);
+        }
+        if (plan instanceof Project project) {
+            Attribute renamed = renamedBy(project, column);
+            if (renamed != null) {
+                return mergedMapping(project.child(), renamed, outputs);
+            }
         }
         for (LogicalPlan child : plan.children()) {
             if (child.outputSet().contains(column)) {
                 return mergedMapping(child, column, outputs);
             }
         }
-        return null; // computed, e.g. by EVAL or RENAME
+        return null; // computed, e.g. by EVAL
     }
 
     /**
@@ -155,10 +171,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
             Attribute column = valued.get(i).get(name);
             if (column != null) {
                 LogicalPlan branch = merge.children().get(i);
-                TextEsField found = column instanceof FieldAttribute
-                    ? HighlightAnalyzers.mappingOf(column, Map.of())
-                    : mergedMapping(branch, column, outputs);
-                columns.add(new BranchColumn(branch, column, found));
+                columns.add(new BranchColumn(branch, column, mergedMapping(branch, column, outputs)));
             }
         }
         return columns;
@@ -223,7 +236,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         }
         if (source instanceof MergePlan nested) {
             // A nested merge's branches may agree on the mapping, which then names no indices.
-            return indexGroups(branchColumns(nested, column.name(), outputs), outputs);
+            return indexGroups(branchColumns(nested, beforeRenames(branch, column).name(), outputs), outputs);
         }
         return switch (found.unknownAnalyzer()) {
             case NONE, INDEX_LOCAL, NOT_REPORTED -> List.of(

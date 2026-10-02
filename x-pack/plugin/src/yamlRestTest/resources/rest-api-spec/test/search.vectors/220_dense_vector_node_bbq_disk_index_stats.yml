@@ -113,8 +113,11 @@
         - method: POST
           path: /_search
           capabilities: [ optimized_scalar_quantization_bbq ]
+        - method: GET
+          path: /{index}/_stats
+          capabilities: [ stats_include_auto_calibration ]
       test_runner_features: capabilities
-      reason: Feature requires DiskBBQ
+      reason: Feature requires DiskBBQ and include_auto_calibration
   - requires:
       cluster_features: ["mapper.bbq_disk_support"]
       reason: Needs mapper.bbq_disk_support feature
@@ -177,8 +180,11 @@
         - method: POST
           path: /_search
           capabilities: [ optimized_scalar_quantization_bbq ]
+        - method: GET
+          path: /{index}/_segments
+          capabilities: [ segment_include_auto_calibration ]
       test_runner_features: capabilities
-      reason: Feature requires DiskBBQ
+      reason: Feature requires DiskBBQ and include_auto_calibration
 
   - do:
       indices.create:

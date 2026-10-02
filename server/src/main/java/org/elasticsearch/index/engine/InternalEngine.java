@@ -3371,13 +3371,13 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        return segments(false);
+        return segments(false, false);
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
         try (var ignored = acquireEnsureOpenRef()) {
-            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo);
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo, includeAutoCalibration);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();

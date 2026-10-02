@@ -73,6 +73,36 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
         }
     }
 
+    @FunctionalInterface
+    public interface Capture {
+
+        Capture NOOP = () -> () -> DirectoryMetrics.EMPTY;
+
+        /**
+         * Opens a measurement window on the calling thread, returning a supplier of the delta since this call.
+         */
+        Supplier<DirectoryMetrics> start();
+
+        /**
+         * Measures the {@link DirectoryMetrics} consumed by {@code block} and accumulates the delta into {@code sink}.
+         */
+        default <T> T measure(Supplier<T> block, AtomicReference<DirectoryMetrics> sink) {
+            final Supplier<DirectoryMetrics> delta = start();
+            try {
+                return block.get();
+            } finally {
+                DirectoryMetrics.accumulate(sink, delta.get());
+            }
+        }
+
+        default void measure(Runnable block, AtomicReference<DirectoryMetrics> sink) {
+            measure(() -> {
+                block.run();
+                return null;
+            }, sink);
+        }
+    }
+
     private final Map<String, PluggableMetrics<?>> data;
 
     private DirectoryMetrics(Map<String, PluggableMetrics<?>> data) {
@@ -135,11 +165,6 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
             merged.merge(entry.getKey(), entry.getValue(), (a, b) -> ((PluggableMetrics) a).merge(b));
         }
         return new DirectoryMetrics(Map.copyOf(merged));
-    }
-
-    public DirectoryMetrics withMetric(String type, PluggableMetrics<?> metric) {
-        // TODO: remove once every pluggable metric is counted per-fetch (today only store_bytes_read is).
-        return new DirectoryMetrics(Maps.copyMapWithAddedOrReplacedEntry(data, type, metric));
     }
 
     public Supplier<DirectoryMetrics> delta() {

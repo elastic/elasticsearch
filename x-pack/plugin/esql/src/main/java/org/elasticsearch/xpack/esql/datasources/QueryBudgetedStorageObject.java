@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -33,7 +35,7 @@ import java.util.concurrent.TimeoutException;
  * This wrapper is applied on top of the global {@link ConcurrencyLimitedStorageObject} to provide
  * two-level concurrency control: per-query fairness (this layer) + global hard cap (inner layer).
  */
-class QueryBudgetedStorageObject implements StorageObject {
+class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final QueryConcurrencyBudget budget;
@@ -67,39 +69,50 @@ class QueryBudgetedStorageObject implements StorageObject {
         }
     }
 
+    // Metadata ops (length/lastModified/exists) are deliberately exempt from permit acquisition.
+    // The permit is pure throughput control with no correctness role; these are cheap, short-lived
+    // HEAD/stat calls whose fan-out is already bounded by the caller thread pool and
+    // ExternalSourceResolver.MAX_PARALLEL_METADATA_READS. Parking them behind long-lived stream
+    // permits (streams hold their permit for their whole minutes-long lifetime) starved SEARCH
+    // threads — see #1151. Byte-transfer ops (newStream/readBytes) stay permit-governed.
     @Override
     public long length() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.length();
-        } finally {
-            budget.release();
-        }
+        return delegate.length();
+    }
+
+    @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.lastModified();
-        } finally {
-            budget.release();
-        }
+        return delegate.lastModified();
     }
 
     @Override
     public boolean exists() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.exists();
-        } finally {
-            budget.release();
-        }
+        return delegate.exists();
     }
 
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
     }
 
     @Override
@@ -122,6 +135,16 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
+    public InputStream withoutResume(InputStream stream) {
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
         acquirePermit();
         try {
@@ -139,18 +162,29 @@ class QueryBudgetedStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         try {
             acquirePermit();
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
         try {
             // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
             // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
             // lambda — that would double-release the budget and double-fire the downstream
             // listener (onResponse + onFailure for the same I/O).
-            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     budget.release();
@@ -179,6 +213,7 @@ class QueryBudgetedStorageObject implements StorageObject {
         } catch (Exception e) {
             budget.release();
             listener.onFailure(e);
+            return () -> {};
         }
     }
 
@@ -219,6 +254,11 @@ class QueryBudgetedStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override

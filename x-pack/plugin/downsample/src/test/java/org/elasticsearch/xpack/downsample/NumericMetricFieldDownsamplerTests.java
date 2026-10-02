@@ -236,12 +236,13 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     public void testGaugeMetricSkipsSparseDocsWithDocIdIterator() throws IOException {
+        assumeTrue("relevant only to downsampling with doc id iterator", docValuesType == DocValuesType.WITH_ITERATOR);
         NumericMetricFieldDownsampler.AggregateGauge producer = new NumericMetricFieldDownsampler.AggregateGauge(
             randomAlphaOfLength(10),
             null
         );
         var docIdBuffer = IntArrayList.from(0, 1, 2, 3, 4, 5);
-        var valuesInstance = withDocIdIterator(IntArrayList.from(1, 4), 12.2, 55.0);
+        var valuesInstance = trackingWithDocIdIterator(IntArrayList.from(1, 4), 12.2, 55.0);
         producer.collect(valuesInstance, docIdBuffer);
 
         assertFalse(producer.isEmpty());
@@ -249,9 +250,12 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         assertEquals(55.0, producer.max, 0d);
         assertEquals(67.2, producer.sum.value(), 0d);
         assertEquals(2, producer.count);
+        assertEquals(3, valuesInstance.advanceCalls());
+        assertEquals(0, valuesInstance.advanceExactCalls());
     }
 
     public void testGaugeMetricSkipsExhaustedLeafAfterBucketReset() throws IOException {
+        assumeTrue("relevant only to downsampling with doc id iterator", docValuesType == DocValuesType.WITH_ITERATOR);
         NumericMetricFieldDownsampler.AggregateGauge producer = new NumericMetricFieldDownsampler.AggregateGauge(
             randomAlphaOfLength(10),
             null
@@ -273,6 +277,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     public void testGaugeMetricClearsExhaustionForNewLeafIterator() throws IOException {
+        assumeTrue("relevant only to downsampling with doc id iterator", docValuesType == DocValuesType.WITH_ITERATOR);
         NumericMetricFieldDownsampler.AggregateGauge producer = new NumericMetricFieldDownsampler.AggregateGauge(
             randomAlphaOfLength(10),
             null

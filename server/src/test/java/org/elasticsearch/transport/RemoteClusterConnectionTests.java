@@ -69,6 +69,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -82,6 +83,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -666,6 +668,70 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertEquals(seedNode, function.apply(seedNode.getId()));
                     assertNull(function.apply(seedNode.getId() + "foo"));
                     assertTrue(connection.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testCollectNodesDoesNotPropagateEnsureConnectedResponseHeaders() throws Exception {
+        final var knownNodes = new CopyOnWriteArrayList<DiscoveryNode>();
+        try (
+            var remoteTransport = startTransport(
+                randomIdentifier("node-"),
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            );
+            var localTransportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            final var seedNode = remoteTransport.getLocalNode();
+            knownNodes.add(seedNode);
+
+            final var connectHeader = randomIdentifier("connect-header-");
+
+            localTransportService.start();
+            localTransportService.acceptIncomingRequests();
+            final var injectedConnectHeader = new AtomicBoolean();
+            localTransportService.addConnectBehavior(
+                remoteTransport,
+                (transport, discoveryNode, profile, listener) -> transport.openConnection(
+                    discoveryNode,
+                    profile,
+                    ActionListener.runBefore(listener, () -> {
+                        threadPool.getThreadContext().addResponseHeader(connectHeader, randomIdentifier());
+                        injectedConnectHeader.set(true);
+                    })
+                )
+            );
+
+            final var clusterAlias = randomIdentifier("cluster-");
+            for (var settings : List.of(
+                buildProxySettings(clusterAlias, addresses(seedNode)),
+                buildSniffSettings(clusterAlias, addresses(seedNode))
+            )) {
+                injectedConnectHeader.set(false);
+                try (RemoteClusterConnection connection = createConnection(clusterAlias, settings, localTransportService, false)) {
+                    final var threadContext = threadPool.getThreadContext();
+                    try (var ignored = threadContext.stashContext()) {
+                        final var callerHeaderName = randomIdentifier("caller-header-");
+                        final var callerHeaderValue = randomIdentifier("caller-header-value-");
+                        threadContext.addResponseHeader(callerHeaderName, callerHeaderValue);
+                        final var nodeLookup = ESTestCase.<Function<String, DiscoveryNode>>safeAwait(
+                            listener -> connection.collectNodes(ActionListener.runBefore(listener, () -> {
+                                final var responseHeaders = threadContext.getResponseHeaders();
+                                assertThat(responseHeaders.get(connectHeader), nullValue());
+                                assertThat(responseHeaders.get(callerHeaderName), equalTo(List.of(callerHeaderValue)));
+                            }))
+                        );
+                        assertTrue(injectedConnectHeader.get());
+                        assertEquals(seedNode, nodeLookup.apply(seedNode.getId()));
+                    }
                 }
             }
         }

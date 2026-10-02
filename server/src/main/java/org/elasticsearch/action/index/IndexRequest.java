@@ -357,7 +357,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     * Marks whether the effective routing value was provided via the {@code slice} API parameter.
      */
     @Override
     public IndexRequest setRoutingFromSlice(boolean routingFromSlice) {
@@ -366,7 +366,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     * Returns {@code true} when this request routing came from the {@code slice} API parameter.
      */
     @Override
     public boolean isRoutingFromSlice() {
@@ -985,8 +985,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.rawTimestamp = rawTimestamp;
     }
 
-    public void setTimeSeriesTimestamp(Instant tsTimestamp) {
+    public IndexRequest setTimeSeriesTimestamp(Instant tsTimestamp) {
         this.timeSeriesTimestamp = tsTimestamp;
+        return this;
     }
 
     /**

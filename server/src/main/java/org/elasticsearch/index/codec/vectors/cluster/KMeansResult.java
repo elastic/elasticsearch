@@ -50,6 +50,9 @@ public class KMeansResult<V> {
         return FLOAT_EMPTY;
     }
 
+    /**
+     * Returns a simple {@link KMeansResult} with {@code numVectors} vectors assigned to  a single {@code centroid}.
+     */
     public static KMeansResult<float[]> singleCluster(float[] centroid, int numVectors) {
         return new KMeansResult<>(new float[][] { centroid }, new int[numVectors]);
     }
@@ -69,19 +72,33 @@ public class KMeansResult<V> {
         return centroids[assignments[vectorOrdinal]];
     }
 
+    /**
+     * The centroids
+     */
     public V[] centroids() {
         return centroids;
     }
 
+    /**
+     * Resets this object with new {@code centroids} and {@code clusterCounts}.
+     * Assignment information will need to be re-specified for the new centroids
+     * for this object to be valid.
+     */
     void setCentroids(V[] centroids, int[] clusterCounts) {
         this.centroids = centroids;
         this.clusterCounts = clusterCounts;
     }
 
+    /**
+     * Array mapping the vector ordinal to its assigned centroid ordinal
+     */
     public int[] assignments() {
         return assignments;
     }
 
+    /**
+     * The number of vectors assigned to each centroid, by centroid ordinal
+     */
     public int[] clusterCounts() {
         return clusterCounts;
     }

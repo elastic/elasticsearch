@@ -49,11 +49,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchActionTestCase<
         threadPool.shutdown();
     }
 
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
-    }
-
     protected abstract Request request();
 
     protected PlainActionFuture<Response> listener() {

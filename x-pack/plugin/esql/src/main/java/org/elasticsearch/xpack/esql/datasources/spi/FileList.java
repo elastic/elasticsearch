@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+
+import java.util.List;
 
 /**
  * Indexed view over a resolved set of files from an external data source.
@@ -148,4 +151,84 @@ public interface FileList {
     boolean isEmpty();
 
     long estimatedBytes();
+
+    /**
+     * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
+     * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
+     * <p>
+     * Only resolution ever asks for a bound, and it asks on the dataset's behalf rather than the query's: what
+     * defines a dataset's columns is its {@code schema_resolution} mode, so under {@code first_file_wins} or a
+     * declared mapping one page answers that whatever the query goes on to do. A query that reads rows can
+     * therefore be handed one. Turning it into the query's own file set is split discovery's job
+     * ({@code FileSplitProvider#overTheQuerysFileSet}), and everything resolution derived per file from the bounded
+     * listing — partition values, per-file read schemas — moves with the file set when it does
+     * ({@code SplitDiscoveryContext#withScanFileSet}).
+     * <p>
+     * One invariant is absolute, and nothing downstream catches its breach: a truncated list is never written to the
+     * shared listing cache, where a later query would find it and read a fraction of the dataset while believing
+     * it read all of it. That is {@code ExternalSourceResolver#listingExtentsFor}'s to keep — the cache itself
+     * does not check, the expander honours whatever extents it is handed, and omitting the fingerprint and
+     * refusing to compact do not prevent caching. A new call site asking for a bound must establish it for
+     * itself. A correctness invariant, not an optimisation.
+     */
+    default boolean isTruncated() {
+        return false;
+    }
+
+    /**
+     * Heap one listed entry occupies: the path String, an Instant and a long. Shared so the walk that reserves for
+     * an entry, the list that reports what it holds, and the resolution that tops that up cannot drift apart.
+     */
+    long LISTING_BYTES_PER_ENTRY = 700L;
+
+    /**
+     * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight
+     * (paths / sizes / mtimes) and does not include partition value arrays. When
+     * {@link #partitionMetadata()} is present and non-empty, this adds {@link PartitionMetadata#planningBytes()}
+     * so planning can charge columnar (and optionally directory-shared) partition values before the schema
+     * map is built. Not a measured deep size of interned value objects.
+     */
+    default long planningBytes() {
+        PartitionMetadata metadata = partitionMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return estimatedBytes();
+        }
+        return estimatedBytes() + metadata.planningBytes();
+    }
+
+    /**
+     * The 128-bit fingerprint identifying the resolved file SET: a commutative fold over every file's
+     * {@code (path, mtime, size)} plus the file count, computed once when the listing is built. The same
+     * set listed in any order yields the same fingerprint; any file added, removed, or modified (mtime
+     * or size) yields a different one. This makes the fingerprint a content-addressed cache key for
+     * dataset-level derived state (e.g. the warm COUNT(*) aggregate): keys derived from it are
+     * correct-or-miss by construction, with no separate invalidation protocol — and they survive listing
+     * refreshes (the listing TTL, five minutes by default) as long as the underlying files are unchanged,
+     * because the fingerprint derives from listing CONTENT, not listing object identity.
+     * <p>
+     * {@code null} for the sentinels and for implementations that do not compute one.
+     */
+    @Nullable
+    default FileSetFingerprint fileSetFingerprint() {
+        return null;
+    }
+
+    /**
+     * Notices raised while this listing was built: reserved partition-name renames, and {@code file_exclusions} drops from
+     * a glob segment that listed nothing (a comma-separated resource gathers every segment's notices). Empty when neither
+     * happened. Nothing is emitted from here; cached listings carry these so a cache hit hands the resolver the same
+     * notices as a cold expand.
+     */
+    default List<String> listingWarnings() {
+        return List.of();
+    }
+
+    default long listingWarningBytes() {
+        List<String> warnings = listingWarnings();
+        long bytes = 0;
+        for (int i = 0; i < warnings.size(); i++) {
+            bytes += HeapEstimates.stringBytes(warnings.get(i));
+        }
+        return bytes;
+    }
 }

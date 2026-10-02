@@ -79,7 +79,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 (byte) 4,
                 centroid
             );
-            ESVectorUtil.transposeHalfByte(initial, quantized);
+            ESVectorUtil.stride4BitValues(initial, quantized);
             var scorer = ESVectorUtil.getES93BinaryQuantizedVectorScorer(
                 binarizedVectors.slice,
                 binarizedVectors.dimension(),

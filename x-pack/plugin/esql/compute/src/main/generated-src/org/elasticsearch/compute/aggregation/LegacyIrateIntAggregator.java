@@ -162,10 +162,10 @@ public class LegacyIrateIntAggregator {
         }
 
         void combine(int groupId, LongBlock timestamps, IntBlock values, int otherPosition) {
-            final int valueCount = timestamps.getValueCount(otherPosition);
-            if (valueCount == 0) {
+            if (timestamps.isNull(otherPosition)) {
                 return;
             }
+            final int valueCount = timestamps.getValueCount(otherPosition);
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);

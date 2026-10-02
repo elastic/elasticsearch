@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -65,7 +69,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * {@link WildcardLike} (and {@code Not(WildcardLike)}, and conjunctions thereof) are exceptions:
  * they push as {@link Pushability#YES} so {@code FilterExec} can be dropped entirely. The late-mat
  * evaluator handles {@code NOT (col LIKE p)} with three-valued logic by AND-ing out nulls before
- * negation (see {@link ParquetPushedExpressions#evaluateExpression}'s {@code Not(WildcardLike)}
+ * negation (see {@link ParquetPushedExpressions#evaluateNot}'s {@code Not(WildcardLike)}
  * special case), so removing the safety net does not change result semantics. The motivation: with
  * {@code RECHECK}, every surviving row pays the LIKE cost twice — once in the reader's late-mat
  * filter, once again in {@code FilterExec}. On large keyword scans (e.g. {@code URL LIKE
@@ -170,26 +174,33 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * nulls to bit {@code 0}. The LIKE-family — {@link WildcardLike}, {@link StartsWith},
      * {@code EndsWith}, {@code Contains} — satisfies this on the positive side and is also
      * routed through a TVL-aware {@code Not} branch in
-     * {@link ParquetPushedExpressions#evaluateExpression} that AND-s out the null mask before
+     * {@link ParquetPushedExpressions#evaluateNot} that AND-s out the null mask before
      * negating, so both bare and negated forms are YES.
      *
-     * <p>Other predicate families ({@code Eq}, {@code In}, {@code Range}, {@code IsNull},
-     * {@code IsNotNull}) stay {@link Pushability#RECHECK} because the generic bitwise negate
-     * is not TVL-correct for their nulls; the {@code FilterExec} safety net applies them
-     * per-row. {@code Not(And(...))} likewise stays RECHECK — bitwise {@code ~(m1 & m2)} is
-     * not {@code NOT (a AND b)} under TVL when either arm holds null.
+     * <p>{@code Not(EsqlBinaryComparison)}, {@code Not(In)}, and {@code Not(Range)} on a single
+     * column are now also TVL-correct: {@code valueColumnBlockForNot} extracts the column block
+     * so that {@code tvlNegate} can AND-out null/MV positions before negating, exactly as the
+     * LIKE-family does. These predicates could therefore be promoted to {@link Pushability#YES}
+     * (dropping the double-evaluation RECHECK cost), but that promotion is left as a follow-up.
+     * {@code IsNull}/{@code IsNotNull} and {@code Not(And(...))} stay {@link Pushability#RECHECK}:
+     * the null/MV gate can't be derived from a single column block for those forms, and
+     * {@code Not(And)} De Morgan-expands to an {@code Or} of Nots, inheriting OR's hazard that
+     * an unevaluable arm at runtime (e.g. {@code Range} over keyword) yields all-survive.
      *
      * <p>{@code AND} of YES-eligible predicates is YES (a {@code 0} on either side blocks the
      * row regardless of provenance). {@code OR} is excluded: {@code evaluateExpression}'s
      * {@code Or} branch returns {@code null} ("all rows survive") when an arm is unevaluable,
-     * which is fine under RECHECK but unsafe under YES.
+     * which is fine under RECHECK but unsafe under YES. Do not promote {@code Not(And)} to YES
+     * because De Morgan is exact when both arms evaluate; the unevaluable-arm case is not.
      */
     static boolean isFullyEvaluable(Expression expr) {
         if (isLikeFamily(expr)) {
             return true;
         }
         if (expr instanceof Not not) {
-            // Only the LIKE-family inner predicates have a TVL-aware evaluator special case.
+            // LIKE-family is TVL-correct in evaluateNot. Comparisons use valueColumnBlockForNot
+            // + tvlNegate. Promoting those to YES is a follow-up TODO. Not(And) must stay
+            // RECHECK: De Morgan inherits Or's unevaluable-arm hazard (see method javadoc).
             return isLikeFamily(not.field());
         }
         if (expr instanceof And and) {
@@ -198,8 +209,37 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         return false;
     }
 
+    /**
+     * Returns {@code true} when {@code e} is a LIKE-family expression ({@link WildcardLike},
+     * {@link StartsWith}, {@link Contains}, or {@link EndsWith}) whose field is a non-virtual
+     * {@link NamedExpression}.
+     *
+     * <p>The virtual-column guard mirrors the equivalent check in {@link #canConvert}: virtual
+     * columns ({@code _file.*}) are materialized downstream by {@code VirtualColumnIterator} with
+     * real values, not nulls. They never receive a predicate block in the late-mat evaluator, so a
+     * conjunct on such a column must not be promoted to
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
+     * — doing so drops the {@code FilterExec} while the evaluator silently passes all rows.
+     * {@link #canConvert}'s {@code And} arm is disjunctive ({@code left || right}), so
+     * {@code And(realColLike, virtualColLike)} passes {@code canConvert} via the left arm even
+     * though the right arm fails it; {@code isFullyEvaluable}'s {@code And} arm is conjunctive
+     * ({@code left && right}), so without this guard the whole {@code And} would reach YES and
+     * drop {@code FilterExec} for the virtual-column conjunct. See elastic/esql-planning#2052.
+     */
     private static boolean isLikeFamily(Expression e) {
-        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
+        Expression field;
+        if (e instanceof WildcardLike wl) {
+            field = wl.field();
+        } else if (e instanceof StartsWith sw) {
+            field = sw.singleValueField();
+        } else if (e instanceof Contains c) {
+            field = c.singleValueField();
+        } else if (e instanceof EndsWith ew) {
+            field = ew.singleValueField();
+        } else {
+            return false;
+        }
+        return field instanceof NamedExpression ne && PushdownPredicates.isVirtualColumn(ne) == false;
     }
 
     /**
@@ -208,6 +248,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * For OR and NOT, all children must be convertible.
      */
     static boolean canConvert(Expression expr) {
+        if (PushdownPredicates.allPushdownLiteralsAgree(expr) == false) {
+            return false;
+        }
         if (expr instanceof EsqlBinaryComparison bc) {
             if (PushdownPredicates.isComparison(bc, TYPE_SUPPORTED) == false) {
                 return false;
@@ -237,6 +280,31 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
                 return false;
             }
             return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
+        }
+        // The multivalue comparison functions are any-value existentials, so each carries the same statistics bound as
+        // its scalar sibling and pushes as RECHECK. isFullyEvaluable accepts only the LIKE family, Not over it and And
+        // of those, so it rejects these and canPush answers RECHECK. The exact predicate stays in the retained
+        // FilterExec.
+        if (expr instanceof MvContains mvContains) {
+            return PushdownPredicates.isMvContains(mvContains, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return PushdownPredicates.isMvIntersects(mvIntersects, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            // BooleanColumn doesn't implement SupportsLtGt, so an ordered bound on one cannot be built. Unreachable
+            // through the analyzer — MvInRange.isSupportedRangeType already excludes BOOLEAN — and kept for the same
+            // reason the Range arm above keeps its own boolean check.
+            if (declinesOrderedBoolean(mvInRange.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvInRange(mvInRange, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvCompare mvCompare) {
+            if (declinesOrderedBoolean(mvCompare.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvCompare(mvCompare, TYPE_SUPPORTED);
         }
         if (expr instanceof And and) {
             return canConvert(and.left()) || canConvert(and.right());
@@ -275,5 +343,10 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
                 && wl.pattern() != null;
         }
         return false;
+    }
+
+    /** BooleanColumn implements SupportsEqNotEq but not SupportsLtGt, so an ordered bound on it cannot be built. */
+    private static boolean declinesOrderedBoolean(Expression field) {
+        return field instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN;
     }
 }

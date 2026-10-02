@@ -87,11 +87,6 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
-    @Override
     protected final T createTestInstance(String name, Map<String, Object> metadata) {
         T instance = createTestInstance(name, metadata, subAggregationsSupplier.get());
         assert instance.getBuckets().size() <= maxNumberOfBuckets()

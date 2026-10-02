@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 159115
+pr: 159235
+summary: Add skip_rows for CSV and TSV federated datasets
+type: enhancement

@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -173,6 +175,46 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         assertThat(r.rawSettings(), notNullValue());
     }
 
+    public void testValidateRejectsDescriptionTooLong() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + 1);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", description, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "dataset description is too large: "
+                    + (MAX_DESCRIPTION_LENGTH + 1)
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
+    }
+
+    public void testValidateAcceptsDescriptionAtLimit() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", description, Map.of());
+        assertThat(r.validate(), nullValue());
+    }
+
+    /** The length check accumulates with the other field checks rather than short-circuiting them. */
+    public void testValidateReportsDescriptionTooLongAlongsideOtherErrors() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + between(1, 100));
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", "s3://bucket", description, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "dataset data_source is missing or empty",
+                "dataset description is too large: "
+                    + description.length()
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
+    }
+
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
     }
@@ -192,11 +234,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 )
             );
         }
-        String idPath = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        Boolean sourceEnabled = randomBoolean() ? null : randomBoolean();
-        return DatasetMapping.assemble(
-            new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props, sourceEnabled, idPath)
-        );
+        return DatasetMapping.assemble(new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props));
     }
 
     private static Map<String, Object> randomSettings() {

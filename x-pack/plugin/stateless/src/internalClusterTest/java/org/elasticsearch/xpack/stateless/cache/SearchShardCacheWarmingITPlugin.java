@@ -92,7 +92,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
         }
 
         @Override
-        protected void warmCache(
+        protected void warmCacheAndTimeIt(
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
@@ -113,7 +113,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                     }
                 }
             }
-            super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
+            super.warmCacheAndTimeIt(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
         }
     }
 }

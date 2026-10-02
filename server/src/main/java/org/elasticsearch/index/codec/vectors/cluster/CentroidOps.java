@@ -151,6 +151,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     void addScaled(float scale, V src, float[] dest);
 
     /**
+     * Accumulates all vectors from {@code values} into {@code accumulator} using unit weight.
+     * After calling, {@code accumulator[d]} contains the sum of all vector components at dimension {@code d}.
+     * Divide by {@code values.size()} to obtain the mean.
+     */
+    default void accumulateAll(ClusteringVectorValues<V> values, float[] accumulator) throws IOException {
+        for (int i = 0; i < values.size(); i++) {
+            addScaled(1.0f, values.vectorValue(i), accumulator);
+        }
+    }
+
+    /**
      * Applies a batch update to a centroid: {@code centroid[i] = scaleSrc * src[i] + scaleCentroid * centroid[i]}.
      * <p>
      * For float centroids, this operates directly on the centroid array.
@@ -258,6 +269,14 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      * {@code sqrt(sum_i ||vecs1[i] - vecs2[i]||^2 / sum_i ||vecs2[i]||^2)}.
      */
     float normalizedFrobeniusNorm(V[] vecs1, V[] vecs2);
+
+    /**
+     * Computes the global centroid as a float[] by averaging all centroids.
+     * For byte centroids, values are widened to float during accumulation.
+     * The global centroid is always float because it is the arithmetic mean,
+     * which is not representable as byte[].
+     */
+    float[] computeFloatGlobalCentroid(V[] centroids, int dims);
 
     /** Convenience constant for the float ops singleton. */
     CentroidOps<float[]> FLOAT = FloatOps.INSTANCE;
@@ -412,6 +431,23 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             }
             divideAccumulator(centroid, centroid, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public float[] computeFloatGlobalCentroid(float[][] centroids, int dims) {
+            final float[] globalCentroid = new float[dims];
+            if (centroids.length == 0) {
+                return globalCentroid;
+            }
+            for (float[] centroid : centroids) {
+                for (int j = 0; j < dims; j++) {
+                    globalCentroid[j] += centroid[j];
+                }
+            }
+            for (int j = 0; j < dims; j++) {
+                globalCentroid[j] /= centroids.length;
+            }
+            return globalCentroid;
         }
 
         @Override
@@ -708,6 +744,23 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             byte[] centroid = new byte[dimension];
             divideAccumulator(centroid, acc, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public float[] computeFloatGlobalCentroid(byte[][] centroids, int dims) {
+            final float[] globalCentroid = new float[dims];
+            if (centroids.length == 0) {
+                return globalCentroid;
+            }
+            for (byte[] centroid : centroids) {
+                for (int j = 0; j < dims; j++) {
+                    globalCentroid[j] += centroid[j];
+                }
+            }
+            for (int j = 0; j < dims; j++) {
+                globalCentroid[j] /= centroids.length;
+            }
+            return globalCentroid;
         }
 
         @Override

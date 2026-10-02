@@ -75,10 +75,11 @@ public final class MvSliceDoubleEvaluator implements ExpressionEvaluator {
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -86,10 +87,11 @@ public final class MvSliceDoubleEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (endBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -126,7 +128,7 @@ public final class MvSliceDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -20,16 +20,13 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.foreign.CloseableByteBuffer;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.util.Objects;
 
 public class ZstdCompressionMode extends CompressionMode {
     private final int level;
@@ -56,9 +53,6 @@ public class ZstdCompressionMode extends CompressionMode {
     private static final class ZstdCompressor extends Compressor {
 
         final int level;
-        // Buffer for copying between the DataInput and native memory. No hard science behind this number, it just tries to be high enough
-        // to benefit from bulk copying and low enough to keep heap usage under control.
-        final byte[] copyBuffer = new byte[4096];
 
         private ZstdCompressor(int level) {
             this.level = level;
@@ -66,8 +60,7 @@ public class ZstdCompressionMode extends CompressionMode {
 
         @Override
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
-            final NativeAccess nativeAccess = NativeAccess.instance();
-            final Zstd zstd = nativeAccess.getZstd();
+            final Zstd zstd = Zstd.instance();
 
             final int srcLen = Math.toIntExact(buffersInput.length());
             if (srcLen == 0) {
@@ -76,30 +69,19 @@ public class ZstdCompressionMode extends CompressionMode {
 
             final int compressBound = zstd.compressBound(srcLen);
 
-            // NOTE: We are allocating/deallocating native buffers on each call. We could save allocations by reusing these buffers, though
+            // NOTE: We are allocating/deallocating heap buffers on each call. We could save allocations by reusing these buffers, though
             // this would come at the expense of higher permanent memory usage. Benchmarks suggested that there is some performance to save
             // there, but it wouldn't be a game changer either.
             // Also note that calls to #compress implicitly allocate memory under the hood for e.g. hash tables and chain tables that help
             // identify duplicate strings. So if we wanted to avoid allocating memory on every compress call, we should also look into
             // reusing compression contexts, which are not small and would increase permanent memory usage as well.
-            try (
-                CloseableByteBuffer src = nativeAccess.newConfinedBuffer(srcLen);
-                CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(compressBound)
-            ) {
-                buffersInput.readBytes(src.buffer(), srcLen);
-                src.buffer().flip();
+            final byte[] src = new byte[srcLen];
+            buffersInput.readBytes(src, 0, srcLen);
+            final byte[] dest = new byte[compressBound];
 
-                final int compressedLen = zstd.compress(dest, src, level);
-                out.writeVInt(compressedLen);
-
-                for (int written = 0; written < compressedLen;) {
-                    final int numBytes = Math.min(copyBuffer.length, compressedLen - written);
-                    dest.buffer().get(copyBuffer, 0, numBytes);
-                    out.writeBytes(copyBuffer, 0, numBytes);
-                    written += numBytes;
-                    assert written == dest.buffer().position();
-                }
-            }
+            final int compressedLen = zstd.compress(dest, 0, compressBound, src, 0, srcLen, level);
+            out.writeVInt(compressedLen);
+            out.writeBytes(dest, 0, compressedLen);
         }
 
         @Override
@@ -109,7 +91,7 @@ public class ZstdCompressionMode extends CompressionMode {
     static final class ZstdDecompressor extends Decompressor {
 
         // we can safely store and share a single Zstd instance, since we only use thread-safe decompress
-        static final Zstd ZSTD = Objects.requireNonNull(NativeAccess.instance().getZstd());
+        static final Zstd ZSTD = Zstd.instance();
 
         private ZstdDecompressor() {}
 

@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.FrozenTransitionStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -105,10 +107,10 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 1);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String firstGenerationIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
         assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
-        String secondGenerationIndex = backingIndices.get(1);
+        String secondGenerationIndex = backingIndices.get(1).getName();
         assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 2));
 
         {
@@ -128,6 +130,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+                // frozen_after is not configured on this lifecycle, so no frozen transition state is reported
+                assertThat(explainIndex.getFrozenTransitionStatus(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -215,10 +219,10 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
             indexDocs(dataStreamName, 1);
 
-            List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-            String firstGenerationIndex = backingIndices.get(0);
+            List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+            String firstGenerationIndex = backingIndices.get(0).getName();
             assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
-            String secondGenerationIndex = backingIndices.get(1);
+            String secondGenerationIndex = backingIndices.get(1).getName();
             assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 2));
 
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
@@ -248,6 +252,9 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainFailuresLifecycle() throws Exception {
         // Failure indices are always managed unless explicitly disabled.
+        DataStreamLifecycle failureStoreLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .frozenAfter(TimeValue.timeValueMillis(1))
+            .build();
         putComposableIndexTemplate(
             "id1",
             """
@@ -265,7 +272,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
+            new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).lifecycle(failureStoreLifecycle).buildTemplate())
         );
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -277,13 +284,13 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexFailedDocs(dataStreamName, 1);
 
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
+        String firstGenerationIndex = failureIndices.get(0).getName();
         assertThat(firstGenerationIndex, DataStreamTestHelper.dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         indexFailedDocs(dataStreamName, 1);
         failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
-        String secondGenerationIndex = failureIndices.get(1);
+        String secondGenerationIndex = failureIndices.get(1).getName();
         assertThat(secondGenerationIndex, DataStreamTestHelper.dataStreamIndexEqualTo(dataStreamName, 3, true));
 
         {
@@ -303,6 +310,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
+                // DLM frozen transitions do not apply to failure-store indices.
+                assertThat(explainIndex.getFrozenTransitionStatus(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -418,14 +427,14 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String firstGenerationIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
         assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
-        String secondGenerationIndex = backingIndices.get(1);
+        String secondGenerationIndex = backingIndices.get(1).getName();
         assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3));
         // let's ensure that the failure store is initialised
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationFailureIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
+        String firstGenerationFailureIndex = failureIndices.get(0).getName();
         assertThat(firstGenerationFailureIndex, dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         // prevent new indices from being created (ie. future rollovers)
@@ -516,8 +525,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 4);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 1);
-        String firstGenerationIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 1);
+        String firstGenerationIndex = backingIndices.get(0).getName();
         assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
 
         assertBusy(() -> {
@@ -545,6 +554,45 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 }
             }
         });
+    }
+
+    public void testExplainLifecycleFrozenTransitionNotSupportedWithoutPlugin() throws Exception {
+        // This test cluster does not load the dlm-frozen-transition plugin (see ExplainDataStreamLifecycleIT#nodePlugins),
+        // so a transition can never actually run here regardless of frozen_after being configured. The explain response
+        // reports that the configured transition is not supported.
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(true)
+            .frozenAfter(TimeValue.timeValueMillis(1))
+            .buildTemplate();
+
+        putComposableIndexTemplate("id1", null, List.of("metrics-frozen*"), null, null, lifecycle);
+        String dataStreamName = "metrics-frozen";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs(dataStreamName, 1);
+
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
+        String secondGenerationIndex = backingIndices.get(1).getName();
+
+        ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { firstGenerationIndex, secondGenerationIndex }
+        );
+        ExplainDataStreamLifecycleAction.Response response = client().execute(
+            ExplainDataStreamLifecycleAction.INSTANCE,
+            explainIndicesRequest
+        ).actionGet();
+        assertThat(response.getIndices().size(), is(2));
+        for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+            assertThat(explainIndex.isManagedByLifecycle(), is(true));
+            assertThat(explainIndex.getIndex(), explainIndex.getFrozenTransitionStatus(), is(FrozenTransitionStatus.NOT_SUPPORTED));
+        }
     }
 
     static void indexDocs(String dataStream, int numDocs) {

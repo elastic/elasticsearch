@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -43,7 +44,7 @@ import java.util.Map;
  * and allows us to write a single check for all possible types of `sign`.
  * However, the output type of this function is determined by the `magnitude` type.
  */
-public class CopySign extends EsqlScalarFunction {
+public class CopySign extends EsqlScalarFunction implements AnyNullIsNull {
 
     public static final String NAME = "copy_sign";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, CopySign::new);

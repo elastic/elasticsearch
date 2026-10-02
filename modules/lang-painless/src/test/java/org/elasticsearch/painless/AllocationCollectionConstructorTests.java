@@ -10,7 +10,7 @@
 package org.elasticsearch.painless;
 
 /**
- * End-to-end tests for the {@code @allocates_constant} sizings on the common no-arg collection and string-builder
+ * End-to-end tests for the {@code @allocates} sizings on the common no-arg collection and string-builder
  * constructors. Each charges a fixed byte cost (the object plus any backing allocated eagerly in the constructor; lazily
  * created backing arrays are not counted) before the object is allocated.
  */

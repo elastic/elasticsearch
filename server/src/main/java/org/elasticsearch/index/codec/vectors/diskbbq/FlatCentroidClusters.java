@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 
+/**
+ * Information on a single flat layer of centroids with assignments
+ */
 public class FlatCentroidClusters implements CentroidIndex {
     private final KMeansResult<float[]> result;
 

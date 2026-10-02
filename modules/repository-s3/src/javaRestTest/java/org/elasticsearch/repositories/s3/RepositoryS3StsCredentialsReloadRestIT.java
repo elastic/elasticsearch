@@ -36,25 +36,25 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.repositories.s3.AbstractRepositoryS3RestTestCase.getIdentifierPrefix;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3StsCredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "sts_credentials_reload_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         dynamicCredentials::isAuthorized
     );
@@ -158,7 +158,13 @@ public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
             "/_snapshot/" + repositoryName,
             (b, p) -> b.field("type", S3Repository.TYPE)
                 .startObject("settings")
-                .value(Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).put("client", CLIENT).build())
+                .value(
+                    Settings.builder()
+                        .put("bucket", bucketSupplier.get())
+                        .put("base_path", basePathSupplier.get())
+                        .put("client", CLIENT)
+                        .build()
+                )
                 .endObject()
         );
     }

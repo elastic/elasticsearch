@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+public final class ConstantNullBlock extends AbstractBlockRefCounted
     implements
         BooleanBlock,
         IntBlock,
@@ -31,6 +31,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         AggregateMetricDoubleBlock,
         ExponentialHistogramBlock,
         LongRangeBlock,
+        DoubleRangeBlock,
         TDigestBlock {
 
     public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
@@ -357,6 +358,22 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public DoubleBlock getDoubleFromBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock getDoubleToBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleRangeBlockBuilder.DoubleRange getDoubleRange(int valueIndex, DoubleRangeBlockBuilder.DoubleRange scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
         // if all histograms are null, the component block is also a constant null block with the same position count
         this.incRef();
@@ -396,6 +413,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         blockFactory = blockFactory.parent();
     }
 }

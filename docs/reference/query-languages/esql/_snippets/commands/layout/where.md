@@ -11,6 +11,8 @@ In case of value exclusions, fields with `null` values will be excluded from sea
 In this context a `null` means either there is an explicit `null` value in the document or
 there is no value at all. For example: `WHERE field != "value"` will be interpreted as
 `WHERE field != "value" AND field IS NOT NULL`.
+
+For more information, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
 ::::
 
 
@@ -60,6 +62,7 @@ For a complete list of all functions, refer to [Functions overview](/reference/q
 ### NULL Predicates
 
 For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
+To learn how `NULL` affects `WHERE`, comparisons, and boolean logic, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
 
 :::{include} ../../generated/x-pack-esql/operators/examples/is_null.md
 :::
@@ -117,5 +120,7 @@ in a list of literals, fields or expressions:
 
 :::{include} ../../generated/x-pack-esql/operators/examples/in.md
 :::
+
+You can also use a subquery on the right-hand side of `IN` or `NOT IN` to filter rows against the results of another query. To learn more, refer to [Filter rows with IN subqueries](/reference/query-languages/esql/esql-in-subquery.md).
 
 For a complete list of all operators, refer to [Operators](/reference/query-languages/esql/esql-functions-operators.md#esql-operators-overview).

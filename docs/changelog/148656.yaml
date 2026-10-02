@@ -1,5 +1,0 @@
-area: Reindex
-issues: []
-pr: 148656
-summary: Reserve REQUEST circuit breaker for reindex bulk batches
-type: bug

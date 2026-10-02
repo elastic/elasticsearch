@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.junit.Assert;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -64,9 +65,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
     private LicenseService licenseService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initLicenseService() {
         licenseService = mock(LicenseService.class);
     }
 

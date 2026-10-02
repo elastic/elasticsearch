@@ -275,7 +275,7 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
                 while ((availableBytesAfterFlushes + estimatedFlushedBytes <= reservedBytes.getBytes()) && queue.isEmpty() == false) {
                     ShardDiskUsage largest = queue.poll();
                     var shardId = largest.shard().shardId();
-                    if (commitService.hasPendingBccUploads(shardId) == false) {
+                    if (commitService.hasBccUploadInProgress(shardId) == false) {
                         maybeFlushShardAsync(largest);
                     }
                     estimatedFlushedBytes += largest.totalSizeInBytes();

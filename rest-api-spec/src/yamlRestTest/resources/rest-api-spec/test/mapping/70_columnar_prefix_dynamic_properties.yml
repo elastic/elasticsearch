@@ -38,6 +38,10 @@ setup:
           version: "9.5.0"
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_columnar_root_only_dynamic
   - is_true: test_columnar_root_only_dynamic.mappings.properties.version
@@ -148,6 +152,10 @@ setup:
             term:
               resource.service: "my-service"
   - match: { hits.total.value: 1 }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:
@@ -369,6 +377,10 @@ setup:
           version: "9.5.0"
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_logsdb_columnar_root_only_dynamic
   - is_true: test_logsdb_columnar_root_only_dynamic.mappings.properties.@timestamp
@@ -416,6 +428,10 @@ setup:
             term:
               attributes.host: "es-node-1"
   - match: { hits.total.value: 1 }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:
@@ -482,6 +498,10 @@ setup:
             term:
               resource.service: "my-service"
   - match: { hits.total.value: 1 }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:
@@ -748,6 +768,10 @@ setup:
             term:
               attributes.host: "es-node-1"
   - match: { hits.total.value: 0 }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:

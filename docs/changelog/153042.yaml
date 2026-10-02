@@ -1,0 +1,6 @@
+pr: 153042
+summary: Support `combined_fields` and `more_like_this` queries on `annotated_text` fields
+area: Search
+type: enhancement
+issues:
+ - 153045

@@ -701,45 +701,78 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
             List<Double> xMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxX, this::quantizeX);
             List<Double> yMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinY, this::quantizeY);
             List<Double> yMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxY, this::quantizeY);
-            for (int index = 0; index < ALL_INDEXES.length; index++) {
-                List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
-                int countDifferent = 0;
-                for (int i = 0; i < quantizedShapes.size(); i++) {
-                    if (quantizedShapes.get(i).equals(resultShapes.get(i)) == false) {
-                        countDifferent++;
+            try {
+                for (int index = 0; index < ALL_INDEXES.length; index++) {
+                    List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
+                    int countDifferent = 0;
+                    for (int i = 0; i < quantizedShapes.size(); i++) {
+                        if (quantizedShapes.get(i).equals(resultShapes.get(i)) == false) {
+                            countDifferent++;
+                        }
                     }
-                }
-                assertThat(
-                    "Expected some different results in set of " + resultShapes.size() + " shapes for " + ALL_INDEXES[index],
-                    countDifferent,
-                    greaterThan(0)
-                );
-                for (int column = 1; column < 6; column++) {
-                    if (index > 0) {
-                        if (column == 1) {
-                            // Envelope
-                            List<Geometry> result = responses.getResponses(index, column).stream().map(o -> parse(o.toString())).toList();
-                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
-                        } else {
-                            List<Double> result = getResponseSorted(responses, index, column);
-                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
-                            if (column == 2) {
-                                // xmin
-                                assertEquals("Same xmin values " + ALL_INDEXES[index], xMinQuantized, result);
-                            } else if (column == 3) {
-                                // xmax
-                                assertEquals("Same xmax values " + ALL_INDEXES[index], xMaxQuantized, result);
-                            } else if (column == 4) {
-                                // ymin
-                                assertEquals("Same ymin values " + ALL_INDEXES[index], yMinQuantized, result);
+                    assertThat(
+                        "Expected some different results in set of " + resultShapes.size() + " shapes for " + ALL_INDEXES[index],
+                        countDifferent,
+                        greaterThan(0)
+                    );
+                    for (int column = 1; column < 6; column++) {
+                        if (index > 0) {
+                            if (column == 1) {
+                                // Envelope
+                                List<Geometry> result = responses.getResponses(index, column)
+                                    .stream()
+                                    .map(o -> parse(o.toString()))
+                                    .toList();
+                                assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
                             } else {
-                                // ymax
-                                assertEquals("Same ymax values " + ALL_INDEXES[index], yMaxQuantized, result);
+                                List<Double> result = getResponseSorted(responses, index, column);
+                                assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
+                                if (column == 2) {
+                                    // xmin
+                                    assertEquals("Same xmin values " + ALL_INDEXES[index], xMinQuantized, result);
+                                } else if (column == 3) {
+                                    // xmax
+                                    assertEquals("Same xmax values " + ALL_INDEXES[index], xMaxQuantized, result);
+                                } else if (column == 4) {
+                                    // ymin
+                                    assertEquals("Same ymin values " + ALL_INDEXES[index], yMinQuantized, result);
+                                } else {
+                                    // ymax
+                                    assertEquals("Same ymax values " + ALL_INDEXES[index], yMaxQuantized, result);
+                                }
                             }
                         }
                     }
                 }
+            } catch (AssertionError e) {
+                logMismatchedGeometries(rawShapes, rawExtents);
+                throw e;
             }
+        }
+    }
+
+    /**
+     * Dumps the raw (pre-quantization) WKT and computed extent of every indexed shape, so that a CI failure
+     * in {@link #assertQuantizedXY()} can be correlated back to the specific geometry that triggered the
+     * dateline wrap/no-wrap disagreement, without needing to reproduce the failure again.
+     */
+    private void logMismatchedGeometries(List<Geometry> rawShapes, List<Rectangle> rawExtents) {
+        for (int i = 0; i < rawShapes.size(); i++) {
+            Rectangle extent = rawExtents.get(i);
+            logger.error(
+                "testQuantizedXY failure context: shape[{}] extent=[minX={}, maxX={}, minY={}, maxY={}] "
+                    + "quantized=[xMin={}, xMax={}, yMin={}, yMax={}] wkt={}",
+                i,
+                extent.getMinX(),
+                extent.getMaxX(),
+                extent.getMinY(),
+                extent.getMaxY(),
+                quantizeX(extent.getMinX()),
+                quantizeX(extent.getMaxX()),
+                quantizeY(extent.getMinY()),
+                quantizeY(extent.getMaxY()),
+                WellKnownText.toWKT(rawShapes.get(i))
+            );
         }
     }
 

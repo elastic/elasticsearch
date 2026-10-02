@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -48,17 +49,15 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    private final boolean ilmHistoryEnabled;
-
     public ILMHistoryTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
     }
 
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
@@ -67,7 +66,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (this.ilmHistoryEnabled) {
+        if (clusterService.getClusterSettings().get(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING)) {
             return composableIndexTemplates;
         } else {
             return Map.of();
@@ -86,7 +85,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        if (ilmHistoryEnabled) {
+        if (clusterService.getClusterSettings().get(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING)) {
             return lifecyclePolicies;
         } else {
             return List.of();

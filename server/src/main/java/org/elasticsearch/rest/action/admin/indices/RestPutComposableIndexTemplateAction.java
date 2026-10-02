@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,6 +26,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_DOWNSAMPLING_METHOD;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE_LIFECYCLE;
@@ -34,13 +36,16 @@ import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTempla
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final String INDEX_TEMPLATE_TRACKING_INFO = "index_template_tracking_info";
+    static final String INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD = "index_template_registry_installed_field";
 
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         INDEX_TEMPLATE_TRACKING_INFO,
+        INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD,
         SUPPORTS_DOWNSAMPLING_METHOD,
-        SUPPORTS_FROZEN_AFTER
+        SUPPORTS_FROZEN_AFTER,
+        FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
     );
 
     @Override
@@ -63,10 +68,20 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
         try (var parser = request.contentParser()) {
-            putRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+            putRequest.indexTemplate(parseAndValidateTemplate(parser));
         }
 
         return channel -> client.execute(TransportPutComposableIndexTemplateAction.TYPE, putRequest, new RestToXContentListener<>(channel));
+    }
+
+    static ComposableIndexTemplate parseAndValidateTemplate(XContentParser parser) throws IOException {
+        ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
+        if (template.isRegistryInstalled()) {
+            throw new IllegalArgumentException(
+                "[" + ComposableIndexTemplate.REGISTRY_INSTALLED + "] is a system-managed field and cannot be set by a user"
+            );
+        }
+        return template;
     }
 
     @Override

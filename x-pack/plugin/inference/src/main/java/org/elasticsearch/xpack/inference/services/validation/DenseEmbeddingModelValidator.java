@@ -27,9 +27,9 @@ public class DenseEmbeddingModelValidator implements ModelValidator {
     }
 
     @Override
-    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener) {
         serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
-            delegate.onResponse(postValidate(service, model, r));
+            delegate.onResponse(new ModelValidationResult(postValidate(service, model, r), false));
         }));
     }
 

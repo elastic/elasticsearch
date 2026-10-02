@@ -23,6 +23,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +34,8 @@ import java.util.List;
 
 class BytesStore extends DataOutput implements Accountable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesStore.class) + RamUsageEstimator
-        .shallowSizeOfInstance(ArrayList.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesStore.class)
+        + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
 
     private final List<byte[]> blocks = new ArrayList<>();
 

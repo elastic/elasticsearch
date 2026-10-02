@@ -152,7 +152,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
         try {
             assertBusy(() -> {
                 final Set<String> blobFileNames = blobContainer.listBlobs(OperationPurpose.INDICES).keySet();
-                assertThat(blobFileNames, equalTo(Set.of(StatelessCompoundCommit.blobNameFromGeneration(generation))));
+                assertThat(blobFileNames, equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(generation))));
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError e) {
             try {
@@ -208,12 +208,8 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             final var engine = indexShard.getEngineOrNull();
             assert engine instanceof IndexEngine || engine instanceof HollowIndexEngine : engine;
             for (int i = 0; i < 2; i++) {
-                if (engine instanceof HollowIndexEngine) {
-                    engine.flush(true, true);
-                } else {
-                    final var e = expectThrows(UnavailableShardsException.class, () -> engine.flush(true, true));
-                    assertThat(e.getMessage(), containsString("shard relocated"));
-                }
+                final var e = expectThrows(UnavailableShardsException.class, () -> engine.flush(true, true));
+                assertThat(e.getMessage(), containsString("shard relocated"));
             }
         } finally {
             safeAwait(afterRelocatedBarrier);
@@ -343,7 +339,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (shouldBlock.get() && StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (shouldBlock.get() && BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                     safeAwait(latch);
                 }
                 super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);

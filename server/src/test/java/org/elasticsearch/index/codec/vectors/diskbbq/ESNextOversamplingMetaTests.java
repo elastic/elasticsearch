@@ -24,12 +24,10 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
-import org.junit.Before;
 
 import java.io.IOException;
 
@@ -38,24 +36,13 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging();
-    }
+public class ESNextOversamplingMetaTests extends ESBaseKnnVectorsFormatTestCase {
 
     private KnnVectorsFormat format;
 
     @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
-    }
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        format = new ESNextDiskBBQVectorsFormat(128, 4, null);
-        super.setUp();
     }
 
     @Override
@@ -79,6 +66,9 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            format = new ESNextDiskBBQVectorsFormat(128, 4, null);
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

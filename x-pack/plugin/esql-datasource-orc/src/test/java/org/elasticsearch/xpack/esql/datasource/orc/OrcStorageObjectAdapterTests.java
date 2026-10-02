@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -23,20 +26,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class OrcStorageObjectAdapterTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        OrcStorageObjectAdapter.clearCacheForTests();
-    }
+    private static final StorageIdentity NOOP_IDENTITY = new StorageIdentity() {};
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     public void testNullStorageObjectThrows() {
-        expectThrows(QlIllegalArgumentException.class, () -> new OrcStorageObjectAdapter(null));
+        expectThrows(QlIllegalArgumentException.class, () -> new OrcStorageObjectAdapter(null, footerByteCache));
     }
 
     public void testGetFileStatusReturnsCorrectLength() throws IOException {
         byte[] data = new byte[1024];
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         FileStatus status = adapter.getFileStatus(new Path("memory://test.orc"));
         assertEquals(1024L, status.getLen());
@@ -46,7 +52,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testOpenReturnsReadableStream() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5 };
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             assertNotNull(stream);
@@ -58,7 +64,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testStreamSeekForward() throws IOException {
         byte[] data = new byte[] { 10, 20, 30, 40, 50 };
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             stream.seek(3);
@@ -70,7 +76,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testStreamSeekBackward() throws IOException {
         byte[] data = new byte[] { 10, 20, 30, 40, 50 };
         StorageObject storageObject = createRangeReadStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             stream.read();
@@ -86,7 +92,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testStreamSeekNegativeThrows() throws IOException {
         byte[] data = new byte[] { 1, 2, 3 };
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             expectThrows(IOException.class, () -> stream.seek(-1));
@@ -96,7 +102,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testStreamSeekBeyondEndThrows() throws IOException {
         byte[] data = new byte[] { 1, 2, 3 };
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             expectThrows(IOException.class, () -> stream.seek(100));
@@ -106,7 +112,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testStreamReadArray() throws IOException {
         byte[] data = new byte[] { 10, 20, 30, 40, 50 };
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             byte[] buf = new byte[3];
@@ -121,7 +127,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testPositionedRead() throws IOException {
         byte[] data = new byte[] { 10, 20, 30, 40, 50 };
         StorageObject storageObject = createRangeReadStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             byte[] buf = new byte[2];
@@ -137,7 +143,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testReadFullyPositioned() throws IOException {
         byte[] data = new byte[] { 10, 20, 30, 40, 50 };
         StorageObject storageObject = createRangeReadStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             byte[] buf = new byte[3];
@@ -151,7 +157,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
     public void testSkip() throws IOException {
         byte[] data = new byte[] { 10, 20, 30, 40, 50 };
         StorageObject storageObject = createStorageObject(data);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(storageObject, footerByteCache);
 
         try (FSDataInputStream stream = adapter.open(new Path("memory://test.orc"))) {
             long skipped = stream.skip(2);
@@ -163,6 +169,11 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);
@@ -205,7 +216,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
         AtomicInteger rangeReadCount = new AtomicInteger();
 
         StorageObject countingStorage = createCountingRangeReadStorageObject(data, rangeReadCount);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(countingStorage);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(countingStorage, footerByteCache);
 
         int tailLen = 512;
         long tailPos = data.length - tailLen;
@@ -237,7 +248,7 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
         AtomicInteger rangeReadCount = new AtomicInteger();
 
         StorageObject countingStorage = createCountingRangeReadStorageObject(data, rangeReadCount);
-        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(countingStorage);
+        OrcStorageObjectAdapter adapter = new OrcStorageObjectAdapter(countingStorage, footerByteCache);
 
         int tailLen = 1024;
         long tailPos = data.length - tailLen;
@@ -267,6 +278,11 @@ public class OrcStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger rangeReadCount) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
@@ -55,6 +56,7 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
+    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     public static final SystemIndexDescriptor TASKS_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(TASK_INDEX + "*")
@@ -63,6 +65,18 @@ public class TaskResultsService {
         .setSettings(getTaskResultIndexSettings())
         .setMappings(getTaskResultIndexMappings())
         .setOrigin(TASKS_ORIGIN)
+        .setPriorSystemIndexDescriptors(
+            List.of(
+                SystemIndexDescriptor.builder()
+                    .setIndexPattern(TASK_INDEX + "*")
+                    .setPrimaryIndex(TASK_INDEX)
+                    .setDescription("Task Result Index")
+                    .setSettings(getTaskResultIndexSettings())
+                    .setMappings(getTaskResultIndexMappingsV0())
+                    .setOrigin(TASKS_ORIGIN)
+                    .build()
+            )
+        )
         .build();
 
     /**
@@ -70,7 +84,6 @@ public class TaskResultsService {
      * time is 600000 milliseconds, ten minutes.
      */
     static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
-    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private final Client client;
 
@@ -143,6 +156,11 @@ public class TaskResultsService {
             .build();
     }
 
+    /**
+     * Returns the latest task result index mappings. When new mappings are added, previous mappings
+     * should be moved to a new method (e.g. getTaskResultIndexMappingsV1()) to prevent accidentally modifying
+     * existing mappings.
+     */
     private static XContentBuilder getTaskResultIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
@@ -217,6 +235,98 @@ public class TaskResultsService {
 
                             builder.startObject("original_start_time_in_millis");
                             builder.field("type", "long");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("response");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+
+                    builder.startObject("error");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + TASK_INDEX + " index mappings", e);
+        }
+    }
+
+    private static XContentBuilder getTaskResultIndexMappingsV0() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Build.current().version());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0);
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("completed");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+
+                    builder.startObject("task");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("action");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("cancellable");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("id");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("parent_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("node");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("running_time_in_nanos");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("start_time_in_millis");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("type");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("status");
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
+
+                            builder.startObject("description");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("headers");
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
                             builder.endObject();
                         }
                         builder.endObject();

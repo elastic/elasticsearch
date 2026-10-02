@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -16,12 +17,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.DirectoryMetricsTests;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
@@ -38,7 +43,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR;
@@ -279,6 +286,52 @@ public class RestActionsTests extends ESTestCase {
                 assertEquals(searchRequest.getProjectRouting(), "_csp:aws AND (_region:us* OR _region:eu-west-1)");
             }
         }
+    }
+
+    public void testWrapWithSearchMetricsHeaderSkipsWhenEntriesEmpty() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        // Counter does not override entries() — simulates cache_miss waits == 0
+        builder.add(DirectoryMetricsTests.Counter.NAME, new DirectoryMetricsTests.Counter(0));
+        DirectoryMetrics metrics = builder.build();
+        assertFalse(metrics.isEmpty());
+        assertTrue(metrics.entries().isEmpty());
+
+        AtomicReference<Object> response = new AtomicReference<>();
+        ActionListener<Object> listener = RestActions.wrapWithSearchMetricsHeader(
+            threadContext,
+            r -> metrics,
+            ActionListener.wrap(response::set, e -> {
+                throw new AssertionError(e);
+            })
+        );
+        listener.onResponse(new Object());
+
+        assertNotNull(response.get());
+        assertNull(threadContext.getResponseHeaders().get(RestActions.SEARCH_METRICS_RESPONSE_HEADER));
+    }
+
+    public void testWrapWithSearchMetricsHeaderEmitsEntries() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, new StoreMetrics(42));
+        DirectoryMetrics metrics = builder.build();
+
+        AtomicReference<Object> response = new AtomicReference<>();
+        ActionListener<Object> listener = RestActions.wrapWithSearchMetricsHeader(
+            threadContext,
+            r -> metrics,
+            ActionListener.wrap(response::set, e -> {
+                throw new AssertionError(e);
+            })
+        );
+        listener.onResponse(new Object());
+
+        assertNotNull(response.get());
+        List<String> headers = threadContext.getResponseHeaders().get(RestActions.SEARCH_METRICS_RESPONSE_HEADER);
+        assertNotNull(headers);
+        assertEquals(1, headers.size());
+        assertEquals(StoreMetrics.BYTES_READ_METRIC_KEY + "=42", headers.get(0));
     }
 
     private static ShardSearchFailure createShardFailureParsingException(String nodeId, int shardId, String clusterAlias) {

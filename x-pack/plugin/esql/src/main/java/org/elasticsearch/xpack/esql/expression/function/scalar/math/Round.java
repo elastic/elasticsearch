@@ -14,12 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -41,13 +44,14 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Round extends EsqlScalarFunction implements OptionalArgument {
+public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Round.class)
         .binary(Round::new)
         .capabilities(
             // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-            "ul_fixes"
+            "ul_fixes",
+            "int_overflow_warns"
         )
         .name("round");
 
@@ -56,6 +60,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     private final Expression field, decimals;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long", "unsigned_long" },
         briefSummary = "Rounds a number to the specified number of decimal places.",
         description = """
@@ -136,9 +141,9 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         return Maths.round(val, 0).doubleValue();
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static int process(int val, long decimals) {
-        return Maths.round(val, decimals).intValue();
+        return Math.toIntExact(Maths.round(val, decimals));
     }
 
     @Evaluator(extraName = "Long")

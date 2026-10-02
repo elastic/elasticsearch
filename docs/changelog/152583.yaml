@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152583
-summary: Decode Parquet temporal footer stats to epoch-millis
-type: enhancement

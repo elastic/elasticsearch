@@ -64,7 +64,7 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
     /** Single-thread the parse so the cold harvest is deterministic; pins the plan shape these tests assert. */
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     @Before

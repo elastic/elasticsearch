@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -23,11 +24,9 @@ import java.util.concurrent.ExecutorService;
  * Data source plugin providing Google Cloud Storage support for ESQL.
  * Supports the gs:// URI scheme.
  * <p>
- * Usage in ESQL:
- * <pre>
- *   EXTERNAL "gs://my-bucket/data/sales.parquet"
- *   EXTERNAL "gs://my-bucket/data/sales.parquet" WITH {"credentials": "{ ... service account JSON ... }", "project_id": "my-project"}
- * </pre>
+ * Usage in ESQL: register a dataset over a {@code gs://} resource, optionally with the
+ * {@code credentials} (service account JSON) and {@code project_id} settings, then query it with
+ * {@code FROM <dataset>}.
  * <p>
  * GCS is not in the released ship set yet (S3 is the released cloud provider), so registration is
  * gated on {@link #ESQL_EXTERNAL_GCS_FEATURE_FLAG}: available in snapshot/development builds, disabled
@@ -55,15 +54,34 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Map<String, String> testConnectionSchemes() {
+        if (enabled() == false) {
+            return Map.of();
+        }
+        return Map.of("gcs", "gs");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         if (enabled() == false) {
             return Map.of();
         }
-        StorageProviderFactory gcsFactory = StorageProviderFactory.of(
+        StorageProviderFactory gcsBase = StorageProviderFactory.of(
             () -> new GcsStorageProvider((GcsConfiguration) null),
             GcsConfiguration::fromQueryConfig,
             GcsStorageProvider::new
         );
+        StorageProviderFactory gcsFactory = StorageProviderFactory.withTestConnection(gcsBase, config -> {
+            GcsConfiguration cfg = GcsConfiguration.fromQueryConfig(config).value();
+            GcsStorageProvider p = new GcsStorageProvider(cfg);
+            try {
+                p.testConnection();
+            } finally {
+                try {
+                    p.close();
+                } catch (IOException | RuntimeException ignored) {}
+            }
+        });
         return Map.of("gs", gcsFactory);
     }
 
@@ -74,5 +92,10 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
         }
         DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return GcsConfiguration.secretFieldNames();
     }
 }

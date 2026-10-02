@@ -32,6 +32,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -50,9 +51,8 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
     private NodeClient nodeClient;
     private NodesStatsResponse nodeStatsResponse;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() throws Exception {
         action = new RestCatCircuitBreakerAction();
         nodeStatsResponse = mock(NodesStatsResponse.class);
         List<NodeStats> allNodeStats = createNodeStatsList();

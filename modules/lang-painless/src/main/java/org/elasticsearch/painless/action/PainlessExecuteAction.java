@@ -917,7 +917,7 @@ public class PainlessExecuteAction {
                 request.enableCrossProjectMode();
             }
 
-            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 

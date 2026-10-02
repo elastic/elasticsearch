@@ -140,7 +140,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             IllegalArgumentException.class,
             () -> client().execute(UpdateByQueryAction.INSTANCE, missingSlice).actionGet()
         );
-        assertThat(missingSliceException.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertThat(missingSliceException.getMessage(), containsString("[slice] is required when [index.slice.enabled] is true"));
 
         UpdateByQueryRequest routingOnly = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
         routingOnly.getSearchRequest().routing("s1");
@@ -148,7 +148,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             IllegalArgumentException.class,
             () -> client().execute(UpdateByQueryAction.INSTANCE, routingOnly).actionGet()
         );
-        assertThat(routingOnlyException.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertThat(routingOnlyException.getMessage(), containsString("[slice] is required when [index.slice.enabled] is true"));
 
         UpdateByQueryRequest disabledSlice = new UpdateByQueryRequest("slice-disabled").setQuery(termQuery("foo", "a"));
         disabledSlice.getSearchRequest().searchSlice("s1");
@@ -156,7 +156,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             IllegalArgumentException.class,
             () -> client().execute(UpdateByQueryAction.INSTANCE, disabledSlice).actionGet()
         );
-        assertThat(disabledSliceException.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(disabledSliceException.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
 
         UpdateByQueryRequest sliceS1A = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
         sliceS1A.getSearchRequest().searchSlice("s1");

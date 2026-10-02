@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -22,14 +23,13 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
  * acquires a permit before executing and releases it when the operation completes.
  * For stream-returning methods, the permit is released when the stream is closed.
  */
-class ConcurrencyLimitedStorageObject implements StorageObject {
+class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final ConcurrencyLimiter limiter;
@@ -41,7 +41,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             InputStream stream = delegate.newStream();
             return new PermitReleasingInputStream(stream, limiter);
@@ -53,7 +53,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             InputStream stream = delegate.newStream(position, length);
             return new PermitReleasingInputStream(stream, limiter);
@@ -63,39 +63,50 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         }
     }
 
+    // Metadata ops (length/lastModified/exists) are deliberately exempt from permit acquisition.
+    // The permit is pure throughput control with no correctness role; these are cheap, short-lived
+    // HEAD/stat calls whose fan-out is already bounded by the caller thread pool and
+    // ExternalSourceResolver.MAX_PARALLEL_METADATA_READS. Parking them behind long-lived stream
+    // permits (streams hold their permit for their whole minutes-long lifetime) starved SEARCH
+    // threads — see #1151. Byte-transfer ops (newStream/readBytes) stay permit-governed.
     @Override
     public long length() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.length();
-        } finally {
-            limiter.release();
-        }
+        return delegate.length();
+    }
+
+    @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.lastModified();
-        } finally {
-            limiter.release();
-        }
+        return delegate.lastModified();
     }
 
     @Override
     public boolean exists() throws IOException {
-        acquirePermit();
-        try {
-            return delegate.exists();
-        } finally {
-            limiter.release();
-        }
+        return delegate.exists();
     }
 
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
     }
 
     @Override
@@ -118,8 +129,18 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     }
 
     @Override
+    public InputStream withoutResume(InputStream stream) {
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             return delegate.readBytes(position, target);
         } finally {
@@ -135,18 +156,29 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         try {
-            acquirePermit();
+            limiter.acquireChecked();
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
         try {
             // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
             // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
             // lambda — that would double-release the permit and double-fire the downstream
             // listener (onResponse + onFailure for the same I/O).
-            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     limiter.release();
@@ -175,13 +207,14 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         } catch (Exception e) {
             limiter.release();
             listener.onFailure(e);
+            return () -> {};
         }
     }
 
     @Override
     public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
         try {
-            acquirePermit();
+            limiter.acquireChecked();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -218,19 +251,13 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     }
 
     @Override
-    public StorageObjectMetrics metrics() {
-        return delegate.metrics();
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
     }
 
-    private void acquirePermit() {
-        try {
-            limiter.acquire();
-        } catch (TimeoutException e) {
-            throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);
-        }
+    @Override
+    public StorageObjectMetrics metrics() {
+        return delegate.metrics();
     }
 
     /**

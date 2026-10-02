@@ -39,11 +39,11 @@ public final class MvFirstLongRangeEvaluator extends AbstractMultivalueFunction.
     try (LongRangeBlock.Builder builder = driverContext.blockFactory().newLongRangeBlockBuilder(positionCount)) {
       LongRangeBlockBuilder.LongRange valueScratch = new LongRangeBlockBuilder.LongRange();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         LongRangeBlockBuilder.LongRange result = MvFirst.process(v, first, end, valueScratch);

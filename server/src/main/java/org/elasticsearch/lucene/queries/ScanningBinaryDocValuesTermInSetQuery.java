@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRefComparator;
 import org.apache.lucene.util.StringSorter;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -32,12 +33,12 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
 
-    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, boolean arrayOrderInlineNull) {
-        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), arrayOrderInlineNull);
+    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, BinaryDocValuesFormat binaryFormat) {
+        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), binaryFormat);
     }
 
-    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, boolean arrayOrderInlineNull) {
-        super(fieldName, buildMatchPredicate(termData), arrayOrderInlineNull);
+    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, buildMatchPredicate(termData), binaryFormat);
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
     }
@@ -120,11 +121,14 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
             return false;
         }
         ScanningBinaryDocValuesTermInSetQuery that = (ScanningBinaryDocValuesTermInSetQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && termDataHashCode == that.termDataHashCode && termData.equals(that.termData);
+        return Objects.equals(fieldName, that.fieldName)
+            && termDataHashCode == that.termDataHashCode
+            && termData.equals(that.termData)
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, termDataHashCode);
+        return Objects.hash(classHash(), fieldName, termDataHashCode, binaryFormat);
     }
 }

@@ -10,8 +10,11 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,8 +37,12 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
     /**
      * Build an instance from on-heap data structures.
+     *
+     * @param vectors   The vectors
+     * @param docs      Array of document IDs. Maps the vector ordinal to its docID. Null if ordinal == docID.
+     * @param dim       Vector dimensions
      */
-    public static KMeansFloatVectorValues build(List<float[]> vectors, int[] docs, int dim) {
+    public static KMeansFloatVectorValues build(List<float[]> vectors, @Nullable int[] docs, int dim) {
         VectorSupplier vectorSupplier = new OnHeapVectorSupplier(vectors, dim);
         DocSupplier docSupplier = docs == null ? null : new OnHeapDocSupplier(docs);
         return new KMeansFloatVectorValues(vectorSupplier, docSupplier, vectors.size());
@@ -66,14 +73,39 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
     }
 
     /**
-     * Builds an instance from off-heap data structures. Vectors are expected to be written as
-     * little endian floats one after the other. Docs are expected to be written as little endian ints
-     * one after the other.
+     * Builds an instance from off-heap data structures.
+     *
+     * @param vectors    Vectors as little-endian floats concatenated together.
+     * @param docs       Document IDs in ordinal order, as little-endian int32. Null if ordinal == docID.
+     * @param numVectors The number of vectors
+     * @param dims       Vector dimensions
      */
-    public static KMeansFloatVectorValues build(IndexInput vectors, IndexInput docs, int numVectors, int dims) throws IOException {
+    public static KMeansFloatVectorValues build(IndexInput vectors, @Nullable IndexInput docs, int numVectors, int dims)
+        throws IOException {
+        return build(vectors, docs, numVectors, dims, IOContext.DEFAULT);
+    }
+
+    /**
+     * Builds an instance from off-heap data structures, remembering the {@link IOContext} the backing
+     * {@code vectors} input was opened with so that {@link #updateReadAdvice(DataAccessHint)} can swap
+     * only the read-advice hint while preserving the rest of the context (e.g. merge flags).
+     *
+     * @param vectors     Vectors as little-endian floats concatenated together.
+     * @param docs        Document IDs in ordinal order, as little-endian int32. Null if ordinal == docID.
+     * @param numVectors  The number of vectors
+     * @param dims        Vector dimensions
+     * @param baseContext the IOContext the {@code vectors} input was opened with
+     */
+    public static KMeansFloatVectorValues build(
+        IndexInput vectors,
+        @Nullable IndexInput docs,
+        int numVectors,
+        int dims,
+        IOContext baseContext
+    ) throws IOException {
         long vectorLength = (long) dims * Float.BYTES;
         float[] vector = new float[dims];
-        VectorSupplier vectorSupplier = new OffHeapVectorSupplier(vectors, vector, vectorLength);
+        VectorSupplier vectorSupplier = new OffHeapVectorSupplier(vectors, vector, vectorLength, baseContext);
         DocSupplier docSupplier;
         if (docs == null) {
             docSupplier = null;
@@ -90,7 +122,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
     }
 
     @Override
-    public ClusteringFloatVectorValues copy() {
+    public ClusteringFloatVectorValues copy() throws IOException {
         return new KMeansFloatVectorValues(vectors.copy(), docs != null ? docs.copy() : null, numVectors);
     }
 
@@ -114,13 +146,31 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         return docs == null ? ord : docs.ordToDoc(ord);
     }
 
+    /**
+     * Hints the preferred access pattern for subsequent reads of the backing vector data. When the
+     * values are backed by an on-disk file this forwards to {@link IndexInput#updateIOContext} so the
+     * OS read-ahead policy can be matched to the caller's access pattern (for example switching to
+     * {@link DataAccessHint#RANDOM} for a phase that reads vectors in a scattered order and back to
+     * {@link DataAccessHint#SEQUENTIAL} afterwards). It is a no-op when the values are already resident
+     * in memory.
+     */
+    public void updateReadAdvice(DataAccessHint hint) throws IOException {
+        vectors.updateReadAdvice(hint);
+    }
+
     private sealed interface VectorSupplier permits OffHeapVectorSupplier, OnHeapVectorSupplier, FloatVectorValuesSupplier {
 
         float[] vector(int ord) throws IOException;
 
         int dims();
 
-        VectorSupplier copy();
+        VectorSupplier copy() throws IOException;
+
+        /**
+         * Adjusts the read-advice hint on the backing storage. Only meaningful for file-backed
+         * suppliers; in-memory suppliers leave this as a no-op.
+         */
+        default void updateReadAdvice(DataAccessHint hint) throws IOException {}
     }
 
     private record OnHeapVectorSupplier(List<float[]> vectors, int dims) implements VectorSupplier {
@@ -141,7 +191,9 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
     }
 
-    private record OffHeapVectorSupplier(IndexInput vectors, float[] vector, long vectorLength) implements VectorSupplier {
+    private record OffHeapVectorSupplier(IndexInput vectors, float[] vector, long vectorLength, IOContext baseContext)
+        implements
+            VectorSupplier {
 
         @Override
         public float[] vector(int ord) throws IOException {
@@ -156,15 +208,20 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
 
         @Override
+        public void updateReadAdvice(DataAccessHint hint) throws IOException {
+            vectors.updateIOContext(baseContext.withHints(hint));
+        }
+
+        @Override
         public VectorSupplier copy() {
-            return new OffHeapVectorSupplier(vectors.clone(), vector.clone(), vectorLength);
+            return new OffHeapVectorSupplier(vectors.clone(), vector.clone(), vectorLength, baseContext);
         }
     }
 
     private sealed interface DocSupplier permits OnHeapDocSupplier, OffHeapDocSupplier {
         int ordToDoc(int ord);
 
-        DocSupplier copy();
+        DocSupplier copy() throws IOException;
     }
 
     private record OnHeapDocSupplier(int[] docs) implements DocSupplier {
@@ -190,14 +247,10 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
 
         @Override
-        public DocSupplier copy() {
+        public DocSupplier copy() throws IOException {
             IndexInput docsCopy = docs.clone();
-            try {
-                RandomAccessInput randomDocsCopy = docsCopy.randomAccessSlice(0, docsCopy.length());
-                return new OffHeapDocSupplier(docsCopy, randomDocsCopy);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            RandomAccessInput randomDocsCopy = docsCopy.randomAccessSlice(0, docsCopy.length());
+            return new OffHeapDocSupplier(docsCopy, randomDocsCopy);
         }
     }
 
@@ -222,12 +275,8 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
 
         @Override
-        public VectorSupplier copy() {
-            try {
-                return new FloatVectorValuesSupplier(fvv.copy(), ordinals);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        public VectorSupplier copy() throws IOException {
+            return new FloatVectorValuesSupplier(fvv.copy(), ordinals);
         }
     }
 }

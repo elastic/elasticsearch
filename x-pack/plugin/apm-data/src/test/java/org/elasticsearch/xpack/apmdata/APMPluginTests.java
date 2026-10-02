@@ -55,9 +55,7 @@ public class APMPluginTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closePluginAndThreadPool() throws Exception {
         apmPlugin.close();
         threadPool.shutdownNow();
     }

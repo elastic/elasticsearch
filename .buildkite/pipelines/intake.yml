@@ -10,7 +10,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -34,7 +33,15 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
-      diskSizeGb: 250
+      buildDirectory: /dev/shm/bk
+  - label: esql-consistency
+    command: .buildkite/scripts/esql-consistency.sh
+    timeout_in_minutes: 60
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart1
@@ -46,7 +53,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -62,6 +68,8 @@ steps:
           signal_reason: none
         - limit: 2
           signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart2
     timeout_in_minutes: 300
@@ -72,7 +80,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -88,6 +95,8 @@ steps:
           signal_reason: none
         - limit: 2
           signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart3
     timeout_in_minutes: 300
@@ -98,7 +107,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -114,6 +122,8 @@ steps:
           signal_reason: none
         - limit: 2
           signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
   - label: part4
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart4
     timeout_in_minutes: 300
@@ -124,7 +134,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -140,6 +149,8 @@ steps:
           signal_reason: none
         - limit: 2
           signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
   - label: part5
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart5
     timeout_in_minutes: 300
@@ -150,7 +161,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -166,6 +176,8 @@ steps:
           signal_reason: none
         - limit: 2
           signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
   - label: part6
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart6
     timeout_in_minutes: 300
@@ -176,7 +188,6 @@ steps:
       preemptible: true
       spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
       diskType: hyperdisk-balanced
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
     retry:
       manual:
@@ -192,6 +203,8 @@ steps:
           signal_reason: none
         - limit: 2
           signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
 
   - group: bwc-snapshots
     steps:
@@ -200,7 +213,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.19", "9.3.8", "9.4.4", "9.5.0", "9.6.0"]
+            BWC_VERSION: ["8.19.23", "9.4.8", "9.5.5", "9.6.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -208,7 +221,6 @@ steps:
           preemptible: true
           spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
           diskType: hyperdisk-balanced
-          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -226,6 +238,8 @@ steps:
               signal_reason: none
             - limit: 2
               signal_reason: agent_stop
+            - exit_status: "1"
+              limit: 1
   - label: bc-upgrade
     command: ".buildkite/scripts/run-bc-upgrade-tests.sh"
   - group: lucene-compat
@@ -245,7 +259,6 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
-          diskSizeGb: 250
           buildDirectory: /dev/shm/bk
         env:
           ES_VERSION: "{{matrix.ES_VERSION}}"
@@ -257,7 +270,6 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
-      diskSizeGb: 250
       buildDirectory: /dev/shm/bk
   - wait
   - trigger: elasticsearch-dra-workflow

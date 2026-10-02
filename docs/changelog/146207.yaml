@@ -1,5 +1,0 @@
-area: Searchable Snapshots
-issues: []
-pr: 146207
-summary: Cache miss no longer blocked by fetch
-type: enhancement

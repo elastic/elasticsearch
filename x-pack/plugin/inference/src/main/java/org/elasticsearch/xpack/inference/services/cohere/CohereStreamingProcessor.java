@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.Optional;
 
-class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, StreamingChatCompletionResults.Results> {
+class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, StreamingCompletionResults.Results> {
     private static final Logger log = LogManager.getLogger(CohereStreamingProcessor.class);
 
     @Override
@@ -35,7 +35,7 @@ class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, Stream
             return;
         }
 
-        var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
+        var results = new ArrayDeque<StreamingCompletionResults.Result>(item.size());
         for (String json : item) {
             try (var jsonParser = jsonParser(json)) {
                 var responseMap = jsonParser.map();
@@ -60,7 +60,7 @@ class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, Stream
         if (results.isEmpty()) {
             upstream().request(1);
         } else {
-            downstream().onNext(new StreamingChatCompletionResults.Results(results));
+            downstream().onNext(new StreamingCompletionResults.Results(results));
         }
     }
 
@@ -68,10 +68,10 @@ class CohereStreamingProcessor extends DelegatingProcessor<Deque<String>, Stream
         return XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, line);
     }
 
-    private Optional<StreamingChatCompletionResults.Result> parseText(Map<String, Object> responseMap) throws IOException {
+    private Optional<StreamingCompletionResults.Result> parseText(Map<String, Object> responseMap) throws IOException {
         var text = (String) responseMap.get("text");
         if (text != null) {
-            return Optional.of(new StreamingChatCompletionResults.Result(text));
+            return Optional.of(new StreamingCompletionResults.Result(text));
         } else {
             throw new IOException("Null text found in text-generation cohere event");
         }

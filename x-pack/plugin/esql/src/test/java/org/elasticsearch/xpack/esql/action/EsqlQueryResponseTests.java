@@ -110,12 +110,15 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosT
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDoubleRange;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<EsqlQueryResponse> {
     private BlockFactory blockFactory;
@@ -348,6 +351,16 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         randomDoubles(valueCount).toArray()
                     );
                     expBuilder.append(histo);
+                }
+                case DOUBLE_RANGE -> {
+                    double first = randomDouble();
+                    double second;
+                    do {
+                        second = randomDouble();
+                    } while (first == second);
+                    BlockLoader.DoubleRangeBuilder rangeBuilder = (BlockLoader.DoubleRangeBuilder) builder;
+                    rangeBuilder.from().appendDouble(Math.min(first, second));
+                    rangeBuilder.to().appendDouble(Math.max(first, second));
                 }
                 case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
                 case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
@@ -782,6 +795,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 2222, // rows_emitted
                 4444, // bytes_read
                 6666, // read_nanos
+                7777, // read_cpu_nanos
                 8888, // cpu_nanos
                 null,
                 true,
@@ -791,6 +805,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 ZoneOffset.UTC,
                 0,
                 0,
+                null,
                 null
             )
         ) {
@@ -801,6 +816,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 2222,
                   "bytes_read" : 4444,
                   "read_nanos" : 6666,
+                  "read_cpu_nanos" : 7777,
                   "cpu_nanos" : 8888,
                   "columns" : [
                     {
@@ -827,6 +843,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -860,6 +877,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "rows_emitted" : 0,
                       "bytes_read" : 0,
                       "read_nanos" : 0,
+                      "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "all_columns" : [
                         {
@@ -894,6 +912,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -908,6 +927,40 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     ]
                   ]
                 }"""));
+        }
+    }
+
+    public void testApproximationAppliedXContent() {
+        assertThat(renderApproximationApplied(Boolean.TRUE), containsString("\"approximation_applied\":true"));
+        assertThat(renderApproximationApplied(Boolean.FALSE), containsString("\"approximation_applied\":false"));
+        assertThat(renderApproximationApplied(null), not(containsString("approximation_applied")));
+    }
+
+    private String renderApproximationApplied(Boolean approximationApplied) {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "integer", null)),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                3,
+                100,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null,
+                true,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0,
+                0,
+                null,
+                approximationApplied
+            )
+        ) {
+            return Strings.toString(wrapAsToXContent(response));
         }
     }
 
@@ -943,6 +996,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -977,6 +1031,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1006,6 +1061,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1057,6 +1113,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1109,6 +1166,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1153,6 +1211,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1208,6 +1267,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "rows_emitted" : 0,
                       "bytes_read" : 0,
                       "read_nanos" : 0,
+                      "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "all_columns" : [
                         {
@@ -1277,6 +1337,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "rows_emitted" : 0,
                           "bytes_read" : 0,
                           "read_nanos" : 0,
+                          "read_cpu_nanos" : 0,
                           "cpu_nanos" : 0,
                           "all_columns" : [
                             {
@@ -1370,6 +1431,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "rows_emitted" : 0,
                   "bytes_read" : 0,
                   "read_nanos" : 0,
+                  "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "columns" : [
                     {
@@ -1400,6 +1462,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "rows_emitted" : 222,
                         "bytes_read" : 0,
                         "read_nanos" : 0,
+                        "read_cpu_nanos" : 0,
                         "iterations" : 12,
                         "operators" : [
                           {
@@ -1726,6 +1789,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         var ll = parseDateRange(value.toString(), ZoneOffset.UTC);
                         b.from().appendLong(ll.from());
                         b.to().appendLong(ll.to());
+                    }
+                    case DOUBLE_RANGE -> {
+                        BlockLoader.DoubleRangeBuilder b = (BlockLoader.DoubleRangeBuilder) builder;
+                        var range = parseDoubleRange(value.toString());
+                        b.from().appendDouble(range.from());
+                        b.to().appendDouble(range.to());
                     }
                     case TDIGEST -> {
                         TDigestBlockBuilder tDigestBlockBuilder = (TDigestBlockBuilder) builder;

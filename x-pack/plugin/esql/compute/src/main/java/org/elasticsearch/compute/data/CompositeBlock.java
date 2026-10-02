@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implements Block {
+public final class CompositeBlock extends AbstractBlockRefCounted implements Block {
     private final Block[] blocks;
     private final int positionCount;
 
@@ -127,6 +127,7 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }

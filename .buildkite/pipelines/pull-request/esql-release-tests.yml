@@ -16,6 +16,7 @@ steps:
               - releaseTestCheckEsqlEngine
               - releaseTestCheckEsqlQa1
               - releaseTestCheckEsqlQa2
+              - releaseTestCheckEsqlQa3
               - releaseTestCheckEsqlDatasourceCore
               - releaseTestCheckEsqlDatasourceQa
         agents:

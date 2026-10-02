@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[MVINRANGE(i{r}#0,2[INTEGER],8[INTEGER]) AND MVINRANGE(l{r}#1,2[LONG],8[LONG]) AND MVINRANGE(dt{r}#2,1577923200000[DATETIME],1578009599999[DATETIME]) AND MVINRANGE(dn{r}#3,1577923200000000000[DATE_NANOS],1578009599999999999[DATE_NANOS])]
+  \_ExternalRelation[s3://bucket/every_type.parquet][parquet][kw{r}#4, txt{r}#5, i{r}#0, l{r}#1, d{r}#6, b{r}#7, dt{r}#2, dn{r}#3, ul{r}#8, ip{r}#9, v{r}#10]

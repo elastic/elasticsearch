@@ -20,13 +20,13 @@ import java.util.Objects;
 
 /**
  * Strategy for readers that have no native row-position channel and must surface {@code _rowPosition}
- * as a NULL column (parquet-rs today; the Rust bridge does not yet expose row positions). The
+ * as a NULL column. The
  * reader strips {@code _rowPosition} from its native projection so the inner iterator's pages do
  * not carry the column at all; {@link #apply} wraps the iterator and splices a constant-null
  * {@link org.elasticsearch.compute.data.LongBlock} at the slot the user's projection requested.
  * <p>
- * The downstream {@code VirtualColumnIterator} composes {@code _id} from the row-position channel;
- * a null splice yields null {@code _file.record_ref} and null {@code _id}, matching the documented
+ * The downstream {@code VirtualColumnIterator} renders {@code _file.record_ref} from the row-position
+ * channel; a null splice yields a null {@code _file.record_ref}, matching the documented
  * "row-position unsupported on this reader" semantics. The {@link #reason()} string carries the
  * explanation the wrapping iterator embeds in its {@code describe()} output.
  */
@@ -96,16 +96,22 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
         }
 
         @Override
+        public Page tryAdvance() {
+            Page innerPage = inner.tryAdvance();
+            return innerPage != null ? splicePage(innerPage) : null;
+        }
+
+        @Override
         public Page next() {
             if (inner.hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            Page innerPage = inner.next();
+            return splicePage(inner.next());
+        }
+
+        private Page splicePage(Page innerPage) {
             int positions = innerPage.getPositionCount();
             int innerBlockCount = innerPage.getBlockCount();
-            // The splice loops below only cover slots in [0, innerBlockCount]; today the optimizer
-            // appends _rowPosition at the end (slot == innerBlockCount), so lock the bound against
-            // a future rule emitting a slot past the inner page's width.
             assert rowPosSlot <= innerBlockCount : "rowPosSlot " + rowPosSlot + " past inner block count " + innerBlockCount;
             Block[] blocks = new Block[innerBlockCount + 1];
             boolean success = false;

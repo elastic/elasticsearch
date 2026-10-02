@@ -215,13 +215,7 @@ public class TransformTaskTests extends ESTestCase {
         var transformsConfigManager = new InMemoryTransformConfigManager();
         var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
         when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var transformsCheckpointService = new TransformCheckpointService(
-            clock,
-            transformsConfigManager,
-            auditor,
-            mock(CrossProjectModeDecider.class),
-            cloudCredentialManager
-        );
+        var transformsCheckpointService = new TransformCheckpointService(clock, transformsConfigManager, auditor, cloudCredentialManager);
         return new TransformServices(
             transformsConfigManager,
             transformsCheckpointService,
@@ -319,6 +313,43 @@ public class TransformTaskTests extends ESTestCase {
         assertEquals(state.getReason(), null);
     }
 
+    public void testTransformNodeRegistryEntryRemovedOnTeardown() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformNode transformNode = new TransformNode(Optional::empty);
+
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            null,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor,
+            threadPool,
+            Collections.emptyMap(),
+            transformNode
+        );
+        transformTask.init(mock(PersistentTasksService.class), mock(TaskManager.class), "task-id", 42);
+
+        // the executor registered the task when it started successfully
+        transformNode.registerTransform(transformTask);
+        assertThat(transformNode.getTransformTasks(), contains(transformTask));
+
+        // terminal failure deregisters alongside the scheduler deregistration
+        transformTask.fail(null, "because", ActionTestUtils.assertNoFailureListener(r -> {}));
+        assertThat(transformNode.getTransformTasks(), empty());
+
+        // transform registered again (restart), then force-stop routes through shutdown() and deregisters
+        transformNode.registerTransform(transformTask);
+        transformTask.stop(true, false);
+        assertThat(transformNode.getTransformTasks(), empty());
+    }
+
     public void testFailWhenNodeIsShuttingDown() {
         var threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
@@ -377,6 +408,70 @@ public class TransformTaskTests extends ESTestCase {
             isNotNull(),
             any()
         );
+    }
+
+    // see https://github.com/elastic/ml-team/issues/1623: an in-flight failure racing a cancellation-triggered abort
+    // (e.g. the node departure that triggered the cancellation also breaking the in-flight search/bulk request) must not
+    // override the abort with FAILED, which is sticky and would otherwise block the reassigned task from auto-starting.
+    public void testFailWhileIndexerIsAborting() {
+        Clock clock = Clock.systemUTC();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+
+        TransformState transformState = new TransformState(
+            TransformTaskState.STARTED,
+            IndexerState.INDEXING,
+            null,
+            0L,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
+
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            transformState,
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor,
+            threadPool,
+            Collections.emptyMap(),
+            mockTransformNode()
+        );
+
+        TaskManager taskManager = mock(TaskManager.class);
+        PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
+        transformTask.init(persistentTasksService, taskManager, "task-id", 42);
+
+        // Simulate onCancelled() having already flipped the indexer to ABORTING.
+        transformTask.initializeIndexer(
+            indexerBuilder(transformConfig, transformServices(clock, auditor, threadPool)).setIndexerState(IndexerState.ABORTING)
+        );
+
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        transformTask.fail(
+            new RuntimeException("racing failure"),
+            "because",
+            ActionTestUtils.assertNoFailureListener(r -> listenerCalled.compareAndSet(false, true))
+        );
+
+        TransformState state = transformTask.getState();
+        assertEquals(TransformTaskState.STARTED, state.getTaskState());
+        assertThat(state.getReason(), nullValue());
+        assertTrue(listenerCalled.get());
+
+        // fail() returned early: no task completion/unregister and no cluster-state update should have been attempted.
+        verifyNoInteractions(taskManager);
+        verifyNoInteractions(persistentTasksService);
     }
 
     public void testGetTransformTask() {

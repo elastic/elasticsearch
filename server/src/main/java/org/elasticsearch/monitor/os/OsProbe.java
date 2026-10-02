@@ -176,6 +176,24 @@ public class OsProbe {
     }
 
     /**
+     * Returns total physical memory from {@code /proc/meminfo} {@code MemTotal}, falling back to
+     * {@link #getTotalPhysicalMemorySize()} when meminfo is unavailable.
+     */
+    public long getTotalPhysicalMemorySizeFromMeminfo() {
+        if (Constants.LINUX) {
+            try {
+                long total = getTotalMemFromProcMeminfo();
+                if (total > 0) {
+                    return total;
+                }
+            } catch (Exception e) {
+                logger.warn("exception retrieving total physical memory from meminfo", e);
+            }
+        }
+        return getTotalPhysicalMemorySize();
+    }
+
+    /**
      * Returns the adjusted total amount of physical memory in bytes.
      * Total memory may be overridden when some other process is running
      * that is known to consume a non-negligible amount of memory. This

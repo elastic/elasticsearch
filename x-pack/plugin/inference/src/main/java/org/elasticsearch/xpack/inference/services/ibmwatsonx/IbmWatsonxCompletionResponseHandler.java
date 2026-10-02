@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxErrorResponseEntity;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 
-public class IbmWatsonxCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class IbmWatsonxCompletionResponseHandler extends OpenAiCompletionResponseHandler {
 
     /**
      * Constructs a IbmWatsonxCompletionResponseHandler with the specified request type and response parser.

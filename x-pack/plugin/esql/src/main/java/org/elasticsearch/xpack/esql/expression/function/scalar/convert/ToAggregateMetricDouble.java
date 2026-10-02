@@ -205,11 +205,11 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum compensatedSum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = doubleBlock.getValueCount(p);
-                    if (valueCount == 0) {
+                    if (doubleBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = doubleBlock.getValueCount(p);
                     int start = doubleBlock.getFirstValueIndex(p);
                     int end = start + valueCount;
                     if (valueCount == 1) {
@@ -309,13 +309,13 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum sum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = intBlock.getValueCount(p);
-                    int start = intBlock.getFirstValueIndex(p);
-                    int end = start + valueCount;
-                    if (valueCount == 0) {
+                    if (intBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = intBlock.getValueCount(p);
+                    int start = intBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
                     if (valueCount == 1) {
                         double current = intBlock.getInt(start);
                         builder.min().appendDouble(current);
@@ -397,13 +397,13 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum sum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = longBlock.getValueCount(p);
-                    int start = longBlock.getFirstValueIndex(p);
-                    int end = start + valueCount;
-                    if (valueCount == 0) {
+                    if (longBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = longBlock.getValueCount(p);
+                    int start = longBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
                     if (valueCount == 1) {
                         double current = longBlock.getLong(start);
                         builder.min().appendDouble(current);
@@ -493,15 +493,15 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
                 CompensatedSum sum = new CompensatedSum();
                 for (int p = 0; p < positionCount; p++) {
-                    int valueCount = longBlock.getValueCount(p);
-                    int start = longBlock.getFirstValueIndex(p);
-                    int end = start + valueCount;
-                    if (valueCount == 0) {
+                    if (longBlock.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
+                    int valueCount = longBlock.getValueCount(p);
+                    int start = longBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
                     if (valueCount == 1) {
-                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(start));
                         builder.min().appendDouble(current);
                         builder.max().appendDouble(current);
                         builder.sum().appendDouble(current);
@@ -511,7 +511,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                     double min = Double.POSITIVE_INFINITY;
                     double max = Double.NEGATIVE_INFINITY;
                     for (int i = start; i < end; i++) {
-                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(i));
                         min = Math.min(min, current);
                         max = Math.max(max, current);
                         sum.add(current);

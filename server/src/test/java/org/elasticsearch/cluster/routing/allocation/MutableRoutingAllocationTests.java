@@ -13,81 +13,127 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.closeTo;
 
 public class MutableRoutingAllocationTests extends ESAllocationTestCase {
 
+    /**
+     * When a shard becomes STARTED on a node, its write load now contributes to the node's proportion. The cached value
+     * is invalidated so the next call recomputes from the updated routing state.
+     */
     public void testCacheInvalidatedOnShardStarted() {
         String sourceNodeId = randomIdentifier();
         String otherNodeId = randomValueOtherThan(sourceNodeId, ESTestCase::randomIdentifier);
-        double initialSourceValue = randomWriteLoadProportion();
-        double otherValue = randomWriteLoadProportion();
-        double recomputedValue = randomValueOtherThan(initialSourceValue, MutableRoutingAllocationTests::randomWriteLoadProportion);
 
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, otherNodeId);
+        Index index = new Index("test-index", "_na_");
+        ShardId startedShardId = new ShardId(index, 0);    // write load 3.0, always STARTED
+        ShardId initializingShardId = new ShardId(index, 1); // write load 7.0, starts INITIALIZING
 
-        clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> initialSourceValue);
-        clusterInfo.nodeMaxShardWriteLoadProportion(otherNodeId, () -> otherValue);
+        // With only shard0 started: proportion = 3.0/3.0 = 1.0
+        // After shard1 also starts: proportion = max(3.0, 7.0)/(3.0+7.0) = 0.7
+        ClusterInfo clusterInfo = ClusterInfo.builder().shardWriteLoads(Map.of(startedShardId, 3.0, initializingShardId, 7.0)).build();
 
-        ShardRouting initializing = TestShardRouting.newShardRouting(
-            randomIdentifier(),
-            0,
+        ClusterState clusterState = clusterStateWithShards(
             sourceNodeId,
-            true,
-            ShardRoutingState.INITIALIZING
+            otherNodeId,
+            index,
+            TestShardRouting.newShardRouting(startedShardId, sourceNodeId, true, ShardRoutingState.STARTED),
+            TestShardRouting.newShardRouting(initializingShardId, sourceNodeId, true, ShardRoutingState.INITIALIZING)
         );
-        ShardRouting started = initializing.moveToStarted(0L);
 
-        allocation.changes().shardStarted(initializing, started);
+        MutableRoutingAllocation allocation = newAllocation(clusterState, clusterInfo);
+        RoutingNode node = allocation.routingNodes().node(sourceNodeId);
 
-        // The entry for the started shard's node has been invalidated, so we recompute and store the new value.
-        // If the entry had not been invalidated, the stale cached value would mismatch the supplier and trip an assertion.
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> recomputedValue), equalTo(recomputedValue));
-        // Other nodes' cache entries are untouched.
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(otherNodeId, () -> otherValue), equalTo(otherValue));
+        // prime cache with only shard0 started
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(1.0, 1e-9));
+
+        // startShard updates the routing node AND fires the cache-invalidation observer
+        ShardRouting initializingShard = node.getByShardId(initializingShardId);
+        allocation.routingNodes().startShard(initializingShard, allocation.changes(), 0L);
+
+        // cache was invalidated; recomputed with both shards started → 0.7
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(0.7, 1e-9));
     }
 
+    /**
+     * When a shard starts relocating away from a node, it leaves the STARTED set. The cached proportion is invalidated
+     * so the next call reflects only the remaining started shards.
+     */
     public void testCacheInvalidatedOnRelocationStarted() {
         String sourceNodeId = randomIdentifier();
         String targetNodeId = randomValueOtherThan(sourceNodeId, ESTestCase::randomIdentifier);
-        double initialSourceValue = randomWriteLoadProportion();
-        double targetValue = randomWriteLoadProportion();
-        double recomputedValue = randomValueOtherThan(initialSourceValue, MutableRoutingAllocationTests::randomWriteLoadProportion);
 
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, targetNodeId);
+        Index index = new Index("test-index", "_na_");
+        ShardId relocatingShardId = new ShardId(index, 0); // write load 3.0, will relocate away
+        ShardId stayingShardId = new ShardId(index, 1);    // write load 7.0, stays started
 
-        clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> initialSourceValue);
-        clusterInfo.nodeMaxShardWriteLoadProportion(targetNodeId, () -> targetValue);
+        // With both shards started: proportion = max(3.0, 7.0)/(3.0+7.0) = 0.7
+        // After shard0 starts reloc: proportion = 7.0/7.0 = 1.0
+        ClusterInfo clusterInfo = ClusterInfo.builder().shardWriteLoads(Map.of(relocatingShardId, 3.0, stayingShardId, 7.0)).build();
 
-        ShardRouting started = TestShardRouting.newShardRouting(randomAlphaOfLength(8), 0, sourceNodeId, true, ShardRoutingState.STARTED);
-        ShardRouting source = started.relocate(targetNodeId, 0L);
-        ShardRouting target = source.getTargetRelocatingShard();
+        ClusterState clusterState = clusterStateWithShards(
+            sourceNodeId,
+            targetNodeId,
+            index,
+            TestShardRouting.newShardRouting(relocatingShardId, sourceNodeId, true, ShardRoutingState.STARTED),
+            TestShardRouting.newShardRouting(stayingShardId, sourceNodeId, true, ShardRoutingState.STARTED)
+        );
 
-        allocation.changes().relocationStarted(started, target, randomAlphaOfLength(10));
+        MutableRoutingAllocation allocation = newAllocation(clusterState, clusterInfo);
+        RoutingNode node = allocation.routingNodes().node(sourceNodeId);
 
-        // Source node entry invalidated; target node entry untouched (only an INITIALIZING shard appears there,
-        // and the cache only depends on STARTED shards).
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> recomputedValue), equalTo(recomputedValue));
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(targetNodeId, () -> targetValue), equalTo(targetValue));
+        // prime cache with both shards started
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(0.7, 1e-9));
+
+        // relocateShard moves shard0 to RELOCATING on sourceNode and fires the cache-invalidation observer
+        ShardRouting relocating = node.getByShardId(relocatingShardId);
+        allocation.routingNodes()
+            .relocateShard(
+                relocating,
+                targetNodeId,
+                0L,
+                "test",
+                allocation.changes(),
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
+
+        // cache was invalidated; recomputed with only shard1 started → 1.0
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(1.0, 1e-9));
     }
 
-    private static MutableRoutingAllocation newAllocation(ClusterInfo clusterInfo, String sourceNodeId, String targetNodeId) {
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(newNode(sourceNodeId)).add(newNode(targetNodeId)))
-            .build();
+    private static MutableRoutingAllocation newAllocation(ClusterState clusterState, ClusterInfo clusterInfo) {
         RoutingAllocation mutable = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).mutable();
         return (MutableRoutingAllocation) (randomBoolean() ? mutable.mutableCloneForSimulation() : mutable);
     }
 
-    private static double randomWriteLoadProportion() {
-        return randomDoubleBetween(0.0, 1.0, true);
+    private static ClusterState clusterStateWithShards(String primaryNodeId, String otherNodeId, Index index, ShardRouting... shards) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), shards.length, 0))
+            .build();
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+        for (ShardRouting shard : shards) {
+            indexRoutingTable.addShard(shard);
+        }
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode(primaryNodeId)).add(newNode(otherNodeId)))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable.build()).build())
+            .build();
     }
 }

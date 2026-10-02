@@ -23,10 +23,15 @@ import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
@@ -37,18 +42,24 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -236,6 +247,39 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
+     * Check that when a trace is started for a request carrying the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
+     * header, the project id is stamped on the span as the {@code project.id} attribute.
+     */
+    public void test_whenTraceStarted_projectIdHeaderIsSetAsSpanAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        String projectId = randomAlphaOfLength(16);
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+        Mockito.verify(span).setAttribute("project.id", projectId);
+    }
+
+    /**
+     * Check that when a trace is started for a request without the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
+     * header (e.g. a non multi-project request), no {@code project.id} attribute is added to the span.
+     */
+    public void test_whenTraceStarted_withoutProjectIdHeader_noProjectIdSpanAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+        Mockito.verify(span, never()).setAttribute(eq("project.id"), anyString());
+    }
+
+    /**
      * Check that when a tracer has a list of include names configured, then those
      * names are used to filter spans.
      */
@@ -373,32 +417,56 @@ public class APMTracerTests extends ESTestCase {
         assertThat(span.getSpanContext().getSpanId(), is(remoteParentSpanId));
     }
 
+    public void testTracingResumesAfterDisableAndReEnable() {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+            .setSampler(Sampler.alwaysOn())
+            .build();
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).build();
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = new APMTracer(settings, () -> sdk, 0, false);
+        tracer.setNodeName("test-node");
+        tracer.setClusterName("test-cluster");
+        tracer.start();
+
+        startAndStopSpan(tracer, settings, TRACEABLE1, "resume-test-1");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        tracer.setEnabled(false);
+        exporter.reset();
+        startAndStopSpan(tracer, settings, TRACEABLE2, "resume-test-2");
+        assertThat(exporter.getFinishedSpanItems(), empty());
+
+        tracer.setEnabled(true);
+        startAndStopSpan(tracer, settings, TRACEABLE3, "resume-test-3");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        sdk.close();
+    }
+
+    private static void startAndStopSpan(APMTracer tracer, Settings settings, Traceable traceable, String spanName) {
+        tracer.startTrace(new ThreadContext(settings), traceable, spanName, null);
+        tracer.stopTrace(traceable);
+    }
+
     private APMTracer buildTracer(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), false, 0, false);
+        return buildTracer(settings, 0, false);
+    }
+
+    private APMTracer buildTracer(Settings settings, int maxTraceDepth) {
+        return buildTracer(settings, maxTraceDepth, false);
+    }
+
+    private APMTracer buildTracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
+        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), maxTraceDepth, recordExceptionStacks);
         tracer.doStart();
         return tracer;
     }
 
     private APMTracer buildTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator(), false, 0, false);
-        tracer.doStart();
-        return tracer;
-    }
-
-    private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth) {
-        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), true, maxTraceDepth, false);
-        tracer.doStart();
-        return tracer;
-    }
-
-    private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
-        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), true, maxTraceDepth, recordExceptionStacks);
-        tracer.doStart();
-        return tracer;
-    }
-
-    private APMTracer buildSdkPathTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator(), true, 0, false);
+        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator(), 0, false);
         tracer.doStart();
         return tracer;
     }
@@ -409,7 +477,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void test_onSdkPath_withMaxTraceDepthZero_dropsChildSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 0);
+        APMTracer tracer = buildTracer(settings, 0);
 
         ThreadContext threadContext = new ThreadContext(settings);
         threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
@@ -421,7 +489,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void test_onSdkPath_withMaxTraceDepthZero_recordsRootSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 0);
+        APMTracer tracer = buildTracer(settings, 0);
 
         // No PARENT_APM_TRACE_CONTEXT transient => no local parent => this is a root span.
         tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "root-span", Map.of());
@@ -431,7 +499,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void test_onSdkPath_withMaxTraceDepthOne_recordsChildSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 1);
+        APMTracer tracer = buildTracer(settings, 1);
 
         ThreadContext threadContext = new ThreadContext(settings);
         threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
@@ -449,7 +517,7 @@ public class APMTracerTests extends ESTestCase {
      */
     public void test_onSdkPath_withMaxTraceDepthOne_dropsGrandchildSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 1);
+        APMTracer tracer = buildTracer(settings, 1);
 
         ThreadContext traceContext = new ThreadContext(settings);
 
@@ -469,7 +537,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void test_onSdkPath_withMaxTraceDepthZero_recordsEntryAndDropsLocalChild() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracerWithW3CPropagator(settings);
+        APMTracer tracer = buildTracerWithW3CPropagator(settings);
 
         final String traceId = "0af7651916cd43dd8448eb211c80319c";
         final String remoteParentSpanId = "b7ad6b7169203331";
@@ -488,21 +556,9 @@ public class APMTracerTests extends ESTestCase {
         assertThat(entrySpan.getSpanContext().getSpanId(), is(remoteParentSpanId));
     }
 
-    public void test_addError_onAgentPath_callsRecordException() {
+    public void test_addError_withStacksDisabled_emitsTypeAndMessageOnly() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings);
-        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
-        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
-
-        Exception failure = new IllegalStateException("boom");
-        tracer.addError(TRACEABLE1, failure);
-
-        Mockito.verify(recordedSpan).recordException(failure);
-    }
-
-    public void test_addError_onSdkPath_withStacksDisabled_emitsTypeAndMessageOnly() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 0, false);
+        APMTracer tracer = buildTracer(settings, 0, false);
         tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
@@ -516,9 +572,9 @@ public class APMTracerTests extends ESTestCase {
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.stacktrace")), nullValue());
     }
 
-    public void test_addError_onSdkPath_withStacksEnabled_delegatesToRecordException() {
+    public void test_addError_withStacksEnabled_delegatesToRecordException() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 0, true);
+        APMTracer tracer = buildTracer(settings, 0, true);
         tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
@@ -529,9 +585,9 @@ public class APMTracerTests extends ESTestCase {
         Mockito.verify(recordedSpan, never()).addEvent(anyString(), Mockito.any(Attributes.class));
     }
 
-    public void test_addError_onSdkPath_withNullMessage_omitsMessageAttribute() {
+    public void test_addError_withNullMessage_omitsMessageAttribute() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 0, false);
+        APMTracer tracer = buildTracer(settings, 0, false);
         tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
@@ -543,19 +599,58 @@ public class APMTracerTests extends ESTestCase {
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), nullValue());
     }
 
+    public void test_setAttributes_callsSetAllAttributes() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Attributes attributes = Attributes.of(AttributeKey.stringKey("http.method"), "GET", AttributeKey.longKey("http.status_code"), 200L);
+        tracer.setAttributes(TRACEABLE1, attributes);
+
+        Mockito.verify(recordedSpan).setAllAttributes(attributes);
+    }
+
+    @SuppressForbidden(reason = "OpenTelemetry logs API usage issues via java.util.logging")
+    public void testUntrackedSpans() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        List<String> usageIssues = new ArrayList<>();
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord logRecord) {
+                usageIssues.add(logRecord.getMessage());
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        };
+        // OpenTelemetry logs API usage issues at WARNING only once per JVM, but at FINEST every time
+        java.util.logging.Logger usageLogger = java.util.logging.Logger.getLogger("io.opentelemetry.usage");
+        Level previousLevel = usageLogger.getLevel();
+        usageLogger.setLevel(Level.FINEST);
+        usageLogger.addHandler(handler);
+        try {
+            apmTracer.stopTrace(TRACEABLE1); // Stopping a trace that was never started
+        } finally {
+            usageLogger.removeHandler(handler);
+            usageLogger.setLevel(previousLevel);
+        }
+
+        assertThat(usageIssues, empty());
+    }
+
     static class SpyAPMTracer extends APMTracer {
 
         Map<String, Instant> spanStartTimeMap;
         private final OpenTelemetry openTelemetry;
 
-        SpyAPMTracer(
-            Settings settings,
-            OpenTelemetry openTelemetry,
-            boolean useOtelSdkTracesExport,
-            int maxTraceDepth,
-            boolean recordExceptionStacks
-        ) {
-            super(settings, () -> openTelemetry, useOtelSdkTracesExport, maxTraceDepth, recordExceptionStacks);
+        SpyAPMTracer(Settings settings, OpenTelemetry openTelemetry, int maxTraceDepth, boolean recordExceptionStacks) {
+            super(settings, () -> openTelemetry, maxTraceDepth, recordExceptionStacks);
             this.openTelemetry = openTelemetry;
             this.spanStartTimeMap = new HashMap<>();
         }
@@ -575,8 +670,8 @@ public class APMTracerTests extends ESTestCase {
         }
 
         /**
-         * There's no APM agent in unit tests. Spans created by the default span builder would be NOOP spans that are not recorded.
-         * This builder simulates recorded spans so that we can test the tracer behavior.
+         * Spans created by the default span builder would be NOOP spans that are not recorded, because these unit tests
+         * have no configured exporter. This builder simulates recorded spans so that we can test the tracer behavior.
          */
         class MockSpanBuilder implements SpanBuilder {
 
@@ -587,7 +682,7 @@ public class APMTracerTests extends ESTestCase {
             MockSpanBuilder(String spanName) {
                 this.spanName = spanName;
                 this.span = Mockito.mock(Span.class, spanName);
-                // simulate discarded span due to transaction_max_spans exceeded
+                // simulate a span discarded because its trace was not sampled
                 Mockito.when(span.isRecording()).thenReturn(spanName.endsWith("_discard") == false);
                 Mockito.when(span.storeInContext(Mockito.any(Context.class))).thenCallRealMethod();
             }
@@ -618,6 +713,8 @@ public class APMTracerTests extends ESTestCase {
 
             @Override
             public SpanBuilder setAttribute(String key, String value) {
+                // Record string attributes on the mock span so tests can Mockito.verify(span).setAttribute(...)
+                span.setAttribute(key, value);
                 return this;
             }
 

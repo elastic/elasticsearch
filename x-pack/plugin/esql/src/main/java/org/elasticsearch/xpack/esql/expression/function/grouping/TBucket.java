@@ -12,8 +12,10 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,17 +27,22 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.ThreeOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
-import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -56,10 +63,15 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         OnlySurrogateExpression,
         TimestampAware,
-        TwoOptionalArguments,
+        ThreeOptionalArguments,
         TimestampBoundsAware.OfExpression,
-        ConfigurationFunction {
+        ConfigurationFunction,
+        AnyNullIsNull {
     public static final String NAME = "TBucket";
+
+    private static final String OPTIONS_APPLIES_TO = """
+        {"serverless": "ga", "stack": "ga 9.6.0"}""";
+    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(Bucket.INCLUDE_EMPTY_BUCKETS, DataType.BOOLEAN);
 
     private final Configuration configuration;
     private final Expression buckets;
@@ -68,9 +80,11 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     private final Expression from;
     @Nullable
     private final Expression to;
+    @Nullable
+    private final Expression options;
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TBucket.class)
-        .quaternaryConfig(TBucket::new)
+        .quinaryConfigWithOptions(TBucket::new)
         .name("tbucket");
 
     @FunctionInfo(
@@ -159,15 +173,43 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             description = "End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
                 + "query filter {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression to,
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = Bucket.INCLUDE_EMPTY_BUCKETS,
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "When `true`, empty buckets (filled with default aggregate values) are output across the "
+                        + "`from`..`to` range (`from` inclusive, `to` exclusive). Requires the four-argument (range) form of `BUCKET`. "
+                        + "Defaults to `false`.",
+                    applies_to = OPTIONS_APPLIES_TO
+                ) },
+            description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",
+            optional = true,
+            applies_to = OPTIONS_APPLIES_TO
+        ) @Nullable Expression options,
         Expression timestamp,
         Configuration configuration
     ) {
-        super(source, Bucket.fields(buckets, timestamp, from, to));
+        super(source, Bucket.fields(buckets, timestamp, from, to, options));
         this.buckets = buckets;
         this.timestamp = timestamp;
         this.from = from;
         this.to = to;
+        this.options = options;
         this.configuration = configuration;
+    }
+
+    public TBucket(
+        Source source,
+        Expression buckets,
+        @Nullable Expression from,
+        @Nullable Expression to,
+        Expression timestamp,
+        Configuration configuration
+    ) {
+        this(source, buckets, from, to, null, timestamp, configuration);
     }
 
     @Override
@@ -192,7 +234,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public Expression withTimestampBounds(Literal start, Literal end) {
-        return new TBucket(source(), buckets, from != null ? from : start, to != null ? to : end, timestamp, configuration);
+        return new TBucket(source(), buckets, from != null ? from : start, to != null ? to : end, options, timestamp, configuration);
     }
 
     @Override
@@ -213,9 +255,9 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         if (buckets.resolved() && buckets.dataType().isWholeNumber()) {
             assert from != null && to != null
                 : "numeric bucket count requires [from] and [to]; postAnalysisVerification should have caught this";
-            return new Bucket(source(), timestamp, buckets, from, to, configuration);
+            return new Bucket(source(), timestamp, buckets, from, to, options, configuration);
         }
-        return new Bucket(source(), timestamp, buckets, from, to, configuration);
+        return new Bucket(source(), timestamp, buckets, from, to, options, configuration);
     }
 
     @Override
@@ -240,6 +282,9 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         if (to != null) {
             resolution = resolution.and(isStringOrDate(to, sourceText(), THIRD));
         }
+        if (options != null) {
+            resolution = resolution.and(Options.resolve(options, source(), FOURTH, ALLOWED_OPTIONS));
+        }
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -248,6 +293,9 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         if (from == null != (to == null)) {
             return new TypeResolution("[from] and [to] in [" + sourceText() + "] must both be provided or both omitted");
+        }
+        if (includeEmptyBuckets() && (from == null || to == null)) {
+            return new TypeResolution("[" + Bucket.INCLUDE_EMPTY_BUCKETS + "] in [" + sourceText() + "] requires [from] and [to]");
         }
         return resolution;
     }
@@ -259,14 +307,18 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
-        Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new TBucket(source(), newChildren.get(0), from, to, newChildren.get(1), configuration);
+        int i = 0;
+        Expression newBuckets = newChildren.get(i++);
+        Expression newTimestamp = newChildren.get(i++);
+        Expression newFrom = from != null ? newChildren.get(i++) : null;
+        Expression newTo = to != null ? newChildren.get(i++) : null;
+        Expression newOptions = options != null ? newChildren.get(i++) : null;
+        return new TBucket(source(), newBuckets, newFrom, newTo, newOptions, newTimestamp, configuration);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TBucket::new, buckets, from, to, timestamp, configuration);
+        return NodeInfo.create(this, TBucket::new, buckets, from, to, options, timestamp, configuration);
     }
 
     @Override
@@ -286,9 +338,22 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         return to;
     }
 
+    public Expression options() {
+        return options;
+    }
+
+    public boolean includeEmptyBuckets() {
+        if (options == null) {
+            return false;
+        }
+        Map<String, Object> map = new HashMap<>();
+        Options.populateMap((MapExpression) options, map, source(), FOURTH, ALLOWED_OPTIONS);
+        return Boolean.TRUE.equals(map.get(Bucket.INCLUDE_EMPTY_BUCKETS));
+    }
+
     @Override
     public String toString() {
-        return "TBucket{buckets=" + buckets + ", from=" + from + ", to=" + to + "}";
+        return "TBucket{buckets=" + buckets + ", from=" + from + ", to=" + to + ", options=" + options + "}";
     }
 
     @Override

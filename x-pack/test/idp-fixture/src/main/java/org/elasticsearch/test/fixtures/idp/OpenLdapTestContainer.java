@@ -8,9 +8,11 @@
 package org.elasticsearch.test.fixtures.idp;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.PullOrBuildImage;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
-import org.testcontainers.images.RemoteDockerImage;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -19,7 +21,14 @@ import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/openldap-fixture:1.1";
+    private static final String LDAP_READY_COMMAND = """
+        ldapsearch -LLL -x\
+         -H ldaps://localhost:636\
+         -D "cn=admin,$LDAP_BASE_DN"\
+         -w "$LDAP_ADMIN_PASSWORD"\
+         -b "uid=cap,ou=people,$LDAP_BASE_DN"\
+         -s base dn""";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
@@ -29,10 +38,21 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
     }
 
     public OpenLdapTestContainer(Network network) {
-        super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
+        super(
+            new PullOrBuildImage(
+                DOCKER_BASE_IMAGE,
+                new ImageFromDockerfile("localhost/es-openldap-fixture").withFileFromClasspath("Dockerfile", "/openldap/Dockerfile")
+                    .withFileFromClasspath("ldif/users.ldif", "/openldap/ldif/users.ldif")
+                    .withFileFromClasspath("ldif/config.ldif", "/openldap/ldif/config.ldif")
+                    .withFileFromClasspath("certs", "/openldap/certs")
+                    .withFileFromClasspath("wait-for-slapd.sh", "/openldap/wait-for-slapd.sh")
+            )
+        );
         withNetworkAliases("openldap");
         withNetwork(network);
         withExposedPorts(389, 636);
+        withCommand("--loglevel", "debug");
+        waitingFor(Wait.forSuccessfulCommand(LDAP_READY_COMMAND));
     }
 
     public String getLdapUrl() {

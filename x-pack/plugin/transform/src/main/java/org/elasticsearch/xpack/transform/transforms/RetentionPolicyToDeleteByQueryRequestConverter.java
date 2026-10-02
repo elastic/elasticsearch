@@ -75,7 +75,7 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
          * - refresh: we call refresh separately, after DBQ is executed because refresh should be executed with system permissions
          */
         request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
-            .setBatchSize(AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE)
+            .setBatchSize(AbstractBulkByPaginatedSearchRequest.DEFAULT_PAGINATED_SEARCH_BATCH_SIZE)
             // this should not happen, but still go over version conflicts and report later
             .setAbortOnVersionConflict(false)
             // use transforms retry mechanics instead

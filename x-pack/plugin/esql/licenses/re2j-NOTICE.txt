@@ -1,0 +1,1 @@
+RE2/J is released under the Go License (a BSD-3-Clause-style license).

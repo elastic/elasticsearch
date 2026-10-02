@@ -48,21 +48,48 @@ public class DatasetResolver {
     private final Client client;
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final boolean federationAvailable;
 
-    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider) {
+    /**
+     * Federation availability is resolved once by the caller (see {@link Federation#isAvailable}) rather than per query:
+     * it is fixed for the lifetime of the node, since both of its levers are read at startup.
+     */
+    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider, boolean federationAvailable) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.federationAvailable = federationAvailable;
     }
 
     /**
      * Completes {@code listener} with the rewritten plan (or the untouched plan when no relation qualifies).
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
      * dataset) propagate as-is.
+     *
+     * <p>When federation is not available (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
+     * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
+     * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
+     *
+     * @param wildcardsMatchDatasets the resolved {@code wildcards_match_datasets} query setting, carried from the coordinator's
+     *                         {@code Configuration} and applied to this coordinator's own dataset expansion. Only this
+     *                         coordinator's registry is expanded here; what a remote cluster does with its own datasets
+     *                         is decided by {@code EsqlResolveFieldsAction.clearDatasetResolution}, not by this setting.
      */
-    public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        // Cheap short-circuit: no datasets registered → the CRUD layer (gated by the external-datasources feature flag)
-        // never put any into cluster state, so no FROM can target one. No dispatch, no walk cost on the common path.
+    public void replaceDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        boolean wildcardsMatchDatasets,
+        ActionListener<LogicalPlan> listener
+    ) {
+        // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
+        // that was never registered (the FROM <dataset> name resolves as an unknown index).
+        if (federationAvailable == false) {
+            listener.onResponse(parsed);
+            return;
+        }
+
+        // Cheap short-circuit: no datasets registered → no FROM can target one, so no dispatch and no walk cost on the
+        // common path.
         Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
         if (datasetNames.isEmpty()) {
             listener.onResponse(parsed);
@@ -75,7 +102,7 @@ public class DatasetResolver {
         parsed.forEachUp(UnresolvedRelation.class, r -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
                 return;
             }
             relations.add(r);
@@ -98,7 +125,8 @@ public class DatasetResolver {
                 }
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
-                    DatasetRewriter.patternsOf(relation).toArray(String[]::new)
+                    DatasetRewriter.patternsOf(relation).toArray(String[]::new),
+                    wildcardsMatchDatasets
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
@@ -113,9 +141,10 @@ public class DatasetResolver {
                 );
             });
         }
-        // Remote-dataset detection rides the field-caps rail (EsqlResolveFieldsAction, surfaced as
-        // RemoteDatasetNotSupportedException). This resolver only does the LOCAL rewrite + read-authz; under CPS it
-        // additionally preserves the remote half of a matched dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true).
+        // A dataset on another cluster is invisible rather than detected (see EsqlResolveFieldsAction). This resolver
+        // only does the LOCAL rewrite + read-authz; under CPS it additionally preserves the remote half of a matched
+        // dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true), which is how a remote INDEX of the same name
+        // still federates in.
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
             .addListener(listener);

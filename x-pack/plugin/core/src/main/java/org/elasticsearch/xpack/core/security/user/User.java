@@ -164,6 +164,7 @@ public class User implements ToXContentObject {
         ParseField PASSWORD = new ParseField("password");
         ParseField PASSWORD_HASH = new ParseField("password_hash");
         ParseField ROLES = new ParseField("roles");
+        ParseField LIMITED_BY_ROLES = new ParseField("limited_by_roles");
         ParseField FULL_NAME = new ParseField("full_name");
         ParseField EMAIL = new ParseField("email");
         ParseField METADATA = new ParseField("metadata");

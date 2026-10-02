@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -89,12 +90,11 @@ public class DatabaseLifecycleConcurrencyTests extends ESTestCase {
         databaseNodeService = newService(recordingExecutor);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanup() throws Exception {
         if (databaseNodeService != null) {
             databaseNodeService.shutdown();
         }
-        super.tearDown();
     }
 
     private DatabaseNodeService newService(Consumer<Runnable> executor) throws IOException {

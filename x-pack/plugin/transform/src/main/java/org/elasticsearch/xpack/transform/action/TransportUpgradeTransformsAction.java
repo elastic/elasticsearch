@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -31,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
@@ -101,6 +103,17 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // Extract on the coordinating node, before the request is forwarded to master — the
+        // AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive master forwarding.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        super.doExecute(task, request, ActionListener.releaseAfter(listener, request));
+    }
+
+    @Override
     protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         final var projectMetadata = projectResolver.getProjectMetadata(state);
@@ -120,22 +133,27 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), request.ackTimeout(), ActionListener.wrap(updatesByStatus -> {
-            final long updated = updatesByStatus.getOrDefault(UpdateResult.Status.UPDATED, 0L);
-            final long noAction = updatesByStatus.getOrDefault(UpdateResult.Status.NONE, 0L);
-            final long needsUpdate = updatesByStatus.getOrDefault(UpdateResult.Status.NEEDS_UPDATE, 0L);
+        recursiveExpandTransformIdsAndUpgrade(
+            request.isDryRun(),
+            request.ackTimeout(),
+            request.getCloudCredential(),
+            ActionListener.wrap(updatesByStatus -> {
+                final long updated = updatesByStatus.getOrDefault(UpdateResult.Status.UPDATED, 0L);
+                final long noAction = updatesByStatus.getOrDefault(UpdateResult.Status.NONE, 0L);
+                final long needsUpdate = updatesByStatus.getOrDefault(UpdateResult.Status.NEEDS_UPDATE, 0L);
 
-            if (request.isDryRun() == false) {
-                transformConfigManager.deleteOldIndices(ActionListener.wrap(aBool -> {
-                    logger.info("Successfully upgraded all transforms, (updated: [{}], no action [{}])", updated, noAction);
+                if (request.isDryRun() == false) {
+                    transformConfigManager.deleteOldIndices(ActionListener.wrap(aBool -> {
+                        logger.info("Successfully upgraded all transforms, (updated: [{}], no action [{}])", updated, noAction);
 
+                        listener.onResponse(new UpgradeTransformsAction.Response(updated, noAction, needsUpdate));
+                    }, listener::onFailure));
+                } else {
+                    // else: dry run
                     listener.onResponse(new UpgradeTransformsAction.Response(updated, noAction, needsUpdate));
-                }, listener::onFailure));
-            } else {
-                // else: dry run
-                listener.onResponse(new UpgradeTransformsAction.Response(updated, noAction, needsUpdate));
-            }
-        }, listener::onFailure));
+                }
+            }, listener::onFailure)
+        );
 
     }
 
@@ -144,7 +162,13 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void updateOneTransform(String id, boolean dryRun, TimeValue timeout, ActionListener<UpdateResult> listener) {
+    private void updateOneTransform(
+        String id,
+        boolean dryRun,
+        TimeValue timeout,
+        @Nullable CloudCredential callerCredential,
+        ActionListener<UpdateResult> listener
+    ) {
         final ClusterState clusterState = clusterService.state();
 
         transformConfigManager.getTransformConfigurationForUpdate(id, ActionListener.wrap(configAndVersion -> {
@@ -184,6 +208,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 destIndexSettings,
                 cloudCredentialManager,
                 false, // mintCloudCredential — validate with stored credential only
+                // Same instance re-used across every transform in the upgrade loop: validateTransform
+                // makes its own CloudCredential.copyOf(...) per call, so there's no shared-mutation
+                // risk. The original is closed once, by the outer releaseAfter(listener, request) in
+                // doExecute, after the whole upgrade completes.
+                callerCredential,
                 listener
             );
         }, failure -> {
@@ -201,6 +230,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Map<UpdateResult.Status, Long> updatesByStatus,
         boolean dryRun,
         TimeValue timeout,
+        @Nullable CloudCredential callerCredential,
         ActionListener<Void> listener
     ) {
         String next = transformsToUpgrade.pollFirst();
@@ -211,14 +241,14 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
+        updateOneTransform(next, dryRun, timeout, callerCredential, ActionListener.wrap(updateResponse -> {
             if (UpdateResult.Status.DELETED.equals(updateResponse.getStatus()) == false) {
                 auditor.info(next, "Updated transform.");
                 logger.info("[{}] Updated transform [{}]", next, updateResponse.getStatus());
                 updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
             }
             if (transformsToUpgrade.isEmpty() == false) {
-                recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, timeout, listener);
+                recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, timeout, callerCredential, listener);
             } else {
                 listener.onResponse(null);
             }
@@ -228,6 +258,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     private void recursiveExpandTransformIdsAndUpgrade(
         boolean dryRun,
         TimeValue timeout,
+        @Nullable CloudCredential callerCredential,
         ActionListener<Map<UpdateResult.Status, Long>> listener
     ) {
         transformConfigManager.getAllOutdatedTransformIds(timeout, ActionListener.wrap(totalAndIds -> {
@@ -248,6 +279,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 updatesByStatus,
                 dryRun,
                 timeout,
+                callerCredential,
                 ActionListener.wrap(r -> listener.onResponse(updatesByStatus), listener::onFailure)
             );
         }, listener::onFailure));

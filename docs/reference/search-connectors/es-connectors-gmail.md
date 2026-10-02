@@ -155,8 +155,8 @@ The following configuration fields are required:
 `Include spam and trash emails`
 :   Toggle to fetch spam and trash emails. Also works with DLS.
 
-`Index full raw email (including headers)`
-:   Toggle to index the full raw RFC 822 message. Disabled by default: only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed; routing/authentication headers and binary attachments are dropped. Enable to restore the passthrough behavior for edge cases where body extraction misses content.
+`Index full raw email (including headers)` {applies_to}`stack: ga 9.5`
+:   Toggle to index the full raw RFC 822 message. Default value is `False`. When off, only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed. Routing/authentication headers and binary attachments are dropped. Enable this toggle to restore the passthrough behavior when body extraction misses content.
 
 `Enable document level security`
 :   Toggle to enable [document level security (DLS](/reference/search-connectors/document-level-security.md). DLS is supported for the GMail connector. When enabled:

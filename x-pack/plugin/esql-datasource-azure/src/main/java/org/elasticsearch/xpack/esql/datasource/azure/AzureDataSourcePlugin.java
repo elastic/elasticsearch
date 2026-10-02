@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -26,12 +27,9 @@ import java.util.concurrent.ExecutorService;
  * Data source plugin providing Azure Blob Storage support for ESQL.
  * Supports the wasbs:// and wasb:// URI schemes.
  * <p>
- * Usage in ESQL:
- * <pre>
- *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *     WITH {"account": "myaccount", "key": "...", "endpoint": "https://myaccount.blob.core.windows.net"}
- * </pre>
+ * Usage in ESQL: register a dataset over a {@code wasbs://}/{@code wasb://} resource, optionally
+ * with the {@code account}, {@code key}, and {@code endpoint} settings, then query it with
+ * {@code FROM <dataset>}.
  * <p>
  * The node-level {@link Environment} needed to resolve the AKS Workload Identity token symlink
  * ({@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token}) arrives through the
@@ -64,6 +62,14 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Map<String, String> testConnectionSchemes() {
+        if (enabled() == false) {
+            return Map.of();
+        }
+        return Map.of("azure", "wasbs");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
         if (enabled() == false) {
             return Map.of();
@@ -74,11 +80,22 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
         // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
         int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
-        StorageProviderFactory azureFactory = StorageProviderFactory.of(
+        StorageProviderFactory azureBase = StorageProviderFactory.of(
             () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,
             cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections)
         );
+        StorageProviderFactory azureFactory = StorageProviderFactory.withTestConnection(azureBase, config -> {
+            AzureConfiguration cfg = AzureConfiguration.fromQueryConfig(config).value();
+            AzureStorageProvider p = new AzureStorageProvider(cfg, environment, executor, maxConnections);
+            try {
+                p.testConnection();
+            } finally {
+                try {
+                    p.close();
+                } catch (IOException | RuntimeException ignored) {}
+            }
+        });
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }
 
@@ -89,5 +106,10 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         }
         DataSourceValidator v = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return AzureConfiguration.secretFieldNames();
     }
 }

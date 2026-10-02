@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -63,7 +64,9 @@ public class RerankOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new RerankRequestIterator.Factory(inferenceId, queryText, inputEvaluators, batchSize, timeout),
-            new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel)
+            new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel),
+            Source.EMPTY,
+            false
         );
         this.queryText = queryText;
         this.scoreChannel = scoreChannel;

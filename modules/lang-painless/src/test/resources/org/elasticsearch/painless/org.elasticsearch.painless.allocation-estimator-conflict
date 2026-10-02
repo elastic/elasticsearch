@@ -11,5 +11,5 @@
 # Loading both must fail via the existing duplicate-allowlist-entry equivalence rule.
 
 class org.elasticsearch.painless.AllocationEstimatorTestObject {
-  int negativeEstimated() @allocates_constant[bytes="8b"]
+  int negativeEstimated() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimate"]
 }

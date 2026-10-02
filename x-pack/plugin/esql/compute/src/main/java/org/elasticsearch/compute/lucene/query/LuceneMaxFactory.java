@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.LongValues;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -105,6 +107,14 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             return bytesToLong(pointValues.getMaxPackedValue());
         }
 
+        public final long fromSkipper(DocValuesSkipper skipper) {
+            return skipper.maxValue();
+        }
+
+        public final boolean canSkipLeaf(DocValuesSkipper skipper, long currentResult) {
+            return skipper.maxValue() <= currentResult;
+        }
+
         public final long evaluate(long value1, long value2) {
             return Math.max(value1, value2);
         }
@@ -124,20 +134,22 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         String fieldName,
         NumberType numberType,
         int limit,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(
             contexts,
             queryFunction,
             dataPartitioning,
-            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             limit,
             false,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,
             directoryBytesRead,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            singleValueQueryWarnings
         );
         this.contexts = contexts;
         this.fieldName = fieldName;
@@ -148,13 +160,14 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
     public SourceOperator get(DriverContext driverContext) {
         return new LuceneMinMaxOperator(
             contexts,
-            driverContext.blockFactory(),
+            driverContext,
             sliceQueue,
             fieldName,
             numberType,
             limit,
             Long.MIN_VALUE,
-            directoryBytesRead
+            directoryBytesRead,
+            singleValueQueryWarnings
         );
     }
 

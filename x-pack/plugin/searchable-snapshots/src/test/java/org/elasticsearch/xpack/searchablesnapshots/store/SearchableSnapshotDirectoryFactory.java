@@ -650,7 +650,8 @@ public class SearchableSnapshotDirectoryFactory {
                 Set.of(),
                 ""
             ),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize("node1", "existingAllocationId", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         DiscoveryNode targetNode = new DiscoveryNode(

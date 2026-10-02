@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
@@ -84,7 +85,11 @@ public class LookupJoinGenerator implements CommandGenerator {
             stringBuilder.append(" as ");
             stringBuilder.append(joinName);
         }
-        stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
+        stringBuilder.append(" | lookup join ");
+        if (randomBoolean()) {
+            stringBuilder.append("_coordinator:");
+        }
+        stringBuilder.append(lookupIdxName).append(" on ");
         for (int i = 0; i < keyNames.size(); i++) {
             String joinName = joinOn.get(i);
             if (EsqlQueryGenerator.needsQuoting(joinName)) {

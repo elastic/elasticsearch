@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -131,9 +130,12 @@ public final class ExternalSourceAggregatePushdown {
             // Double / BytesRef). Serve only the representation buildBlock's matching arm can materialize without a crash
             // (BOOLEAN: parseBoolean(BytesRef.toString()=hex); BYTES_REF: toBytesRef((Number).toString()); DOUBLE:
             // (Number) cast) or a silent wrong answer; anything else safe-misses so the aggregate re-scans and is correct.
-            // This gate cannot catch a foreign value of the SAME Java type (a sibling column's Long min on a LONG column,
-            // or a keyword min that is exactly this IP column's 16 bytes): that wrong-VALUE channel closes only when the
-            // declared schema enters the cross-node stats fingerprint (tracked in the declared-schema-fingerprint follow-up).
+            // This gate cannot catch a foreign value of the SAME Java type on its own (a sibling column's Long min on
+            // a LONG column, or a keyword min that is exactly this IP column's 16 bytes). That wrong-VALUE channel is
+            // closed upstream now that the resolved read configuration is part of the stats identity: a harvest may
+            // only enrich, and an entry may only serve, a read whose configuration matches, so a differently-declared
+            // dataset's extremum no longer reaches this arm. This gate remains as the crash-safety net for the rails
+            // that legitimately carry no read configuration -- the columnar readers, which harvest without stamping.
             case DOUBLE -> value instanceof Number ? value : null;
             case BOOLEAN -> value instanceof Boolean ? value : null;
             case BYTES_REF -> servableBytesRef(value, type);
@@ -199,30 +201,6 @@ public final class ExternalSourceAggregatePushdown {
             }
         }
         return true;
-    }
-
-    /**
-     * The columns whose values are derived from the file's directory PATH (Hive-style partition keys), not its
-     * payload. They are absent from every file's column stats, so the implicit-nulls contract reads them as
-     * all-null — any {@code COUNT} over one would serve 0. Both the fold and the split-discovery gate feed this
-     * set to {@link #resolveFromStats} so a partition-column aggregate safe-misses on footer formats.
-     * <p>
-     * Read from the SERIALIZED {@code sourceMetadata} (stamped at resolution — see
-     * {@code SourceStatisticsSerializer#PARTITION_COLUMNS_KEY}), NOT the {@code FileList}: the fileList that carries
-     * {@code PartitionMetadata} is coordinator-only and deserializes to {@code UNRESOLVED} on a data node, so the
-     * data-node fold would otherwise see an empty set and fold {@code COUNT(partition_col)} to 0. Empty when the
-     * source is not partitioned (no {@code hive_partitioning}).
-     */
-    @SuppressWarnings("unchecked")
-    public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
-        if (sourceMetadata == null) {
-            return Set.of();
-        }
-        Object names = sourceMetadata.get(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY);
-        if (names instanceof Collection<?> collection && collection.isEmpty() == false) {
-            return Set.copyOf((Collection<String>) collection);
-        }
-        return Set.of();
     }
 
     /**

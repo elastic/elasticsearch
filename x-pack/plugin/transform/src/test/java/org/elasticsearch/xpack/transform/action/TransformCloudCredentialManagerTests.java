@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
@@ -18,6 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -31,8 +34,12 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,23 +64,22 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verifyNoInteractions(apiKeyService, auditor);
     }
 
-    public void testRevokeAndCloseSkipsRevokeButClosesWhenFeatureFlagOff() {
+    public void testRevokeAndCloseSkipsRevokeWhenFeatureFlagOff() {
         assumeFalse("Only relevant if feature flag is OFF", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
 
         newManager(apiKeyService, mock(TransformConfigManager.class), auditor).revokeAndClose(TRANSFORM_ID, credential);
 
         verifyNoInteractions(apiKeyService, auditor);
-        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
     public void testRevokeAndCloseInvokesApiAndAuditsOnSuccess() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
         var credId = credential.id();
         doAnswer(invocation -> {
             ActionListener<Void> listener = invocation.getArgument(1);
@@ -86,14 +92,13 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
         verify(auditor).info(eq(TRANSFORM_ID), eq("revoked cloud credential [" + credId + "]"));
         verify(auditor, never()).warning(any(), any());
-        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
-    public void testRevokeAndCloseAuditsAndClosesOnRevokeFailure() {
+    public void testRevokeAndCloseAuditsOnRevokeFailure() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
         var credId = credential.id();
         doAnswer(invocation -> {
             ActionListener<Void> listener = invocation.getArgument(1);
@@ -107,8 +112,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         // warning row surfaces the UIAM-key-leak to the user
         verify(auditor).warning(eq(TRANSFORM_ID), eq("failed to revoke cloud credential [" + credId + "]: UIAM unavailable"));
         verify(auditor, never()).info(any(), any());
-        // close still ran via runAfter — best-effort revoke must not block resource cleanup
-        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
     public void testLoadAndRevokeByTokenIdIsNoopWhenTokenIdNull() {
@@ -140,7 +143,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
         doAnswer(invocation -> {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onResponse(credential);
@@ -157,7 +160,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
 
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
         verify(auditor).info(eq(TRANSFORM_ID), eq("revoked cloud credential [" + credential.id() + "]"));
-        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
     public void testLoadAndRevokeByTokenIdProceedsOnLoadFailure() {
@@ -183,7 +185,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
         doAnswer(invocation -> {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onResponse(credential);
@@ -213,7 +215,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
         doAnswer(invocation -> {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onResponse(credential);
@@ -264,6 +266,66 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     public void testMintAndPersistReturnsNewTokenIdAndAudits() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         runMintAndPersistAuditTest("minted cloud credential [new-id]");
+    }
+
+    /**
+     * When the cluster's minimum transport version is older than the minted authentication's subject
+     * version, {@code replaceSecurityHeaders} must call {@code maybeRewriteForOlderVersion} before
+     * encoding. This tests the branch that the wiki documents as load-bearing: {@code supports()}
+     * returns false → rewrite runs → encode completes without exception → config is returned with
+     * {@code AUTHENTICATION_KEY} set.
+     *
+     * <p>The guard is required because {@code maybeRewriteForOlderVersion} does not self-guard
+     * (passing a newer version forges an upgraded version rather than no-op'ing), and
+     * {@code Authentication.encode()} stamps the subject's version into the blob.
+     */
+    public void testMintAndPersistRewritesAuthenticationForOlderMinTransportVersion() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var apiKeyService = mock(InternalCloudApiKeyService.class);
+        var configManager = mock(TransformConfigManager.class);
+        var auditor = mock(TransformAuditor.class);
+        var threadPool = mock(ThreadPool.class);
+        var credentialManager = mock(CloudCredentialManager.class);
+        var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
+
+        var config = randomTransformConfig(TRANSFORM_ID);
+        var newPersisted = randomPersistedCloudCredential("new-id");
+        // AuthenticationTestHelper builds with TransportVersion.current() as the subject version.
+        var grantedAuthentication = AuthenticationTestHelper.builder().build();
+        doAnswer(invocation -> {
+            ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
+            l.onResponse(new CloudGrantApiKeyResult(newPersisted, grantedAuthentication));
+            return null;
+        }).when(apiKeyService).grantCloudAuthentication(eq(callerCredential), eq("transform:" + TRANSFORM_ID), any());
+
+        doAnswer(invocation -> {
+            ActionListener<Boolean> l = invocation.getArgument(2);
+            l.onResponse(true);
+            return null;
+        }).when(configManager).putTransformCloudCredential(eq(TRANSFORM_ID), eq(newPersisted), any());
+
+        var manager = new TransformCloudCredentialManager(threadPool, null, credentialManager, apiKeyService, configManager, auditor);
+
+        // Compute a minTransportVersion older than the authentication's subject version so that
+        // supports() returns false and the maybeRewriteForOlderVersion branch is exercised.
+        var subjectVersion = grantedAuthentication.getEffectiveSubject().getTransportVersion();
+        // One ID lower than the subject version — the smallest version for which supports() returns
+        // false, ensuring maybeRewriteForOlderVersion is exercised rather than the no-rewrite path.
+        var olderMinVersion = TransportVersion.fromId(subjectVersion.id() - 1);
+        assertFalse("test pre-condition: olderMinVersion must not support subjectVersion", olderMinVersion.supports(subjectVersion));
+
+        var capturedConfig = new AtomicReference<TransformConfig>();
+        var future = ActionTestUtils.<TransformConfig>assertNoFailureListener(capturedConfig::set);
+        try (callerCredential) {
+            manager.mintAndPersist(config, callerCredential, olderMinVersion, future);
+        }
+
+        var result = capturedConfig.get();
+        assertThat(result.getCredentialId(), equalTo("new-id"));
+        // The rewrite must complete without exception and produce a usable authentication blob.
+        assertThat(result.getHeaders(), hasKey(AuthenticationField.AUTHENTICATION_KEY));
+        assertThat(result.getHeaders().get(AuthenticationField.AUTHENTICATION_KEY), notNullValue());
     }
 
     public void testWrapWithUiamIfPresentReturnsRawClientWhenCredentialIsNull() {
@@ -321,7 +383,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     public void testWrapWithPersistedIfPresentDelegatesToCredentialManagerWhenPersistedPresent() {
         var rawClient = mock(Client.class);
         var wrappedClient = mock(Client.class);
-        var persisted = new PersistedCloudCredential("id", new SecureString("key".toCharArray()));
+        var persisted = PersistedCloudCredential.plaintext("id", new SecureString("key".toCharArray()));
         var credentialManager = mock(CloudCredentialManager.class);
         when(credentialManager.wrapClient(rawClient, persisted)).thenReturn(wrappedClient);
         var manager = new TransformCloudCredentialManager(
@@ -370,13 +432,12 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var credentialManager = mock(CloudCredentialManager.class);
         var capturedAuthHeader = new AtomicReference<String>();
         var userCredential = new CloudCredential(new SecureString("user-secondary-cred".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(any())).thenAnswer(invocation -> {
+        when(credentialManager.extractCloudManagedCredential(any())).thenAnswer(invocation -> {
             // Capture which AUTHENTICATION_KEY is visible at the moment of extraction: under
             // useSecondaryAuthIfAvailable this is the secondary (BILL); without it would be JOHN.
             capturedAuthHeader.set(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
-            return true;
+            return userCredential;
         });
-        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(userCredential);
 
         var manager = new TransformCloudCredentialManager(
             threadPool,
@@ -401,18 +462,20 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var auditor = mock(TransformAuditor.class);
         var threadPool = mock(ThreadPool.class);
         var credentialManager = mock(CloudCredentialManager.class);
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        // caller has a UIAM credential
+        // caller has a UIAM credential, supplied explicitly (as the coordinating node would)
         var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(credentialManager.extractCloudManagedCredential(threadContext)).thenReturn(callerCredential);
 
-        // grant returns a fresh persisted credential with a known id
-        var newPersisted = new PersistedCloudCredential("new-id", new SecureString("new-key".toCharArray()));
+        // Input config with a security header (to be stripped) and a non-security header (to be preserved).
+        var config = randomTransformConfig(TRANSFORM_ID).setHeaders(
+            Map.of(AuthenticationServiceField.RUN_AS_USER_HEADER, "caller-user", "x-trace-id", "trace-value")
+        );
+
+        // grant returns a fresh persisted credential with a known id and a real (non-mockable) Authentication
+        var newPersisted = randomPersistedCloudCredential("new-id");
+        var grantedAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(invocation -> {
             ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
-            l.onResponse(new CloudGrantApiKeyResult(newPersisted, null));
+            l.onResponse(new CloudGrantApiKeyResult(newPersisted, grantedAuthentication));
             return null;
         }).when(apiKeyService).grantCloudAuthentication(eq(callerCredential), eq("transform:" + TRANSFORM_ID), any());
 
@@ -424,12 +487,24 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
 
         var manager = new TransformCloudCredentialManager(threadPool, null, credentialManager, apiKeyService, configManager, auditor);
 
-        var capturedTokenId = new AtomicReference<String>();
-        var future = ActionTestUtils.<String>assertNoFailureListener(capturedTokenId::set);
-        manager.mintAndPersist(TRANSFORM_ID, future);
+        var capturedConfig = new AtomicReference<TransformConfig>();
+        var future = ActionTestUtils.<TransformConfig>assertNoFailureListener(capturedConfig::set);
+        // mintAndPersist only borrows callerCredential; the caller (this test, standing in for the
+        // coordinating-node doExecute that would have extracted it) is responsible for closing it.
+        try (callerCredential) {
+            // Min transport version equals current, so maybeRewriteForOlderVersion is skipped.
+            manager.mintAndPersist(config, callerCredential, TransportVersion.current(), future);
+        }
 
         verify(auditor).info(eq(TRANSFORM_ID), eq(expectedAuditMessage));
-        assertThat(capturedTokenId.get(), equalTo("new-id"));
+        var result = capturedConfig.get();
+        assertThat(result.getCredentialId(), equalTo("new-id"));
+        // Security header stripped, minted authentication key set, non-security header preserved.
+        assertThat(result.getHeaders(), not(hasKey(AuthenticationServiceField.RUN_AS_USER_HEADER)));
+        assertThat(result.getHeaders(), hasKey(AuthenticationField.AUTHENTICATION_KEY));
+        assertThat(result.getHeaders().get(AuthenticationField.AUTHENTICATION_KEY), notNullValue());
+        assertThat(result.getHeaders(), hasKey("x-trace-id"));
+        assertThat(result.getHeaders().get("x-trace-id"), equalTo("trace-value"));
     }
 
     public void testMintAndPersistRevokesAtUiamWhenPersistFails() {
@@ -440,17 +515,17 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var auditor = mock(TransformAuditor.class);
         var threadPool = mock(ThreadPool.class);
         var credentialManager = mock(CloudCredentialManager.class);
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
         var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(credentialManager.extractCloudManagedCredential(threadContext)).thenReturn(callerCredential);
 
-        // grant succeeds and returns a freshly-minted credential
-        var mintedCredential = new PersistedCloudCredential("minted-id", new SecureString("minted-key".toCharArray()));
+        var config = randomTransformConfig(TRANSFORM_ID);
+
+        // grant succeeds — use a real (non-null) Authentication: replaceSecurityHeaders now runs
+        // before putTransformCloudCredential, so a null authentication would NPE before the persist.
+        var mintedCredential = randomPersistedCloudCredential("minted-id");
+        var grantedAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(invocation -> {
             ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
-            l.onResponse(new CloudGrantApiKeyResult(mintedCredential, null));
+            l.onResponse(new CloudGrantApiKeyResult(mintedCredential, grantedAuthentication));
             return null;
         }).when(apiKeyService).grantCloudAuthentication(eq(callerCredential), eq("transform:" + TRANSFORM_ID), any());
 
@@ -472,14 +547,21 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var manager = new TransformCloudCredentialManager(threadPool, null, credentialManager, apiKeyService, configManager, auditor);
 
         var capturedFailure = new AtomicReference<Exception>();
-        manager.mintAndPersist(TRANSFORM_ID, ActionTestUtils.assertNoSuccessListener(capturedFailure::set));
+        // mintAndPersist only borrows callerCredential; the caller (this test, standing in for the
+        // coordinating-node doExecute that would have extracted it) is responsible for closing it.
+        try (callerCredential) {
+            manager.mintAndPersist(
+                config,
+                callerCredential,
+                TransportVersion.current(),
+                ActionTestUtils.assertNoSuccessListener(capturedFailure::set)
+            );
+        }
 
         // the persist failure must propagate to the caller
         assertThat(capturedFailure.get(), sameInstance(persistFailure));
         // revoke must be invoked at UIAM so the orphaned token doesn't persist forever
         verify(apiKeyService).revokeCloudAuthentication(eq(mintedCredential), any());
-        // the minted credential's SecureString must be closed
-        expectThrows(IllegalStateException.class, () -> mintedCredential.internalApiKey().length());
     }
 
     public void testRevokeCloseAndDeleteRevokesAndDeletesStorageDoc() {
@@ -488,7 +570,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
 
         doAnswer(invocation -> {
             ActionListener<Void> l = invocation.getArgument(1);
@@ -505,7 +587,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
 
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
         verify(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
-        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
     public void testRevokeCloseAndDeleteLeavesStorageDocOnRevokeFailure() {
@@ -514,7 +595,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
-        var credential = newCredential();
+        var credential = randomPersistedCloudCredential();
 
         doAnswer(invocation -> {
             ActionListener<Void> l = invocation.getArgument(1);
@@ -527,7 +608,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
         // storage doc left in place so the startup sweep or delete API can retry
         verify(configManager, never()).deleteCloudCredentialByTokenId(any(), any());
-        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
     private static TransformCloudCredentialManager newManager(
@@ -543,11 +623,5 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             configManager,
             auditor
         );
-    }
-
-    private static PersistedCloudCredential newCredential() {
-        var credential = new PersistedCloudCredential(randomAlphaOfLengthBetween(4, 12), new SecureString("v".toCharArray()));
-        assertThat(credential.internalApiKey().length(), is(1));
-        return credential;
     }
 }

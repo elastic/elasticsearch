@@ -1,5 +1,0 @@
-area: Allocation
-issues: []
-pr: 146928
-summary: Expose `DesiredBalanceStats` as metrics
-type: enhancement

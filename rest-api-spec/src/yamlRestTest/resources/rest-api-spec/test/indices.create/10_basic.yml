@@ -249,11 +249,7 @@
 ---
 "Create columnar index":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
       reason: "Support for columnar index modes required"
   - do:
       indices.create:
@@ -273,11 +269,7 @@
 ---
 "Create logsdb_columnar index":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
       reason: "Support for columnar index modes required"
   - do:
       indices.create:

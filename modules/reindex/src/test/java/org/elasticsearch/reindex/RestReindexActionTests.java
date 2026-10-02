@@ -82,7 +82,7 @@ public class RestReindexActionTests extends RestActionTestCase {
               },
               "dest": {
                 "index": "dest",
-                "_slice": "s1"
+                "slice": "s1"
               }
             }
             """));
@@ -99,7 +99,7 @@ public class RestReindexActionTests extends RestActionTestCase {
               },
               "dest": {
                 "index": "dest",
-                "_slice": "s1"
+                "slice": "s1"
               }
             }
             """)));

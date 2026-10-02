@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,16 +44,13 @@ import static org.mockito.Mockito.mock;
 public class InternalCardinalityTests extends InternalAggregationTestCase<InternalCardinality> {
     private static List<HyperLogLogPlusPlus> algos;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAlgos() throws Exception {
         algos = new ArrayList<>();
     }
 
     @After // we force @After to have it run before ESTestCase#after otherwise it fails
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeAlgos() throws Exception {
         Releasables.close(algos);
         algos.clear();
         algos = null;

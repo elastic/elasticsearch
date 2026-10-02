@@ -60,6 +60,9 @@ if (buildParams.snapshotBuild == false) {
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+  // BBQ disk byte and ASH quantization type are snapshot-only. Remove when released.
+  restTestBlacklist.add('search.vectors/46_knn_search_bbq_ivf_ash/*')
+  restTestBlacklist.add('search.vectors/46_knn_search_bbq_ivf_byte/*')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
@@ -154,6 +157,14 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
     task.skipTest("ml/jobs_get_stats/Test reading v54 data counts and model size stats", "Version 5.4 support removed")
     task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
+    task.skipTest(
+      "ml/datafeeds_crud/Test put and update datafeed with max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.6; field no longer supported"
+    )
+    task.skipTest(
+      "ml/datafeeds_crud/Test put datafeed with invalid max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.6; field no longer supported"
+    )
     task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
     task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
     task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
@@ -182,6 +193,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-single", "New SORT warning not in original test")
     task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
     task.skipTest("esql/40_tsdb/PromQL irate on counter field", "We filter out null values now")
+    task.skipTest("esql/40_tsdb/to_aggregate_metric_double with multi_values", "We convert correctly the unsigned long")
     // Expected deprecation warning to compat yaml tests:
     task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
     task.skipTest("aggregate-metrics/10_basic/Sort", "Average is used now instead of the default metric")
@@ -191,6 +203,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("aggregate-metrics/40_avg_agg/Test avg agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/30_sum_agg/Test sum agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/50_value_count_agg/Test value_count agg with query", "Default metric cannot be defined, so the query is empty")
+    task.skipTest("esql/120_profile/documents found", "Skip empty node_reduce driver")
     // Malformed values are now stored in binary doc values (sorted) instead of stored fields (insertion order).
     task.skipTest(
       "analytics/histogram/histogram with synthetic source and ignore_malformed",
@@ -206,6 +219,8 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
     task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
+    // Expected deprecation warning to compat yaml tests:
+    task.addAllowedWarningRegex("Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10\\.0\\.")
   }
 )
 

@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -24,9 +25,8 @@ public class ReindexMetadataTests extends ESTestCase {
     private static final long TIMESTAMP = 1_658_000_000_000L;
     private ReindexMetadata metadata;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMetadata() throws Exception {
         reset();
     }
 
@@ -82,24 +82,24 @@ public class ReindexMetadataTests extends ESTestCase {
 
         metadata.put("_routing", ROUTING);
         assertFalse(metadata.routingChanged());
-        assertEquals(ROUTING, metadata.get(SliceIndexing.PARAM_NAME));
+        assertEquals(ROUTING, metadata.get(SliceIndexing.FIELD_NAME));
 
         metadata.remove("_routing");
         assertTrue(metadata.routingChanged());
         assertNull(metadata.getRouting());
-        assertNull(metadata.get(SliceIndexing.PARAM_NAME));
+        assertNull(metadata.get(SliceIndexing.FIELD_NAME));
 
         metadata.put("_routing", "myRouting2");
         assertTrue(metadata.routingChanged());
-        assertEquals("myRouting2", metadata.get(SliceIndexing.PARAM_NAME));
+        assertEquals("myRouting2", metadata.get(SliceIndexing.FIELD_NAME));
 
         metadata.setRouting(ROUTING);
         assertFalse(metadata.routingChanged());
-        assertEquals(ROUTING, metadata.get(SliceIndexing.PARAM_NAME));
+        assertEquals(ROUTING, metadata.get(SliceIndexing.FIELD_NAME));
 
         metadata.setRouting("myRouting3");
         assertTrue(metadata.routingChanged());
-        assertEquals("myRouting3", metadata.get(SliceIndexing.PARAM_NAME));
+        assertEquals("myRouting3", metadata.get(SliceIndexing.FIELD_NAME));
     }
 
     public void testRoutingAndSliceAliasMapStateStayConsistent() {
@@ -107,24 +107,24 @@ public class ReindexMetadataTests extends ESTestCase {
 
         metadata.put("_routing", "routing1");
         assertTrue(metadata.containsKey("_routing"));
-        assertTrue(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertTrue(metadata.containsKey(SliceIndexing.FIELD_NAME));
         assertTrue(metadata.containsValue("routing1"));
         assertFalse(metadata.isRoutingFromSlice());
 
         metadata.remove("_routing");
         assertFalse(metadata.containsKey("_routing"));
-        assertFalse(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertFalse(metadata.containsKey(SliceIndexing.FIELD_NAME));
         assertFalse(metadata.containsValue("routing1"));
 
-        metadata.put(SliceIndexing.PARAM_NAME, "slice1");
+        metadata.put(SliceIndexing.FIELD_NAME, "slice1");
         assertTrue(metadata.containsKey("_routing"));
-        assertTrue(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertTrue(metadata.containsKey(SliceIndexing.FIELD_NAME));
         assertTrue(metadata.containsValue("slice1"));
         assertTrue(metadata.isRoutingFromSlice());
 
-        metadata.remove(SliceIndexing.PARAM_NAME);
+        metadata.remove(SliceIndexing.FIELD_NAME);
         assertFalse(metadata.containsKey("_routing"));
-        assertFalse(metadata.containsKey(SliceIndexing.PARAM_NAME));
+        assertFalse(metadata.containsKey(SliceIndexing.FIELD_NAME));
         assertFalse(metadata.containsValue("slice1"));
     }
 
@@ -132,15 +132,15 @@ public class ReindexMetadataTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.routingChanged());
 
-        metadata.put(SliceIndexing.PARAM_NAME, ROUTING);
+        metadata.put(SliceIndexing.FIELD_NAME, ROUTING);
         assertFalse(metadata.routingChanged());
         assertEquals(ROUTING, metadata.getRouting());
 
-        metadata.remove(SliceIndexing.PARAM_NAME);
+        metadata.remove(SliceIndexing.FIELD_NAME);
         assertTrue(metadata.routingChanged());
         assertNull(metadata.getRouting());
 
-        metadata.put(SliceIndexing.PARAM_NAME, "slice2");
+        metadata.put(SliceIndexing.FIELD_NAME, "slice2");
         assertTrue(metadata.routingChanged());
         assertEquals("slice2", metadata.getRouting());
         assertTrue(metadata.isRoutingFromSlice());
@@ -149,7 +149,7 @@ public class ReindexMetadataTests extends ESTestCase {
     public void testRoutingProvenanceTracksSliceAliasUsage() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
-        metadata.put(SliceIndexing.PARAM_NAME, "slice2");
+        metadata.put(SliceIndexing.FIELD_NAME, "slice2");
         assertTrue(metadata.routingChanged());
         assertTrue(metadata.isRoutingFromSlice());
 
@@ -164,7 +164,7 @@ public class ReindexMetadataTests extends ESTestCase {
         assertFalse(metadata.routingChangedWithSlice(false));
         assertTrue(metadata.routingChangedWithSlice(true));
 
-        metadata.put(SliceIndexing.PARAM_NAME, ROUTING);
+        metadata.put(SliceIndexing.FIELD_NAME, ROUTING);
         assertFalse(metadata.routingChanged());
         assertTrue(metadata.isRoutingFromSlice());
         assertTrue(metadata.routingChangedWithSlice(false));
@@ -188,12 +188,12 @@ public class ReindexMetadataTests extends ESTestCase {
 
     public void testSliceUnavailableWhenFeatureFlagDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        assertFalse(metadata.isAvailable(SliceIndexing.PARAM_NAME));
-        assertFalse(metadata.keySet().contains(SliceIndexing.PARAM_NAME));
-        assertNull(metadata.get(SliceIndexing.PARAM_NAME));
+        assertFalse(metadata.isAvailable(SliceIndexing.FIELD_NAME));
+        assertFalse(metadata.keySet().contains(SliceIndexing.FIELD_NAME));
+        assertNull(metadata.get(SliceIndexing.FIELD_NAME));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> metadata.put(SliceIndexing.PARAM_NAME, "slice1"));
-        assertThat(e.getMessage(), containsString(SliceIndexing.PARAM_NAME + " cannot be updated"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> metadata.put(SliceIndexing.FIELD_NAME, "slice1"));
+        assertThat(e.getMessage(), containsString(SliceIndexing.FIELD_NAME + " cannot be updated"));
     }
 
     public void testVersion() {

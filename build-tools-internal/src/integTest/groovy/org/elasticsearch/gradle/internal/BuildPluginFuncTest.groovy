@@ -149,7 +149,7 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
             dependencies {
-              api "junit:junit:4.12"
+              api "junit:junit:4.13"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
             }
@@ -182,21 +182,21 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     def "can generate dependency infos file"() {
         given:
-        repository.generateJar("junit", "junit", "4.12", 'org.acme.JunitMock')
+        repository.generateJar("junit", "junit", "4.13", 'org.acme.JunitMock')
         repository.configureBuild(buildFile)
-        file("licenses/junit-4.12.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
+        file("licenses/junit-4.13.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
         file("licenses/junit-LICENSE.txt").text = EXAMPLE_LICENSE
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
         dependencies {
-            api "junit:junit:4.12"
+            api "junit:junit:4.13"
         }
         """
         when:
         def result = gradleRunner("dependenciesInfo").build()
         then:
         result.task(":dependenciesInfo").outcome == TaskOutcome.SUCCESS
-        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.12,https://repo1.maven.org/maven2/junit/junit/4.12,BSD-3-Clause,\n"
+        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.13,https://repo1.maven.org/maven2/junit/junit/4.13,BSD-3-Clause,\n"
     }
 
     def assertValidJar(File jar) {

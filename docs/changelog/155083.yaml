@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 154973
+pr: 155083
+summary: The change_point aggregation now honors gap_policy
+type: bug

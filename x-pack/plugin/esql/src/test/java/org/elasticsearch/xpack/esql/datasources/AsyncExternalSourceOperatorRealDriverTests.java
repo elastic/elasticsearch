@@ -34,15 +34,20 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.InputStream;
 import java.time.Instant;
@@ -84,9 +89,8 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
     private ThreadPool driverThreadPool;
     private ExecutorService producerExec;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startExecutors() {
         driverThreadPool = new TestThreadPool(
             "real-driver-tests",
             new FixedExecutorBuilder(
@@ -101,14 +105,13 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
         producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "real-driver-producer"));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopExecutors() throws Exception {
         try {
             producerExec.shutdownNow();
             assertTrue(producerExec.awaitTermination(10, TimeUnit.SECONDS));
         } finally {
             terminate(driverThreadPool);
-            super.tearDown();
         }
     }
 
@@ -353,6 +356,11 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
      */
     private static class StubStorageProvider implements StorageProvider {
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             return new StubStorageObject(path);
         }
@@ -410,6 +418,11 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
         }
     }
 }

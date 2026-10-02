@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157144
+summary: Reuse the discovery-time Parquet footer parse in split discovery
+type: enhancement

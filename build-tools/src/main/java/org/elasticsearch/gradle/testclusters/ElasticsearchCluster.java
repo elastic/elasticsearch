@@ -280,7 +280,15 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     public void module(TaskProvider<Sync> module) {
-        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
+        // Use TaskProvider.map() with an unbound method reference so that the resulting
+        // Provider<File> captures nothing from the outer scope. project.getLayout().file()
+        // would wrap the provider in a ProjectLayout-backed implementation that is not
+        // configuration-cache serializable in Gradle 9.5+; avoiding that call keeps the
+        // entire provider chain CC-safe. The task dependency is still tracked because the
+        // provider is derived from the TaskProvider.
+        Provider<File> moduleDir = module.map(Sync::getDestinationDir);
+        pluginAndModuleConfiguration.from(moduleDir);
+        nodes.all(each -> each.addModuleDirectory(moduleDir));
     }
 
     @Override

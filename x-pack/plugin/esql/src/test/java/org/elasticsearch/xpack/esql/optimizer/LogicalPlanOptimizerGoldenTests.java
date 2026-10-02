@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.EnumSet;
@@ -15,6 +18,15 @@ import java.util.EnumSet;
  * Golden tests for the {@link LogicalPlanOptimizer}.
  */
 public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public LogicalPlanOptimizerGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 
     public void testLookupJoinNullMatchField() throws Exception {
@@ -57,5 +69,33 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             | DEDUP
             | LIMIT 10
             """, STAGES);
+    }
+
+    public void testHistogramBucketAfterPerSeriesAggregation() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
+
+    public void testHistogramBucketAfterExplicitLastOverTime() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(LAST_OVER_TIME(responseTime), bucket) BY bucket = BUCKET(responseTime, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
+
+    public void testTDigestCastHistogramBucketAfterPerSeriesAggregation() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(responseTime::tdigest, bucket) BY bucket = BUCKET(responseTime::tdigest, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
+
+    public void testTDigestCastHistogramBucketAfterExplicitLastOverTime() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(LAST_OVER_TIME(responseTime::tdigest), bucket) BY bucket = BUCKET(responseTime::tdigest, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
     }
 }

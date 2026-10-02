@@ -13,10 +13,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse.Cluster;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.junit.Before;
 
 import java.util.Map;
 
@@ -25,11 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class CrossClusterSearchDirectoryMetricsIT extends AbstractCrossClusterSearchTestCase {
-
-    @Before
-    public void ensureDirectoryMetricsEnabled() {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-    }
 
     public void testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue() throws Exception {
         assertStoreBytesRead(true, false);

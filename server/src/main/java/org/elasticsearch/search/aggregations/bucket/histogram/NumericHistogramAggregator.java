@@ -122,7 +122,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     }
 
     private void addKey(double key, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
-        if (hardBounds == null || hardBounds.contain(key * interval)) {
+        if (hardBounds == null || hardBounds.contain(key * interval + offset)) {
             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
             if (bucketOrd < 0) { // already seen
                 bucketOrd = -1 - bucketOrd;

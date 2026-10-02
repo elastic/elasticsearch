@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -18,8 +19,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends BlockLoaderTestCase {
+    private static final Set<String> STORED_FIELD_TYPES = Set.of(
+        FieldType.BYTE.toString(),
+        FieldType.SHORT.toString(),
+        FieldType.INTEGER.toString(),
+        FieldType.LONG.toString(),
+        FieldType.HALF_FLOAT.toString(),
+        FieldType.FLOAT.toString(),
+        FieldType.DOUBLE.toString()
+    );
+
     public NumberFieldBlockLoaderTestCase(FieldType fieldType, Params params) {
         super(fieldType.toString(), params);
     }
@@ -38,6 +50,8 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         ValueSource source;
         if (hasDocValues && useDocValues) {
             source = ValueSource.DOC_VALUES;
+        } else if (STORED_FIELD_TYPES.contains(fieldType) && fieldMapping.getOrDefault("store", false).equals(true)) {
+            source = ValueSource.STORED_FIELD;
         } else if (params.syntheticSource()) {
             source = ValueSource.IGNORED_SOURCE;
         } else {
@@ -82,6 +96,8 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
          * overload.
          */
         IGNORED_SOURCE,
+        /** Values parsed at index time and read directly from the named stored field. */
+        STORED_FIELD,
         /**
          * Non-synthetic source without doc values: values re-parsed from stored {@code _source} by
          * the {@code SourceValueFetcher} returned from {@code NumberFieldType#sourceValueFetcher},
@@ -102,9 +118,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
                     return nullValue;
                 }
                 // Attempt to parse the string as a number. If that fails, the string is malformed, so return null.
-                // The three block loader code paths use different parsers, so we delegate to the appropriate method.
+                // The block loader paths use different parsers, so we delegate to the appropriate method.
                 Number parsed = switch (valueSource) {
-                    case DOC_VALUES, IGNORED_SOURCE -> tryParseString(s);
+                    case DOC_VALUES, IGNORED_SOURCE, STORED_FIELD -> tryParseString(s);
                     case STORED_SOURCE -> tryParseStringFromSource(s);
                 };
                 if (parsed != null) {
@@ -157,6 +173,62 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     }
 
     protected abstract T convert(Number value, Map<String, Object> fieldMapping);
+
+    public void testBlockLoaderFromStoredFieldMissing() throws IOException {
+        assumeStoredFieldTest();
+        runStoredFieldTest(Map.of(), null);
+    }
+
+    public void testBlockLoaderFromStoredFieldScalar() throws IOException {
+        assumeStoredFieldTest();
+        Number value = storedFieldTestValue(1);
+        Map<String, Object> fieldMapping = storedFieldMapping();
+        runStoredFieldTest(Map.of("field", value), convert(value, fieldMapping));
+    }
+
+    public void testBlockLoaderFromStoredFieldMultivalue() throws IOException {
+        assumeStoredFieldTest();
+        Number first = storedFieldTestValue(1);
+        Number second = storedFieldTestValue(2);
+        Map<String, Object> fieldMapping = storedFieldMapping();
+        runStoredFieldTest(Map.of("field", List.of(second, first)), List.of(convert(second, fieldMapping), convert(first, fieldMapping)));
+    }
+
+    private void assumeStoredFieldTest() {
+        assumeTrue("stored-field loading is implemented by NumberFieldMapper", STORED_FIELD_TYPES.contains(fieldType));
+        assumeTrue("disabled _source is only supported by these tests in standard index mode", params.indexMode() == IndexMode.STANDARD);
+        assumeTrue("test requires stored source mode", params.sourceMode() == SourceFieldMapper.Mode.STORED);
+    }
+
+    private void runStoredFieldTest(Map<String, Object> document, Object expected) throws IOException {
+        Map<String, Object> fieldMapping = storedFieldMapping();
+        Map<String, Object> mapping = Map.of(
+            "_doc",
+            Map.of("_source", Map.of("enabled", false), "properties", Map.of("field", fieldMapping))
+        );
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(document);
+        runner.fieldName("field");
+        runner.mapperService(createMapperService(getSettingsForParams().build(), XContentFactory.jsonBuilder().map(mapping)));
+        runner.run(expected);
+    }
+
+    private Map<String, Object> storedFieldMapping() {
+        return Map.of("type", fieldType, "store", true, "doc_values", false, "index", false);
+    }
+
+    private Number storedFieldTestValue(int ordinal) {
+        return switch (fieldType) {
+            case "byte" -> (byte) (10 + ordinal);
+            case "short" -> (short) (30_000 + ordinal);
+            case "integer" -> 1_000_000_000 + ordinal;
+            case "long" -> (1L << 40) + ordinal;
+            case "half_float" -> 1.234_567f * ordinal;
+            case "float" -> 1.234_567f * ordinal;
+            case "double" -> 1.234_567_890_123 * ordinal;
+            default -> throw new IllegalStateException("unsupported stored numeric field type [" + fieldType + "]");
+        };
+    }
 
     public void testBlockLoaderNonLatinDigit() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));

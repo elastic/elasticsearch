@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -46,7 +47,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
      * leaving the original instance untouched. Used by the {@code chat_completion} task type so that the model id
      * supplied in each unified inference call overrides the value persisted on the endpoint.
      */
-    public static AnthropicChatCompletionModel of(AnthropicChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static AnthropicChatCompletionModel of(AnthropicChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null || Objects.equals(request.model(), model.getServiceSettings().modelId())) {
             return model;
         }
@@ -54,6 +55,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         var originalServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new AnthropicChatCompletionServiceSettings(
             request.model(),
+            originalServiceSettings.url(),
             originalServiceSettings.rateLimitSettings()
         );
 
@@ -102,7 +104,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             modelConfigurations,
             modelSecrets,
             (AnthropicRateLimitServiceSettings) modelConfigurations.getServiceSettings(),
-            AnthropicChatCompletionModel::buildDefaultUri,
+            resolveUri((AnthropicChatCompletionServiceSettings) modelConfigurations.getServiceSettings()),
             (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
@@ -148,6 +150,10 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
     @Override
     public ExecutableAction accept(AnthropicActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
+    }
+
+    private static CheckedSupplier<URI, URISyntaxException> resolveUri(AnthropicChatCompletionServiceSettings serviceSettings) {
+        return serviceSettings.url() != null ? serviceSettings::url : AnthropicChatCompletionModel::buildDefaultUri;
     }
 
     private static URI buildDefaultUri() throws URISyntaxException {

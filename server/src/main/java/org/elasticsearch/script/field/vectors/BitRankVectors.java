@@ -10,7 +10,6 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
@@ -40,26 +39,22 @@ public class BitRankVectors extends ByteRankVectors {
     @Override
     public float maxSimDotProduct(float[][] query) {
         vectorValues.reset();
-        float[] maxes = new float[query.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
+        float[] maxes = ensureMaxesScratch(query.length);
+        Arrays.fill(maxes, 0, query.length, Float.NEGATIVE_INFINITY);
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
                 maxes[i] = Math.max(maxes[i], ESVectorUtil.ipFloatBit(query[i], vv));
             }
         }
-        float sums = 0;
-        for (float m : maxes) {
-            sums += m;
-        }
-        return sums;
+        return ESVectorUtil.sum(maxes, query.length);
     }
 
     @Override
     public float maxSimDotProduct(byte[][] query) {
         vectorValues.reset();
-        float[] maxes = new float[query.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
+        float[] maxes = ensureMaxesScratch(query.length);
+        Arrays.fill(maxes, 0, query.length, Float.NEGATIVE_INFINITY);
         if (query[0].length == dims) {
             while (vectorValues.hasNext()) {
                 byte[] vv = vectorValues.next();
@@ -75,31 +70,11 @@ public class BitRankVectors extends ByteRankVectors {
                 }
             }
         }
-        float sum = 0;
-        for (float m : maxes) {
-            sum += m;
-        }
-        return sum;
+        return ESVectorUtil.sum(maxes, query.length);
     }
 
-    @Override
-    public float maxSimInvHamming(byte[][] query) {
-        vectorValues.reset();
-        int bitCount = this.getDims();
-        float[] maxes = new float[query.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
-        while (vectorValues.hasNext()) {
-            byte[] vv = vectorValues.next();
-            for (int i = 0; i < query.length; i++) {
-                maxes[i] = Math.max(maxes[i], ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount));
-            }
-        }
-        float sum = 0;
-        for (float m : maxes) {
-            sum += m;
-        }
-        return sum;
-    }
+    // maxSimInvHamming is not overridden: the inherited implementation already normalizes by the bit count,
+    // since ByteRankVectors derives it from [dims * Byte.SIZE], which is exactly this class' [getDims()].
 
     @Override
     public int getDims() {

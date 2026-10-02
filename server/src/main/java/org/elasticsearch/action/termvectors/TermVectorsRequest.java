@@ -76,7 +76,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
 
     private String routing;
 
-    // Whether routing was supplied via the _slice parameter. Like GetRequest, this is provenance used only for
+    // Whether routing was supplied via the slice parameter. Like GetRequest, this is provenance used only for
     // coordinating-node validation and is intentionally not serialized: the shard only needs the routing value itself
     // to build the slice-scoped identity term.
     private boolean routingFromSlice;
@@ -294,7 +294,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         return this;
     }
 
-    /** Mark whether {@link #routing()} was supplied via the {@code _slice} parameter. */
+    /** Mark whether {@link #routing()} was supplied via the {@code slice} parameter. */
     public TermVectorsRequest setRoutingFromSlice(boolean routingFromSlice) {
         this.routingFromSlice = routingFromSlice;
         return this;

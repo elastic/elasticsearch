@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -141,6 +142,53 @@ public class RangeWithinPushdownTests extends ESTestCase {
         );
     }
 
+    public void testDoubleFieldWithLiteralRange() {
+        RangeWithin fn = new RangeWithin(Source.EMPTY, doubleField("height"), doubleRangeLiteral(1.5, 2.5));
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height", 1.5, true, 2.5, false, null, null))
+        );
+        assertThat(fn.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.RECHECK));
+    }
+
+    public void testDoubleRangeFieldWithinLiteralRange() {
+        RangeWithin fn = new RangeWithin(Source.EMPTY, doubleRangeField("height_range"), doubleRangeLiteral(1.5, 2.5));
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", 1.5, true, 2.5, false, null, null, ShapeRelation.WITHIN))
+        );
+    }
+
+    public void testDoubleRangeFieldWithinOpenLiteralRange() {
+        // Infinite bounds must translate to unbounded query sides: range queries on double fields
+        // reject non-finite values. RECHECK keeps the exact semantics.
+        RangeWithin fn = new RangeWithin(
+            Source.EMPTY,
+            doubleRangeField("height_range"),
+            doubleRangeLiteral(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+        );
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", null, true, null, false, null, null, ShapeRelation.WITHIN))
+        );
+    }
+
+    public void testDoubleFieldWithOpenLiteralRange() {
+        RangeWithin fn = new RangeWithin(Source.EMPTY, doubleField("height"), doubleRangeLiteral(Double.NEGATIVE_INFINITY, 2.5));
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height", null, true, 2.5, false, null, null))
+        );
+    }
+
+    public void testDoubleRangeFieldContainsLiteralPoint() {
+        RangeWithin fn = new RangeWithin(Source.EMPTY, doubleLiteral(2.0), doubleRangeField("height_range"));
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", 2.0, true, 2.0, true, null, null, ShapeRelation.CONTAINS))
+        );
+    }
+
     private static FieldAttribute dateField(String name) {
         return new FieldAttribute(
             Source.EMPTY,
@@ -157,11 +205,31 @@ public class RangeWithinPushdownTests extends ESTestCase {
         );
     }
 
+    private static FieldAttribute doubleField(String name) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute doubleRangeField(String name) {
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, DataType.DOUBLE_RANGE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+    }
+
     private static Literal dateLiteral(long millis) {
         return new Literal(Source.EMPTY, millis, DataType.DATETIME);
     }
 
     private static Literal rangeLiteral(long from, long to) {
         return new Literal(Source.EMPTY, new LongRange(from, to), DataType.DATE_RANGE);
+    }
+
+    private static Literal doubleLiteral(double value) {
+        return new Literal(Source.EMPTY, value, DataType.DOUBLE);
+    }
+
+    private static Literal doubleRangeLiteral(double from, double to) {
+        return new Literal(Source.EMPTY, new DoubleRange(from, to), DataType.DOUBLE_RANGE);
     }
 }

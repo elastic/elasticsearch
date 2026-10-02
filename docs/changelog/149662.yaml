@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149662
-summary: Parquet/ORC nested STRUCT subfield projection
-type: enhancement

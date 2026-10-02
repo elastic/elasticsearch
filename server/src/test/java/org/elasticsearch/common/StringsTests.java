@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -40,6 +41,8 @@ import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
 import static org.elasticsearch.common.Strings.trimLeadingCharacter;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startArray;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -47,6 +50,8 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class StringsTests extends ESTestCase {
 
@@ -369,6 +374,62 @@ public class StringsTests extends ESTestCase {
 
         assertFalse(result.truncated());
         assertThat(result.string(), containsString("error building toString out of XContent:"));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidObject() {
+        ChunkedToXContent chunkedToXContent = __ -> Iterators.concat(
+            startObject("nested"),
+            IntStream.iterate(0, i -> i + 1)
+                .<ToXContent>mapToObj(i -> (b, p) -> b.field("field" + i, randomAlphaOfLengthBetween(0, 50)))
+                .iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("{"));
+        assertThat(result.string(), not(endsWith("}")));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidObject_ChunkedToXContentObject() {
+        ChunkedToXContentObject chunkedToXContent = __ -> Iterators.concat(
+            startObject(),
+            IntStream.iterate(0, i -> i + 1)
+                .<ToXContent>mapToObj(i -> (b, p) -> b.field("field" + i, randomAlphaOfLengthBetween(0, 50)))
+                .iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("{"));
+        assertThat(result.string(), not(endsWith("}")));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidArray() {
+        ChunkedToXContent chunkedToXContent = __ -> Iterators.concat(
+            startArray("array"),
+            IntStream.iterate(0, i -> i + 1).<ToXContent>mapToObj(i -> (b, p) -> b.value(randomAlphaOfLengthBetween(0, 50))).iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("{"));
+        assertThat(result.string(), not(endsWith("}")));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidArray_ChunkedToXContentObject() {
+        ChunkedToXContentObject chunkedToXContent = __ -> Iterators.concat(
+            startArray(),
+            IntStream.iterate(0, i -> i + 1).<ToXContent>mapToObj(i -> (b, p) -> b.value(randomAlphaOfLengthBetween(0, 50))).iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("["));
+        assertThat(result.string(), not(endsWith("]")));
     }
 
     private static String lowercaseAsciiOnly(String s) {

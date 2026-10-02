@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 152990
+summary: Chunk final time-series aggregation output
+type: feature

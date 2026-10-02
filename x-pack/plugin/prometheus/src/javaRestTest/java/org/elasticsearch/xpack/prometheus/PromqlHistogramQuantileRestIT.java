@@ -61,6 +61,17 @@ public class PromqlHistogramQuantileRestIT extends AbstractPrometheusRestIT {
         assertThat(metric, not(hasKey("le")));
     }
 
+    public void testHistogramFractionExplicitLeViaRateDropsLeLabel() throws Exception {
+        ingestClassicHistogram();
+
+        ObjectPath response = executeQueryRange("histogram_fraction(0.5, 1.5, sum by (job, le) (rate(" + METRIC + "[1m])))");
+        List<Map<String, Object>> results = response.evaluate("data.result");
+        assertThat("unexpected series: " + results, results, hasSize(1));
+        Map<String, Object> metric = response.evaluate("data.result.0.metric");
+        assertThat(metric, hasKey("job"));
+        assertThat(metric, not(hasKey("le")));
+    }
+
     @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
     public void testSumHistogramQuantileByIntegration() throws Exception {
         ingestClassicHistogramWithIntegration();

@@ -709,4 +709,25 @@ public class MlIndexAndAliasTests extends ESTestCase {
         }
         return builder.build();
     }
+
+    public void testHasFieldTypedAs_NestedPathMatchesExpectedType() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putMapping(healthyResultsMappingForMlIndexAndAliasTests())
+            .build();
+
+        assertTrue(
+            MlIndexAndAlias.hasFieldTypedAs(indexMetadata, List.of("anomaly_score_explanation", "by_field_relative_rarity"), "double")
+        );
+        assertFalse(
+            MlIndexAndAlias.hasFieldTypedAs(indexMetadata, List.of("anomaly_score_explanation", "by_field_relative_rarity"), "float")
+        );
+        assertFalse(MlIndexAndAlias.hasFieldTypedAs(indexMetadata, List.of("anomaly_score_explanation", "missing_field"), "double"));
+    }
+
+    private static String healthyResultsMappingForMlIndexAndAliasTests() {
+        return """
+            {"properties":{"job_id":{"type":"keyword"},"anomaly_score_explanation":{"properties":{\
+            "by_field_relative_rarity":{"type":"double"}}}}}""";
+    }
 }

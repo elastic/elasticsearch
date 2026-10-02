@@ -275,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(13, answer.size());
+        assertEquals(14, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -288,6 +288,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
                 .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
@@ -1354,8 +1355,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
@@ -1373,67 +1372,51 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNestedSubqueries() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
-                        testIndexName(),
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // subquery1: 10(0-9) rows, subquery2: 8(0-7) rows, subquery3: 6(2-7) rows, total 24 rows
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                    testIndexName(),
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Nested subqueries are not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(24)));
     }
 
     public void testSubqueryWithFork() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // 10 docs with integer/long = i and ip = 127.0.0.i for i in [0, 9].
+        // Main: 10 rows. Subquery integer > 1: 8 rows (2-9). Union: 18 rows.
+        // FORK (long > 2): 7 main + 7 subquery. FORK (ip == 127.0.0.1): 1 main + 0 subquery. Total 15.
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK after subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(15)));
 
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // Main: 10 rows. Subquery integer > 1 then FORK: long > 2 keeps 7, ip == 127.0.0.1 keeps 0. Total 17.
+        result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1 | fork (where long > 2) (where ip == \"127.0.0.1\")) | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK inside subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(17)));
     }
 
     private static String queryWithComplexFieldNames(int field) {
@@ -1526,7 +1509,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         Response response = performRequest(request);
@@ -1561,7 +1544,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1647,17 +1630,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(result, profileEnabled);
         }
         assertWarnings(response, assertWarnings, result);
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return removeAsyncProperties(result);
     }
 
-    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+    private static void prepareProfileLogger(@Nullable ProfileLogger profileLogger) {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
-            if (isProfileSafe) {
-                requestObject.profile(true);
-            }
         }
     }
 
@@ -2003,6 +1982,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         assertResultMap(
             result,
+            getResultMatcher(result).entry("approximation_applied", false),
             matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
                 .item(
                     matchesMap().entry("name", "_approximation_confidence_interval(count)")
@@ -2065,7 +2045,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
         requestObject.keepOnCompletion(keepOnCompletion);
-        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
+        // capped at 7d so it stays within serverless's async_search.max_keep_alive
+        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 7)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
@@ -2078,7 +2059,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    static void assertDeletable(String id) throws IOException {
+    /**
+     * Removes the result of an async esql query. Asserts that it returned {@code 200 OK}
+     * and that deleting it a second time gives a {@code 404 Not Found}.
+     */
+    static void assertAsyncQueryResultDeleted(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);
 
@@ -2194,7 +2179,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValue, newValue);
         }
 
-        assertDeletable(id);
+        assertAsyncQueryResultDeleted(id);
         return newValue;
     }
 

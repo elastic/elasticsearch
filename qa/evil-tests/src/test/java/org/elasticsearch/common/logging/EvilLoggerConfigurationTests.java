@@ -21,6 +21,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -33,17 +35,15 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void registerErrorListener() throws Exception {
         LogConfigurator.registerErrorListener();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownLogging() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
-        super.tearDown();
     }
 
     public void testResolveMultipleConfigs() throws Exception {

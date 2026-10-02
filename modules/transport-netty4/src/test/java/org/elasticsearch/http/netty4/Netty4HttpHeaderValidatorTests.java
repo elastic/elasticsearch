@@ -23,17 +23,21 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class Netty4HttpHeaderValidatorTests extends ESTestCase {
@@ -43,9 +47,8 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         new ValidationRequest(httpRequest, channel, listener)
     );
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initValidator() throws Exception {
         validatorRequestQueue = new LinkedBlockingQueue<>();
         channel = new EmbeddedChannel(
             new Netty4HttpHeaderValidator(
@@ -303,6 +306,52 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel.writeInbound(httpRequest);
         assertFalse(channel.hasPendingTasks());
         assertSame(httpRequest, channel.readInbound());
+    }
+
+    public void testReleaseBufferedChunksOnChannelClose() {
+        final var chunks = new ArrayList<HttpContent>();
+        final var requestCount = between(1, 3);
+        for (var i = 0; i < requestCount; i++) {
+            channel.writeInbound(newHttpRequest());
+            final var chunkCount = i == 0 ? between(1, 3) : between(0, 3);
+            for (var j = 0; j < chunkCount; j++) {
+                final var chunk = randomBoolean() && j == chunkCount - 1 ? newLastHttpContent() : newHttpContent();
+                chunks.add(chunk);
+                channel.writeInbound(chunk);
+            }
+        }
+        assertEquals(1, validatorRequestQueue.size());
+        final var validationRequest = Objects.requireNonNull(validatorRequestQueue.poll());
+
+        final var passValidation = randomBoolean();
+        final var completeBeforeClose = randomBoolean();
+        final var scenario = Strings.format(
+            "requests=%d chunks=%d passValidation=%s completeBeforeClose=%s",
+            requestCount,
+            chunks.size(),
+            passValidation,
+            completeBeforeClose
+        );
+        final Runnable completeValidation = () -> {
+            if (passValidation) {
+                validationRequest.listener().onResponse(null);
+            } else {
+                validationRequest.listener().onFailure(new ValidationException());
+            }
+            channel.runPendingTasks();
+        };
+
+        if (completeBeforeClose) {
+            completeValidation.run();
+        }
+        channel.close();
+        if (completeBeforeClose == false) {
+            completeValidation.run();
+        }
+        channel.releaseInbound();
+
+        final var leaked = chunks.stream().filter(chunk -> chunk.refCnt() > 0).toList();
+        assertThat(scenario, leaked, empty());
     }
 
     record ValidationRequest(HttpRequest request, Channel channel, ActionListener<Void> listener) {}

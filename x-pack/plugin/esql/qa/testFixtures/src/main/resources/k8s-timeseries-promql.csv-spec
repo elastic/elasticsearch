@@ -746,6 +746,20 @@ result:double | step:datetime
 2024.0        | 2024-05-10T01:00:00.000Z
 ;
 
+timestamp_of_vector
+required_capability: promql_command_v0
+required_capability: promql_timestamp
+required_capability: promql_time
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(timestamp(vector(1)));
+
+result:double    | step:datetime
+1.7152992E9      | 2024-05-10T00:00:00.000Z
+1.7153028E9      | 2024-05-10T01:00:00.000Z
+;
+
 month_scalar
 required_capability: promql_command_v0
 required_capability: promql_time_functions
@@ -1497,6 +1511,249 @@ result:double | step:datetime
 1024.0        | 2025-01-01T00:02:00.000Z
 ;
 
+// === Non-finite (NaN / ±Inf) preservation, matching Prometheus (issue #151972) ===
+// ES previously dropped any series whose value evaluated to NaN/±Inf; Prometheus keeps them. The cases below
+// cover the math/arithmetic functions affected. Scalar cases exercise constant folding; the *_runtime cases run
+// the per-series evaluators over real index data and assert the series is kept rather than dropped.
+
+nonfinite_sqrt_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sqrt(vector(-4)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_ln_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(ln(vector(-1)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_log10_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(log10(vector(-1)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_log2_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(log2(vector(-1)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// sqrt of a negative per-series value (runtime evaluator + ToDouble coercion) yields NaN, not a dropped series.
+nonfinite_sqrt_negative_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sqrt(0 - sum by (cluster) (network.cost))) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+NaN           | 2024-05-10T01:00:00.000Z | qa
+NaN           | 2024-05-10T01:00:00.000Z | staging
+;
+
+nonfinite_deg_overflow
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_math_v0
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(deg(vector(1e308)));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// 0 * ±Inf is NaN in IEEE-754.
+nonfinite_mul_zero_inf
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(0) * Inf);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_div_by_zero_positive
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(1) / 0);
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_div_by_zero_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(-1) / 0);
+
+result:double | step:datetime
+-Infinity     | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_div_zero_by_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(0) / 0);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// x % 0 is NaN, matching Go's math.Mod used by Prometheus.
+nonfinite_mod_by_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(5) % 0);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// Overflow to +Inf is kept rather than dropped.
+nonfinite_pow_overflow
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(10) ^ 400);
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// metric * Inf over real index data: each series is kept with +Inf (issue's metric * Inf case).
+nonfinite_mul_inf_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
+
+// metric * NaN over real index data: each series is kept with NaN (issue's metric * NaN case).
+nonfinite_mul_nan_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * NaN) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+NaN           | 2024-05-10T01:00:00.000Z | qa
+NaN           | 2024-05-10T01:00:00.000Z | staging
+;
+
+nonfinite_div_by_zero_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
+
+nonfinite_mod_by_zero_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) % 0) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+NaN           | 2024-05-10T01:00:00.000Z | qa
+NaN           | 2024-05-10T01:00:00.000Z | staging
+;
+
+// Same as above but over a long-typed metric, exercising the long -> double coercion end to end.
+nonfinite_mul_inf_long_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(max by (cluster) (network.bytes_in) * Inf) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
+
+// count includes series that evaluate to a non-finite value: the 3 grouped sums stay present after becoming +Inf,
+// so count is still 3. This is the aggregation counterpart of the scalar_nested_count_sum_by_cluster case.
+nonfinite_count_includes_nonfinite_series
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_scalar
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(scalar(count(sum by (cluster) (network.cost) * Inf)));
+
+result:double | step:datetime
+3.0           | 2024-05-10T01:00:00.000Z
+;
+
+// Scope enforcement: a non-finite value produced inside PROMQL does NOT carry IEEE-754 semantics past the pipe. A
+// following native ES|QL EVAL uses the strict (finite-only) arithmetic, so result + 1 is rejected to null with the
+// standard finite-number warning, while the PROMQL-produced result column keeps its +Inf value.
+nonfinite_does_not_cross_pipe_into_strict_esql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(1) / 0)
+| EVAL strict = result + 1;
+
+warningRegex:evaluation of \[result \+ 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: not a finite double number: Infinity
+
+result:double | step:datetime            | strict:double
+Infinity      | 2024-05-10T01:00:00.000Z | null
+;
+
+// Scope guard: a +Inf value produced inside PROMQL crosses the pipe into a native ES|QL WHERE, which applies strict
+// IEEE comparison (Infinity > 0 is true), so all three series survive unchanged. Proves the value crosses the pipe and
+// that the ES|QL side keeps its own (strict) semantics rather than switching to lenient PromQL math.
+nonfinite_crosses_pipe_into_strict_where
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf)
+| WHERE result > 0
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
+
 scalar_constant_time
 required_capability: promql_command_v0
 required_capability: promql_time
@@ -1555,43 +1812,65 @@ rate_on_plain_numeric_long
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
 required_capability: fix_promql_round_to_nearest
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 // network.bytes_in is plain long (no counter mapping); implicit to_counter() enables rate().
 PROMQL index=k8s step=1m rate_bytes_in=(round(avg(rate(network.bytes_in[1m])), 0.001))
 | SORT rate_bytes_in DESC, step DESC | LIMIT 10;
 
 rate_bytes_in:double | step:datetime
-15.921               | 2024-05-10T00:11:00.000Z
-15.437               | 2024-05-10T00:18:00.000Z
-14.16                | 2024-05-10T00:05:00.000Z
-12.856               | 2024-05-10T00:12:00.000Z
-11.636               | 2024-05-10T00:01:00.000Z
-11.337               | 2024-05-10T00:19:00.000Z
-10.135               | 2024-05-10T00:10:00.000Z
-9.859                | 2024-05-10T00:07:00.000Z
-9.356                | 2024-05-10T00:08:00.000Z
-8.942                | 2024-05-10T00:21:00.000Z
+12.716               | 2024-05-10T00:18:00.000Z
+9.991                | 2024-05-10T00:19:00.000Z
+9.918                | 2024-05-10T00:05:00.000Z
+8.202                | 2024-05-10T00:20:00.000Z
+7.676                | 2024-05-10T00:15:00.000Z
+7.018                | 2024-05-10T00:06:00.000Z
+7.017                | 2024-05-10T00:17:00.000Z
+6.725                | 2024-05-10T00:10:00.000Z
+6.452                | 2024-05-10T00:08:00.000Z
+6.364                | 2024-05-10T00:07:00.000Z
+;
+
+rate_small_window_no_set_operator
+required_capability: promql_command_v0
+required_capability: promql_implicit_type_coercion
+required_capability: fix_promql_round_to_nearest
+required_capability: rate_with_interpolation_v2
+required_capability: fix_esql_small_windows
+PROMQL index=k8s step=1m rate_bytes_in=(round(avg(rate(network.bytes_in[30s])), 0.001))
+| SORT rate_bytes_in DESC, step DESC | LIMIT 10;
+
+rate_bytes_in:double | step:datetime
+38.694               | 2024-05-10T00:20:00.000Z
+33.592               | 2024-05-10T00:12:00.000Z
+31.967               | 2024-05-10T00:01:00.000Z
+25.398               | 2024-05-10T00:10:00.000Z
+16.285               | 2024-05-10T00:19:00.000Z
+15.875               | 2024-05-10T00:03:00.000Z
+15.35                | 2024-05-10T00:16:00.000Z
+14.667               | 2024-05-10T00:08:00.000Z
+7.214                | 2024-05-10T00:14:00.000Z
+7.1                  | 2024-05-10T00:09:00.000Z
 ;
 
 rate_on_plain_numeric_gauge
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 // network.eth0.tx is mapped as gauge (integer); implicit to_counter() enables rate().
 PROMQL index=k8s step=1m rate_tx=(round(avg(rate(network.eth0.tx[1m])), 0.001))
 | SORT rate_tx DESC, step DESC | LIMIT 10;
 
 rate_tx:double | step:datetime
-2.828          | 2024-05-10T00:05:00.000Z
-2.684          | 2024-05-10T00:12:00.000Z
-2.559          | 2024-05-10T00:11:00.000Z
-2.116          | 2024-05-10T00:13:00.000Z
-1.915          | 2024-05-10T00:14:00.000Z
-1.838          | 2024-05-10T00:08:00.000Z
-1.562          | 2024-05-10T00:18:00.000Z
-1.538          | 2024-05-10T00:01:00.000Z
-1.433          | 2024-05-10T00:19:00.000Z
-1.407          | 2024-05-10T00:07:00.000Z
+1.556          | 2024-05-10T00:05:00.000Z
+1.367          | 2024-05-10T00:18:00.000Z
+1.245          | 2024-05-10T00:19:00.000Z
+1.193          | 2024-05-10T00:15:00.000Z
+1.178          | 2024-05-10T00:12:00.000Z
+1.16           | 2024-05-10T00:14:00.000Z
+1.106          | 2024-05-10T00:10:00.000Z
+1.022          | 2024-05-10T00:20:00.000Z
+0.998          | 2024-05-10T00:07:00.000Z
+0.995          | 2024-05-10T00:08:00.000Z
 ;
 
 rate_on_counter_field
@@ -1620,44 +1899,44 @@ increase_on_plain_numeric_gauge
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
 required_capability: fix_promql_round_to_nearest
-required_capability: rate_with_interpolation_v3
+required_capability: rate_with_interpolation_v4
 // network.eth0.tx is mapped as gauge (integer); implicit to_counter() enables increase().
 PROMQL index=k8s step=1m increase_tx=(round(avg(increase(network.eth0.tx[1m])), 0.001))
 | SORT increase_tx DESC, step DESC | LIMIT 10;
 
 increase_tx:double | step:datetime
-110.259            | 2024-05-10T00:08:00.000Z
-100.49             | 2024-05-10T00:05:00.000Z
-97.731             | 2024-05-10T00:12:00.000Z
-92.281             | 2024-05-10T00:01:00.000Z
-89.961             | 2024-05-10T00:18:00.000Z
-85.96              | 2024-05-10T00:19:00.000Z
-81.36              | 2024-05-10T00:10:00.000Z
-72.68              | 2024-05-10T00:16:00.000Z
-70.189             | 2024-05-10T00:15:00.000Z
-69.329             | 2024-05-10T00:07:00.000Z
+101.737            | 2024-05-10T00:05:00.000Z
+101.703            | 2024-05-10T00:18:00.000Z
+99.722             | 2024-05-10T00:12:00.000Z
+90.982             | 2024-05-10T00:14:00.000Z
+90.264             | 2024-05-10T00:10:00.000Z
+86.99              | 2024-05-10T00:19:00.000Z
+83.972             | 2024-05-10T00:15:00.000Z
+82.567             | 2024-05-10T00:13:00.000Z
+80.785             | 2024-05-10T00:07:00.000Z
+80.077             | 2024-05-10T00:08:00.000Z
 ;
 
 increase_on_plain_numeric_long
 required_capability: promql_command_v0
 required_capability: promql_implicit_type_coercion
 required_capability: fix_promql_round_to_nearest
-required_capability: rate_with_interpolation_v3
+required_capability: rate_with_interpolation_v4
 // network.bytes_in is plain long (no counter mapping); implicit to_counter() enables increase().
 PROMQL index=k8s step=1m increase_bytes_in=(round(avg(increase(network.bytes_in[1m])), 0.001))
 | SORT increase_bytes_in DESC, step DESC | LIMIT 10;
 
 increase_bytes_in:double | step:datetime
-883.96                   | 2024-05-10T00:18:00.000Z
-698.188                  | 2024-05-10T00:01:00.000Z
-680.209                  | 2024-05-10T00:19:00.000Z
-602.096                  | 2024-05-10T00:10:00.000Z
-596.931                  | 2024-05-10T00:05:00.000Z
-568.997                  | 2024-05-10T00:07:00.000Z
-561.376                  | 2024-05-10T00:08:00.000Z
-507.112                  | 2024-05-10T00:12:00.000Z
-501.62                   | 2024-05-10T00:20:00.000Z
-495.012                  | 2024-05-10T00:16:00.000Z
+984.446                  | 2024-05-10T00:18:00.000Z
+734.74                   | 2024-05-10T00:19:00.000Z
+650.007                  | 2024-05-10T00:05:00.000Z
+621.23                   | 2024-05-10T00:10:00.000Z
+557.482                  | 2024-05-10T00:20:00.000Z
+548.279                  | 2024-05-10T00:15:00.000Z
+539.358                  | 2024-05-10T00:12:00.000Z
+523.304                  | 2024-05-10T00:07:00.000Z
+512.94                   | 2024-05-10T00:16:00.000Z
+493.845                  | 2024-05-10T00:11:00.000Z
 ;
 
 irate_on_plain_numeric_long
@@ -1771,6 +2050,21 @@ set_union:double | step:datetime            | cluster:keyword
 7403.0           | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// Same union query on a date_nanos @timestamp index (datenanos-k8s loads the same k8s.csv). The step column must
+// still be exposed as datetime (epoch-millis), matching the plain-date variant above.
+set_operator_union_combines_series_date_nanos
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_date_nanos_step
+PROMQL index=datenanos-k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
 // Left precedence: prod appears in both operands with the same grouping, so the left (max) value wins
 // over the right (sum) value.
 set_operator_union_left_precedence
@@ -1801,16 +2095,29 @@ set_operator_union_rate_or_irate
 required_capability: promql_command_v0
 required_capability: promql_set_operator_union
 required_capability: fix_promql_time_bucket_v2
-required_capability: rate_with_interpolation_v3
+required_capability: rate_with_interpolation_v4
 PROMQL index=k8s step=1m rate_or_irate=(round(avg(rate(network.bytes_in[1m])), 0.001) or round(avg(irate(network.bytes_in[1m])), 0.001))
 | SORT step | LIMIT 5;
 
 rate_or_irate:double | step:datetime
-11.636               | 2024-05-10T00:01:00.000Z
-5.938                | 2024-05-10T00:02:00.000Z
-7.434                | 2024-05-10T00:03:00.000Z
-5.03                 | 2024-05-10T00:04:00.000Z
-14.16                | 2024-05-10T00:05:00.000Z
+4.407                | 2024-05-10T00:01:00.000Z
+4.697                | 2024-05-10T00:02:00.000Z
+3.758                | 2024-05-10T00:03:00.000Z
+3.643                | 2024-05-10T00:04:00.000Z
+9.918                | 2024-05-10T00:05:00.000Z
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152658
+set_operator_union_rate_or_irate_small_window-Ignore
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v3
+required_capability: time_series_window_smaller_than_bucket
+PROMQL index=k8s step=1m rate_or_irate=(round(avg(rate(network.bytes_in[30s])), 0.001) or round(avg(irate(network.bytes_in[5m])), 0.001))
+| SORT step | LIMIT 5;
+
+rate_or_irate:double | step:datetime
 ;
 
 // Heterogeneous groupings: the operands group by different labels (cluster vs pod), so their label sets never
@@ -1842,4 +2149,215 @@ set_union:double | step:datetime            | cluster:keyword
 10277.0          | 2024-05-10T01:00:00.000Z | prod
 10797.0          | 2024-05-10T01:00:00.000Z | qa
 19227.0          | 2024-05-10T01:00:00.000Z | staging
+;
+
+// topk inside a union branch: the branch executes as a separate sub-plan whose result pages cross an
+// exchange, so its physical page layout must match its logical output exactly (see #158164). Per step the
+// top 2 clusters by max survive from the left branch; staging is filled from the right branch.
+set_operator_union_topk_branch
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(topk(2, max by (cluster) (network.total_bytes_in)) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
+// ------------------------------------------------
+// ORDER STATISTICS
+// ------------------------------------------------
+
+// topk keeps the k series with the highest values, unlike sum/max/etc. it does not reduce them to one value -
+// the winning series keep their full label identity (see the `set_operator_union_heterogeneous_groupings` test
+// above for the same three cluster=prod pods' individual values via `max by (pod)`).
+topk_bare
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
+// k larger than the number of available series: every series is returned, still ranked.
+topk_k_exceeds_series_count
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// topk is evaluated independently at every step of a range query, so the winning series can change from
+// one step to the next as the underlying series values change - here `three` wins the first step and `two`
+// wins the second.
+topk_multi_step
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(topk(1, network.total_bytes_in{cluster="prod"}))
+| SORT step, result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+// k=0: Prometheus returns an empty result.
+topk_k_zero
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+;
+
+// k far larger than any reasonable series count: still returns every series, still ranked. Note: k values near
+// Integer.MAX_VALUE trip ES|QL's circuit breaker (TopNBy's execution pre-sizes a buffer proportional to k, not
+// to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's differenceFromPrometheus.
+topk_k_very_large
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// `by (pod)` partitions the ranking by pod across ALL clusters (pod names repeat across prod/qa/staging), so each
+// pod-group can drop a different, independently-ranked loser - unlike `sum(...) by (pod)`, the winners keep their
+// full identity (cluster, region) rather than collapsing to just `pod`.
+topk_by_grouping
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
+
+result:double | step:datetime            | _timeseries:keyword
+10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+;
+
+// topk over an already-aggregated vector (sum by). The inner aggregation collapses to the BY labels, then topk
+// ranks those series - this is the shape that previously failed planning with "can't find input for [topk(...)]".
+topk_over_sum_by
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+| SORT result DESC;
+
+result:double | step:datetime            | pod:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | two
+9969.0        | 2024-05-10T01:00:00.000Z | three
+;
+
+// bottomk mirrors topk but keeps the k series with the lowest values.
+bottomk_bare
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
+| SORT result ASC;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
+// k larger than the number of available series: every series is returned, still ranked.
+bottomk_k_exceeds_series_count
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
+| SORT result ASC;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+// bottomk is evaluated independently at every step of a range query, so the winning series can change from
+// one step to the next as the underlying series values change - here `three` wins the first step and `one`
+// wins the second.
+bottomk_multi_step
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
+| SORT step, result ASC;
+
+result:double | step:datetime            | _timeseries:keyword
+9969.0        | 2024-05-10T00:20:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T00:25:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// k=0: Prometheus returns an empty result.
+bottomk_k_zero
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(bottomk(0, network.total_bytes_in{cluster="prod"}))
+| SORT result ASC;
+
+result:double | step:datetime            | _timeseries:keyword
+;
+
+// `by (pod)` partitions the ranking by pod across ALL clusters, preserving the winning series' full identity.
+bottomk_by_grouping
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+7403.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
+// bottomk over an already-aggregated vector (sum by). The inner aggregation collapses to the BY labels, then bottomk
+// ranks those series.
+bottomk_over_sum_by
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: fix_promql_topk_over_aggregate
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in{cluster="prod"})))
+| SORT result ASC;
+
+result:double | step:datetime            | pod:keyword
+947.0         | 2024-05-10T01:00:00.000Z | one
+9969.0        | 2024-05-10T01:00:00.000Z | three
 ;

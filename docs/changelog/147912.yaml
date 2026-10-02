@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147912
-summary: '`SampleProbabilityPlaceHolder` to have Nullability.FALSE'
-type: bug

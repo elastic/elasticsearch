@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -379,9 +381,39 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
         );
 
         var runner = new TestDriverRunner().builder(driverContext());
-        runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+        runner.input(ensureNonNullPages(simpleInput(runner.context().blockFactory(), between(1, 100))));
         Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
 
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
+    }
+
+    private List<Page> ensureNonNullPages(SourceOperator input) {
+        return CannedSourceOperator.collectPages(input).stream().map(this::ensureNonNullPage).toList();
+    }
+
+    /**
+     * Replaces the rerank input channel block of the given page with non-empty text values when it is entirely null,
+     * so that an inference request is always dispatched for the page.
+     */
+    private Page ensureNonNullPage(Page page) {
+        BytesRefBlock inputBlock = page.getBlock(inputChannel);
+        for (int pos = 0; pos < inputBlock.getPositionCount(); pos++) {
+            if (inputBlock.isNull(pos) == false) {
+                return page;
+            }
+        }
+
+        Block[] blocks = new Block[page.getBlockCount()];
+        for (int b = 0; b < blocks.length; b++) {
+            blocks[b] = page.getBlock(b);
+        }
+        try (BytesRefBlock.Builder builder = inputBlock.blockFactory().newBytesRefBlockBuilder(page.getPositionCount())) {
+            for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+            }
+            blocks[inputChannel] = builder.build();
+        }
+        inputBlock.close();
+        return new Page(blocks);
     }
 }

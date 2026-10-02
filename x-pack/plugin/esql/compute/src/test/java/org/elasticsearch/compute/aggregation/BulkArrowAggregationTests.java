@@ -21,6 +21,8 @@ import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -38,17 +40,15 @@ public class BulkArrowAggregationTests extends ESTestCase {
     private BlockFactory blockFactory;
     private BufferAllocator allocator;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
         allocator = blockFactory.arrowAllocator();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeAllocator() throws Exception {
         allocator.close();
-        super.tearDown();
     }
 
     public void testSumIntOverArrowBuffer() {
@@ -66,15 +66,24 @@ public class BulkArrowAggregationTests extends ESTestCase {
         int positions = between(2, 5000);
         int[] values = new int[positions];
         boolean[] mask = new boolean[positions];
+        boolean seen = false;
         long expected = 0;
         for (int i = 0; i < positions; i++) {
             values[i] = between(-1000, 1000);
             mask[i] = randomBoolean();
             if (mask[i]) {
+                seen = true;
                 expected += values[i];
             }
         }
-        assertEquals(expected, sumIntArrowMasked(values, mask));
+        Long actual = sumIntArrowMasked(values, mask);
+        if (seen) {
+            assertNotNull(actual);
+            assertEquals(expected, actual.longValue());
+        } else {
+            // SUM of no unmasked values is null, not 0
+            assertNull(actual);
+        }
     }
 
     /**
@@ -128,7 +137,7 @@ public class BulkArrowAggregationTests extends ESTestCase {
         }
     }
 
-    private long sumIntArrowMasked(int[] values, boolean[] mask) {
+    private Long sumIntArrowMasked(int[] values, boolean[] mask) {
         DriverContext ctx = driverContext();
         try (
             IntBlock block = arrowBlock(values);
@@ -136,15 +145,22 @@ public class BulkArrowAggregationTests extends ESTestCase {
             SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0))
         ) {
             agg.addRawInput(new Page(block), maskVector);
-            return evaluateLong(agg, ctx);
+            return evaluateLongOrNull(agg, ctx);
         }
     }
 
     private long evaluateLong(SumIntAggregatorFunction agg, DriverContext ctx) {
+        Long value = evaluateLongOrNull(agg, ctx);
+        assertNotNull(value);
+        return value;
+    }
+
+    private Long evaluateLongOrNull(SumIntAggregatorFunction agg, DriverContext ctx) {
         Block[] out = new Block[1];
         try {
             agg.evaluateFinal(out, 0, ctx);
-            return ((LongBlock) out[0]).getLong(0);
+            LongBlock block = (LongBlock) out[0];
+            return block.isNull(0) ? null : block.getLong(0);
         } finally {
             Releasables.closeExpectNoException(out);
         }

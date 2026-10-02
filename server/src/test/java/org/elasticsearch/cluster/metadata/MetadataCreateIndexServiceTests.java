@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -76,6 +77,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -699,6 +701,49 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }));
     }
 
+    public void testCreateIndexInProjectUnderDeletion() {
+        projectId = randomUniqueProjectId();
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                null,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                new IndexSettingProviders(Set.of())
+            );
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .blocks(
+                        ClusterBlocks.builder(clusterService.state().blocks())
+                            .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+                    )
+            );
+
+            PlainActionFuture<ShardsAcknowledgedResponse> createIndexFuture = new PlainActionFuture<>();
+            checkerService.createIndex(
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                new CreateIndexClusterStateUpdateRequest("test cause", projectId, "test_index", "test_index"),
+                createIndexFuture
+            );
+
+            ExecutionException executionException = expectThrows(ExecutionException.class, createIndexFuture::get);
+            assertThat(executionException.getCause(), instanceOf(ClusterBlockException.class));
+            ClusterBlockException clusterBlockException = (ClusterBlockException) executionException.getCause();
+            assertTrue(clusterBlockException.blocks().contains(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
+            assertThat(clusterBlockException.status(), equalTo(RestStatus.NOT_FOUND));
+        });
+    }
+
     private DiscoveryNode newNode(String nodeId) {
         return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
@@ -875,6 +920,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -927,6 +973,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -971,6 +1018,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -1015,6 +1063,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -1060,6 +1109,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -1172,6 +1222,88 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         Map<String, Object> mappingsProperties = (Map<String, Object>) doc.get("properties");
         assertThat(mappingsProperties, hasKey("test"));
         assertThat((Map<String, Object>) mappingsProperties.get("test"), hasValue("keyword"));
+    }
+
+    public void testStandaloneColumnarIndexKeepsSequenceNumbers() {
+        assertFalse(
+            "a standalone columnar index should keep sequence numbers so that it supports updates",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexDisablesSequenceNumbers() {
+        assertTrue(
+            "a columnar data-stream backing index disables sequence numbers by default",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream"))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexKeepsExplicitDisableSequenceNumbers() {
+        // The injection only applies when the setting is absent, so an explicit request value must win.
+        boolean explicit = randomBoolean();
+        assertThat(
+            "an explicit [index.disable_sequence_numbers] on a columnar data-stream backing index must be preserved, not overridden",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream", IndexVersion.current(), explicit)),
+            equalTo(explicit)
+        );
+    }
+
+    public void testStandaloneColumnarIndexKeepsExplicitDisableSequenceNumbers() {
+        // The injection only fires for data streams, so an explicit value on a standalone columnar index is preserved untouched.
+        boolean explicit = randomBoolean();
+        assertThat(
+            "an explicit [index.disable_sequence_numbers] on a standalone columnar index must be preserved",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, IndexVersion.current(), explicit)),
+            equalTo(explicit)
+        );
+    }
+
+    public void testStandaloneColumnarIndexBeforeGateDisablesSequenceNumbers() {
+        // Below the gating version the override does not apply and a standalone columnar index disables sequence numbers. The lower bound
+        // is where the columnar disable-by-default begins.
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
+        );
+        assertTrue(
+            "a standalone columnar index below the gating version disables sequence numbers",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, beforeGate, null))
+        );
+    }
+
+    private Settings aggregateColumnarSettings(@Nullable String dataStreamName) {
+        return aggregateColumnarSettings(dataStreamName, IndexVersion.current(), null);
+    }
+
+    private Settings aggregateColumnarSettings(
+        @Nullable String dataStreamName,
+        IndexVersion createdVersion,
+        @Nullable Boolean explicitDisableSequenceNumbers
+    ) {
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        Settings.Builder indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+        if (explicitDisableSequenceNumbers != null) {
+            indexSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), explicitDisableSequenceNumbers);
+        }
+        var request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "idx", "idx").settings(indexSettings.build());
+        if (dataStreamName != null) {
+            request.dataStreamName(dataStreamName);
+        }
+        return aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Set.of(new IndexMode.IndexModeSettingsProvider())
+        );
     }
 
     private static ClusterState clusterStateWithSettings(ProjectId projectId, Settings persistentSettings) {
@@ -1725,6 +1857,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
         assertThat(targetRoutingNumberOfShards, is(9));
+        assertWarnings(
+            "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
     }
 
     public void testGetIndexNumberOfRoutingShardsNullVsNotDefined() {
@@ -1970,10 +2106,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
                 .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
                 .build();
-            var settings = Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-                .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true)
-                .build();
+            var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
             int nbReplicas = randomIntBetween(0, 1);
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
@@ -2001,13 +2134,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
-        boolean useRefreshBlock = randomBoolean();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
-            Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless)
-                .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useRefreshBlock)
-                .build()
+            Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless).build()
         );
         assertThat(applier, notNullValue());
 
@@ -2021,7 +2150,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(1, 3))
                 .build()
         );
-        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
+        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless));
     }
 
     public void testSetPrivateSettingsFails() throws Exception {
@@ -2140,6 +2269,127 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         verify(indicesService).withTempIndexService(captor.capture(), any());
         IndexMetadata indexMetadata = captor.getValue();
         assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), equalTo("private_setting"));
+    }
+
+    /**
+     * When an index is created via a registry-installed (managed) composable template,
+     * {@code IndexSettingProvider} must receive {@code registryInstalledTemplate=true}.
+     * This verifies that {@code applyCreateIndexRequestWithV2Template} propagates the
+     * matching template to the request before calling {@code aggregateIndexSettings}.
+     */
+    public void testRegistryInstalledTemplatePassedToProviderForManagedTemplate() throws Exception {
+        ComposableIndexTemplate managedTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("te*"))
+            .registryInstalled(true)
+            .build();
+
+        boolean[] captured = new boolean[1];
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                .put("managed-template", managedTemplate)
+                .build();
+            ClusterState clusterState = ClusterState.builder(clusterService.state())
+                .putProjectMetadata(projectMetadataWithTemplate)
+                .build();
+
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+                    @Override
+                    public void provideAdditionalSettings(
+                        String indexName,
+                        String dataStreamName,
+                        IndexMode templateIndexMode,
+                        boolean registryInstalledTemplate,
+                        ProjectMetadata projectMetadata,
+                        Instant resolvedAt,
+                        Settings indexTemplateAndCreateRequestSettings,
+                        List<CompressedXContent> combinedTemplateMappings,
+                        IndexVersion indexVersion,
+                        Settings.Builder additionalSettings
+                    ) {
+                        captured[0] = registryInstalledTemplate;
+                    }
+                }))
+            );
+
+            try {
+                service.applyCreateIndexRequest(clusterState, request, false, RerouteBehavior.PERFORM_REROUTE, ActionListener.noop());
+            } catch (Exception e) {
+                fail(e, "unexpected exception creating index with managed template");
+            }
+        });
+
+        assertThat("registry-installed template must pass registryInstalledTemplate=true", captured[0], is(true));
+    }
+
+    /**
+     * When an index is created via a user-installed (non-managed) composable template,
+     * {@code IndexSettingProvider} must receive {@code registryInstalledTemplate=false}.
+     */
+    public void testRegistryInstalledTemplateIsFalseForNonManagedTemplate() throws Exception {
+        ComposableIndexTemplate nonManagedTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("te*")).build();
+
+        boolean[] captured = new boolean[] { true };
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                .put("non-managed-template", nonManagedTemplate)
+                .build();
+            ClusterState clusterState = ClusterState.builder(clusterService.state())
+                .putProjectMetadata(projectMetadataWithTemplate)
+                .build();
+
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+                    @Override
+                    public void provideAdditionalSettings(
+                        String indexName,
+                        String dataStreamName,
+                        IndexMode templateIndexMode,
+                        boolean registryInstalledTemplate,
+                        ProjectMetadata projectMetadata,
+                        Instant resolvedAt,
+                        Settings indexTemplateAndCreateRequestSettings,
+                        List<CompressedXContent> combinedTemplateMappings,
+                        IndexVersion indexVersion,
+                        Settings.Builder additionalSettings
+                    ) {
+                        captured[0] = registryInstalledTemplate;
+                    }
+                }))
+            );
+
+            try {
+                service.applyCreateIndexRequest(clusterState, request, false, RerouteBehavior.PERFORM_REROUTE, ActionListener.noop());
+            } catch (Exception e) {
+                fail(e, "unexpected exception creating index with non-managed template");
+            }
+        });
+
+        assertThat("user-installed template must pass registryInstalledTemplate=false", captured[0], is(false));
     }
 
     public void testBatchedIndexCreationAndReroute() {

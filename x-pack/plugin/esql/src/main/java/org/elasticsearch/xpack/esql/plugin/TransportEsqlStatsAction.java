@@ -17,6 +17,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.io.IOException;
@@ -81,7 +84,14 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     @Override
     protected EsqlStatsResponse.NodeStatsResponse nodeOperation(EsqlStatsRequest.NodeStatsRequest request, Task task) {
         EsqlStatsResponse.NodeStatsResponse statsResponse = new EsqlStatsResponse.NodeStatsResponse(clusterService.localNode());
-        statsResponse.setStats(planExecutor.metrics().stats());
+        Counters counters = planExecutor.metrics().stats();
+        DataSourceUsageAccumulator acc = planExecutor.dataSourceModule() != null
+            ? planExecutor.dataSourceModule().externalSourceMetrics().usageAccumulator()
+            : null;
+        if (acc != null) {
+            DataSourceCounters.populate(acc, counters);
+        }
+        statsResponse.setStats(counters);
         return statsResponse;
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
@@ -39,6 +40,7 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     private int maxConcurrentShardRequests = SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
     @Nullable
     private String preference;
 
@@ -69,6 +71,23 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         this.maxConcurrentShardRequests = in.readVInt();
         this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.allowPartialSearchResults = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
+            this.routingFromSlice = in.readBoolean();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
+        } else {
+            this.routingFromSlice = false;
+        }
     }
 
     @Override
@@ -82,6 +101,12 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         out.writeVInt(maxConcurrentShardRequests);
         out.writeOptionalWriteable(indexFilter);
         out.writeBoolean(allowPartialSearchResults);
+        if (out.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(routingFromSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
+        }
     }
 
     @Override
@@ -99,6 +124,9 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
                 validationException
             );
 
+        }
+        if (routingFromSlice && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            validationException = addValidationError("request does not support [slice]", validationException);
         }
         return validationException;
     }
@@ -143,6 +171,39 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     public OpenPointInTimeRequest routing(String routing) {
         this.routing = routing;
         return this;
+    }
+
+    /**
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
+     */
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    public OpenPointInTimeRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public OpenPointInTimeRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [slice]");
+        }
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     public String preference() {
@@ -257,6 +318,8 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             + ", routing='"
             + routing
             + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''
@@ -280,13 +343,22 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             && indicesOptions.equals(that.indicesOptions)
             && keepAlive.equals(that.keepAlive)
             && Objects.equals(routing, that.routing)
+            && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference, allowPartialSearchResults);
+        int result = Objects.hash(
+            indicesOptions,
+            keepAlive,
+            maxConcurrentShardRequests,
+            routing,
+            routingFromSlice,
+            preference,
+            allowPartialSearchResults
+        );
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

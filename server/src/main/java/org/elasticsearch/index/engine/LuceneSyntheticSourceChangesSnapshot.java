@@ -91,7 +91,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             : "either an empty index or synthetic/columnar_stored source must be enabled for proper functionality.";
         // ensure we can buffer at least one document
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
-        this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
         String defaultCodec = EngineConfig.INDEX_CODEC_SETTING.get(mapperService.getIndexSettings().getSettings());
         // zstd best compression stores upto 2048 docs in a block, so it is likely that in this case docs are co-located in same block:
@@ -233,7 +233,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 // source loader, it is also used as a heuristic for bulk reading doc values (E.g. SingletonDocValuesLoader).
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
-                leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
+                leafSourceLoader = sourceLoader.leaf(leafReaderContext, nextDocIdArray);
                 if (routingDocValues) {
                     leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
                 }

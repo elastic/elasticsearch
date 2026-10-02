@@ -49,6 +49,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
@@ -197,14 +198,14 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
             .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
             .build();
-        assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
-        assertEquals(
-            Decision.NO,
-            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation)
+        assertThat(resizeAllocationDecider.canAllocate(shardRouting, routingAllocation), isNoDecision());
+        assertThat(
+            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation),
+            isNoDecision()
         );
-        assertEquals(
-            Decision.NO,
-            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation)
+        assertThat(
+            resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation),
+            isNoDecision()
         );
 
         routingAllocation.debugDecision(true);
@@ -296,14 +297,14 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
                 Decision.YES,
                 resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation)
             );
-            assertEquals(
-                Decision.NO,
-                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation)
+            assertThat(
+                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node2"), routingAllocation),
+                isNoDecision()
             );
         } else {
-            assertEquals(
-                Decision.NO,
-                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation)
+            assertThat(
+                resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"), routingAllocation),
+                isNoDecision()
             );
             assertEquals(
                 Decision.YES,
@@ -385,7 +386,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             true,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(localRecoveryShard, allocation), equalTo(Optional.of(Set.of("node-1"))));
 
@@ -394,7 +396,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(newShard, allocation), equalTo(Optional.empty()));
     }

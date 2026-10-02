@@ -104,7 +104,13 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
                     result.appendNull();
                     continue;
                 }
-                foundMatch = In.processLongRange(nulls, mvs, lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsScratch);
+                foundMatch = In.processLongRange(
+                    //
+                    nulls,
+                    mvs,
+                    lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch),
+                    rhsScratch
+                );
                 if (foundMatch) {
                     result.appendBoolean(true);
                 } else {
@@ -141,7 +147,7 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            this.warnings = driverContext.createWarnings(source);
         }
         return warnings;
     }

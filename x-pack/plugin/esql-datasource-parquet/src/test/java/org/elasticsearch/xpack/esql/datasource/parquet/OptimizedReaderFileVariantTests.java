@@ -34,9 +34,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -126,11 +128,9 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
     }
 
     public void testBaselineAndOptimizedProduceSameOutput() throws Exception {
-        // Test variants reuse the same StorageObject path with different file contents; the shared
-        // FooterByteCache is keyed by (path, length) and would otherwise serve a stale footer from
-        // a prior variant that happens to share the same byte length. Clear it to ensure each
-        // variant reads its own footer bytes from the StorageObject.
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        // Test variants reuse the same StorageObject path with different file contents; footer
+        // caches are per reader instance and each variant constructs fresh readers below, so no
+        // stale footer can leak across variants.
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 
         MessageType schema;
@@ -291,6 +291,11 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

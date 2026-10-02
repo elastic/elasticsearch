@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
@@ -71,9 +71,15 @@ import java.util.function.Supplier;
  */
 abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
-    protected StreamingFetchPhaseDocsIterator(Supplier<StoreMetrics> storeMetricsSupplier) {
-        super(storeMetricsSupplier);
+    protected StreamingFetchPhaseDocsIterator(DirectoryMetrics.Capture metricsCaptureSupplier) {
+        super(metricsCaptureSupplier);
     }
+
+    /**
+     * Invoked after a hit is serialized into the chunk buffer, including on failure. Subclasses can
+     * override to release per-hit resources; must be idempotent. Default is a no-op.
+     */
+    protected void onHitSerialized() {}
 
     /**
      * Asynchronous iteration using {@link ThrottledIterator} for streaming mode.
@@ -355,6 +361,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                         hit.writeTo(chunkBuffer);
                     } finally {
                         hit.decRef();
+                        onHitSerialized();
                     }
                     currentIdx++;
                     hitsInChunk++;

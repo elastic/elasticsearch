@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -44,11 +45,12 @@ public class AnalyzerContext {
     private final ExternalSourceResolution externalSourceResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
-    private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
+    private final Map<String, String> subqueryNonLoadableNullFills = new LinkedHashMap<>();
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
+    private final boolean preserveViewBoundaries;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -65,7 +67,8 @@ public class AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds,
-        IpLocationResolution ipLocationResolution
+        IpLocationResolution ipLocationResolution,
+        boolean preserveViewBoundaries
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -82,6 +85,7 @@ public class AnalyzerContext {
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
+        this.preserveViewBoundaries = preserveViewBoundaries;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -116,7 +120,8 @@ public class AnalyzerContext {
             minimumVersion,
             unmappedResolution,
             null,
-            IpLocationResolution.SERVICE_UNAVAILABLE
+            IpLocationResolution.SERVICE_UNAVAILABLE,
+            false
         );
     }
 
@@ -174,14 +179,6 @@ public class AnalyzerContext {
         return projectMetadata;
     }
 
-    public boolean includesRemoteIndices() {
-        assert indexResolution != null;
-        if (hasRemoteIndices == null) {
-            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
-        }
-        return hasRemoteIndices;
-    }
-
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
     }
@@ -192,6 +189,14 @@ public class AnalyzerContext {
      */
     public Set<String> deferredHeaderWarnings() {
         return deferredHeaderWarnings;
+    }
+
+    /**
+     * LOAD_ALL subquery fields null-filled because the sibling type has no implicit KEYWORD cast.
+     * Warnings are emitted later, and only if the field is observed.
+     */
+    public Map<String, String> subqueryNonLoadableNullFills() {
+        return subqueryNonLoadableNullFills;
     }
 
     /**
@@ -221,14 +226,25 @@ public class AnalyzerContext {
                 .filter(Metadata.TaggedProjectCustom.class::isInstance)
                 .map(Metadata.TaggedProjectCustom.class::cast)
                 .forEach(x -> {
-                    Set<String> tagNames = x.tags().tags().keySet();
-                    for (String tagName : tagNames) {
+                    for (String tagName : x.allowedTagsNames()) {
                         result.add(x.tagPrefix() + tagName);
                     }
                 });
         }
         // TODO it would be good to cache this, but some tags can change over time (eg. tags on linked projects)
         return Collections.unmodifiableSet(result);
+    }
+
+    /**
+     * Whether the current request carries a DSL filter that must be applied at view-output
+     * boundaries. When {@code true}, {@link org.elasticsearch.xpack.esql.view.ViewCompaction}
+     * preserves {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} wrappers around
+     * view branches so that
+     * {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} can apply the
+     * filter to the view's output rather than pushing it to the Lucene scan layer.
+     */
+    public boolean preserveViewBoundaries() {
+        return preserveViewBoundaries;
     }
 
     public AnalyzerContext(
@@ -240,7 +256,8 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
         @Nullable TimestampBounds timestampBounds,
-        IpLocationResolution ipLocationResolution
+        IpLocationResolution ipLocationResolution,
+        boolean preserveViewBoundaries
     ) {
         this(
             configuration,
@@ -257,7 +274,8 @@ public class AnalyzerContext {
             result.minimumTransportVersion(),
             unmappedResolution,
             timestampBounds,
-            ipLocationResolution
+            ipLocationResolution,
+            preserveViewBoundaries
         );
     }
 }

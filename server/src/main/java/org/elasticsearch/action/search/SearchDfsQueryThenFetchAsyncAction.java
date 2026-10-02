@@ -15,6 +15,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -58,6 +60,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         Map<String, Float> concreteIndexBoosts,
         Executor executor,
         SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer,
+        CircuitBreaker circuitBreaker,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
@@ -89,6 +92,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             clusterState,
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
+            circuitBreaker,
             request.getMaxConcurrentShardRequests(),
             clusters,
             searchResponseMetrics,
@@ -158,12 +162,14 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             }
             scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
             String nestedPath = dfsKnnResults.getNestedPath();
+            RescoreVectorBuilder rescoreVectorBuilder = source.knnSearch().get(i).getRescoreVectorBuilder();
             QueryBuilder query = new KnnScoreDocQueryBuilder(
                 scoreDocs.toArray(Lucene.EMPTY_SCORE_DOCS),
                 source.knnSearch().get(i).getField(),
                 source.knnSearch().get(i).getQueryVector(),
                 source.knnSearch().get(i).getSimilarity(),
-                source.knnSearch().get(i).getFilterQueries()
+                source.knnSearch().get(i).getFilterQueries(),
+                rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());

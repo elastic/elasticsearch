@@ -144,7 +144,8 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                     true,
                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                     decidersNoUnassignedInfo,
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
                 );
                 shardBuilder.addShard(shardRouting);
                 if (shardIdNumber < numReplicas) {
@@ -154,7 +155,8 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
                             false,
                             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                             decidersNoUnassignedInfo,
-                            ShardRouting.Role.DEFAULT
+                            ShardRouting.Role.DEFAULT,
+                            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
                         )
                     );
                 }

@@ -19,6 +19,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -26,6 +27,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -38,9 +40,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -49,6 +56,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -72,6 +80,13 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
  * and encoding dispatch that fixed schemas cannot cover.
  */
 public class PageColumnReaderCorrectnessTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private static final int NUM_ROWS = 500;
     private static final int BATCH_SIZE = 1000;
@@ -109,24 +124,18 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     private BlockFactory blockFactory;
     private PlainCompressionCodecFactory codecFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodec() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         codecFactory = new PlainCompressionCodecFactory();
         // Every test in this class writes to the same in-memory path ("memory://correctness_test.parquet")
-        // with a different file body. The JVM-wide FooterByteCache is keyed by (path, length) and would
-        // otherwise serve the previous test's footer when the new file happens to land on the same byte
-        // length (which testRandomSchema's seeded combinations occasionally do). Clear it before each
-        // test so every iteration reads its own footer. Other tests in this package that reuse a single
-        // path follow the same pattern (see OptimizedReaderFileVariantTests).
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        // with a different file body. Footer caches are per reader instance and each test constructs
+        // its own readers, so no cross-test stale-footer clearing is needed.
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() {
         codecFactory.release();
-        super.tearDown();
     }
 
     // --- Explicit V1/V2 x compression matrix ---
@@ -391,7 +400,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
      * closes the returned block.
      */
     private Block sparseRead(byte[] data, String column, DataType dataType, int[] survivors) throws IOException {
-        try (ParquetFileReader reader = openSparseReader(data)) {
+        try (ParquetFileReader reader = openReader(data)) {
             BlockMetaData block = reader.getRowGroups().getFirst();
             MessageType schema = reader.getFileMetaData().getSchema();
             ColumnDescriptor desc = schema.getColumnDescription(new String[] { column });
@@ -412,9 +421,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         }
     }
 
-    private ParquetFileReader openSparseReader(byte[] data) throws IOException {
+    private ParquetFileReader openReader(byte[] data) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(storageObject(data), blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storageObject(data), footerByteCache, blockFactory.breaker()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }
@@ -429,6 +438,109 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertFalse("position " + position + " must be non-null", block.isNull(position));
         IntBlock ib = (IntBlock) block;
         assertEquals(expected, ib.getInt(ib.getFirstValueIndex(position)));
+    }
+
+    // --- Two-phase page-filtered skip overshoot (skipRows) ---
+
+    private static final MessageType SKIP_OVERSHOOT_SCHEMA = Types.buildMessage().required(INT64).named("v").named("skip_overshoot_repro");
+
+    /**
+     * Exercises the two-phase page-filtered skip overshoot in {@link PageColumnReader#skipRows}.
+     *
+     * <p>When a projection reader carries a survivor {@link RowRanges} that EXCLUDES an early data
+     * page (zero survivors on that page) and survivors sit on a later page, {@code loadNextPage}
+     * skips the whole excluded page, jumping the physical cursor PAST the caller's skip target. If
+     * that overshoot is discarded, the reader is silently ahead of where the caller thinks it is and
+     * every later skip/read consumes real survivor rows.
+     *
+     * <p>The invariant asserted here is coordinate-space-exact and codec/geometry independent: two
+     * skip calls that together cover exactly the excluded first page must leave the reader on the
+     * first survivor row (source row == first-row-index of page 1), whose value equals its
+     * source-row index. With the overshoot bug the first skip jumps to the page boundary and
+     * discards the surplus, so the second skip eats into page 1 and the subsequent read returns a
+     * survivor row too far along.
+     */
+    public void testSkipCoveringExcludedPageLandsAtNextPageStart() throws IOException {
+        byte[] data = writeTwoPageFile();
+        try (ParquetFileReader reader = openReader(data)) {
+            BlockMetaData rg = reader.getRowGroups().getFirst();
+            long totalRows = rg.getRowCount();
+            OffsetIndex oi = reader.readOffsetIndex(rg.getColumns().getFirst());
+            assertNotNull("column must have an offset index", oi);
+            assertTrue("need at least two pages to reproduce", oi.getPageCount() >= 2);
+
+            // page 0 spans [0, firstPageRows); page 1 starts at firstPageRows.
+            int firstPageRows = Math.toIntExact(oi.getFirstRowIndex(1));
+            assertTrue(firstPageRows >= 2);
+
+            // Survivor RowRanges cover only page 1 onward, so page 0 is excluded (zero survivors)
+            // and survivors sit strictly after it, triggering the skip overshoot.
+            RowRanges survivorRanges = RowRanges.of(firstPageRows, totalRows, totalRows);
+
+            ColumnDescriptor desc = SKIP_OVERSHOOT_SCHEMA.getColumns().getFirst();
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                DataType.LONG,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            );
+
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, survivorRanges)) {
+                // The two-phase caller drains the fully-filtered leading batches with skipRows in
+                // source-row coordinates. Split the excluded page into two skips so the first one
+                // stops short of the page boundary (count < firstPageRows) and triggers the jump.
+                int firstSkip = firstPageRows / 2;
+                assertTrue(firstSkip > 0 && firstSkip < firstPageRows);
+                pcr.skipRows(firstSkip);
+                pcr.skipRows(firstPageRows - firstSkip);
+
+                // We have now skipped exactly the source rows of page 0. The next read must start
+                // at the first survivor row, whose value equals its source-row index.
+                LongBlock block = (LongBlock) pcr.readBatch(1, blockFactory);
+                try {
+                    assertEquals(1, block.getPositionCount());
+                    assertEquals(
+                        "reader must sit on the first survivor row after skipping the excluded page",
+                        (long) firstPageRows,
+                        block.getLong(0)
+                    );
+                } finally {
+                    block.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * Writes a single-column {@code {v: long}} file over one row group with plain (dictionary-disabled)
+     * encoding and a tiny page size, so {@code v} spans several small data pages. {@code v} is unique
+     * per row and equals its source-row index, so a decoded value pins the reader's position.
+     */
+    private byte[] writeTwoPageFile() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(SKIP_OVERSHOOT_SCHEMA);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(SKIP_OVERSHOOT_SCHEMA)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                // Plain encoding + a tiny page size forces several small pages within one row group.
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(64L * 1024 * 1024)
+                .withPageSize(1024)
+                .build()
+        ) {
+            for (int i = 0; i < 4000; i++) {
+                writer.write(factory.newGroup().append("v", (long) i));
+            }
+        }
+        return out.toByteArray();
     }
 
     // --- Randomized test ---
@@ -482,6 +594,86 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             }
         });
 
+        assertOptimizedMatchesBaseline(data, columns);
+    }
+
+    public void testCompressedUniqueStringsAcrossPages() throws IOException {
+        // PARQUET_1_0 PLAIN aliases the reused dest. Fixed-width values keep page uncompressed
+        // sizes equal so dest is reused rather than grown (a grow would leave the old array
+        // alive and hide a missing copy-out). PARQUET_2_0 DELTA_BYTE_ARRAY copies the page in
+        // initDecoders, so it would not catch a missing copy-out. Loop every dest-reuse codec:
+        // a destLen vs dest.length bug is codec-specific (Zstd).
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW }) {
+            assertCompressedUniqueStringsAcrossPages(codec);
+        }
+    }
+
+    private void assertCompressedUniqueStringsAcrossPages(CompressionCodecName codec) throws IOException {
+        int rows = 200;
+        int batchSize = 128;
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("req")
+            .optional(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("opt")
+            .named("unique_str_reuse");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(schema)
+                .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
+                .withCompressionCodec(codec)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(64L * 1024 * 1024)
+                .withPageSize(64)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup().append("req", String.format(Locale.ROOT, "req_%05d", i));
+                if (i % 7 != 0) {
+                    g.append("opt", String.format(Locale.ROOT, "opt_%05d", i));
+                }
+                writer.write(g);
+            }
+        }
+        byte[] data = out.toByteArray();
+        try (ParquetFileReader parquetReader = openReader(data)) {
+            OffsetIndex oi = parquetReader.readOffsetIndex(parquetReader.getRowGroups().getFirst().getColumns().getFirst());
+            assertNotNull(codec + " column must have an offset index", oi);
+            assertTrue(codec + " need ≥2 data pages so dest reuse can clobber", oi.getPageCount() >= 2);
+            assertTrue(codec + " batch must span page 0", batchSize > oi.getFirstRowIndex(1));
+        }
+        List<String> columns = List.of("req", "opt");
+        List<Page> pages = readAll(new ParquetFormatReader(blockFactory), data, columns, batchSize);
+        try {
+            assertEquals(codec + " first batch", batchSize, pages.getFirst().getPositionCount());
+            int pos = 0;
+            for (Page page : pages) {
+                BytesRefBlock req = (BytesRefBlock) page.getBlock(0);
+                BytesRefBlock opt = (BytesRefBlock) page.getBlock(1);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    assertBytesRefAt(req, i, String.format(Locale.ROOT, "req_%05d", pos));
+                    if (pos % 7 == 0) {
+                        assertTrue(codec + " opt null@" + pos, opt.isNull(i));
+                    } else {
+                        assertBytesRefAt(opt, i, String.format(Locale.ROOT, "opt_%05d", pos));
+                    }
+                    pos++;
+                }
+            }
+            assertEquals(codec + " rows", rows, pos);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
         assertOptimizedMatchesBaseline(data, columns);
     }
 
@@ -583,9 +775,13 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     // --- Read helpers ---
 
     private List<Page> readAll(ParquetFormatReader reader, byte[] data, List<String> columns) throws IOException {
+        return readAll(reader, data, columns, BATCH_SIZE);
+    }
+
+    private List<Page> readAll(ParquetFormatReader reader, byte[] data, List<String> columns, int batchSize) throws IOException {
         StorageObject so = storageObject(data);
         List<Page> pages = new ArrayList<>();
-        try (CloseableIterator<Page> iter = reader.read(so, FormatReadContext.of(columns, BATCH_SIZE))) {
+        try (CloseableIterator<Page> iter = reader.read(so, FormatReadContext.of(columns, batchSize))) {
             while (iter.hasNext()) {
                 pages.add(iter.next());
             }
@@ -644,6 +840,11 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     private static StorageObject storageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

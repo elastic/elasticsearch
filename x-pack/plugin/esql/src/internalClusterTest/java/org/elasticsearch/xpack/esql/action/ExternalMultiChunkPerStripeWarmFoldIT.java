@@ -96,7 +96,7 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             // Stripe (6 MB) LARGER than the default 4 MB read segment: every stripe spans a chunk boundary, so
             // the per-stripe interval-cover must stitch fragments from more than one parallel chunk. This is the
             // "multiple chunks per stripe" geometry the sibling fold ITs (64kb stripe, or parallelism 1) never hit.
-            .put("esql.source.cache.stripe.size", "6mb")
+            .put("esql.external.cache.stripe.size", "6mb")
             // Reap inactive exchange sinks within a few seconds (default is 5 minutes) so a data-node sink whose
             // async cleanup trails the query response is released well inside the exchange/breaker teardown checks.
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
@@ -141,12 +141,12 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
      * MIN/MAX, reproducing the production ordering.
      */
     private void assertWarmAggregatesShortCircuit(String dataset) {
-        // The multi-chunk-per-stripe geometry requires the parallel-parse path (parsing_parallelism > 1). That
+        // The multi-chunk-per-stripe geometry requires the parallel-parse path (external_parsing_parallelism > 1). That
         // pragma is snapshot-only (rejected in release builds), so this test relies on its node default —
         // EsExecutors.allocatedProcessors(EMPTY), i.e. the machine's cores — and skips on a single-processor
         // runner, where the read would be a whole-file sequential scan and the geometry would not be exercised.
         assumeTrue(
-            "multi-chunk-per-stripe geometry needs parsing_parallelism > 1 (allocated processors)",
+            "multi-chunk-per-stripe geometry needs external_parsing_parallelism > 1 (allocated processors)",
             EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
         );
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
@@ -191,7 +191,7 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     }
 
     /**
-     * Runs {@code query} with profiling on. {@code parsing_parallelism} is NOT pinned here: it is a
+     * Runs {@code query} with profiling on. {@code external_parsing_parallelism} is NOT pinned here: it is a
      * snapshot-only pragma (a request carrying it is rejected in release builds), so the parallel-parse path
      * relies on the node default (allocated processors), which the {@code assumeTrue} in
      * {@link #assertWarmAggregatesShortCircuit} requires to be &gt; 1.

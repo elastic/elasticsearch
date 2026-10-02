@@ -29,18 +29,13 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A user-declared mapping attached to a {@link Dataset}. Entirely optional — a dataset with no
  * {@code DatasetMapping} resolves its schema by inference, exactly as before.
  *
- * <p>Currently this wraps a single {@code mappings} block ({@link Mappings}): a {@code dynamic} mode, per-column
- * {@code properties}, and the meta-fields {@code _source} ({@code enabled}) and {@code _id} ({@code path}). The
- * wrapper is retained (rather than inlining {@code mappings} onto {@link Dataset}) so future top-level declaration
- * keys have a home.
+ * <p>Currently this wraps a single {@code mappings} block ({@link Mappings}): a {@code dynamic} mode and per-column
+ * {@code properties}. The wrapper is retained (rather than inlining {@code mappings} onto {@link Dataset}) so future
+ * top-level declaration keys have a home.
  *
  * <p>There are <b>no role designations</b>. A time axis is just a column named {@code @timestamp}, declared as an
  * ordinary rename ({@code "@timestamp": {"type":"date","path":"ts"}}) and recognized by the stack by name — a
- * "move", not a designation. Setting {@code _id} from a column is likewise a meta-field
- * ({@code "_id": {"path": "col"}}), sibling of {@code _source} inside {@code mappings} — the ES meta-field shape,
- * not a separate top-level role — so it always rides a {@code mappings} wrapper (exactly as {@code _source.enabled}
- * does). Whether the named column exists is validated in the ES|QL layer: at put time when it is declared, otherwise
- * at first query.
+ * "move", not a designation.
  *
  * <p>Like {@link DataSourceReference}, this has no standalone XContent: {@link Dataset#toXContent} emits the
  * {@code mappings} key and {@link Dataset#PARSER} reads it back, assembling this object via {@link #assemble}.
@@ -72,67 +67,46 @@ public final class DatasetMapping implements Writeable {
     /**
      * The {@code mappings} block: an undeclared-column policy and the per-column declarations keyed by logical name.
      *
-     * @param dynamic       undeclared-column policy ({@code true} = infer + overlay, {@code false} = declaration is the
-     *                      whole schema).
-     * @param properties    per-column declarations keyed by logical name; order-preserving, may be empty (e.g.
-     *                      {@code "mappings": { "dynamic": "false" }}).
-     * @param sourceEnabled {@code _source.enabled}: whether a synthetic {@code _source} is produced for the dataset's
-     *                      rows. {@code null} means unset — the default ({@code true}, source available). Mirrors the
-     *                      core {@code _source} mapping's {@code enabled}, restricted to the read-applicable knob.
+     * @param dynamic    undeclared-column policy ({@code true} = infer + overlay, {@code false} = declaration is the
+     *                   whole schema).
+     * @param properties per-column declarations keyed by logical name; order-preserving, may be empty (e.g.
+     *                   {@code "mappings": { "dynamic": "false" }}).
      */
-    public record Mappings(
-        Dynamic dynamic,
-        Map<String, DatasetFieldMapping> properties,
-        @Nullable Boolean sourceEnabled,
-        @Nullable String idPath
-    ) implements Writeable {
+    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) implements Writeable {
 
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
         }
 
-        /** Convenience: a mappings block with no meta-field knobs ({@code _source}, {@code _id}). */
-        public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
-            this(dynamic, properties, null, null);
-        }
-
-        /** Convenience: a mappings block with a {@code _source} knob but no {@code _id.path}. */
-        public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable Boolean sourceEnabled) {
-            this(dynamic, properties, sourceEnabled, null);
-        }
-
         Mappings(StreamInput in) throws IOException {
-            // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), which is
-            // unreleased — so every field (incl. _source.enabled and _id.path) ships in that one version; no separate gate.
-            this(
-                in.readEnum(Dynamic.class),
-                in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new),
-                in.readOptionalBoolean(),
-                in.readOptionalString()
-            );
+            this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new));
+            // An optional string this version has no field for. dataset_declared_schema is on 9.5, and both sides
+            // write the slot unconditionally, so a 9.5 peer puts a column name here and it is discarded — whether
+            // the mapping came off persisted state or off a PUT a 9.5 coordinator forwards to a 9.6 master
+            // mid-upgrade. Dropping the slot needs a new transport version gating read and write, since every
+            // peer from 9.5 onward writes it; 9.5 leaving the wire-compatibility window is not the trigger.
+            in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(dynamic);
             out.writeMap(properties, (o, v) -> v.writeTo(o));
-            out.writeOptionalBoolean(sourceEnabled);
-            out.writeOptionalString(idPath);
-        }
-
-        /** {@code _source.enabled} resolved to its effective value: {@code true} (available) unless explicitly disabled. */
-        public boolean sourceAvailable() {
-            return sourceEnabled == null || sourceEnabled;
+            out.writeOptionalString(null); // the _id.path slot a 9.5 peer expects; see the stream constructor
         }
     }
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
-    private static final String SOURCE = "_source";
-    private static final String ENABLED = "enabled";
-    private static final String ID = "_id";
-    private static final String PATH = "path";
+    /**
+     * The {@code _id} block in a {@code mappings} object a 9.5 node persisted to cluster state, which
+     * {@link #parseStoredMappings} skips. This is the XContent on disk, not the wire slot above: that slot
+     * is read and written unconditionally by every peer from 9.5 on and is not on a removal path.
+     */
+    // TODO: remove this and the tolerant entry point once no supported upgrade starts from a version that
+    // persisted the block, since state written before then is what the parse has to tolerate.
+    private static final String UNSUPPORTED_ID_FIELD = "_id";
 
     @Nullable
     private final Mappings mappings;
@@ -152,23 +126,38 @@ public final class DatasetMapping implements Writeable {
 
     /**
      * Builds a {@link DatasetMapping} from the parsed {@code mappings} block, or {@code null} when it is absent (a
-     * dataset with no declared schema). Used by {@link Dataset#PARSER}. All declaration surfaces — column
-     * {@code properties}, and the meta-fields {@code _source} and {@code _id} — live inside {@code mappings}, so a
-     * dataset that only sets, say, {@code _id.path} still needs a {@code mappings} wrapper (exactly as an index does
-     * for {@code _source.enabled}).
+     * dataset with no declared schema). Used by {@link Dataset#PARSER}. Every declaration surface lives inside
+     * {@code mappings}, so a dataset that only sets, say, {@code dynamic} still needs a {@code mappings} wrapper.
      */
     @Nullable
     public static DatasetMapping assemble(@Nullable Mappings mappings) {
         return mappings == null ? null : new DatasetMapping(mappings);
     }
 
-    /** Parses the {@code mappings} object ({@code dynamic}, {@code properties}, {@code _source}, {@code _id}). */
+    /**
+     * Parses a user-supplied {@code mappings} object ({@code dynamic}, {@code properties}). A {@code _id} block is
+     * not a field this version has, and is refused like any other unknown key — a dataset answers
+     * {@code METADATA _id} as SQL NULL, so accepting the declaration would take a column name and do nothing with it.
+     */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
+        return parseMappings(parser, false);
+    }
+
+    /**
+     * Parses a {@code mappings} object off persisted cluster state, where a 9.5 node may have written a
+     * {@code _id} block. That block is read and discarded: refusing it would leave an upgraded node unable to
+     * load its own cluster state, and there is nothing for the declaration to feed. Precedent for skipping an
+     * unsupported block unexamined is {@code IndexMetadata.Builder.fromXContent}'s {@code warmers} arm.
+     * ({@link DataStream}'s {@code timestamp_field} is a different shape — it validates and writes the block back.)
+     */
+    static Mappings parseStoredMappings(XContentParser parser) throws IOException {
+        return parseMappings(parser, true);
+    }
+
+    private static Mappings parseMappings(XContentParser parser, boolean fromStoredState) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Dynamic dynamic = Dynamic.TRUE;
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        Boolean sourceEnabled = null;
-        String idPath = null;
         String field = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -187,43 +176,17 @@ public final class DatasetMapping implements Writeable {
                         properties.put(name, DatasetFieldMapping.fromXContent(parser));
                     }
                 }
-            } else if (SOURCE.equals(field)) {
-                // _source: { enabled: <bool> } — the only supported knob (mirrors the core _source mapping, read-side).
+            } else if (fromStoredState && UNSUPPORTED_ID_FIELD.equals(field)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                XContentParser.Token t;
-                while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (t == XContentParser.Token.FIELD_NAME) {
-                        String key = parser.currentName();
-                        if (ENABLED.equals(key) == false) {
-                            throw new IllegalArgumentException("unknown [_source] field [" + key + "]; only [enabled] is supported");
-                        }
-                    } else {
-                        sourceEnabled = parser.booleanValue();
-                    }
-                }
-            } else if (ID.equals(field)) {
-                // _id: { path: <column> } — the id-source column, a meta-field mirroring the index _id/alias path.
-                // Only [path] is supported (identity from a column); any other key is rejected.
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                XContentParser.Token t;
-                while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (t == XContentParser.Token.FIELD_NAME) {
-                        String key = parser.currentName();
-                        if (PATH.equals(key) == false) {
-                            throw new IllegalArgumentException("unknown [_id] field [" + key + "]; only [path] is supported");
-                        }
-                    } else {
-                        idPath = parser.text();
-                    }
-                }
+                parser.skipChildren();
             } else {
                 throw new IllegalArgumentException("unknown mappings field [" + field + "]");
             }
         }
-        return new Mappings(dynamic, properties, sourceEnabled, idPath);
+        return new Mappings(dynamic, properties);
     }
 
-    /** Emits the {@code mappings} block (incl. the {@code _source} and {@code _id} meta-fields) into an open dataset object. */
+    /** Emits the {@code mappings} block into an open dataset object. */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
         if (mappings != null) {
             builder.startObject("mappings");
@@ -235,12 +198,6 @@ public final class DatasetMapping implements Writeable {
                     e.getValue().toXContent(builder, null);
                 }
                 builder.endObject();
-            }
-            if (mappings.sourceEnabled() != null) {
-                builder.startObject(SOURCE).field(ENABLED, mappings.sourceEnabled()).endObject();
-            }
-            if (mappings.idPath() != null) {
-                builder.startObject(ID).field(PATH, mappings.idPath()).endObject();
             }
             builder.endObject();
         }

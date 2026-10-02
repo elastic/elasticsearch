@@ -9,9 +9,10 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,22 +21,25 @@ public class ICUCollationKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
 
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field", IndexMode.STANDARD, false).build(
-            MapperBuilderContext.root(false, false)
-        );
+        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder(
+            "field",
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY)
+        ).build(MapperBuilderContext.root(false, false));
         assertEquals(List.of("42"), fetchSourceValue(mapper.fieldType(), 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper.fieldType(), true));
 
-        ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field", IndexMode.STANDARD, false)
-            .ignoreAbove(4)
-            .build(MapperBuilderContext.root(false, false));
+        ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder(
+            "field",
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY)
+        ).ignoreAbove(4).build(MapperBuilderContext.root(false, false));
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper.fieldType(), "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper.fieldType(), 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper.fieldType(), true));
 
-        ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field", IndexMode.STANDARD, false)
-            .nullValue("NULL")
-            .build(MapperBuilderContext.root(false, false));
+        ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder(
+            "field",
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY)
+        ).nullValue("NULL").build(MapperBuilderContext.root(false, false));
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper.fieldType(), null));
     }
 }

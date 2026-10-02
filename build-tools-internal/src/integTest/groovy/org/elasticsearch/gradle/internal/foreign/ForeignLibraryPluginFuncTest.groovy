@@ -82,16 +82,49 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         file('fakeprocessor/src/main/resources/META-INF/services/javax.annotation.processing.Processor') <<
             'fake.MarkerProcessor'
 
+        file('src/main/java/test/MainHelper.java') << """
+            package test;
+            public abstract class MainHelper {
+                public static String message() {
+                    return "helper";
+                }
+            }
+        """.stripIndent()
+
         // Consumer module: applies the plugin, annotates a class with @fake.Marker, and substitutes
         // the dummy processor for the plugin's default :libs:foreign-library:processor dep.
         file('src/main/java/test/Lib.java') << """
             package test;
             @fake.Marker
-            public class Lib {}
+            public class Lib extends MainHelper {}
+        """.stripIndent()
+
+        file('src/testFixtures/java/test/FixtureLib.java') << """
+            package test;
+            @fake.Marker
+            public class FixtureLib {}
+        """.stripIndent()
+
+        file('src/test/java/test/TestHelper.java') << """
+            package test;
+            public class TestHelper {
+                public static String message() {
+                    return "helper";
+                }
+            }
+        """.stripIndent()
+
+        file('src/test/java/test/MarkedTest.java') << """
+            package test;
+            @fake.Marker
+            public class MarkedTest extends TestHelper {}
         """.stripIndent()
 
         buildFile << """
             apply plugin: 'elasticsearch.foreign-library'
+            // Applied after the plugin, as real consumers do: the testFixtures source set does not exist
+            // when the plugin is applied, so the plugin must register against it lazily.
+            apply plugin: 'java-test-fixtures'
 
             // The plugin pins processForeignAnnotations to JDK 25 because the real processor uses
             // java.lang.classfile (finalized in JDK 24). The dummy processor in this test only uses
@@ -99,7 +132,7 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
             // runtime, so override the toolchain to the current JVM. The JDK 25 pinning itself is
             // verified by ForeignLibraryPluginSpec — here we just exercise the wiring.
             def currentJavaVersion = JavaVersion.current().majorVersion
-            tasks.named('processForeignAnnotations').configure {
+            tasks.matching { it.name.endsWith('ForeignAnnotations') }.configureEach {
                 javaCompiler = javaToolchains.compilerFor {
                     languageVersion = org.gradle.jvm.toolchain.JavaLanguageVersion.of(currentJavaVersion.toInteger())
                 }
@@ -110,6 +143,8 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
             dependencies {
                 // compileOnly so the @Marker annotation (SOURCE retention) is visible during compile
                 compileOnly project(':fakeprocessor')
+                testCompileOnly project(':fakeprocessor')
+                testFixturesCompileOnly project(':fakeprocessor')
                 foreignLibraryProcessor project(':fakeprocessor')
             }
         """.stripIndent()
@@ -128,4 +163,38 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         file("build/generated-foreign-library-classes/fake-marker.txt").text == "processor ran"
     }
 
+    def "runs the processor against the testFixtures source set too"() {
+        when:
+        def result = gradleRunner('processTestFixturesForeignAnnotations').build()
+
+        then:
+        result.task(":processTestFixturesForeignAnnotations").outcome == TaskOutcome.SUCCESS
+        // Its own output dir, a sibling of main's rather than nested inside it.
+        file("build/generated-foreign-library-classes-testFixtures/fake-marker.txt").text == "processor ran"
+        file("build/generated-foreign-library-classes/fake-marker.txt").exists() == false
+    }
+
+    def "processForeignAnnotations reruns after a main source change"() {
+        when:
+        gradleRunner('compileJava', 'processForeignAnnotations').build()
+        // Trigger a processForeignAnnotations to re-run, by modifying a main source file
+        file('src/main/java/test/Lib.java').append('\n')
+        def result = gradleRunner('processForeignAnnotations').build()
+
+        then:
+        result.task(":processForeignAnnotations").outcome in [TaskOutcome.SUCCESS, TaskOutcome.FROM_CACHE]
+        file("build/generated-foreign-library-classes/fake-marker.txt").text == "processor ran"
+    }
+
+    def "processTestForeignAnnotations reruns after a test source change"() {
+        when:
+        gradleRunner('compileTestJava', 'processTestForeignAnnotations').build()
+        // Trigger a processForeignAnnotations to re-run, by modifying a test source file
+        file('src/test/java/test/MarkedTest.java').append('\n')
+        def result = gradleRunner('processTestForeignAnnotations').build()
+
+        then:
+        result.task(":processTestForeignAnnotations").outcome in [TaskOutcome.SUCCESS, TaskOutcome.FROM_CACHE]
+        file("build/generated-foreign-library-classes-test/fake-marker.txt").text == "processor ran"
+    }
 }

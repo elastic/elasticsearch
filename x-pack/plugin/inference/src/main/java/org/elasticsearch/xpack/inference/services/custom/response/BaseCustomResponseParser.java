@@ -76,7 +76,7 @@ public abstract class BaseCustomResponseParser implements CustomResponseParser {
         var keys = ((Map<?, ?>) obj).keySet();
         for (var key : keys) {
             if (key instanceof String == false) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     Strings.format(
                         "Extracted field [%s] map has an invalid key type. Expected a string but received [%s]",
                         fieldName,
@@ -140,7 +140,7 @@ public abstract class BaseCustomResponseParser implements CustomResponseParser {
             try {
                 resultList.add(converter.apply(items.get(i), fieldName));
             } catch (Exception e) {
-                throw new IllegalStateException(Strings.format("Failed to parse list entry [%d], error: %s", i, e.getMessage()), e);
+                throw new IllegalArgumentException(Strings.format("Failed to parse list entry [%d], error: %s", i, e.getMessage()), e);
             }
         }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -41,8 +42,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -1321,9 +1322,9 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
-            assertThat(result, CoreMatchers.instanceOf(ChatCompletionResults.class));
+            assertThat(result, CoreMatchers.instanceOf(CompletionResults.class));
 
-            var completionResults = (ChatCompletionResults) result;
+            var completionResults = (CompletionResults) result;
             assertThat(completionResults.getResults().size(), is(1));
             assertThat(completionResults.getResults().get(0).content(), is("test completion content"));
         }
@@ -1595,7 +1596,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
                     }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

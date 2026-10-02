@@ -39,6 +39,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
@@ -46,6 +48,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -216,6 +219,20 @@ public class ArrowResponseTests extends ESTestCase {
         )
     );
 
+    // DOUBLE_RANGE: struct with "from" and "to" float64 children.
+    static final ValueType DOUBLE_RANGE_VALUES = new ValueTypeImpl<DoubleRangeBlock.Builder, DoubleRangeBlock, StructVector>(
+        "double_range",
+        factory -> factory.newDoubleRangeBlockBuilder(0),
+        block -> block.appendDoubleRange((DoubleRange) EsqlTestUtils.randomLiteralValue(DataType.DOUBLE_RANGE)),
+        (block, valueIndex, scratch) -> {
+            return block.getDoubleRange(valueIndex, new DoubleRange());
+        },
+        (vec, position) -> new DoubleRange(
+            ((Float8Vector) vec.getChild("from")).get(position),
+            ((Float8Vector) vec.getChild("to")).get(position)
+        )
+    );
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -245,7 +262,8 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
         Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
 
-        Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES)
+        Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
+        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
     );
 
     // ---------------------------------------------------------------------------------------------

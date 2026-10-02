@@ -25,6 +25,7 @@ import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -71,7 +72,7 @@ import static org.hamcrest.Matchers.hasSize;
  * <em>before</em> the SDK initializes, which only works on a separate cluster JVM. Mirrors the
  * fixture-and-system-property pattern in {@code AzureRepositoryAnalysisRestIT}.
  *
- * <p>Validator-level coverage of the {@code esql.datasource.managed_identity.enabled} gate lives
+ * <p>Validator-level coverage of the {@code esql.external.managed_identity.enabled} gate lives
  * in {@code AzureDataSourceValidatorTests}; this IT focuses on the credential-resolution happy path
  * that unit tests cannot reach.
  */
@@ -110,8 +111,9 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         // Open the workload identity gate so the validator accepts auth=managed_identity.
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         // Redirect the Azure IMDS endpoint to our fixture so ManagedIdentityCredential resolves a
         // bearer token against the metadata server instead of the default 169.254.169.254 (which
         // entitlements would block in the cluster JVM anyway).
@@ -192,7 +194,7 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.managed_identity.enabled")
+                containsString("esql.external.managed_identity.enabled")
             );
         } finally {
             // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
@@ -324,7 +326,7 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
     private static void setManagedIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.external.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

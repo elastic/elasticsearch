@@ -8,18 +8,28 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceIndexDocTypeField;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
+import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecrets> {
 
@@ -51,6 +61,31 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
     @Override
     protected ModelSecrets mutateInstance(ModelSecrets instance) {
         return new ModelSecrets(randomValueOtherThan(instance.getSecretSettings(), ModelSecretsTests::randomSecretSettings));
+    }
+
+    /**
+     * Asserts that serializing {@link ModelSecrets} with the same params used by
+     * {@code ModelRegistry.createIndexRequestBuilder} (i.e. {@code FOR_INTERNAL_STORAGE=true}) does not produce a
+     * {@code doc_type} field. This test guards against accidental inclusion of doc_type while allowing us to
+     * keep the code simple.
+     */
+    public void testToXContentWithInternalStorageParamsDoesNotIncludeDocType() throws IOException {
+        ModelSecrets modelSecrets = createRandomInstance();
+
+        ToXContent.Params params = new ToXContent.MapParams(
+            Map.of(
+                ModelConfigurations.USE_ID_FOR_INDEX,
+                Boolean.TRUE.toString(),
+                ToXContentParams.FOR_INTERNAL_STORAGE,
+                Boolean.TRUE.toString()
+            )
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        modelSecrets.toXContent(builder, params);
+        String json = Strings.toString(builder);
+
+        assertThat(json, not(containsString(InferenceIndexDocTypeField.DOC_TYPE_FIELD)));
     }
 
     public record FakeSecretSettings(String apiKey) implements SecretSettings {

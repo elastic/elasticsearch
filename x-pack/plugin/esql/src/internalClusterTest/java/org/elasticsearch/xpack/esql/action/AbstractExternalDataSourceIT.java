@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
+
+import com.github.luben.zstd.ZstdOutputStream;
+
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -98,6 +103,13 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
 
     /** Default data-source name used by the {@link #registerDataset(String, String, Map)} convenience. */
     private static final String SHARED_TEST_DATA_SOURCE = "test_ds";
+
+    /**
+     * Data-source name used by {@link #registerLocalFileDataset}. Type {@code local} goes through
+     * {@code FileDataSourceValidator}, so an omitted {@code schema_resolution} stores
+     * {@code first_file_wins}.
+     */
+    private static final String SHARED_LOCAL_FILE_DATA_SOURCE = "file_ds";
 
     private final Set<String> registeredDatasets = new LinkedHashSet<>();
     private final Set<String> registeredDataSources = new LinkedHashSet<>();
@@ -223,6 +235,26 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     }
 
     /**
+     * Registers {@code name} against a {@code local} data source so PUT goes through
+     * {@code FileDataSourceValidator} and an omitted {@code schema_resolution} stores
+     * {@code first_file_wins}. {@link #registerDataset(String, String, Map)} uses the pass-through
+     * {@code test} validator and stores a missing key (legacy hydrate).
+     */
+    protected String registerLocalFileDataset(String name, String resourceUri, Map<String, Object> settings) {
+        if (registeredDataSources.contains(SHARED_LOCAL_FILE_DATA_SOURCE) == false) {
+            assertAcked(
+                client().execute(
+                    PutDataSourceAction.INSTANCE,
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, SHARED_LOCAL_FILE_DATA_SOURCE, "local", null, new HashMap<>())
+                )
+            );
+            registeredDataSources.add(SHARED_LOCAL_FILE_DATA_SOURCE);
+        }
+        registerDataset(name, SHARED_LOCAL_FILE_DATA_SOURCE, resourceUri, settings);
+        return name;
+    }
+
+    /**
      * Registers a STRICT ({@code dynamic:false}) dataset with a declared mapping against the shared data source,
      * creating it on first use, and records it for teardown. The declared columns are the entire schema — strict
      * resolution reads no file to infer it. Used by the strict declared-schema tests.
@@ -256,12 +288,47 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         return name;
     }
 
+    /**
+     * Registers a NON-STRICT ({@code dynamic:true}) dataset with a declared mapping against the shared data source,
+     * creating it on first use, and records it for teardown. A non-strict mapping overlays the declared columns onto
+     * the inferred schema and leaves undeclared columns to normal inference/reconciliation, so it exercises the
+     * declared-overlay path on top of inference (e.g. {@code union_by_name} widening of an undeclared column).
+     */
+    protected String registerNonStrictDataset(
+        String name,
+        String resourceUri,
+        LinkedHashMap<String, DatasetFieldMapping> properties,
+        Map<String, Object> settings
+    ) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    SHARED_TEST_DATA_SOURCE,
+                    resourceUri,
+                    null,
+                    new HashMap<>(settings),
+                    mapping
+                )
+            )
+        );
+        registeredDatasets.add(name);
+        return name;
+    }
+
     @After
     public void cleanupRegistry() {
         for (String dataset : registeredDatasets) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { dataset }))
-                    .get(30, TimeUnit.SECONDS);
+                    .actionGet(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted
             } catch (Exception e) {
@@ -273,7 +340,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
                 client().execute(
                     DeleteDataSourceAction.INSTANCE,
                     new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { dataSource })
-                ).get(30, TimeUnit.SECONDS);
+                ).actionGet(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted
             } catch (Exception e) {
@@ -340,6 +407,30 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     /** Writes {@code content} to {@code target} through a {@link GZIPOutputStream}. */
     protected static Path writeGzipped(Path target, String content) throws IOException {
         try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as a bzip2-compressed file. */
+    protected static Path writeBzip2(Path target, String content) throws IOException {
+        try (OutputStream out = new BZip2CompressorOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as a zstd-compressed file. */
+    protected static Path writeZstd(Path target, String content) throws IOException {
+        try (OutputStream out = new ZstdOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as an LZ4-framed compressed file. */
+    protected static Path writeLz4(Path target, String content) throws IOException {
+        try (OutputStream out = new LZ4FrameOutputStream(Files.newOutputStream(target))) {
             out.write(content.getBytes(StandardCharsets.UTF_8));
         }
         return target;
@@ -424,5 +515,24 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             }
         }
         return nodes;
+    }
+
+    /**
+     * Every {@link AsyncExternalSourceOperator.Status} across the query's driver profiles. Lets a caller assert on the
+     * <em>real I/O</em> a scan performed (splits totalled, bytes read), not merely the post-prune profile counters —
+     * the two differ exactly when the read path scans files the pruning already eliminated. Requires
+     * {@code profile(true)}.
+     */
+    protected static List<AsyncExternalSourceOperator.Status> externalScanStatuses(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true) to inspect the external scan", response.profile(), notNullValue());
+        List<AsyncExternalSourceOperator.Status> statuses = new ArrayList<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    statuses.add(status);
+                }
+            }
+        }
+        return statuses;
     }
 }

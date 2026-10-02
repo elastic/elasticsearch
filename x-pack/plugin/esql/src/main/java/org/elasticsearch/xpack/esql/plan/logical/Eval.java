@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -45,7 +44,8 @@ public class Eval extends UnaryPlan
         TelemetryAware,
         Streaming,
         SortAgnostic,
-        SortPreserving {
+        SortPreserving,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
@@ -176,9 +176,7 @@ public class Eval extends UnaryPlan
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false
-                && (Alias.unwrap(field) instanceof PackDimension == false)
-                && isNullSourceLiteral(field) == false) {
+            if (DataType.isRepresentable(dataType) == false && isNullSourceLiteral(field) == false) {
                 failures.add(
                     fail(
                         field,
@@ -192,14 +190,13 @@ public class Eval extends UnaryPlan
     }
 
     /**
-     * True for a {@code _source} column bound to a constant {@code null} — the shape
-     * {@code Analyzer.ResolveExternalRelations} produces for a requested {@code _source} on an
-     * external dataset declaring {@code _source.enabled: false}, mirroring a real index's
-     * disabled-source behavior (the {@code ConstantNull} block loader wired in
-     * {@code SourceFieldMapper} / {@code EsPhysicalOperationProviders}). {@code DataType.SOURCE} is
-     * otherwise excluded from {@link DataType#isRepresentable} because no scalar function computes a
-     * {@code _source} value; a constant null is the one legitimate exception, so it is carved out
-     * here rather than widening {@code isRepresentable} itself.
+     * True for a {@code _source} column bound to a constant {@code null}. When a {@link MergePlan} branch is missing a column
+     * present in a sibling branch, {@code Analyzer.resolveMergePlan} null-fills it with {@code new Literal(source, null, attrType)}
+     * where {@code attrType} is the missing attribute's own {@code dataType}, and wraps the fill in a synthesized {@link Eval}.
+     * The null-fill only rewrites {@code UNSUPPORTED} to {@code KEYWORD}, so a missing {@code _source} column (requested via
+     * {@code METADATA _source}) yields a null literal of {@link DataType#SOURCE}. {@code DataType.SOURCE} is excluded from
+     * {@link DataType#isRepresentable} because no scalar function computes a {@code _source} value; a constant null is the one
+     * legitimate exception, so it is carved out here rather than widening {@code isRepresentable} itself.
      */
     private static boolean isNullSourceLiteral(Alias field) {
         return field.dataType() == DataType.SOURCE && Alias.unwrap(field) instanceof Literal literal && literal.value() == null;

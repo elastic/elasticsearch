@@ -123,17 +123,56 @@ public class IvfAutoCalibration {
         return Arrays.stream(RERANK_DEPTHS).mapToObj(d -> (float) d).collect(Collectors.toUnmodifiableSet());
     }
 
+    /** For testing: the doc-bits weight used in the calibration cost model. */
+    static double docBitsWeight() {
+        return DOC_BITS_WEIGHT;
+    }
+
+    /** For testing: the rerank-depth weight used in the calibration cost model. */
+    static double rerankCostWeight() {
+        return RERANK_COST_WEIGHT;
+    }
+
     /**
-     * Weight of rerank depth in the calibration cost model ({@code dbits + RERANK_COST_WEIGHT * rerankDepth}).
-     * A value greater than 1 penalizes rerank depth more than an extra doc bit, reflecting that
-     * oversampling raises query-time DRAM pressure across <em>all</em> candidate vectors while an
-     * extra doc bit only raises storage cost. The coefficient 1.3 was chosen empirically to prefer
-     * low-bit encodings over aggressive reranking when both achieve similar recall.
+     * For testing: each cost-ordered sweep entry as {@code {dbits, qbits, rerankDepth}} in the order
+     * they are evaluated during calibration.
+     */
+    static double[][] costOrderedSweepEntries() {
+        double[][] entries = new double[COST_ORDERED_SWEEPS.length][3];
+        for (int i = 0; i < COST_ORDERED_SWEEPS.length; i++) {
+            CalibrationSweep s = COST_ORDERED_SWEEPS[i];
+            entries[i][0] = s.candidate().dbits();
+            entries[i][1] = s.candidate().qbits();
+            entries[i][2] = s.rerankDepth();
+        }
+        return entries;
+    }
+
+    /**
+     * Weight applied to doc bits in the calibration cost model
+     * ({@code DOC_BITS_WEIGHT * dbits + RERANK_COST_WEIGHT * rerankDepth}).
+     * Doc bits represent a permanent per-segment storage and memory cost, so they are weighted
+     * more heavily than rerank depth (a per-query compute cost). The value must satisfy
+     * {@code DOC_BITS_WEIGHT > RERANK_COST_WEIGHT * (maxRerankDepth - minRerankDepth)} to guarantee
+     * that no entry with higher doc bits ever sorts before an entry with lower doc bits — i.e. the
+     * cost ordering naturally tiers by doc-bit level without any explicit phase logic.
+     * With {@link #RERANK_COST_WEIGHT} = 1.3 and rerank depths in [1.25, 3.0] the minimum is
+     * {@code 1.3 * 1.75 ≈ 2.28}; 3.0 provides a comfortable margin.
+     */
+    private static final double DOC_BITS_WEIGHT = 3.0;
+
+    /**
+     * Weight of rerank depth in the calibration cost model. A value greater than 1 penalizes
+     * oversampling more than a raw rerankDepth increase, reflecting that it raises query-time DRAM
+     * pressure across all candidate vectors.
      */
     private static final double RERANK_COST_WEIGHT = 1.3;
 
     /**
-     * Sweeps (encoding, rerank ratio) in ascending estimated cost so the first config meeting target recall is cheap.
+     * All (encoding, rerank ratio) combinations sorted by ascending estimated cost so that the first
+     * configuration meeting target recall is always the cheapest available. {@link #DOC_BITS_WEIGHT}
+     * is large enough to guarantee that all entries at a given doc-bit level sort before any entry at
+     * a higher doc-bit level, so cheaper encodings are exhausted naturally without explicit phase logic.
      */
     private static final CalibrationSweep[] COST_ORDERED_SWEEPS = buildCostOrderedSweeps();
 
@@ -170,8 +209,9 @@ public class IvfAutoCalibration {
 
     /**
      * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState}.
-     * When reuse is not possible, runs full calibration on merged vectors. Bounded (force-merge) merges
-     * skip metadata reuse and always calibrate.
+     * When reuse is not possible, runs calibration on the merged vectors. Bounded (force-merge) merges
+     * skip metadata reuse and always calibrate. Background and force merges share the same calibration
+     * path, so calibration semantics never depend on the merge kind.
      */
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException {
         Objects.requireNonNull(mergeState, "mergeState");
@@ -189,6 +229,9 @@ public class IvfAutoCalibration {
             return codecDefault;
         }
 
+        // Background merges may short-circuit to reusing the input segments' agreed calibration metadata.
+        // Force merges always recalibrate. Either way, when a fresh fit is needed both merge kinds run the
+        // SAME single calibration path below — no per-merge-kind algorithmic divergence.
         if (isBoundedForceMerge(mergeState) == false) {
             IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState);
             if (reused != null) {
@@ -199,13 +242,6 @@ public class IvfAutoCalibration {
                 "Merge calibration: bounded force merge (inputSegments=[{}]), skipping metadata reuse",
                 mergeState.knnVectorsReaders == null ? 0 : mergeState.knnVectorsReaders.length
             );
-            try {
-                KMeansFloatVectorValues sampledVectors = CalibrationUtils.buildSampled(fieldInfo, mergeState, numVectors);
-                return calibrate(sampledVectors, similarityFunction, numVectors, CalibrationMode.FULL);
-            } catch (IOException e) {
-                logger.warn("calibration failed on bounded force merge, falling back to codec default encoding", e);
-                return codecDefault;
-            }
         }
 
         try {
@@ -259,24 +295,27 @@ public class IvfAutoCalibration {
                 reader = perField.getFieldReader(fieldInfo.name);
             }
             if (reader instanceof CalibrationAwareReader car) {
-                QuantEncoding enc = car.getQuantEncoding(fieldInfo);
-                if (Float.isNaN(car.getOversampleFactor(fieldInfo)) || enc == null) {
-                    continue;
+                switch (car.getCalibrationParameters(fieldInfo)) {
+                    case SegmentCalibrationParameters.Osq osq -> {
+                        if (osq.calibrated() == false) {
+                            continue;
+                        }
+                        long vectors = liveVectorCount(reader, fieldInfo, mergeState.liveDocs[i]);
+                        if (vectors == 0) {
+                            continue;
+                        }
+                        calibratedSegments++;
+                        EncodingStats stats = byEncoding.computeIfAbsent(osq.encoding(), e -> new EncodingStats());
+                        stats.vectors += vectors;
+                        stats.oversampleWeightedSum += (double) osq.oversample() * vectors;
+                        if (osq.precondition()) {
+                            stats.preconditionTrueVectors += vectors;
+                        } else {
+                            stats.preconditionFalseVectors += vectors;
+                        }
+                        totalVectors += vectors;
+                    }
                 }
-                long vectors = liveVectorCount(reader, fieldInfo, mergeState.liveDocs[i]);
-                if (vectors == 0) {
-                    continue;
-                }
-                calibratedSegments++;
-                EncodingStats stats = byEncoding.computeIfAbsent(enc, e -> new EncodingStats());
-                stats.vectors += vectors;
-                stats.oversampleWeightedSum += (double) car.getOversampleFactor(fieldInfo) * vectors;
-                if (car.shouldPrecondition(fieldInfo)) {
-                    stats.preconditionTrueVectors += vectors;
-                } else {
-                    stats.preconditionFalseVectors += vectors;
-                }
-                totalVectors += vectors;
             }
         }
 
@@ -311,7 +350,12 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments
         );
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample);
+        return new IvfSegmentConfig(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(bestEncoding),
+            doPreconditionResult,
+            avgOversample
+        );
     }
 
     /** Per-encoding accumulator for {@link #selectFromMergeState}: live-vector-weighted oversample and precondition votes. */
@@ -354,45 +398,43 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction)} but uses {@code realNumVectors}
+     * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction)} but uses {@code totalNumVectors}
      * as the corpus size for the recall model rather than {@code floatVectorValues.size()}. Used when
      * {@code floatVectorValues} is a reservoir-sampled subset of a larger merged corpus.
      */
     protected IvfSegmentConfig calibrate(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
-        int realNumVectors
+        int totalNumVectors
     ) throws IOException {
-        return calibrate(floatVectorValues, similarityFunction, realNumVectors, CalibrationMode.FAST);
+        return calibrate(floatVectorValues, similarityFunction, totalNumVectors, CalibrationMode.FAST);
     }
 
     /**
      * Like {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int)} but selects
      * the calibration strategy via {@code mode}:
      * <ul>
-     *   <li>{@link CalibrationMode#FAST} — synthetic manifold residuals; zero k-means; fast but less
-     *       precise. Used for background merges.</li>
-     *   <li>{@link CalibrationMode#FULL} — k-means, per-cluster NN assignment, and OLS regression;
-     *       slower but accurate. Used for bounded force merges.</li>
+     *   <li>{@link CalibrationMode#FAST} — single k-means plus manifold inverse dimension.</li>
+     *   <li>{@link CalibrationMode#FULL} — k-means, per-cluster NN assignment, and OLS regression.</li>
      * </ul>
      */
     protected IvfSegmentConfig calibrate(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
-        int realNumVectors,
+        int totalNumVectors,
         CalibrationMode mode
     ) throws IOException {
-        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, similarityFunction, realNumVectors);
+        CalibrationSource calibrationSource = prepareCalibration(floatVectorValues, similarityFunction, totalNumVectors);
         logger.debug("Calibrating quantization parameters");
 
-        SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction, mode);
+        SweepOutcome outcome = runCalibrationPipeline(calibrationSource, similarityFunction, mode);
 
         switch (outcome) {
             case SweepOutcome.Success s -> logger.debug(
                 () -> format(
                     "Selected: encoding [%s] docs per cluster %d preconditioning %s %d query bits %d document bits"
                         + " rerank %d candidates (expected recall %.2f%%)",
-                    outcome.config().quantEncoding(),
+                    outcome.config().osqEncoding(),
                     vectorsPerCluster,
                     outcome.config().usePrecondition(),
                     s.qbits(),
@@ -404,7 +446,7 @@ public class IvfAutoCalibration {
             case SweepOutcome.BestEffort b -> logger.debug(
                 "No encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
                 targetRecall,
-                outcome.config().quantEncoding(),
+                outcome.config().osqEncoding(),
                 outcome.config().rescoreOversample(),
                 outcome.config().usePrecondition(),
                 b.bestRecall()
@@ -413,7 +455,7 @@ public class IvfAutoCalibration {
         return outcome.config();
     }
 
-    private CalibrationContext prepareCalibrationRun(
+    private CalibrationSource prepareCalibration(
         FloatVectorValues floatVectorValues,
         VectorSimilarityFunction similarityFunction,
         int numVectors
@@ -436,96 +478,89 @@ public class IvfAutoCalibration {
 
         Preconditioner calibrationPreconditioner = Preconditioner.createPreconditioner(dimWork, blockDimension);
 
-        return new CalibrationContext(
-            dim,
+        return new CalibrationSource(
+            similarityFunction,
             dimWork,
-            numVectors,
+            fvvForCalibration,
+            queryOrdinals,
+            dim,
             cosine,
             neyshabur,
-            queryOrdinals,
             calibrationPreconditioner,
             corpusOrdinals,
-            fvvForCalibration
+            k,
+            numVectors
         );
     }
 
-    private SweepOutcome runCalibrationPipeline(CalibrationContext ctx, VectorSimilarityFunction similarityFunction, CalibrationMode mode)
-        throws IOException {
-        CalibrationSource calibrationSource = new CalibrationSource(
-            similarityFunction,
-            ctx.dimWork(),
-            ctx.fvvForCalibration(),
-            ctx.queryOrdinals(),
-            ctx.dim(),
-            ctx.cosine(),
-            ctx.neyshabur(),
-            ctx.calibrationPreconditioner(),
-            ctx.corpusOrdinals(),
-            k
-        );
-        double[] manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
-        double alpha = manifold[0];
-        double invDim = manifold[1];
+    private SweepOutcome runCalibrationPipeline(
+        CalibrationSource calibrationSource,
+        VectorSimilarityFunction similarityFunction,
+        CalibrationMode mode
+    ) throws IOException {
+
+        ManifoldModel.ManifoldParams manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
+        double alpha = manifold.alpha();
+        double invDim = manifold.invDim();
 
         if (mode == CalibrationMode.FAST) {
-            return sweepQuantizationCandidatesManifoldResiduals(similarityFunction, ctx.numVectors(), alpha, invDim, calibrationSource);
+            return sweepQuantizationCandidatesRealResiduals(
+                similarityFunction,
+                calibrationSource.numVectors(),
+                alpha,
+                invDim,
+                calibrationSource
+            );
         } else {
             ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(calibrationSource, vectorsPerCluster);
-            return sweepQuantizationCandidates(similarityFunction, ctx.numVectors(), alpha, invDim, scalingFit, calibrationSource);
+            return sweepQuantizationCandidates(
+                similarityFunction,
+                calibrationSource.numVectors(),
+                alpha,
+                invDim,
+                scalingFit,
+                calibrationSource
+            );
         }
     }
 
     /**
-     * Sweeps (encoding, rerank) candidates using synthetic Gaussian residuals scaled to the
-     * manifold cluster radius: no k-means, no NN assignment. The slope {@code beta1 = invDim}
-     * is taken directly from the manifold; only the intercept {@code beta0} is measured via a
-     * single OSQ pass on random residuals. This is the cheapest calibration path.
-     * <p>
-     * TODO: the synthetic Gaussian residuals (and their squared norms) depend only on the manifold
-     * cluster radius, which is constant across candidates in a single sweep — only the OSQ
-     * quantization varies with (qbits, dbits). Generating them once and reusing across all candidates
-     * would avoid regenerating {@code nDocs * dim} Gaussians per candidate. See also the sort in
-     * {@code ErrorModel#quantizedRepErrorStd} which fully sorts to take only the top-5k.
+     * Sweeps (encoding, rerank) candidates using <em>real</em> corpus residuals: a single k-means clustering
+     * of a {@code ErrorModel#REAL_RESIDUAL_SAMPLE}-vector sample provides the actual per-cluster residuals,
+     * whose OSQ error is measured directly. Instead of re-clustering at multiple corpus sizes to learn how
+     * the residual error shrinks as the corpus grows (the full path's multi-sample scaling fit), the manifold
+     * slope {@code invDim} is used as a plug-in to extrapolate that single measurement from the sample size to
+     * the real corpus size (see {@link ErrorModel#estimateMagnitudeFromRealResiduals}).
      */
-    private SweepOutcome sweepQuantizationCandidatesManifoldResiduals(
+    private SweepOutcome sweepQuantizationCandidatesRealResiduals(
         VectorSimilarityFunction similarityFunction,
         int numVectors,
         double alpha,
         double invDim,
         CalibrationSource calibrationSource
     ) throws IOException {
+        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(calibrationSource);
         Map<EncKey, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
         return sweepCandidates(similarityFunction, numVectors, alpha, invDim, (candidate, precondition) -> {
             EncKey key = new EncKey(candidate.qbits(), candidate.dbits(), precondition);
             QuantizationErrorStdModel errorModel = errorModelCache.get(key);
             if (errorModel == null) {
-                errorModel = ErrorModel.estimateMagnitudeFromManifoldResiduals(
-                    alpha,
+                errorModel = ErrorModel.estimateMagnitudeFromRealResiduals(
                     invDim,
                     calibrationSource,
                     precondition,
                     candidate.qbits(),
                     candidate.dbits(),
                     vectorsPerCluster,
-                    numVectors
+                    state
                 );
                 errorModelCache.put(key, errorModel);
             }
-            return errorModel.errorStd(vectorsPerCluster, numVectors);
+            // cap evaluation at the measured sample size to avoid extrapolating beyond its fitted range
+            int effectiveN = Math.min(numVectors, state.ndocs());
+            return errorModel.errorStd(vectorsPerCluster, effectiveN);
         });
     }
-
-    private record CalibrationContext(
-        int dim,
-        int dimWork,
-        int numVectors,
-        boolean cosine,
-        boolean neyshabur,
-        int[] queryOrdinals,
-        Preconditioner calibrationPreconditioner,
-        int[] corpusOrdinals,
-        FloatVectorValues fvvForCalibration
-    ) {}
 
     private static CalibrationSweep[] buildCostOrderedSweeps() {
         List<CalibrationSweep> sweeps = new ArrayList<>();
@@ -539,7 +574,7 @@ public class IvfAutoCalibration {
     }
 
     private static double calibrationCost(int dbits, double rerankDepth) {
-        return dbits + RERANK_COST_WEIGHT * rerankDepth;
+        return DOC_BITS_WEIGHT * dbits + RERANK_COST_WEIGHT * rerankDepth;
     }
 
     private SweepOutcome sweepQuantizationCandidates(
@@ -570,10 +605,15 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Sweeps every {@code (precondition, encoding, rerank-depth)} candidate in cost order and returns the first
-     * configuration whose predicted recall meets {@link #targetRecall}, or the best-effort configuration if none
-     * does. The two calibration paths differ only in how the quantization error std is obtained, which is supplied
-     * by {@code errorStdProvider}.
+     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple in ascending cost order and returns the
+     * first configuration whose predicted recall meets {@link #targetRecall}, or the best-effort configuration if
+     * none does. The two calibration paths differ only in how the quantization error std is obtained, which is
+     * supplied by {@code errorStdProvider}.
+     * <p>
+     * The cost model ({@link #DOC_BITS_WEIGHT} × dbits + {@link #RERANK_COST_WEIGHT} × rerankDepth) guarantees
+     * that all entries for a given doc-bit level are exhausted before any entry at a higher doc-bit level is
+     * reached. Preconditioning is the inner loop so both values are tried for each {@code (encoding, rerank)}
+     * pair before advancing to a more expensive combination.
      */
     private SweepOutcome sweepCandidates(
         VectorSimilarityFunction similarityFunction,
@@ -589,21 +629,23 @@ public class IvfAutoCalibration {
 
         boolean[] preconditionValues = new boolean[] { false, true };
 
-        for (boolean precondition : preconditionValues) {
-            for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
-                CandidateEncoding candidate = sweep.candidate();
+        for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
+            CandidateEncoding candidate = sweep.candidate();
+            int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
+            float oversample = (float) sweep.rerankDepth();
+
+            for (boolean precondition : preconditionValues) {
                 double errorStd = errorStdProvider.errorStd(candidate, precondition);
-                int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
-                float oversample = (float) sweep.rerankDepth();
                 double expected = ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, k, rerankVal);
 
                 logger.debug(
                     () -> format(
-                        "Quantization recall((%d, %d) | %d, %s) = %.2f%%",
+                        "Quantization recall((%d, %d) | %d, %s) errorStd=%.5f = %.2f%%",
                         candidate.qbits(),
                         candidate.dbits(),
                         rerankVal,
                         precondition ? "precondition" : "no precondition",
+                        errorStd,
                         expected * 100.0
                     )
                 );
@@ -611,7 +653,7 @@ public class IvfAutoCalibration {
                 if (expected >= targetRecall) {
                     IvfSegmentConfig config = new IvfSegmentConfig(
                         CentroidIndexFormat.FLAT,
-                        candidate.encoding(),
+                        new IvfSegmentConfig.OsqConfig(candidate.encoding()),
                         precondition,
                         oversample
                     );
@@ -627,7 +669,7 @@ public class IvfAutoCalibration {
         }
 
         return new SweepOutcome.BestEffort(
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(bestEncoding), bestPrecondition, bestOversample),
             bestRecall
         );
     }
@@ -658,7 +700,7 @@ public class IvfAutoCalibration {
 
     /** Selects the calibration strategy used by {@link #calibrate(FloatVectorValues, VectorSimilarityFunction, int, CalibrationMode)}. */
     enum CalibrationMode {
-        /** Fast path: synthetic manifold residuals — zero k-means, zero NN assignment. */
+        /** Fast path: single k-means plus manifold inverse dimension. */
         FAST,
         /** Full path: k-means, per-cluster NN assignment, and OLS regression. */
         FULL

@@ -27,14 +27,14 @@ import java.io.IOException;
  * <p>The query string carried by this request is only used for logging and display; it plays no
  * role in execution.
  */
-public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
+public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
 
     public static final String PREPARED_QUERY_PREFIX = "[pre-built plan] ";
 
     private final EsqlStatement statement;
     private final String queryDescription;
 
-    private PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription) {
+    protected PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription) {
         super(async, null);
         this.statement = statement;
         this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
@@ -88,6 +88,14 @@ public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
     @Override
     public String queryDescription() {
         return queryDescription;
+    }
+
+    public String getIndex() {
+        return null;
+    }
+
+    public String getType() {
+        return null;
     }
 
     @Override

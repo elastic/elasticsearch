@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -665,7 +665,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
                 clusterService,
                 indicesService,
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                 IndexSettingProviders.EMPTY
             );
             for (String settingName : metadataDataStreamsService.getEffectiveSettings(

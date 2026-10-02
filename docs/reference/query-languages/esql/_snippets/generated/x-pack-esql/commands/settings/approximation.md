@@ -7,6 +7,8 @@ stack: ga 9.5+, preview =9.4
 ```
 Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 
+The default itself is configurable. If a query does not specify a value, the `esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise license; without one the cluster default does not apply and queries run exactly. {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
+
 **Type**: `boolean` `map_param`
 
 Map entries:

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
@@ -24,34 +25,37 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestResponseUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -63,7 +67,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -73,9 +76,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -98,7 +100,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * The byte-array fast path buffers a whole segment into one {@code byte[]}; it must only engage at or
      * below {@link NdJsonPageIterator#BYTE_ARRAY_FAST_PATH_MAX_SIZE}, so a larger segment streams instead of
      * allocating a humongous buffer. This bound is what keeps per-open-segment memory small under the
-     * {@code max_concurrent_open_segments} cap (so the count cap suffices without circuit-breaker
+     * {@code external_max_concurrent_open_segments} cap (so the count cap suffices without circuit-breaker
      * accounting). Guards that invariant against regression.
      */
     public void testByteArrayFastPathIsBoundedBySegmentSize() {
@@ -115,6 +117,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Minimal {@link StorageObject} that only reports a length — all the fast-path decision inspects. */
     private static StorageObject fixedLengthObject(long length) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -377,7 +384,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 new NdJsonRecordSplitter(8)
             )
         );
-        assertThat(ex.getMessage(), Matchers.containsString("max_record_size [8]"));
+        assertThat(ex.getMessage(), Matchers.containsString("record exceeds [8b]"));
     }
 
     /**
@@ -482,7 +489,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(ex.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+            assertThat(ex.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
         }
     }
 
@@ -782,9 +789,83 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
-        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("memory://warn.ndjson"));
-        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
+        assertEquals("Some rows in [memory://warn.ndjson] cannot be read; skipping them", warnings.get(0));
+        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).endsWith(": malformed JSON"));
+    }
+
+    /**
+     * End-to-end twin of {@link #testMalformedLineEmitsResponseWarningHeader} for a
+     * {@code StreamReadConstraints} violation, which reaches the same whole-line sink from the token scanner
+     * rather than from a decode arm. Exercised through {@code NdJsonFormatReader.read} so schema inference runs
+     * over the bad line too: inference has its own copy of the whole-line catch, and without it the read fails
+     * during sampling before {@code error_mode} is ever consulted. Asserts the surviving rows, not just the
+     * header, so a warning emitted while the trailing record was silently dropped would still be caught.
+     */
+    public void testStreamConstraintViolationEmitsResponseWarningHeaderAndKeepsGoodRows() throws IOException {
+        String ndjson = "{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n{\"id\":3}\n";
+        var object = new BytesStorageObject("memory://constraint.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Integer> ids = new ArrayList<>();
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                try (Page page = iterator.next()) {
+                    // The surviving values are 1 and 3, so inference types `id` as INTEGER.
+                    IntBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        ids.add(block.getInt(i));
+                    }
+                }
+            }
+        }
+        assertEquals("the constraint-violating line is dropped, both good rows survive", List.of(1, 3), ids);
+        List<String> warnings = drainWarnings();
+        // 1 summary + 1 detail
+        assertEquals(2, warnings.size());
+        assertEquals("Some rows in [memory://constraint.ndjson] cannot be read; skipping them", warnings.get(0));
+        assertTrue(
+            "Detail should mention the over-limit row, got: " + warnings.get(1),
+            warnings.get(1).endsWith(": JSON over a parser limit")
+        );
+        assertFalse("Detail must not carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
+    }
+
+    /**
+     * The decoder-level test pins {@code status()} on the exception at its throw site; this pins what a caller
+     * actually observes, one layer out, where the exception has crossed {@code NdJsonPageIterator.hasNext} and
+     * could in principle have been re-wrapped. It asserts through {@link ExceptionsHelper#status} — the helper
+     * the REST layer itself uses — rather than calling {@code status()} on a known type, so it stays honest if
+     * the thrown type changes again.
+     * <p>
+     * Both arms matter. A malformed line reaches the whole-line sink from a decode arm; an over-limit token
+     * reaches it from the token scanner. Both are the user's data, so both must answer 400 rather than the 500
+     * the {@code QlServerException} family produces.
+     */
+    public void testStrictReadFailuresSurfaceAsBadRequestThroughTheIterator() throws IOException {
+        assertStrictReadFailureStatus("{\"id\":1}\n{{{not-an-object\n", "malformed line");
+        assertStrictReadFailureStatus("{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n", "over-limit token");
+    }
+
+    private void assertStrictReadFailureStatus(String ndjson, String what) throws IOException {
+        var object = new BytesStorageObject("memory://status.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
+            )
+        ) {
+            Exception e = expectThrows(Exception.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            });
+            assertEquals(what + " must surface as a client error, not a server error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        }
     }
 
     public void testMalformedLinesOverflowEmitsCappedHeaders() throws IOException {
@@ -809,7 +890,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1 summary + up to 20 details + 1 overflow notice (= 22). NDJSON message variants may differ
         // slightly per line, so we check the bounds rather than an exact equality.
         assertTrue("expected at least summary + 20 details + overflow, got: " + warnings.size(), warnings.size() >= 22);
-        assertTrue("First warning should be the summary, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue(
+            "First warning should be the summary, got: " + warnings.get(0),
+            warnings.get(0).endsWith("cannot be read; skipping them")
+        );
         assertTrue(
             "Last warning should mention overflow, got: " + warnings.get(warnings.size() - 1),
             warnings.get(warnings.size() - 1).contains("further warnings suppressed")
@@ -843,8 +927,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -871,8 +955,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(batchSize, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -898,8 +982,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(pageRows, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -1066,8 +1150,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -1090,14 +1174,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
-    public void testDeclaredNumericCoercesStringTokensLikeCastEngine() throws IOException {
-        // A JSON string in a declared numeric column is coerced through the :: cast engine and rounds
-        // (matching CSV and the columnar readers), where it was formerly a policy-blind silent null.
-        String ndjson = """
-            {"n": "42", "m": "1.9"}
-            {"n": "7", "m": "2.5"}
+    public void testDeclaredNumericStringTokensRequireExactWholeNumber() throws IOException {
+        // A JSON string in a declared numeric column must name a whole number exactly. Whole tokens
+        // ("42", "2.0") succeed; a non-whole fraction fails under STRICT (matching CSV / columnar).
+        String ok = """
+            {"n": "42", "m": "2.0"}
+            {"n": "7", "m": "1e3"}
             """;
-        var object = new BytesStorageObject("file:///nums.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("file:///nums.ndjson", ok.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG),
@@ -1120,9 +1204,29 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             LongBlock m = page.getBlock(1);
             assertEquals(42L, n.getLong(0));
             assertEquals(7L, n.getLong(1));
-            assertEquals(2L, m.getLong(0)); // "1.9" -> 2 (round, == ::long)
-            assertEquals(3L, m.getLong(1)); // "2.5" -> 3 (round)
+            assertEquals(2L, m.getLong(0));
+            assertEquals(1000L, m.getLong(1));
         }
+        String fraction = "{\"m\": \"1.9\"}\n";
+        var bad = new BytesStorageObject("file:///frac.ndjson", fraction.getBytes(StandardCharsets.UTF_8));
+        List<Attribute> mOnly = List.of(new ReferenceAttribute(Source.EMPTY, null, "m", DataType.LONG));
+        expectThrows(Exception.class, () -> {
+            try (
+                var iterator = reader.read(
+                    bad,
+                    FormatReadContext.builder()
+                        .projectedColumns(List.of("m"))
+                        .batchSize(100)
+                        .errorPolicy(ErrorPolicy.STRICT)
+                        .readSchema(mOnly)
+                        .build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
     }
 
     public void testDeclaredNumericBadStringFailsUnderStrict() throws IOException {
@@ -1143,12 +1247,76 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [long]; set [error_mode] to [null_field] to return null instead"));
+            // The recovery hint must name the dataset setting, not a query clause: FROM <dataset> has no
+            // WITH options clause, so a user who followed a "in WITH options" hint would get a parse error.
+            assertThat(e.getMessage(), Matchers.not(Matchers.containsString("WITH options")));
+        }
+    }
+
+    /**
+     * {@code testDeclaredNumericBadStringFailsUnderStrict} advertises {@code [error_mode]} {@code [null_field]} as the recovery.
+     * Honour that advice: the offending cell nulls, its neighbours decode, and the failure surfaces as a warning
+     * rather than vanishing silently.
+     */
+    public void testDeclaredCoercionFailureNullFieldWarnsAndNulls() throws IOException {
+        String ndjson = """
+            {"n": "1"}
+            {"n": "notanumber"}
+            {"n": "3"}
+            """;
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(nullField).readSchema(schema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock n = page.getBlock(0);
+            assertEquals(1L, n.getLong(n.getFirstValueIndex(0)));
+            assertTrue("the uncoercible token must null its cell", n.isNull(1));
+            assertEquals(3L, n.getLong(n.getFirstValueIndex(2)));
+        }
+        assertFalse("null_field must warn about the coercion failure", drainWarnings().isEmpty());
+    }
+
+    /** A declared {@code double} preserves the non-finite string tokens NaN/Infinity/-Infinity (IEEE passthrough). */
+    public void testDeclaredDoubleNaNInfinityStringTokens() throws IOException {
+        String ndjson = """
+            {"d": "NaN"}
+            {"d": "Infinity"}
+            {"d": "-Infinity"}
+            """;
+        var object = new BytesStorageObject("file:///nf.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "d", DataType.DOUBLE));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("d"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var page = iterator.next();
+            DoubleBlock d = page.getBlock(0);
+            assertTrue(Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
         }
     }
 
@@ -1190,34 +1358,28 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(settings, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
+        // The second record's [x] is a boolean where the inferred type is DATETIME — a cross-kind token. Under the
+        // DEFAULT (strict) read it fails the query: the inferred path honors error_mode identically to a declared
+        // column (previously the boolean was silently null). Lenient-mode behavior is covered by
+        // testInferredCrossKindBooleanHonorsErrorMode.
         try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
-            assertTrue(iterator.hasNext());
-            var page = iterator.next();
-            assertPage(page, """
-                     LONG      |      INT     \s
-                ---------------+---------------
-                1704067200000  |1             \s
-                null           |2             \s
-                """);
-
-            assertEquals(ElementType.LONG, page.getBlock(0).elementType()); // DATETIME
-
-            assertEquals(2, page.getBlock(0).getPositionCount());
-            assertEquals(2, page.getBlock(1).getPositionCount());
-            assertEquals(2, page.getPositionCount());
-
-            assertEquals(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
-            assertTrue(page.getBlock(0).isNull(1)); // Boolean ignored
+            var e = expectThrows(ParsingException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("cannot read ["));
         }
     }
 
-    public void testDeclaredCrossKindBooleanFailsUnderStrict() throws IOException {
-        // A boolean in a DECLARED long column is an unsupported cross-kind token with no coercion. On a declared
-        // column it must route through the error policy (strict fails) rather than silently reading as null — the
-        // declared-type invariant that no declared type may silently read as null.
+    public void testCrossKindBooleanWithBoundSchemaFailsUnderStrict() throws IOException {
+        // A boolean in a long column (here bound via an explicit read schema) is an unsupported cross-kind token
+        // with no coercion; under strict it routes through the error policy and fails rather than reading as null.
+        // error_mode governs this identically whether the type was declared/bound or inferred (see
+        // testInferredCrossKindBooleanHonorsErrorMode for the inferred-schema counterpart).
         String ndjson = "{\"n\": true}\n";
         var object = new BytesStorageObject("file:///xkind.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredTypeColumns(Set.of("n"));
+        var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
         try (
             var iterator = reader.read(
@@ -1230,38 +1392,243 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [long]"));
         }
     }
 
-    public void testInferredCrossKindBooleanStaysSilentNull() throws IOException {
-        // An inferred (not declared) long column keeps the pre-existing schema-on-read tolerance: a boolean on a
-        // later line is silently null, unchanged. Mirrors testTypeDifferentFromSchema.
+    /**
+     * The advice names {@code skip_row}, and {@link ErrorPolicy.Mode#SKIP_ROW} means "drop the entire bad
+     * row" — as {@code CsvFormatReader} does. The offending record is dropped whole; its neighbours still decode.
+     */
+    public void testDeclaredCoercionFailureSkipRowDropsLine() throws IOException {
+        String ndjson = """
+            {"n": "1"}
+            {"n": "notanumber"}
+            {"n": "3"}
+            """;
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        ErrorPolicy skipRow = new ErrorPolicy(10, true);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(skipRow).readSchema(schema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("the record with the uncoercible value is dropped whole", 2, page.getPositionCount());
+            LongBlock n = page.getBlock(0);
+            assertEquals(1L, n.getLong(n.getFirstValueIndex(0)));
+            assertEquals(3L, n.getLong(n.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A coercion failure on a single element of a declared multivalue array under {@code skip_row} drops the WHOLE
+     * record (the {@code rowDroppedBySkipRow} flag is set regardless of {@code inArray}) — matching the scalar case
+     * and the "drop the entire bad row" contract. The surrounding records still decode.
+     */
+    public void testDeclaredArrayElementCoercionFailureSkipRowDropsRecord() throws IOException {
+        String ndjson = """
+            {"vals": ["1", "2"]}
+            {"vals": ["10", "notanumber", "30"]}
+            {"vals": ["7"]}
+            """;
+        var object = new BytesStorageObject("file:///arr.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "vals", DataType.LONG));
+        ErrorPolicy skipRow = new ErrorPolicy(10, true);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("vals")).batchSize(100).errorPolicy(skipRow).readSchema(schema).build()
+            )
+        ) {
+            var page = iterator.next();
+            assertEquals("the record with the uncoercible array element is dropped whole", 2, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            assertEquals(2, v.getValueCount(0)); // {"vals":["1","2"]}
+            assertEquals(1, v.getValueCount(1)); // {"vals":["7"]} — the bad record between them is gone
+            assertEquals(7L, v.getLong(v.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A declared scalar column meeting an object is not an error: the object flattens to {@code user.id}, which the
+     * read schema does not project, so {@code user} is simply absent for that record. Every record survives even under
+     * STRICT and nothing warns.
+     */
+    public void testScalarObjectIsNotAConflictWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"event": 1, "user": "alice"}
+            {"event": 2, "user": {"id": 7}}
+            {"event": 3, "user": "carol"}
+            """;
+        var object = new BytesStorageObject("file:///flat-shape.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "event", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
+        );
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("event", "user"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock event = page.getBlock(0);
+            BytesRefBlock user = page.getBlock(1);
+            assertEquals(2L, event.getLong(event.getFirstValueIndex(1)));
+            assertTrue("the object went to the unprojected [user.id], so [user] is absent", user.isNull(1));
+            assertFalse(user.isNull(0));
+            assertFalse(user.isNull(2));
+        }
+        assertTrue("no conflict, so no warning", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A dot is a literal character in a column name: {@code a} and {@code a.b} are two independent columns,
+     * both inferred and both decoded, so a strict read succeeds and nothing warns.
+     */
+    public void testKeyNamingAScalarColumnAsAnObjectIsTwoColumnsWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"a":1,"a.b":2}
+            """;
+        var object = new BytesStorageObject("memory://shadowed-flat.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(List.of("a", "a.b"), names(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.STRICT).build())) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock a = page.getBlock(indexOf(schema, "a"));
+            IntBlock ab = page.getBlock(indexOf(schema, "a.b"));
+            assertEquals(1, a.getInt(a.getFirstValueIndex(0)));
+            assertEquals(2, ab.getInt(ab.getFirstValueIndex(0)));
+        }
+    }
+
+    private static List<String> names(List<Attribute> schema) {
+        return schema.stream().map(Attribute::name).toList();
+    }
+
+    public void testSkipRowChargesErrorBudgetOncePerRecordNotPerField() throws IOException {
+        // Under skip_row a record with several bad fields is ONE dropped row, so it charges the error budget
+        // once — matching CsvFormatReader, which stops at the first bad field. With max_errors=1 a two-bad-field
+        // record must NOT trip the budget. Before the fix each bad field counted, so the second field pushed the
+        // running total to 2 and failed the whole query.
+        String ndjson = """
+            {"a": "1", "b": "2"}
+            {"a": "bad", "b": "alsobad"}
+            {"a": "3", "b": "4"}
+            """;
+        var object = new BytesStorageObject("file:///budget.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.LONG)
+        );
+        ErrorPolicy skipRowBudgetOne = new ErrorPolicy(1, true); // max_errors=1, skip_row
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("a", "b"))
+                    .batchSize(100)
+                    .errorPolicy(skipRowBudgetOne)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("the two-bad-field record is one budget unit; both good records remain", 2, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
+            assertEquals(3L, a.getLong(a.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
+    public void testInferredCrossKindBooleanHonorsErrorMode() throws IOException {
+        // An INFERRED long column (the first record fixes the type) receiving a boolean on a later record is an
+        // unsupported cross-kind token. It is governed by error_mode exactly like a declared column: strict fails
+        // the query, skip_row drops the record, null_field nulls the cell and warns. (Was: silently null in every
+        // mode — the inferred-only tolerance this change removed, so declared and inferred now agree.)
         String ndjson = """
             {"n": 1}
             {"n": true}
             """;
         var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
-        var reader = new NdJsonFormatReader(settings, blockFactory);
         var object = new BytesStorageObject("file:///inferred.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
-        try (var iterator = reader.read(object, List.of("n"), 100)) {
+        // strict: the cross-kind boolean fails the query
+        try (
+            var iterator = new NdJsonFormatReader(settings, blockFactory).read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
+            )
+        ) {
+            var e = expectThrows(ParsingException.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            });
+            assertThat(e.getMessage(), Matchers.containsString("] as [integer]"));
+        }
+
+        // skip_row: the offending record is dropped whole; the good record survives
+        try (
+            var iterator = new NdJsonFormatReader(settings, blockFactory).read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            IntBlock n = page.getBlock(0);
+            assertEquals("the cross-kind record is dropped whole", 1, n.getPositionCount());
+            assertEquals(1, n.getInt(n.getFirstValueIndex(0)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+
+        // null_field: the record is kept, the offending cell is nulled
+        try (
+            var iterator = new NdJsonFormatReader(settings, blockFactory).read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.PERMISSIVE).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             var page = iterator.next();
             var n = page.getBlock(0);
             assertEquals(2, n.getPositionCount());
             assertFalse(n.isNull(0));
-            assertTrue(n.isNull(1)); // boolean cross-kind silently null on an inferred column
+            assertTrue(n.isNull(1));
         }
+        assertFalse("null_field must warn about the nulled cell", drainWarnings().isEmpty());
     }
 
     public void testDeclaredTextColumnReadsString() throws IOException {
-        // TEXT is declarable (DeclaredSchemaValidator.DECLARABLE_TYPES) and reads like KEYWORD — a BytesRef block.
+        // TEXT is not declarable on a dataset mapping, so no dataset query reaches this arm. Pinned anyway: it
+        // decodes to the same BytesRef block as KEYWORD, which is why the two are indistinguishable once read.
         String ndjson = "{\"t\": \"hello\"}\n";
         var object = new BytesStorageObject("file:///text.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
@@ -1323,12 +1690,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
             });
-            assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [ip]"));
+            assertThat(e.getMessage(), Matchers.containsString("] as [ip]"));
         }
     }
 
@@ -1489,170 +1856,151 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Reproduces the exact repro from elastic/esql-planning#1028: an NDJSON field ("user") that is a scalar in
-     * some sampled records and a JSON object in others must resolve to exactly one shape in the inferred schema
-     * -- never both a scalar "user" attribute and its nested "user.id"/"user.tier" children.
+     * A dot is a literal character in a column name: the object records flatten into "user.id"/"user.tier" and coexist
+     * with the scalar "user", so the same file yields three columns and no conflict.
      */
-    public void testScalarThenObjectConflictSchemaIsSingleShape() throws IOException {
+    public void testScalarAndObjectCoexistInSchemaWhenSubobjectsDisabled() throws IOException {
         String ndjson = """
             {"event":1,"user":"alice"}
             {"event":2,"user":{"id":"bob","tier":"gold"}}
             {"event":3,"user":"carol"}
             """;
-        var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("memory://scalar-then-object-flat.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = reader.metadata(object).schema();
-        List<String> userFamily = schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
-        assertEquals("expected exactly one scalar [user] shape, got: " + userFamily, List.of("user"), userFamily);
-        assertEquals(DataType.KEYWORD, schema.get(indexOf(schema, "user")).dataType());
-    }
-
-    /** Mirror of {@link #testScalarThenObjectConflictSchemaIsSingleShape}: object shape observed first. */
-    public void testObjectThenScalarConflictSchemaIsSingleShape() throws IOException {
-        String ndjson = """
-            {"event":1,"user":{"id":"bob","tier":"gold"}}
-            {"event":2,"user":"alice"}
-            {"event":3,"user":{"id":"carol","tier":"silver"}}
-            """;
-        var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
-        List<Attribute> schema = reader.metadata(object).schema();
-        List<String> userFamily = schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
-        assertEquals("expected exactly the nested [user.*] shape, got: " + userFamily, List.of("user.id", "user.tier"), userFamily);
-    }
-
-    /**
-     * Under {@link ErrorPolicy#STRICT}, reaching the conflicting record must fail the query with an actionable
-     * message naming the field and both shapes, mirroring how core ES dynamic mapping rejects the same
-     * ambiguity as a hard document-parsing conflict, rather than silently null-filling as it did pre-#1028.
-     */
-    public void testScalarThenObjectConflictStrictFailsOnceReached() throws IOException {
-        String ndjson = """
-            {"event":1,"user":"alice"}
-            {"event":2,"user":{"id":"bob","tier":"gold"}}
-            {"event":3,"user":"carol"}
-            """;
-        var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
-        var ctx = FormatReadContext.builder().batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
-        try (var iterator = reader.read(object, ctx)) {
-            assertTrue(iterator.hasNext());
-            Page first = iterator.next();
-            assertEquals(1, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("user"));
-            assertThat(ex.getMessage(), Matchers.containsString("an object"));
-        }
-    }
-
-    /** Mirror of {@link #testScalarThenObjectConflictStrictFailsOnceReached}: object shape observed first. */
-    public void testObjectThenScalarConflictStrictFailsOnceReached() throws IOException {
-        String ndjson = """
-            {"event":1,"user":{"id":"bob","tier":"gold"}}
-            {"event":2,"user":"alice"}
-            {"event":3,"user":{"id":"carol","tier":"silver"}}
-            """;
-        var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
-        var ctx = FormatReadContext.builder().batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
-        try (var iterator = reader.read(object, ctx)) {
-            assertTrue(iterator.hasNext());
-            Page first = iterator.next();
-            assertEquals(1, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("user"));
-            assertThat(ex.getMessage(), Matchers.containsString("an object"));
-        }
-    }
-
-    /**
-     * Under a non-strict policy, the conflicting record's [user] column is null-filled and a client warning is
-     * surfaced, while [event] (and the other records) decode normally -- a per-field null-fill, not a
-     * whole-row skip (elastic/esql-planning#1028).
-     */
-    public void testScalarThenObjectConflictLenientNullFillsAndWarns() throws IOException {
-        String ndjson = """
-            {"event":1,"user":"alice"}
-            {"event":2,"user":{"id":"bob","tier":"gold"}}
-            {"event":3,"user":"carol"}
-            """;
-        var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
-        var schema = reader.metadata(object).schema();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
-        try (var iterator = reader.read(object, ctx)) {
+        assertEquals(List.of("user", "user.id", "user.tier"), userFamily(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).build())) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(3, page.getPositionCount());
-            IntBlock event = page.getBlock(indexOf(schema, "event"));
             BytesRefBlock user = page.getBlock(indexOf(schema, "user"));
-            BytesRef scratch = new BytesRef();
-            assertEquals(1, event.getInt(event.getFirstValueIndex(0)));
-            assertEquals("alice", user.getBytesRef(user.getFirstValueIndex(0), scratch).utf8ToString());
-            assertEquals(2, event.getInt(event.getFirstValueIndex(1)));
-            assertTrue("object-valued row -> user null", user.isNull(1));
-            assertEquals(3, event.getInt(event.getFirstValueIndex(2)));
-            assertEquals("carol", user.getBytesRef(user.getFirstValueIndex(2), scratch).utf8ToString());
-        }
-        List<String> warnings = drainWarnings();
-        assertFalse("expected a warning for the shape conflict", warnings.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
-    }
-
-    /** Mirror of {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}: object shape observed first. */
-    public void testObjectThenScalarConflictLenientNullFillsAndWarns() throws IOException {
-        String ndjson = """
-            {"event":1,"user":{"id":"bob","tier":"gold"}}
-            {"event":2,"user":"alice"}
-            {"event":3,"user":{"id":"carol","tier":"silver"}}
-            """;
-        var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
-        var schema = reader.metadata(object).schema();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
-        try (var iterator = reader.read(object, ctx)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            assertEquals(3, page.getPositionCount());
             BytesRefBlock userId = page.getBlock(indexOf(schema, "user.id"));
             BytesRefBlock userTier = page.getBlock(indexOf(schema, "user.tier"));
             BytesRef scratch = new BytesRef();
+            assertEquals("alice", user.getBytesRef(user.getFirstValueIndex(0), scratch).utf8ToString());
+            assertTrue(userId.isNull(0));
+            assertTrue(userTier.isNull(0));
+            assertTrue(user.isNull(1));
+            assertEquals("bob", userId.getBytesRef(userId.getFirstValueIndex(1), scratch).utf8ToString());
+            assertEquals("gold", userTier.getBytesRef(userTier.getFirstValueIndex(1), scratch).utf8ToString());
+            assertEquals("carol", user.getBytesRef(user.getFirstValueIndex(2), scratch).utf8ToString());
+            assertTrue(userId.isNull(2));
+            assertTrue(userTier.isNull(2));
+        }
+    }
+
+    /** Mirror of {@link #testScalarAndObjectCoexistInSchemaWhenSubobjectsDisabled}: object-then-scalar order. */
+    public void testObjectAndScalarCoexistInSchemaWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"event":1,"user":{"id":"bob","tier":"gold"}}
+            {"event":2,"user":"alice"}
+            {"event":3,"user":{"id":"carol","tier":"silver"}}
+            """;
+        var object = new BytesStorageObject("memory://object-then-scalar-flat.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(List.of("user", "user.id", "user.tier"), userFamily(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).build())) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock user = page.getBlock(indexOf(schema, "user"));
+            BytesRefBlock userId = page.getBlock(indexOf(schema, "user.id"));
+            BytesRefBlock userTier = page.getBlock(indexOf(schema, "user.tier"));
+            BytesRef scratch = new BytesRef();
+            assertTrue(user.isNull(0));
             assertEquals("bob", userId.getBytesRef(userId.getFirstValueIndex(0), scratch).utf8ToString());
             assertEquals("gold", userTier.getBytesRef(userTier.getFirstValueIndex(0), scratch).utf8ToString());
-            assertTrue("scalar-valued row -> user.id null", userId.isNull(1));
-            assertTrue("scalar-valued row -> user.tier null", userTier.isNull(1));
+            assertEquals("alice", user.getBytesRef(user.getFirstValueIndex(1), scratch).utf8ToString());
+            assertTrue(userId.isNull(1));
+            assertTrue(userTier.isNull(1));
+            assertTrue(user.isNull(2));
             assertEquals("carol", userId.getBytesRef(userId.getFirstValueIndex(2), scratch).utf8ToString());
             assertEquals("silver", userTier.getBytesRef(userTier.getFirstValueIndex(2), scratch).utf8ToString());
         }
-        List<String> warnings = drainWarnings();
-        assertFalse("expected a warning for the shape conflict", warnings.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
     }
 
     /**
-     * Same fixture as {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}, but with
-     * {@link FormatReadContext#informationalWarningSink()} supplied: the shape-conflict warning must route
-     * through the sink instead of {@link org.elasticsearch.common.logging.HeaderWarning}, since
-     * {@code read} can be invoked from a background reader thread whose thread-local response
-     * headers never reach the client (see {@code SkipWarnings}).
+     * Under DISABLED both spellings of one column reach that column, so a file mixing {@code {"a":{"b":1}}} with
+     * {@code {"a.b":2}} yields a single {@code a.b} column carrying both values. This is the auto-flattening half of
+     * the setting, and it makes a dotted key and a nested object interchangeable in the file.
      */
-    public void testScalarThenObjectConflictLenientRoutesThroughWarningSinkWhenSupplied() throws IOException {
+    public void testNestedObjectFlattensOntoDottedColumnWhenSubobjectsDisabled() throws IOException {
         String ndjson = """
-            {"event":1,"user":"alice"}
-            {"event":2,"user":{"id":"bob","tier":"gold"}}
-            {"event":3,"user":"carol"}
+            {"a":{"b":1},"id":1}
+            {"a.b":2,"id":2}
             """;
-        var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("memory://flatten.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
-        List<String> sunk = new ArrayList<>();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
-        try (var iterator = reader.read(object, ctx)) {
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(List.of("a.b", "id"), schema.stream().map(Attribute::name).toList());
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).build())) {
             assertTrue(iterator.hasNext());
-            iterator.next();
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock ab = page.getBlock(indexOf(schema, "a.b"));
+            assertEquals(1, ab.getInt(ab.getFirstValueIndex(0)));
+            assertEquals(2, ab.getInt(ab.getFirstValueIndex(1)));
         }
-        assertFalse("expected a warning for the shape conflict routed through the sink", sunk.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("user")));
-        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A column that is both a leaf and a prefix ({@code x.a} beside {@code x.a.b}) is reached once through its own
+     * array of objects and once through its parent's. Two records are required: the second decodes correctly on its
+     * own, and it is the first record's array on {@code x.a} that decides which of that node's entries are open.
+     */
+    public void testObjectArrayInOneRecordDoesNotDropTheNextRecordsScalar() throws IOException {
+        String ndjson = """
+            {"x":{"a":[{"b":1}]}}
+            {"x":[{"a":3,"a.b":4}]}
+            """;
+        var object = new BytesStorageObject("memory://leaf-and-prefix.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (var iterator = reader.read(object, List.of("x.a", "x.a.b"), 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock xa = page.getBlock(0);
+            IntBlock xab = page.getBlock(1);
+            assertTrue(xa.isNull(0));
+            assertEquals(1, xab.getInt(xab.getFirstValueIndex(0)));
+            assertEquals(3, xa.getInt(xa.getFirstValueIndex(1)));
+            assertEquals(4, xab.getInt(xab.getFirstValueIndex(1)));
+        }
+    }
+
+    /** The {@code user} family of a schema: the bare name plus every dotted descendant, in schema order. */
+    private static List<String> userFamily(List<Attribute> schema) {
+        return schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
+    }
+
+    /**
+     * The whole point of the fix, end to end on a schemaless file: inference types the column
+     * date_nanos and the read returns the full epoch-nanos value. Before, the column came back
+     * datetime and everything below the millisecond was silently gone.
+     */
+    public void testInferredDateNanosKeepsNanoPrecision() throws IOException {
+        String ndjson = """
+            {"id":1,"ts":"2023-10-23T12:15:03.360103847Z"}
+            {"id":2,"ts":"2023-10-23T12:15:03.360Z"}
+            """;
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///temporal.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        var schema = reader.metadata(object).schema();
+        assertEquals(DataType.DATE_NANOS, schema.get(indexOf(schema, "ts")).dataType());
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            LongBlock ts = page.getBlock(indexOf(schema, "ts"));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360103847Z"), ts.getLong(0));
+            // The millisecond row rides the same rail without loss — that is what makes widening a
+            // mixed-precision column to date_nanos safe.
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2023-10-23T12:15:03.360Z"), ts.getLong(1));
+            page.releaseBlocks();
+        }
     }
 
     private static int indexOf(List<Attribute> schema, String name) {
@@ -1932,8 +2280,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(0, first.getBlockCount());
             assertEquals(2, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -2106,8 +2454,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var ctx = FormatReadContext.builder().projectedColumns(List.of("a", "c")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
-            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
 
@@ -2184,8 +2532,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * {@code childDecoder.decodeValue(...)}). So an exactly-2-block Page with the right values
      * across the nested object and the array - the most expensive shapes to materialise - implies
      * those fields were skipped at parse time, not silently materialised into a discarded buffer.
-     * (Note: {@code skipChildren} is also called by {@code unexpectedValue} and the {@code NULL}
-     * branch of {@code decodeValue}; this test does not depend on those paths.)
+     * (Note: {@code skipChildren} is also called by {@code coercionFailure} and the {@code NULL}-typed-column
+     * early return in {@code decodeValue}; this test does not depend on those paths.)
      */
     public void testWideSchemaProjectionDropsAllUnreferencedFields() throws IOException {
         StringBuilder sb = new StringBuilder();
@@ -2392,17 +2740,31 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+        // Distinct from the out-of-range cases: only the message separates unparseable from out-of-range now.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid integer value [abc]"));
     }
 
     public void testWithConfigNullOrEmptyReturnsThis() {
@@ -2451,6 +2813,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(1, tsBlock.getPositionCount());
             long expected = Instant.parse("2023-12-25T10:30:00Z").toEpochMilli();
             assertEquals(expected, tsBlock.getLong(0));
+        }
+    }
+
+    /**
+     * The zone-offset and date-only cases of {@code datetime_format}, pinned here against the identical pattern and
+     * bytes used by {@code CsvDirectBlockParityTests}. Both readers compile the option to an ES {@code DateFormatter},
+     * so the two formats must agree on the instant exactly; these two tests and their CSV twins are that contract.
+     */
+    public void testDatetimeFormatHonorsZoneOffset() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd HH:mm:ssXXX", "2024-01-01 10:00:00+05:00", "2024-01-01T05:00:00Z");
+    }
+
+    public void testDatetimeFormatDateOnly() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd", "2024-01-01", "2024-01-01T00:00:00Z");
+    }
+
+    private void assertDatetimeFormatDecodesTo(String pattern, String value, String expectedInstant) throws IOException {
+        String ndjson = "{\"ts\":\"" + value + "\"}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", pattern)
+        );
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            Page page = iterator.next();
+            LongBlock tsBlock = page.getBlock(0);
+            assertEquals(Instant.parse(expectedInstant).toEpochMilli(), tsBlock.getLong(0));
         }
     }
 
@@ -2688,16 +3077,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */
     public void testSegmentSizeTooSmallIsRejected() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "1kb").build();
-        QlIllegalArgumentException ex = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> new NdJsonFormatReader(settings, blockFactory)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(settings, blockFactory));
         assertThat(ex.getMessage(), Matchers.containsString("segment_size"));
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        QlIllegalArgumentException ex2 = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("segment_size", "1kb"))
-        );
+        IllegalArgumentException ex2 = expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("segment_size", "1kb")));
         assertThat(ex2.getMessage(), Matchers.containsString("segment_size"));
     }
 
@@ -2711,6 +3094,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         String ndjson = "{\"id\":1}\n{\"id\":2}\n{\"id\":3}\n";
         byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
         StorageObject lengthUnsupported = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);
@@ -2761,6 +3149,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testLargeObjectFallsBackToStreaming() throws IOException {
         byte[] payload = "{\"id\":42}\n".getBytes(StandardCharsets.UTF_8);
         StorageObject oversized = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(payload);
@@ -2845,6 +3238,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int length = all.length - start;
         StorageObject tailAlignedStart = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(all, start, length);
             }
@@ -2905,7 +3303,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             case DOUBLE -> DataType.DOUBLE;
             case NULL -> DataType.NULL;
             case BYTES_REF -> DataType.KEYWORD;
-            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE ->
                 throw new IllegalArgumentException("Unsupported block type: " + block.elementType());
         };
     }
@@ -2926,7 +3324,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
 
         // 64kb is the minimum allowed segment_size; the ~480 KB buffer still splits into several segments.
-        Settings settings = Settings.builder().put("esql.datasource.ndjson.segment_size", "64kb").build();
+        Settings settings = Settings.builder().put("esql.external.ndjson.segment_size", "64kb").build();
         NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
         BytesStorageObject obj = new BytesStorageObject("mem://multi-segment.ndjson", content);
 
@@ -2957,14 +3355,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Regression for https://github.com/elastic/esql-planning/issues/894 and the issue 965 follow-up: on
+     * Regression for the byte-array max-record-size cap fix and its follow-up: on
      * the byte-array fast path the cap is now enforced per-record inside {@link NdJsonPageDecoder} (on the
      * pass Jackson already makes — no separate buffer sweep), instead of by a pre-read cap stream. Under
-     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code max_record_size [N]} error
+     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code record exceeds [N]} error
      * rather than parse silently. Because enforcement moved to decode time, the failure now surfaces through
      * the iterator's standard error path (a client-class {@code RuntimeException}) rather than as a raw
      * {@link IOException} thrown from {@code readAllBytes()} during construction; the user-facing
-     * {@code max_record_size [N]} wording is preserved on the root cause.
+     * {@code record exceeds [N]} wording is preserved on the root cause.
      */
     public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
         int maxRecordBytes = 16;
@@ -2991,12 +3389,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
      * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
-     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. Since the
+     * surfaced) so the user-visible {@code external_max_record_size} contract from PR #150240 is preserved. Since the
      * issue 965 change, the drop happens per-record inside {@link NdJsonPageDecoder} (no buffer compaction),
      * so the surrounding rows keep both their values and their file offsets.
      */
@@ -3072,7 +3470,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * Issue 965 feedback (streaming cap gap): the fallback/streaming branch used to wrap only a
      * {@code CountingInputStream}, so oversized records parsed with no cap when the object streamed (length
      * unknown, &gt;16 MiB, or a single-threaded read). Strict policy must now surface a
-     * {@code max_record_size [N]} error on that path too. Forces the streaming branch with an object whose
+     * {@code record exceeds [N]} error on that path too. Forces the streaming branch with an object whose
      * {@code length()} throws (as decompressing wrappers do).
      */
     public void testStreamingFallbackStrictModeEnforcesMaxRecordBytes() {
@@ -3099,7 +3497,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
@@ -3130,23 +3528,19 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
         List<String> warnings = drainWarnings();
         assertThat("a partial-results warning must be surfaced", warnings, Matchers.not(Matchers.empty()));
-        // r1 "{\"id\":1}\n" = 9 bytes; the oversized r2's brace is at byte 9, so the truncation anchor (offset
-        // just past the brace) is 10. Pin it so the warning carries the true file position, not a stale one.
-        long expectedTruncationByte = "{\"id\":1}\n".length() + 1;
-        assertTrue(
-            "a warning must mention the truncation at the oversized record's byte offset, got: " + warnings,
-            warnings.stream()
-                .anyMatch(
-                    w -> w.contains("truncated")
-                        && w.contains("max_record_size [" + maxRecordBytes + "]")
-                        && w.contains("byte [" + expectedTruncationByte + "]")
-                )
-        );
+        // The warning names the limit, not the byte offset; NdJsonPageDecoderMaxRecordSizeTests pins the offset
+        // through NdJsonPageDecoder.truncatedAtByte().
+        assertThat(warnings, Matchers.hasItem("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"));
     }
 
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */
     private static StorageObject streamOnlyObject(String path, byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

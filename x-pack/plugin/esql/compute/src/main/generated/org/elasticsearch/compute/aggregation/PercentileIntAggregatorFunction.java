@@ -41,12 +41,15 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
 
   private final double percentile;
 
+  private final double tDigestStateCompression;
+
   PercentileIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      double percentile) {
+      double percentile, double tDigestStateCompression) {
     this.percentile = percentile;
+    this.tDigestStateCompression = tDigestStateCompression;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = PercentileIntAggregator.initSingle(driverContext, percentile);
+    this.state = PercentileIntAggregator.initSingle(driverContext, percentile, tDigestStateCompression);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

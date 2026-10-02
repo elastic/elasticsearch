@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
@@ -34,6 +36,12 @@ public final class FetchSearchResult extends SearchPhaseResult {
     private SearchHits hits;
 
     private long searchHitsSizeBytes = 0L;
+
+    // Null exactly when there is no charge outstanding.
+    private CircuitBreaker searchHitsSizeBytesBreaker;
+
+    // Set when the outstanding charge was made on the coordinator instead of by the shard's own fetch.
+    private boolean chargedOnCoordinator;
 
     // client side counter
     private transient int counter;
@@ -126,18 +134,53 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
-    public void setSearchHitsSizeBytes(long bytes) {
+    public void setSearchHitsSizeBytes(long bytes, CircuitBreaker circuitBreaker) {
+        if (bytes <= 0L) {
+            return;
+        }
+        Objects.requireNonNull(circuitBreaker, "no breaker to return the charged bytes to");
+        assert searchHitsSizeBytes == 0L : "overwriting an outstanding charge of [" + searchHitsSizeBytes + "] bytes";
+        // Without assertions, give back what is outstanding rather than losing track of it.
+        giveBackCircuitBreakerBytes();
         this.searchHitsSizeBytes = bytes;
+        this.searchHitsSizeBytesBreaker = circuitBreaker;
     }
 
     public long getSearchHitsSizeBytes() {
         return searchHitsSizeBytes;
     }
 
-    public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
+    /**
+     * Takes over a charge already made on the coordinator for hits assembled there, so the bytes stay charged
+     * across the handoff rather than being given back and estimated again.
+     */
+    public void setCoordinatorSearchHitsSizeBytes(long bytes, CircuitBreaker circuitBreaker) {
+        setSearchHitsSizeBytes(bytes, circuitBreaker);
+        chargedOnCoordinator = bytes > 0L;
+    }
+
+    /**
+     * Whether the outstanding charge was made on the coordinator, which must then not charge for these hits again.
+     */
+    public boolean isChargedOnCoordinator() {
+        return chargedOnCoordinator;
+    }
+
+    /**
+     * Callers release once the response is written. {@link #deallocate()} cannot guarantee that ordering, so it only
+     * catches results dropped before the release.
+     */
+    public void releaseCircuitBreakerBytes() {
+        assert hasReferences() : "explicit release must hold a reference";
+        giveBackCircuitBreakerBytes();
+    }
+
+    private void giveBackCircuitBreakerBytes() {
         if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
+            searchHitsSizeBytesBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
+            searchHitsSizeBytesBreaker = null;
+            chargedOnCoordinator = false;
         }
     }
 
@@ -179,6 +222,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
             hits = null;
         }
         releaseLastChunkBytes();
+        giveBackCircuitBreakerBytes();
     }
 
     @Override

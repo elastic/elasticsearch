@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
@@ -33,12 +34,13 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
+            boolean stream,
             TimeValue timeout,
             InferenceContext context,
             XContentParser parser
         ) throws IOException {
-            var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, unifiedRequest, context, timeout);
+            var unifiedRequestBody = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            return new Request(inferenceEntityId, taskType, new UnifiedCompletionRequest(unifiedRequestBody, stream), context, timeout);
         }
 
         private final String inferenceEntityId;
@@ -89,12 +91,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             return unifiedCompletionRequest;
         }
 
-        /**
-         * The Unified API only supports streaming so we always return true here.
-         * @return true
-         */
         public boolean isStreaming() {
-            return true;
+            return unifiedCompletionRequest.stream();
         }
 
         public TimeValue getTimeout() {
@@ -103,13 +101,13 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
 
         @Override
         public ActionRequestValidationException validate() {
-            if (unifiedCompletionRequest == null || unifiedCompletionRequest.messages() == null) {
+            if (unifiedCompletionRequest.body().messages() == null) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError("Field [messages] cannot be null");
                 return e;
             }
 
-            if (unifiedCompletionRequest.messages().isEmpty()) {
+            if (unifiedCompletionRequest.body().messages().isEmpty()) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError("Field [messages] cannot be an empty array");
                 return e;
@@ -141,7 +139,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
+            var request = (Request) o;
             return super.equals(o)
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType

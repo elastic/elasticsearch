@@ -7,16 +7,25 @@
 package org.elasticsearch.xpack.deprecation.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -28,7 +37,14 @@ import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_NOT_D
 /**
  * Adds {@link TestDeprecationHeaderRestAction} for testing deprecation requests via HTTP.
  */
-public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin {
+public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin, RepositoryPlugin {
+
+    @Override
+    public List<ActionHandler> getActions() {
+        return List.of(
+            new ActionHandler(TestRepositoryDeprecationSetupAction.TYPE, TestRepositoryDeprecationSetupAction.TransportAction.class)
+        );
+    }
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -36,7 +52,10 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Collections.singletonList(new TestDeprecationHeaderRestAction(restHandlersServices.settings()));
+        return List.of(
+            new TestDeprecationHeaderRestAction(restHandlersServices.settings()),
+            new TestRepositoryDeprecationSetupAction.RestAction()
+        );
     }
 
     @Override
@@ -49,6 +68,19 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
         return singletonList(
             new QuerySpec<>(TestDeprecatedQueryBuilder.NAME, TestDeprecatedQueryBuilder::new, TestDeprecatedQueryBuilder::fromXContent)
         );
+    }
+
+    @Override
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        return Map.ofEntries(TestRepositoryDeprecationSetupAction.invalidRepositoryEntry());
     }
 
 }

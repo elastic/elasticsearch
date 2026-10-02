@@ -13,4 +13,4 @@ lexer grammar Dedup;
 // handles PIPE / RP transitions correctly (see METRICS_INFO and TS_INFO
 // for the same approach).
 //
-DEV_DEDUP : {this.isDevVersion()}? 'dedup' -> pushMode(EXPRESSION_MODE);
+DEDUP : 'dedup' -> pushMode(EXPRESSION_MODE);

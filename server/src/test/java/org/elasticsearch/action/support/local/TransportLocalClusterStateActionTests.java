@@ -171,7 +171,7 @@ public class TransportLocalClusterStateActionTests extends ESTestCase {
         static final String ACTION_NAME = "internal:testAction";
 
         Action(TaskManager taskManager, ClusterService clusterService) {
-            super(ACTION_NAME, new ActionFilters(Set.of()), taskManager, clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(ACTION_NAME, ActionFilters.EMPTY, taskManager, clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

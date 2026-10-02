@@ -58,7 +58,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -83,13 +82,11 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.TokenService.RefreshTokenStatus;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -156,7 +153,6 @@ public class TokenServiceTests extends ESTestCase {
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
         .build();
-    private MockLicenseState licenseState;
     private SecurityContext securityContext;
     private MockBytesRefRecycler bytesRefRecycler;
 
@@ -228,10 +224,6 @@ public class TokenServiceTests extends ESTestCase {
             this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
         }
 
-        // License state (enabled by default)
-        licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-
         if (randomBoolean()) {
             // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent
             // refreshes,
@@ -256,8 +248,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterServiceAndRecycler() throws Exception {
         clusterService.close();
         // wait for any async threads to release their recycler pages
         assertBusy(() -> assertEquals(0, bytesRefRecycler.activePageCount()));
@@ -675,7 +666,6 @@ public class TokenServiceTests extends ESTestCase {
             Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false).build(),
             Clock.systemUTC(),
             client,
-            licenseState,
             securityContext,
             securityMainIndex,
             securityTokensIndex,
@@ -1036,36 +1026,11 @@ public class TokenServiceTests extends ESTestCase {
         );
     }
 
-    public void testCannotValidateTokenIfLicenseDoesNotAllowTokens() throws Exception {
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
-        Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("joe", "admin"))
-            .realmRef(new RealmRef("native_realm", "native", "node1"))
-            .build(false);
-        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
-        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, false, Instant.now().plusSeconds(180));
-        final String accessToken = tokenService.prependVersionAndEncodeAccessToken(
-            tokenService.getTokenVersionCompatibility(),
-            newTokenBytes.v1()
-        );
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(threadContext, accessToken);
-
-        PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(false);
-        final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(threadContext);
-        tokenService.tryAuthenticateToken(bearerToken, authFuture);
-        UserToken authToken = authFuture.actionGet();
-        assertThat(authToken, Matchers.nullValue());
-    }
-
     private TokenService createTokenService(Settings settings, Clock clock) throws GeneralSecurityException {
         return new TokenService(
             settings,
             clock,
             client,
-            licenseState,
             securityContext,
             securityMainIndex,
             securityTokensIndex,

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -31,7 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableChunk;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
@@ -58,7 +60,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Depending on the value of the <code>type</code> field, different fields are required or optional for the reasoning detail.
  * Used for both request and response Chat Completion objects.
  */
-public abstract sealed class ReasoningDetail implements ToXContentObject, ChunkedToXContentObject, NamedWriteable permits
+public abstract sealed class ReasoningDetail implements Accountable, ToXContentObject, ChunkedToXContentObject, NamedWriteable permits
     ReasoningDetail.EncryptedReasoningDetail, ReasoningDetail.SummaryReasoningDetail, ReasoningDetail.TextReasoningDetail {
 
     /**
@@ -228,7 +230,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(chunkNullable(FORMAT_FIELD, format()), chunkNullable(ID_FIELD, id()), chunkNullable(INDEX_FIELD, index()));
+        return Iterators.concat(nullableChunk(FORMAT_FIELD, format()), nullableChunk(ID_FIELD, id()), nullableChunk(INDEX_FIELD, index()));
     }
 
     public String format() {
@@ -267,6 +269,8 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
     public static final class EncryptedReasoningDetail extends ReasoningDetail {
 
         public static final String NAME = "encrypted_reasoning_detail";
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EncryptedReasoningDetail.class);
 
         private final String data;
 
@@ -325,6 +329,16 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         }
 
         @Override
+        public long ramBytesUsed() {
+            var formatRamBytesUsed = RamUsageEstimator.sizeOf(format());
+            var idRamBytesUsed = RamUsageEstimator.sizeOf(id());
+            var indexRamBytesUsed = RamUsageEstimator.sizeOf(index());
+            var dataRamBytesUsed = RamUsageEstimator.sizeOf(data());
+
+            return SHALLOW_SIZE + formatRamBytesUsed + idRamBytesUsed + indexRamBytesUsed + dataRamBytesUsed;
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), data);
         }
@@ -341,6 +355,8 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
     public static final class SummaryReasoningDetail extends ReasoningDetail {
 
         public static final String NAME = "summary_reasoning_detail";
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SummaryReasoningDetail.class);
 
         private final String summary;
 
@@ -391,6 +407,16 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         }
 
         @Override
+        public long ramBytesUsed() {
+            var formatRamBytesUsed = RamUsageEstimator.sizeOf(format());
+            var idRamBytesUsed = RamUsageEstimator.sizeOf(id());
+            var indexRamBytesUsed = RamUsageEstimator.sizeOf(index());
+            var summaryRamBytesUsed = RamUsageEstimator.sizeOf(summary());
+
+            return SHALLOW_SIZE + formatRamBytesUsed + idRamBytesUsed + indexRamBytesUsed + summaryRamBytesUsed;
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -405,7 +431,13 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         @Override
         public String toString() {
-            return Strings.format("SummaryReasoningDetail{summary='%s', format='%s', id='%s', index=%d}", summary, format(), id(), index());
+            return Strings.format(
+                "SummaryReasoningDetail{summary='%s', format='%s', id='%s', index=%d}",
+                summary(),
+                format(),
+                id(),
+                index()
+            );
         }
     }
 
@@ -416,6 +448,8 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
     public static final class TextReasoningDetail extends ReasoningDetail {
 
         public static final String NAME = "text_reasoning_detail";
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TextReasoningDetail.class);
 
         private final String text;
         private final String signature;
@@ -474,10 +508,21 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
                 ChunkedToXContentHelper.startObject(),
                 chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.TEXT.value)),
                 super.toXContentChunked(params),
-                chunkNullable(TEXT_FIELD, text),
-                chunkNullable(SIGNATURE_FIELD, signature),
+                nullableChunk(TEXT_FIELD, text),
+                nullableChunk(SIGNATURE_FIELD, signature),
                 ChunkedToXContentHelper.endObject()
             );
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            var formatRamBytesUsed = RamUsageEstimator.sizeOf(format());
+            var idRamBytesUsed = RamUsageEstimator.sizeOf(id());
+            var indexRamBytesUsed = RamUsageEstimator.sizeOf(index());
+            var textRamBytesUsed = RamUsageEstimator.sizeOf(text());
+            var signatureRamBytesUsed = RamUsageEstimator.sizeOf(signature());
+
+            return SHALLOW_SIZE + formatRamBytesUsed + idRamBytesUsed + indexRamBytesUsed + textRamBytesUsed + signatureRamBytesUsed;
         }
 
         @Override

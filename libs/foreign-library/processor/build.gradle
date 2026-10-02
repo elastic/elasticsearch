@@ -25,7 +25,7 @@ tasks.named('javadoc').configure {
 
 dependencies {
   implementation project(':libs:foreign-library')
-  testImplementation buildLibs.junit
+  testImplementation buildLibs.junit4
 }
 
 // TestingConventionsCheckTask uses classLoaderIsolation (in-daemon) so it cannot load class

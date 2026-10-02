@@ -1,0 +1,6 @@
+FROM employees
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 2 BY languages
+| STATS c = COUNT(*) BY languages
+| SORT languages ASC NULLS LAST

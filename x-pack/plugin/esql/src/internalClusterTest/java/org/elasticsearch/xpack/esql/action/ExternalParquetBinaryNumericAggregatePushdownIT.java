@@ -55,7 +55,7 @@ public class ExternalParquetBinaryNumericAggregatePushdownIT extends AbstractExt
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     public void testMinMaxBinaryBackedFloat16AndDecimalColumns() throws Exception {

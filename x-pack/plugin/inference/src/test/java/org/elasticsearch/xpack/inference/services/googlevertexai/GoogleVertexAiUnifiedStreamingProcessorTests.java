@@ -15,6 +15,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+
+import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
@@ -60,14 +63,14 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
 
             var choice = chunk.choices().getFirst();
-            assertEquals("Elastic", choice.delta().content());
-            assertEquals("model", choice.delta().role());
+            assertEquals("Elastic", choice.message().content());
+            assertEquals("model", choice.message().role());
             assertEquals("gemini-2.0-flash-lite", chunk.model());
             assertEquals(0, choice.index()); // VertexAI response does not have Index. Use 0 as default
             assertEquals("MAXTOKENS", choice.finishReason());
 
-            assertEquals(1, choice.delta().toolCalls().size());
-            var toolCall = choice.delta().toolCalls().getFirst();
+            assertEquals(1, choice.message().toolCalls().size());
+            var toolCall = choice.message().toolCalls().getFirst();
             assertEquals("getWeatherData", toolCall.function().name());
             assertEquals("{\"unit\":\"celsius\",\"location\":\"buenos aires, argentina\"}", toolCall.function().arguments());
 
@@ -109,11 +112,11 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("responseId", chunk.id());
             assertEquals(1, chunk.choices().size());
             var choice = chunk.choices().getFirst();
-            assertEquals("Hello", choice.delta().content());
-            assertEquals("model", choice.delta().role());
+            assertEquals("Hello", choice.message().content());
+            assertEquals("model", choice.message().role());
             assertEquals("STOP", choice.finishReason());
             assertEquals(0, choice.index());
-            assertNull(choice.delta().toolCalls());
+            assertNull(choice.message().toolCalls());
 
         } catch (IOException e) {
             fail("IOException during test: " + e.getMessage());
@@ -155,12 +158,12 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("resId789", chunk.id());
             assertEquals(1, chunk.choices().size());
             var choice = chunk.choices().getFirst();
-            assertEquals("model", choice.delta().role());
-            assertNull(choice.delta().content());
+            assertEquals("model", choice.message().role());
+            assertNull(choice.message().content());
 
-            assertNotNull(choice.delta().toolCalls());
-            assertEquals(1, choice.delta().toolCalls().size());
-            var toolCall = choice.delta().toolCalls().getFirst();
+            assertNotNull(choice.message().toolCalls());
+            assertEquals(1, choice.message().toolCalls().size());
+            var toolCall = choice.message().toolCalls().getFirst();
             assertEquals("getLocation", toolCall.function().name());
             assertNull(toolCall.function().arguments());
 
@@ -204,15 +207,40 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(1, chunk.choices().size());
 
             var choice = chunk.choices().getFirst();
-            assertEquals("model", choice.delta().role());
+            assertEquals("model", choice.message().role());
             // Verify that the text from multiple parts is concatenated
-            assertEquals("This is the first part. This is the second part.", choice.delta().content());
+            assertEquals("This is the first part. This is the second part.", choice.message().content());
             assertEquals("STOP", choice.finishReason());
             assertEquals(0, choice.index());
-            assertNull(choice.delta().toolCalls());
+            assertNull(choice.message().toolCalls());
             assertEquals("gemini-2.0-flash-001", chunk.model());
         } catch (IOException e) {
             fail("IOException during test: " + e.getMessage());
         }
+    }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "candidates": [],
+                "usageMetadata": {},
+                "modelVersion": "m",
+                "responseId": "r1"
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "candidates": [],
+                "usageMetadata": {},
+                "modelVersion": "m",
+                "responseId": "r2"
+            }\
+            """;
+        var data = firstChunkData + "\n" + secondChunkData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var processor = new GoogleVertexAiUnifiedStreamingProcessor(RuntimeException::new);
+        var chunks = new ArrayList<>();
+        processor.parse(parserConfig, data).forEachRemaining(chunks::add);
+        assertThat(chunks.size(), is(2));
     }
 }

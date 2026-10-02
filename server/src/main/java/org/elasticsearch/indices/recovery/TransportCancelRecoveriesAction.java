@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 /// Transport action for batch cancellation of recoveries on a data node.
 /// Note that cancellation is best-effort. Recoveries may complete before the cancellation goes through or the request
@@ -50,6 +52,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     private final IndicesService indicesService;
     private final ThrottlingRecoveryService throttlingRecoveryService;
     private final ExecutorService executor;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportCancelRecoveriesAction(
@@ -70,6 +73,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         this.indicesService = indicesService;
         this.throttlingRecoveryService = throttlingRecoveryService;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+        this.threadContext = transportService.getThreadPool().getThreadContext();
     }
 
     @Override
@@ -78,7 +82,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             request.clusterStateVersion(),
             clusterService,
             executor,
-            null,
+            threadContext,
             listener,
             l -> processCancellations(request, l)
         );
@@ -86,17 +90,28 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
+        final long currentTerm = clusterService.state().term();
+        assert currentTerm >= request.term();
+        if (currentTerm > request.term()) {
+            logger.debug("ignoring direct recovery cancellation request for term [{}], local term is [{}]", request.term(), currentTerm);
+            listener.onResponse(new CancelRecoveriesAction.Response(Set.of()));
+            return;
+        }
+
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
-        final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
+        final Set<String> allocationIdsCancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
 
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
-            if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
+            if (allocationIdsCancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
+        final Set<CancelRecoveriesAction.CancelledInQueue> cancelledInQueue = allocationIdsCancelledInQueue.stream()
+            .map(allocationId -> new CancelRecoveriesAction.CancelledInQueue(toCancel.get(allocationId), allocationId))
+            .collect(Collectors.toSet());
         listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
     }
 
@@ -149,10 +164,8 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
         try {
             switch (recoveryType) {
-                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation(
-                    new RecoveryCancelledException(shardId, null, clusterService.localNode())
-                );
-                case PEER, RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
+                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE, PEER -> indexShard.requestRecoveryCancellation();
+                case RESHARD_SPLIT -> throw new ShardRecoveryNotCancellableException(
                     shardId,
                     recoveryType + " recoveries do not currently support direct cancellation of started recoveries"
                 );

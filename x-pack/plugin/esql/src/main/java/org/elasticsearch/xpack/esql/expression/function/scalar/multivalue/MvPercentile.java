@@ -19,11 +19,14 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -44,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
-public class MvPercentile extends EsqlScalarFunction {
+public class MvPercentile extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvPercentile",
@@ -63,6 +66,7 @@ public class MvPercentile extends EsqlScalarFunction {
     private final Expression percentile;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long" },
         briefSummary = "Calculates the percentile of all values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing "
@@ -184,13 +188,13 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) DoubleSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -207,13 +211,13 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) IntSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -230,13 +234,13 @@ public class MvPercentile extends EsqlScalarFunction {
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) LongSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");

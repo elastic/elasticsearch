@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -43,8 +44,9 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
      *
      * 10000001: ".reindexed-v7-ml-anomalies-*" added to ml-anomalies index pattern
      * 10000002: ".reindexed-v7-ml-state*" and ".reindexed-v8-ml-state*" added to ml-state index pattern
+     * 10000003: ".reindexed-v8-ml-anomalies-*" added alongside the existing v7 reindexed anomalies pattern
      */
-    public static final int ML_INDEX_TEMPLATE_VERSION = 10000002 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+    public static final int ML_INDEX_TEMPLATE_VERSION = 10000003 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
@@ -125,9 +127,10 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         ThreadPool threadPool,
         Client client,
         boolean useIlm,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
         this.useIlm = useIlm;
         this.composableIndexTemplateConfigs = parseComposableTemplates(
             anomalyDetectionResultsTemplate(),

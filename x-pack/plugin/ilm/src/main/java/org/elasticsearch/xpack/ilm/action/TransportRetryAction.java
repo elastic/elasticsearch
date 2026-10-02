@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,6 +74,17 @@ public class TransportRetryAction extends TransportMasterNodeAction<RetryActionR
         ActionListener<AcknowledgedResponse> listener
     ) {
         final var projectState = projectResolver.getProjectState(state);
+        // Short-circuit early the request has lookup indices.
+        for (String indexName : request.indices()) {
+            IndexMetadata idxMeta = projectState.metadata().index(indexName);
+            if (idxMeta != null && IndexSettings.MODE.get(idxMeta.getSettings()) == IndexMode.LOOKUP) {
+                listener.onFailure(
+                    new IllegalArgumentException("index [" + indexName + "] is a lookup index and cannot be managed by ILM")
+                );
+                return;
+            }
+        }
+
         if (request.requireError() == false) {
             maybeRunAsyncAction(projectState, request.indices());
             listener.onResponse(AcknowledgedResponse.TRUE);

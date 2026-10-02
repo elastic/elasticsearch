@@ -386,15 +386,16 @@ public class SourceRowXContentParserTests extends ESTestCase {
 
             try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
                 assertToken(parser, Token.START_OBJECT);
-                assertFieldName(parser, "title");
-                assertToken(parser, Token.VALUE_STRING);
-                assertEquals("doc1", parser.text());
+                // buildObjectNode adds object children before leaf children, so "user" appears before "title"
                 assertFieldName(parser, "user");
                 assertToken(parser, Token.START_OBJECT);
                 assertFieldName(parser, "name");
                 assertToken(parser, Token.VALUE_STRING);
                 assertEquals("alice", parser.text());
                 assertToken(parser, Token.END_OBJECT);
+                assertFieldName(parser, "title");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("doc1", parser.text());
                 assertToken(parser, Token.END_OBJECT);
                 assertNull(parser.nextToken());
             }

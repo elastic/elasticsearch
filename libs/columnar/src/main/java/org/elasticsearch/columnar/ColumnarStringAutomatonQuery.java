@@ -185,8 +185,22 @@ public final class ColumnarStringAutomatonQuery extends Query {
                         }
 
                         // An overlay rather than the column, as an updated field is: the values are read one
-                        // document at a time and run through the automaton. The surface carries a document's slots
-                        // as one payload, so each is run separately and any of them accepted accepts the document.
+                        // document at a time and run through the automaton. For a plain (single-valued) field
+                        // the blob is the raw value bytes; for a payload field it carries slot count + framed values.
+                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                                @Override
+                                public boolean matches() throws IOException {
+                                    final BytesRef candidate = values.binaryValue();
+                                    return automaton.run(candidate.bytes, candidate.offset, candidate.length);
+                                }
+
+                                @Override
+                                public float matchCost() {
+                                    return 10f;
+                                }
+                            });
+                        }
                         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
                         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                             @Override

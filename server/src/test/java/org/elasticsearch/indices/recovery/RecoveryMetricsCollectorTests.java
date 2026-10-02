@@ -35,8 +35,10 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
             () -> null,
+            () -> 0L,
             () -> 0L
         );
+        collector.doStart();
         final String gateName = randomIdentifier();
         final String secondGateName = randomValueOtherThan(gateName, ESTestCase::randomIdentifier);
         final long blockedTimeMillis = randomLongBetween(0, 60_000);
@@ -72,12 +74,14 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         final var blockedState = new AtomicReference<BlockedState>();
         final var relativeTimeMillis = new AtomicLong(randomLongBetween(-60_000, 60_000));
         try (
-            var ignored = new RecoveryMetricsCollector(
+            var collector = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 blockedState::get,
+                () -> 0L,
                 relativeTimeMillis::get
             )
         ) {
+            collector.doStart();
             int blocks = between(2, 10);
             for (int i = 0; i < blocks; i++) {
                 assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);

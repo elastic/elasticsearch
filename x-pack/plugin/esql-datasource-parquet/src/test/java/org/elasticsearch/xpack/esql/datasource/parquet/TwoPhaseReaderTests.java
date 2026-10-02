@@ -183,7 +183,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(50, actual.stream().mapToInt(Page::getPositionCount).sum());
-            assertEquals(1, failing.failedChunkReads.get());
+            // Sync storage does not seed the prefetch queue; the injected async
+            // failure is never hit and the scan stays on the stream path.
+            assertEquals(0, failing.failedChunkReads.get());
         } finally {
             expected.forEach(Page::releaseBlocks);
             actual.forEach(Page::releaseBlocks);

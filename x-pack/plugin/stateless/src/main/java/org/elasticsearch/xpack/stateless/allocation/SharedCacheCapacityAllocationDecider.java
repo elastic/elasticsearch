@@ -89,7 +89,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public static final Setting<CacheAccountingMode> ACCOUNTING_MODE_SETTING = Setting.enumSetting(
         CacheAccountingMode.class,
         "cluster.routing.allocation.shared_cache_capacity.accounting_mode",
-        CacheAccountingMode.BOOSTED,
+        CacheAccountingMode.TOTAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -100,7 +100,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.low",
-        RatioValue.ofPercent(99),
+        RatioValue.ofPercent(95),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

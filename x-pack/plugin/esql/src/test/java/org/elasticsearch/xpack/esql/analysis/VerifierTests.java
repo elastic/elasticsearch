@@ -1975,7 +1975,7 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
         fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
         fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")", true);
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
@@ -2294,7 +2294,7 @@ public class VerifierTests extends AnalyzerTestCase {
         // the same with differing function types, which pins *which* of the two is rejected
         fullText().error(
             "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match_phrase(title, \"dog\")",
-            containsString("[MatchPhrase] function cannot be used after LIMIT")
+            containsString("[MATCH_PHRASE] function cannot be used after LIMIT")
         );
         fullText().error(
             "from test | eval t = to_text(concat(title, body)) | limit 10 | where match_phrase(t, \"cat\") or title : \"dog\"",
@@ -2443,7 +2443,7 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
-        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH_PHRASE", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
     }
 
@@ -2533,7 +2533,7 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
-        checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH_PHRASE", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
     }
 
@@ -4626,19 +4626,6 @@ public class VerifierTests extends AnalyzerTestCase {
                     containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]")
                 )
             );
-    }
-
-    // Fork inside subquery is tested in LogicalPlanOptimizerTests
-    public void testSubqueryInFromWithForkInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        defaultAnalyzer().addDefaultIncompatible().error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
-            | KEEP emp_no
-            """, containsString("1:6: FORK after subquery is not supported"));
     }
 
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet

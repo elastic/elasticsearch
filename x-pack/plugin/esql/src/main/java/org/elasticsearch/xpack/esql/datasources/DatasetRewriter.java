@@ -558,6 +558,12 @@ public final class DatasetRewriter {
             dsSettings.remove("region");
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }
+        // Attach dataset context so operators can annotate classified failures without the full path.
+        // Stripped from storageConfig() before reaching any provider; never sent to the object store.
+        merged.put(
+            ExternalSourceResolver.DATASET_CONTEXT_KEY,
+            Map.of("dataset", dataset.name(), "datasource", parent.name(), "type", parent.type())
+        );
         return merged;
     }
 

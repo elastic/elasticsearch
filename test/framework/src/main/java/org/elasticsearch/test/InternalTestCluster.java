@@ -2614,9 +2614,28 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
-                    throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
+                    throw new AssertionError(
+                        "Shard " + id + " is still locked after 5 sec waiting" + describeShardRoutingForDiagnostics(id, ex),
+                        ex
+                    );
                 }
             }
+        }
+    }
+
+    /**
+     * Best-effort description of where a shard is currently allocated, for the assertion message in
+     * {@link #assertAfterTest()}. Any failure gathering it is attached to {@code lockFailure} as suppressed.
+     */
+    private String describeShardRoutingForDiagnostics(ShardId shardId, ShardLockObtainFailedException lockFailure) {
+        try {
+            ClusterState state = clusterService().state();
+            var projectId = state.metadata().projectFor(shardId.getIndex()).id();
+            var shardRouting = state.routingTable(projectId).shardRoutingTable(shardId);
+            return "; " + numDataNodes() + " data node(s), routing: " + shardRouting.assignedShards();
+        } catch (Exception e) {
+            lockFailure.addSuppressed(e);
+            return "; routing unavailable, see suppressed exception";
         }
     }
 

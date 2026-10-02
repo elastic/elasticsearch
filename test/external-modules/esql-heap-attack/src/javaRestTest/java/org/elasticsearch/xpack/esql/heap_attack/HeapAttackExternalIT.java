@@ -232,9 +232,16 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // accumulators). Sizing against the breaker budget (not total heap) leaves headroom for the
         // untracked allocations from the S3 client's Netty infrastructure and the format-specific
         // parsing pipeline.
+        //
+        // ZSTD is tighter. PanamaZstdInputStream holds an 8 MiB native back-reference window plus
+        // staging copies; window growth is addWithoutBreaking, and schema metadata decompresses
+        // with a null breaker. Four rows per key (the uncompressed default) then kills the 512 MB
+        // node before the hash table trips — ConnectionClosedException, not 429. One row per key
+        // still creates the same groups.
         long breakerBudget = clusterHeapMax * ExternalClusters.BREAKER_LIMIT_PERCENT / 100;
         int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, breakerBudget / 64L * 3 / 2);
-        int baseRowCount = baseDistinctKeys * 4;
+        int rowsPerKey = compression == Compression.ZSTD ? 1 : 4;
+        int baseRowCount = baseDistinctKeys * rowsPerKey;
         // Same key across attempts so the fixture's blob map holds at most one payload per test
         // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
         String key = scenarioKey("statsblowup", format, compression);

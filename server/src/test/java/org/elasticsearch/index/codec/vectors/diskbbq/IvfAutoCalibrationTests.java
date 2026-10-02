@@ -591,12 +591,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             1.0
         );
 
-        IvfSegmentConfig config = selector.calibrate(
-            vectors,
-            similarityFunction,
-            vectors.size(),
-            IvfAutoCalibration.CalibrationMode.FAST
-        );
+        IvfSegmentConfig config = selector.calibrate(vectors, similarityFunction, vectors.size(), IvfAutoCalibration.CalibrationMode.FAST);
 
         assertThat(config.osqEncoding(), notNullValue());
         assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.osqEncoding()));

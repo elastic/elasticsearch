@@ -1502,21 +1502,24 @@ public class SharedBlobCacheWarmingService {
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
 
-        // Reserve a min budget for every shard on source that has not yet begun
-        // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
-        // grace-period time and leave those shards with no budget when their recovery eventually starts.
-        final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
-        final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
-        final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
-        final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
-        final String finalContext = cappedTimeoutMs < timeoutMs
-            ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
-            : context;
-        return new SearchRecoveryTimeout(
-            TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
-            finalContext,
-            searchRecoveryWarmingGracePeriodCap
-        );
+        if (searchRecoveryWarmingTimeoutReevaluationEnabled) {
+            // Reserve a min budget for every shard on source that has not yet begun
+            // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
+            // grace-period time and leave those shards with no budget when their recovery eventually starts.
+            final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
+            final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
+            final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
+            final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
+            final String finalContext = cappedTimeoutMs < timeoutMs
+                ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
+                : context;
+            return new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
+                finalContext,
+                searchRecoveryWarmingGracePeriodCap
+            );
+        }
+        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 
     /**

@@ -239,9 +239,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
-        if (includeExclude != null) {
-            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
-        }
+        IncludeExclude.validateRegex(includeExclude, context);
         this.executionHint = executionHint;
         this.backgroundFilter = backgroundFilter;
         this.bucketCountThresholds = bucketCountThresholds;

@@ -255,9 +255,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.aggregatorSupplier = aggregatorSupplier;
         this.order = order;
         this.includeExclude = includeExclude;
-        if (includeExclude != null) {
-            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
-        }
+        IncludeExclude.validateRegex(includeExclude, context);
         this.executionHint = executionHint;
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;

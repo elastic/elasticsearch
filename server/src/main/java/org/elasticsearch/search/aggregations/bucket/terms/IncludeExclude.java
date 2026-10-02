@@ -550,6 +550,13 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         parse(exclude, EXCLUDE_FIELD);
     }
 
+    /** As {@link #validateRegex(int)} with the index's limit; an aggregation without include or exclude passes null. */
+    public static void validateRegex(@Nullable IncludeExclude includeExclude, AggregationContext context) {
+        if (includeExclude != null) {
+            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
+        }
+    }
+
     private Automaton toAutomaton(int maxRegexLength, CircuitBreaker breaker) {
         if (include == null && exclude == null) {
             return null;

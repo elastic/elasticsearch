@@ -101,9 +101,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         }
 
         this.includeExclude = includeExclude;
-        if (includeExclude != null) {
-            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
-        }
+        IncludeExclude.validateRegex(includeExclude, context);
         this.backgroundFilter = backgroundFilter;
         this.filterDuplicateText = filterDuplicateText;
         this.bucketCountThresholds = bucketCountThresholds;

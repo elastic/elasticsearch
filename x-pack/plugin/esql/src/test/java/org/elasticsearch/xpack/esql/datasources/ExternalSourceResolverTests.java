@@ -5891,8 +5891,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * After listing, planning reserves {@code planningBytes + fileCount * 760} on the request breaker and the
-     * query ledger. A limit under that charge trips before any file metadata read (reconciliation).
+     * After listing, planning reserves {@link ExternalSourceResolver#listingPlanningCharge} on the request
+     * breaker and the query ledger. A limit under that charge trips before any file metadata read.
      */
     public void testListingPlanningChargeMatchesFormulaAndTripsBeforeSchema() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5919,7 +5919,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
         FileList listing = resolution.resolvedSource(glob).fileList();
         assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
-        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        long expected = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(expected, greaterThan(0L));
         assertEquals(baseline + expected, wide.getUsed());
         assertEquals(expected, reservation.queryHeld());
@@ -5949,8 +5949,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Strict multi-file has its own post-listing charge. A declared schema still reserves
-     * {@code planningBytes + fileCount * 760} before the anchor footer read, and a limit under that
-     * charge trips with the ledger left at zero.
+     * {@link ExternalSourceResolver#listingPlanningCharge} before the anchor footer read, and a limit
+     * under that charge trips with the ledger left at zero.
      */
     public void testStrictListingPlanningChargeMatchesFormulaAndTripsBeforeSchema() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5979,7 +5979,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
         FileList listing = resolution.resolvedSource(glob).fileList();
         assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
-        long expected = listing.planningBytes() + listing.fileCount() * 760L;
+        long expected = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(expected, greaterThan(0L));
         assertEquals(baseline + expected, wide.getUsed());
         assertEquals(expected, reservation.queryHeld());
@@ -6134,7 +6134,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(resolution -> {
             // Still inside the gather completion. An earlier close would already have released the run.
             FileList listing = resolution.resolvedSource(glob).fileList();
-            long expectedNow = listing.planningBytes() + listing.fileCount() * 760L;
+            long expectedNow = ExternalSourceResolver.listingPlanningCharge(listing);
             expectedHolder[0] = expectedNow;
             assertNotNull(openRun[0]);
             assertEquals(bothLists, openRun[0].held());
@@ -6146,7 +6146,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolution = future.actionGet();
         long expected = expectedHolder[0];
         FileList listing = resolution.resolvedSource(glob).fileList();
-        assertEquals(expected, listing.planningBytes() + listing.fileCount() * 760L);
+        assertEquals(expected, ExternalSourceResolver.listingPlanningCharge(listing));
 
         assertEquals(bothLists, whileOpen[0]);
         assertEquals(expected, whileOpen[1]);
@@ -7267,6 +7267,94 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     + "even though the async metadata read completed on an unrelated I/O thread",
                 headerValue,
                 observedHeaderOnResponse.get()
+            );
+        } finally {
+            resolverExecutor.shutdownNow();
+            ioPool.shutdownNow();
+        }
+    }
+
+    /**
+     * After an async metadata read completes on a foreign I/O thread (no request
+     * {@link ThreadContext}), the per-file continuation scheduled on
+     * {@code metadataReadExecutor} must still see the header captured at resolver construction.
+     */
+    public void testPerFileMetadataTaskSeesCallerHeaderAfterForeignCompletion() throws Exception {
+        String headerName = "x-test-auth-marker";
+        String headerValue = "authenticated-user";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(headerName, headerValue);
+
+        String path = "s3://bucket/data/file.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("id", DataType.LONG)));
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), List.of(entry(path, 100)));
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        ExecutorService ioPool = Executors.newSingleThreadExecutor();
+        AtomicReference<String> headerOnPerFileTask = new AtomicReference<>();
+        AtomicReference<String> headerOnForeignThread = new AtomicReference<>();
+        FormatReader reader = new NoConfigFormatReader() {
+            @Override
+            public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+                ioPool.execute(() -> {
+                    headerOnForeignThread.set(threadContext.getHeader(headerName));
+                    executor.execute(() -> {
+                        headerOnPerFileTask.set(threadContext.getHeader(headerName));
+                        listener.onResponse(new StubSourceMetadata(object.path().toString(), schemasByPath.get(object.path().toString())));
+                    });
+                });
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return new StubSourceMetadata(object.path().toString(), schemasByPath.get(object.path().toString()));
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                ExternalSourceResolver.DEFAULT_METADATA_READ_CONCURRENCY,
+                threadContext
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                assertNull(threadContext.getHeader(headerName));
+                resolver.resolve(List.of(glob), Map.of(glob, Map.of()), future);
+                assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+            }
+            assertNull("foreign I/O thread must not inherit the request header", headerOnForeignThread.get());
+            assertEquals(
+                "per-file task on metadataReadExecutor must see the header captured at construction",
+                headerValue,
+                headerOnPerFileTask.get()
             );
         } finally {
             resolverExecutor.shutdownNow();

@@ -21,8 +21,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -367,6 +372,84 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertEquals(350L, buffer.bytesRead());
     }
 
+    public void testInFlightBytesVisibleBeforeCommit() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+
+        object.setBytesRead(250);
+        assertEquals("live delta must be visible before commit", 250L, buffer.bytesRead());
+    }
+
+    public void testCommitDoesNotDoubleCount() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+        object.setBytesRead(250);
+
+        buffer.commitInFlightBytes();
+        assertEquals(250L, buffer.bytesRead());
+        buffer.commitInFlightBytes();
+        assertEquals("the same live delta must not be added twice", 250L, buffer.bytesRead());
+
+        object.setBytesRead(300);
+        assertEquals("commit must keep the object tracked", 300L, buffer.bytesRead());
+    }
+
+    public void testFinishInFlightBytesKeepsCommittedAndDropsLiveDelta() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+        object.setBytesRead(250);
+
+        buffer.finishInFlightBytes();
+        assertEquals(250L, buffer.bytesRead());
+
+        object.setBytesRead(400);
+        assertEquals("finish must stop following later increments", 250L, buffer.bytesRead());
+    }
+
+    public void testCommitIgnoresThrowAndDoesNotResetBaseline() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+        object.setBytesRead(100);
+        buffer.commitInFlightBytes();
+        assertEquals(100L, buffer.bytesRead());
+
+        object.failMetrics();
+        buffer.commitInFlightBytes();
+        assertEquals("bytesRead must stay at committed while metrics throws", 100L, buffer.bytesRead());
+
+        object.recoverMetrics();
+        assertEquals("a throw must not reset the baseline and double-count", 100L, buffer.bytesRead());
+
+        object.setBytesRead(150);
+        assertEquals("commit must keep tracking after a failed snapshot", 150L, buffer.bytesRead());
+    }
+
+    public void testTrackFoldsPreviousObject() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject first = new MutableMetricsStorageObject();
+        MutableMetricsStorageObject second = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(first);
+        first.setBytesRead(10);
+        first.setBytesRead(15);
+
+        buffer.trackStorageObject(second);
+        assertEquals(15L, buffer.bytesRead());
+
+        second.setBytesRead(7);
+        assertEquals(22L, buffer.bytesRead());
+
+        MutableMetricsStorageObject third = new MutableMetricsStorageObject();
+        third.setBytesRead(5);
+        buffer.trackStorageObject(third);
+        assertEquals("only growth after track counts", 22L, buffer.bytesRead());
+        third.setBytesRead(8);
+        assertEquals(25L, buffer.bytesRead());
+    }
+
     public void testSplitTrackingTriplet() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(0, buffer.splitsTotal());
@@ -609,5 +692,59 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertNull("STOP must not surface the read as a cancellation failure", thrown.get());
         producer.join(TimeUnit.SECONDS.toMillis(10));
         assertFalse("the producer thread must have exited", producer.isAlive());
+    }
+
+    /**
+     * Test storage object whose {@link #metrics()} snapshot can be raised, forced to throw, or
+     * restored so the in-flight bytes view can be asserted without a real provider.
+     */
+    private static final class MutableMetricsStorageObject extends AbstractTestStorageObject {
+        private volatile long bytesRead;
+        private volatile boolean throwOnMetrics;
+
+        void setBytesRead(long bytes) {
+            this.bytesRead = bytes;
+        }
+
+        void failMetrics() {
+            throwOnMetrics = true;
+        }
+
+        void recoverMetrics() {
+            throwOnMetrics = false;
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            if (throwOnMetrics) {
+                throw new IllegalStateException("metrics failed");
+            }
+            return new StorageObjectMetrics(0L, 0L, bytesRead, 0L);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public long length() {
+            return 0;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/test");
+        }
     }
 }

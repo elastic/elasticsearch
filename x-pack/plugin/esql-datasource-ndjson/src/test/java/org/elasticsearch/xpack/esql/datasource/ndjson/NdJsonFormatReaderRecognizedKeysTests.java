@@ -189,7 +189,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     /**
      * {@code schema_sample_size} is a base dataset field: {@code FileDataSourceValidator} bounds it
-     * at PUT time ([1, 20000]) and never forwards it to the format validator, so the validator must
+     * at PUT time ([1, 40000]) and never forwards it to the format validator, so the validator must
      * ignore it rather than duplicate the check with a second message. The reader still rejects a
      * non-positive value on the query path, where the WITH config arrives unfiltered.
      */

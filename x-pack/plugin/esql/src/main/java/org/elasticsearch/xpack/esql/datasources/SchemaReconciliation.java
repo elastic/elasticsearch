@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -298,6 +299,7 @@ public final class SchemaReconciliation {
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
             validateNoDuplicateColumns(filePath, fileSchema);
+            validateNoWithinFileWidening(filePath, meta.widenedColumns());
 
             if (filePath.equals(referenceFile) == false) {
                 validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName);
@@ -388,6 +390,40 @@ public final class SchemaReconciliation {
             validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
         }
     }
+
+    /**
+     * {@code strict} refuses a within-file schema-inference widen the same way it refuses a cross-file
+     * disagreement — even on a single-file dataset, where {@link #validateStrictMatch} skips the only
+     * file (it equals {@code referenceFile}) and so would otherwise see nothing to compare.
+     * {@code widenedColumns} is populated by the CSV/TSV/NDJSON readers whenever a column's inferred
+     * type moved partway through the schema sample (a fold to {@code keyword}, or a {@code long}/
+     * {@code double} merge — see {@code CsvSchemaInferrer.Widening} / {@code NdJsonSchemaInferrer.Widening}).
+     * Names every widened column in one message rather than just the first, so a file with several
+     * doesn't force a fix-one-rerun-see-the-next cycle.
+     */
+    private static void validateNoWithinFileWidening(StoragePath filePath, List<WidenedColumn> widenedColumns) {
+        if (widenedColumns.isEmpty()) {
+            return;
+        }
+        StringBuilder message = new StringBuilder().append('[').append(filePath).append(']');
+        for (WidenedColumn widened : widenedColumns) {
+            message.append(": column [")
+                .append(widened.columnName())
+                .append("] widened to [")
+                .append(widened.toType().typeName())
+                .append("] from [")
+                .append(widened.fromType().typeName())
+                .append("] at sample row [")
+                .append(widened.sampleRow())
+                .append("] (value [")
+                .append(widened.value())
+                .append("])");
+        }
+        throw new IllegalArgumentException(message.append(WITHIN_FILE_WIDENING_FIX).toString());
+    }
+
+    private static final String WITHIN_FILE_WIDENING_FIX =
+        "; declare the column's type to avoid inference, or set [schema_resolution] to a value other than [strict] to allow it";
 
     private static void validateStrictTypeMatch(StoragePath refPath, Attribute refAttr, StoragePath filePath, Attribute fileAttr) {
         if (refAttr.dataType() != fileAttr.dataType()) {

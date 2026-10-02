@@ -91,9 +91,10 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         if (context == ConfigurationParseContext.PERSISTENT) {
             parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         }
-        parser.declareObject(
+        parser.declareObjectOrNull(
             Builder::setRateLimitSettings,
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
+            DEFAULT_RATE_LIMIT_SETTINGS,
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
@@ -293,9 +294,11 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        parser.declareObject(
+        // An explicit null leaves the setter with null, which the update treats as "keep the current rate limit".
+        parser.declareObjectOrNull(
             CommonUpdate::setRateLimitSettings,
             (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            null,
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.

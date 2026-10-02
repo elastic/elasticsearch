@@ -447,6 +447,180 @@ public class StringColumnMergeTests extends ESTestCase {
         }
     }
 
+    /**
+     * A single-valued column, whose blobs are each document's one value rather than a payload, through several segments,
+     * deletions and a merge. The shape changes part way through - repeated terms, a head over an escaping tail, nothing
+     * repeating - so the merge meets a union of dictionaries, a survey, and a plain column beside a dictionary one. Some
+     * documents lack the field. The merged segment has to keep the attribute, or it would read its own values as payloads.
+     */
+    public void testSingleValuedRoundTripAndMerge() throws IOException {
+        for (int iter = 0; iter < 4; iter++) {
+            final int numDocs = between(200, 3000);
+            final String[] values = new String[numDocs];
+            final int span = Math.max(1, numDocs / between(2, 5));
+            for (int d = 0; d < numDocs; d++) {
+                if (random().nextInt(10) == 0) {
+                    continue;
+                }
+                values[d] = switch ((d / span) % 3) {
+                    case 0 -> randomFrom("nginx", "apache", "kafka", "");
+                    case 1 -> rarely() ? "rare-" + d : "h" + (d % 4);
+                    default -> "u-" + d + "-" + randomAlphaOfLength(between(1, 10));
+                };
+            }
+            final boolean[] deleted = new boolean[numDocs];
+            final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+
+            try (Directory dir = newDirectory()) {
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                    .setMergePolicy(new LogDocMergePolicy());
+                final int batch = Math.max(1, numDocs / between(2, 6));
+                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                    for (int d = 0; d < numDocs; d++) {
+                        final Document doc = new Document();
+                        doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                        if (values[d] != null) {
+                            doc.add(new Field(FIELD, new BytesRef(values[d]), type));
+                        }
+                        writer.addDocument(doc);
+                        if ((d + 1) % batch == 0) {
+                            writer.commit();
+                        }
+                    }
+
+                    try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                        assertThat("segments to merge", reader.leaves().size(), greaterThan(1));
+                        final List<BytesRef> blobs = new ArrayList<>();
+                        for (var leaf : reader.leaves()) {
+                            // The tail after the last commit may be a few documents, none of them holding the field.
+                            if (leaf.reader().getBinaryDocValues(FIELD) != null) {
+                                blobs.addAll(readBlobs(leaf.reader()));
+                            }
+                        }
+                        assertRawValues(expectedRaw(values, new boolean[numDocs]), blobs);
+                    }
+
+                    if (randomBoolean()) {
+                        for (int d = 0; d < numDocs; d++) {
+                            if (random().nextInt(6) == 0) {
+                                writer.deleteDocuments(new Term(ID, Integer.toString(d)));
+                                deleted[d] = true;
+                            }
+                        }
+                    }
+                    writer.forceMerge(1);
+                }
+
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                    final LeafReader leaf = reader.leaves().get(0).reader();
+                    assertSingleValuedAttribute(leaf);
+                    assertEquals("no null slots", 0L, columnOf(leaf).numNullSlots());
+                    assertRawValues(expectedRaw(values, deleted), readBlobs(leaf));
+                }
+            }
+        }
+    }
+
+    /**
+     * A single-valued merge whose inputs are not all our own columns, so the foreign segment's blobs are read as the bare
+     * values they are rather than split as payloads.
+     */
+    public void testSingleValuedMergeWithAForeignSegment() throws IOException {
+        final int numDocs = 200;
+        final String[] values = new String[numDocs];
+        for (int d = 0; d < numDocs; d++) {
+            values[d] = switch (d % 4) {
+                case 0 -> null;
+                case 1 -> "";
+                case 2 -> "nginx";
+                default -> "term-" + (d % 9);
+            };
+        }
+        final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+        try (Directory foreign = newDirectory(); Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(foreign, new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING)))) {
+                for (int d = 0; d < numDocs / 2; d++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                    if (values[d] != null) {
+                        doc.add(new Field(FIELD, new BytesRef(values[d]), type));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = numDocs / 2; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                    if (values[d] != null) {
+                        doc.add(new Field(FIELD, new BytesRef(values[d]), type));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+                try (DirectoryReader source = ColumnarTestUtils.hideTheColumn(DirectoryReader.open(foreign))) {
+                    final List<CodecReader> readers = new ArrayList<>();
+                    for (var leaf : source.leaves()) {
+                        readers.add(SlowCodecReaderWrapper.wrap(leaf.reader()));
+                    }
+                    writer.addIndexes(readers.toArray(new CodecReader[0]));
+                }
+                writer.forceMerge(1);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                assertSingleValuedAttribute(leaf);
+                // addIndexes appends, so the foreign half lands after the half written here.
+                final List<String> expected = new ArrayList<>();
+                for (int d = numDocs / 2; d < numDocs; d++) {
+                    if (values[d] != null) {
+                        expected.add(values[d]);
+                    }
+                }
+                for (int d = 0; d < numDocs / 2; d++) {
+                    if (values[d] != null) {
+                        expected.add(values[d]);
+                    }
+                }
+                assertRawValues(expected, readBlobs(leaf));
+            }
+        }
+    }
+
+    private static void assertSingleValuedAttribute(LeafReader leaf) {
+        assertEquals(
+            "the merged segment records the column as single-valued",
+            "true",
+            leaf.getFieldInfos().fieldInfo(FIELD).getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
+        );
+    }
+
+    /** The values of the documents that hold one and survived, in doc order; a null is a document without the field. */
+    private static List<String> expectedRaw(String[] values, boolean[] deleted) {
+        final List<String> expected = new ArrayList<>();
+        for (int d = 0; d < values.length; d++) {
+            if (deleted[d] == false && values[d] != null) {
+                expected.add(values[d]);
+            }
+        }
+        return expected;
+    }
+
+    /** Each blob is the document's value as it was written, with nothing framing it. */
+    private static void assertRawValues(List<String> expected, List<BytesRef> blobs) {
+        assertEquals("documents with a value", expected.size(), blobs.size());
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals("document " + i, new BytesRef(expected.get(i)), blobs.get(i));
+        }
+    }
+
     /** The merged leaf's column, so a test can read what it recorded rather than what it holds. */
     private static StringColumnReader columnOf(LeafReader leaf) throws IOException {
         final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);

@@ -215,6 +215,17 @@ public interface AuthorizationDenialMessages {
             }
 
             final StringBuilder sb = new StringBuilder();
+            // LimitedRole.names() returns only the cloud cap, so assigned names missing from it are not unresolved roles.
+            final List<String> limitedByRoleNames = subject.getCloudLimitedByRoleNames();
+            if (limitedByRoleNames != null) {
+                sb.append(" with assigned roles [")
+                    .append(Strings.arrayToCommaDelimitedString(subject.getUser().roles()))
+                    .append("], limited by roles [")
+                    .append(Strings.collectionToCommaDelimitedString(limitedByRoleNames))
+                    .append(']');
+                return sb.toString();
+            }
+
             final List<String> effectiveRoleNames = extractEffectiveRoleNames(authorizationInfo);
             if (effectiveRoleNames == null) {
                 sb.append(" with assigned roles [").append(Strings.arrayToCommaDelimitedString(subject.getUser().roles())).append("]");

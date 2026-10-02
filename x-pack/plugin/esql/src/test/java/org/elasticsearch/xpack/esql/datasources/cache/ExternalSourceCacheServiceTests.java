@@ -845,6 +845,55 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The stripe rail's half of the cross-store case. A contribution names a path, an mtime, a format config and a
+     * read config — never which store it was read from — so two entries that differ only in the identity they were
+     * derived under are both matches, and a stripe delta from one store would otherwise be folded into the other's
+     * cover. That is worse on this rail than on the whole-file one: the cover accumulates, so a foreign fragment can
+     * complete a span and make a partial read answer as a whole one.
+     * <p>
+     * Distinct from {@link #testForeignConfiguredStripeDeltaDoesNotEnrich}: there the read configs differ and the
+     * read-shape gate rejects the delta. Here they agree, and only refusing an unattributable match stops it.
+     */
+    public void testStripeDeltaFromAnotherStoreEntersNeitherCover() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/a.ndjson";
+            long mtime = 1000L;
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            // Same path, mtime, format config and read config; the stores differ, which is the only thing a
+            // contribution cannot report.
+            SchemaCacheKey storeA = SchemaCacheKey.build(path, mtime, ".ndjson", "endpoint=a", Map.of("format", "ndjson"));
+            SchemaCacheKey storeB = SchemaCacheKey.build(path, mtime, ".ndjson", "endpoint=b", Map.of("format", "ndjson"));
+            assertNotEquals("the two stores must address different entries, or this test proves nothing", storeA, storeB);
+            for (SchemaCacheKey key : List.of(storeA, storeB)) {
+                service.getOrComputeSchema(
+                    key,
+                    k -> SchemaCacheEntry.from(
+                        schema,
+                        "ndjson",
+                        path,
+                        Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own"),
+                        Map.of()
+                    )
+                );
+            }
+
+            Map<String, Object> fragment = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            fragment.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(fragment)));
+
+            for (SchemaCacheKey key : List.of(storeA, storeB)) {
+                SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+                assertNull(
+                    "an unattributable stripe delta must enter no cover, including the one it may have come from",
+                    entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+                );
+            }
+        }
+    }
+
     public void testStripeFoldKeepsTheReadConfigurationOnTheFoldedResult() throws Exception {
         // The stripe merge keeps only recognised _stats.* keys, so the identity is re-attached by hand afterwards.
         // Drop that and every stripe-rail count arrives configuration-less — which is invisible at the entry (it

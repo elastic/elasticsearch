@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -40,6 +42,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -120,6 +124,152 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             });
             assertSame(listing1, listing2);
             assertEquals(1, loaderCalls.get());
+        }
+    }
+
+    public void testListingTtlDefaultIsFiveMinutesAndNewKeyWins() {
+        assertEquals(TimeValue.timeValueMinutes(5), ExternalSourceCacheSettings.LISTING_TTL.get(Settings.EMPTY));
+        assertEquals(TimeValue.timeValueMinutes(5), ExternalSourceCacheSettings.LISTING_TTL_OLD.get(Settings.EMPTY));
+
+        Settings oldSpelling = Settings.builder().put(ExternalSourceCacheSettings.LISTING_TTL_OLD.getKey(), "45s").build();
+        assertEquals(TimeValue.timeValueSeconds(45), ExternalSourceCacheSettings.LISTING_TTL.get(oldSpelling));
+
+        Settings newKeyWins = Settings.builder()
+            .put(ExternalSourceCacheSettings.LISTING_TTL_OLD.getKey(), "45s")
+            .put(ExternalSourceCacheSettings.LISTING_TTL.getKey(), "2m")
+            .build();
+        assertEquals(TimeValue.timeValueMinutes(2), ExternalSourceCacheSettings.LISTING_TTL.get(newKeyWins));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceCacheSettings.LISTING_TTL_OLD });
+    }
+
+    /**
+     * Startup log and slice budgets. The TTL change must not move weight: schema stays a fifth of the
+     * budget, and the listing slice is what remains after the schema and dataset-aggregate slices.
+     */
+    public void testDefaultListingTtlLoggedAndCacheWeightsUnchanged() {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "10mb").put("esql.external.cache.enabled", true).build();
+        MockLog.assertThatLogger(() -> {
+            try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+                Map<String, Object> stats = service.usageStats();
+                long total = (long) stats.get("max_total_bytes");
+                long schema = (long) stats.get("schema_budget_bytes");
+                assertEquals(ByteSizeValue.ofMb(10).getBytes(), total);
+                // Schema stays a fifth of the budget. Listing is whatever remains after that and the
+                // dataset-aggregate slice; this TTL change does not retune those weights.
+                assertEquals(total / 5, schema);
+            }
+        },
+            ExternalSourceCacheService.class,
+            new MockLog.SeenEventExpectation(
+                "listing ttl",
+                ExternalSourceCacheService.class.getCanonicalName(),
+                Level.INFO,
+                "listingTTL=[5m]"
+            )
+        );
+    }
+
+    /** Concurrent misses for one listing key coalesce; the longer TTL relies on that single loader call. */
+    public void testListingComputeIfAbsentCoalesces() throws Exception {
+        ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings());
+        ExecutorService exec = Executors.newFixedThreadPool(10);
+        try {
+            AtomicInteger loaderCalls = new AtomicInteger();
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            int threadCount = 10;
+            CountDownLatch entered = new CountDownLatch(threadCount);
+            CountDownLatch release = new CountDownLatch(1);
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < threadCount; i++) {
+                futures.add(exec.submit(() -> {
+                    entered.countDown();
+                    assertTrue(release.await(30, TimeUnit.SECONDS));
+                    return service.getOrComputeListing(key, k -> {
+                        loaderCalls.incrementAndGet();
+                        Thread.sleep(50);
+                        return testCompactFileList();
+                    });
+                }));
+            }
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            release.countDown();
+            for (Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS);
+            }
+            assertEquals(1, loaderCalls.get());
+        } finally {
+            exec.shutdownNow();
+            service.close();
+        }
+    }
+
+    /**
+     * Expire-after-write, not after access: once the configured TTL passes, the next call re-lists exactly
+     * once and the call after that is a hit again. File metadata shares the same TTL.
+     */
+    public void testListingAndFileMetadataExpireAfterWrite() throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "200ms")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            FileMetadataCacheKey metadataKey = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
+
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            assertEquals(1, listingLoads.get());
+            assertEquals(1, metadataLoads.get());
+
+            // Separate waits: the two entries were written a moment apart, so one can expire while the
+            // other is still fresh. A shared attempt would refresh the expired one and then fail the
+            // assertion, leaving a new TTL that the retry would treat as a hit.
+            assertBusy(() -> {
+                int before = listingLoads.get();
+                service.getOrComputeListing(listingKey, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+                assertEquals(before + 1, listingLoads.get());
+            });
+            assertBusy(() -> {
+                int before = metadataLoads.get();
+                service.getOrComputeFileMetadata(metadataKey, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L);
+                });
+                assertEquals(before + 1, metadataLoads.get());
+            });
+
+            int listingsAfterExpiry = listingLoads.get();
+            int metadataAfterExpiry = metadataLoads.get();
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            assertEquals(listingsAfterExpiry, listingLoads.get());
+            assertEquals(metadataAfterExpiry, metadataLoads.get());
         }
     }
 

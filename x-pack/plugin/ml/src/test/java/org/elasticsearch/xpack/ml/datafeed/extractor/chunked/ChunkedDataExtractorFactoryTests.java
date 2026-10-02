@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -25,6 +26,7 @@ import java.util.Collections;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ChunkedDataExtractorFactoryTests extends ESTestCase {
@@ -82,6 +84,70 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(timeAligner.alignToCeil(301L), equalTo(301L));
         assertThat(timeAligner.alignToCeil(399L), equalTo(399L));
         assertThat(timeAligner.alignToCeil(400L), equalTo(400L));
+    }
+
+    public void testEsqlWindowShouldAlignToDeclaredGroupingInterval() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1));
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3_980L, 9_200L);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(3_000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(9_000L));
+    }
+
+    public void testEsqlWindowShouldIncludeBucketContainingUnalignedStart() {
+        long hour = TimeValue.timeValueHours(1).millis();
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
+
+        // start 09:14:53 inside the [09:00, 10:00) bucket: that bucket (emitted with time 09:00) must not be dropped
+        long start = 9 * hour + 14 * 60_000L + 53_000L;
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(start, 10 * hour);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(9 * hour));
+        assertThat(dataExtractor.getContext().end(), equalTo(10 * hour));
+    }
+
+    public void testEsqlWindowInsideSingleBucketShouldBeEmptyRatherThanInverted() {
+        long hour = TimeValue.timeValueHours(1).millis();
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(9 * hour + 14 * 60_000L, 9 * hour + 29 * 60_000L);
+
+        // the bucket containing the (unaligned) end is still open, so it is never extracted
+        assertThat(dataExtractor.getContext().start(), equalTo(9 * hour));
+        assertThat(dataExtractor.getContext().end(), equalTo(9 * hour));
+        assertThat(dataExtractor.hasNext(), is(false));
+    }
+
+    public void testRawEsqlQueryShouldUseSameGroupingIntervalAlignment() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueMinutes(1));
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3_650_000L, 7_250_000L);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(3_600_000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(7_200_000L));
+    }
+
+    private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval) {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Detector.Builder detectorBuilder = new Detector.Builder();
+        detectorBuilder.setFunction("count");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detectorBuilder.build()));
+        analysisConfig.setBucketSpan(groupingInterval);
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setAnalysisConfig(analysisConfig);
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
+        datafeedConfigBuilder.setEsqlQuery("FROM logs");
+        datafeedConfigBuilder.setSourceTimeField("@timestamp");
+        datafeedConfigBuilder.setGroupingInterval(groupingInterval);
+        return new ChunkedDataExtractorFactory(
+            datafeedConfigBuilder.build(),
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            dataExtractorFactory
+        );
     }
 
     private ChunkedDataExtractorFactory createFactory(long histogramInterval) {

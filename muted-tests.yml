@@ -675,3 +675,6 @@ tests:
 - class: org.elasticsearch.compute.operator.BreakingBytesRefBuilderTests
   method: testCloseAllBatchesReleaseIntoOneCallAndReleasesTheArray
   issue: https://github.com/elastic/elasticsearch/issues/160890
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupParquet
+  issue: https://github.com/elastic/elasticsearch/issues/160899

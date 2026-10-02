@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -700,9 +701,7 @@ public final class StreamingParallelParsingCoordinator {
          * this is a one-shot truncation event, not a per-row skip stream.
          */
         private void emitTruncationWarning(long recordStartByte, String causeMessage) {
-            String record = storageObject == null
-                ? "Record "
-                : "Record in [" + ExternalFailures.redactHttpUrl(storageObject.path().toString()) + "] ";
+            String record = storageObject == null ? "Record " : "Record in [" + storageObject.path().objectName() + "] ";
             String warning = record + exceedsRecordLimit() + "; results are partial";
             Consumer<String> partialResultsWarningSink = warningSinks.partialResultsWarningSink();
             if (partialResultsWarningSink != null) {

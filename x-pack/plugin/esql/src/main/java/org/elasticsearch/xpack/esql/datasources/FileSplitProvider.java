@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -1595,7 +1597,7 @@ public class FileSplitProvider implements SplitProvider {
      * backoff the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
-        return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
+        return ExternalIoExecutors.restoring(executor, null, isCancelled);
     }
 
     /**
@@ -1604,7 +1606,7 @@ public class FileSplitProvider implements SplitProvider {
      * Nested executes on the same thread share one interval so {@code DIRECT} does not double-count.
      */
     private Executor recordingDiscoveryCpu(Executor inner) {
-        return command -> inner.execute(() -> runRecordingDiscoveryCpu(command));
+        return ExternalIoExecutors.preserving(inner, this::runRecordingDiscoveryCpu);
     }
 
     private void runRecordingDiscoveryCpu(Runnable work) {
@@ -3830,10 +3832,10 @@ public class FileSplitProvider implements SplitProvider {
      * partition map (hive partitions and {@code _file.*} listing values). Unbound {@code _file.*}
      * keys are dropped, because those names are ordinary data columns and must not prune the
      * listing by storage stat or block a missing-column skip. Bound per-file constants (the
-     * all-null standard names) are overlaid only when a hint names one of them, and only for
-     * names bound as metadata in the relation's output, matching the reader. Data columns retain
-     * their physical values or missing-column null-fill. The frozen map itself carries hive and
-     * {@code _file.*} only.
+     * standard names, all but {@code _score} null) are overlaid only when a hint names one of
+     * them, and only for names bound as metadata in the relation's output, matching the reader.
+     * Data columns retain their physical values or missing-column null-fill. The frozen map
+     * itself carries hive and {@code _file.*} only.
      */
     private static Map<String, Object> discoveryFilterValues(
         Map<String, Object> partitionValues,
@@ -4252,6 +4254,8 @@ public class FileSplitProvider implements SplitProvider {
     private static String extractColumnName(Expression expr) {
         return switch (expr) {
             case FieldAttribute fa -> fa.name();
+            // Metadata _score is per-row, not per-file; type-checked so a physical column named _score still prunes.
+            case NamedExpression ne when MetadataAttribute.isScoreAttribute(ne) -> null;
             case NamedExpression ne -> ne.name();
             default -> null;
         };

@@ -393,7 +393,8 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX = SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME
         + ".recovery_warming_timeout_reevaluation";
     /**
-     * Ensures that we utilise the time-window for offline warming before we make a shard searchable.
+     * Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and opening a shard.
+     * This means that warming for a shard will continue extending until we need to stop to give minimum time slices for to-be-relocated shards to relocate.
      * Enabling this setting should reduce blob store cache misses after shard relocations.
      */
     public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(

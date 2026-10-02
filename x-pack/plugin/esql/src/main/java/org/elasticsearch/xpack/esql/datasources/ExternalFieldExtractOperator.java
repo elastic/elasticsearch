@@ -560,10 +560,6 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             return ENTRY.name;
         }
 
-        public long pagesProcessed() {
-            return completedPages();
-        }
-
         @Override
         public long rowsEmitted() {
             // Output rows mirror the input rows that survived TopN; counted here so this operator

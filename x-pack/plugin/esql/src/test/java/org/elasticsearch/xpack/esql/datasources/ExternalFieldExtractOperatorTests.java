@@ -322,7 +322,7 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
             try {
                 assertEquals(0, output.getPositionCount());
                 assertTrue(op.isFinished());
-                assertEquals(1, ((ExternalFieldExtractOperator.Status) op.status()).pagesProcessed());
+                assertEquals(1, ((ExternalFieldExtractOperator.Status) op.status()).completedPages());
             } finally {
                 output.releaseBlocks();
                 op.close();
@@ -366,7 +366,7 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
             try {
                 assertEquals(10, ((IntBlock) output.getBlock(2)).getInt(0));
                 assertTrue(op.isFinished());
-                assertEquals(1, ((ExternalFieldExtractOperator.Status) op.status()).pagesProcessed());
+                assertEquals(1, ((ExternalFieldExtractOperator.Status) op.status()).completedPages());
             } finally {
                 output.releaseBlocks();
             }

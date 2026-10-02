@@ -40,7 +40,7 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
     @Override
     protected ExternalFieldExtractOperator.Status mutateInstance(ExternalFieldExtractOperator.Status instance) {
         long receivedPages = instance.receivedPages();
-        long completedPages = instance.pagesProcessed();
+        long completedPages = instance.completedPages();
         long processNanos = instance.processNanos();
         long rows = instance.rowsEmitted();
         long nanos = instance.extractNanos();
@@ -71,9 +71,9 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
         ExternalFieldExtractOperator.Status original = new ExternalFieldExtractOperator.Status(7, 12, 333_000, 4096, 1_500_000, 1_200_000);
         TransportVersion preProfile = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_source_profile"));
         ExternalFieldExtractOperator.Status copy = copyInstance(original, preProfile);
-        // Pre-profile nodes never produced this Status entry, but be defensive: round-tripping
+        // Pre-esql_external_source_profile nodes never produced this Status entry, but be defensive: round-tripping
         // through an older wire-version yields zero counters rather than failing.
-        assertThat(copy.pagesProcessed(), equalTo(0L));
+        assertThat(copy.completedPages(), equalTo(0L));
         assertThat(copy.rowsEmitted(), equalTo(0L));
         assertThat(copy.extractNanos(), equalTo(0L));
         assertThat(copy.readCpuNanos(), equalTo(0L));
@@ -83,7 +83,7 @@ public class ExternalFieldExtractOperatorStatusTests extends AbstractWireSeriali
         ExternalFieldExtractOperator.Status original = new ExternalFieldExtractOperator.Status(7, 12, 333_000, 4096, 1_500_000, 1_200_000);
         TransportVersion preExtractCpu = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_extract_cpu_nanos"));
         ExternalFieldExtractOperator.Status copy = copyInstance(original, preExtractCpu);
-        assertThat(copy.pagesProcessed(), equalTo(12L));
+        assertThat(copy.completedPages(), equalTo(12L));
         assertThat(copy.extractNanos(), equalTo(1_500_000L));
         assertThat(copy.readCpuNanos(), equalTo(0L));
     }

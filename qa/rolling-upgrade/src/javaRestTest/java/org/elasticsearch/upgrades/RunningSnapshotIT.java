@@ -40,11 +40,14 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
         final var nodeIdToNodeNames = nodesInfo.entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get("name").toString()));
-        assertThat(nodeIdToNodeNames.values(), containsInAnyOrder("test-cluster-0", "test-cluster-1", "test-cluster-2"));
+        assertThat(
+            nodeIdToNodeNames.values(),
+            containsInAnyOrder("rolling-upgrade-cluster-0", "rolling-upgrade-cluster-1", "rolling-upgrade-cluster-2")
+        );
 
         final var lastUpgradeNodeId = nodeIdToNodeNames.entrySet()
             .stream()
-            .filter(entry -> "test-cluster-2".equals(entry.getValue()))
+            .filter(entry -> "rolling-upgrade-cluster-2".equals(entry.getValue()))
             .map(Map.Entry::getKey)
             .findFirst()
             .orElseThrow(() -> new AssertionError("node id not found in " + nodeIdToNodeNames));

@@ -1836,6 +1836,109 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * After {@code discoverSplitRangesAsync} completes on a foreign I/O thread, the continuation
+     * scheduled on the fan-out executor must still see the query {@link StorageRetryCancellation}
+     * scope installed by {@link ExternalIoExecutors#restoring}.
+     */
+    public void testAsyncSplitRangeTaskSeesCancellationAfterForeignCompletion() throws Exception {
+        AtomicInteger cancelPolls = new AtomicInteger();
+        AtomicBoolean sawScopeOnExecutor = new AtomicBoolean();
+        AtomicBoolean sawScopeOnForeign = new AtomicBoolean();
+        ExecutorService io = Executors.newSingleThreadExecutor();
+        RangeAwareFormatReader reader = new RangeAwareFormatReader() {
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
+                return List.of(new SplitRange(0, 2000));
+            }
+
+            @Override
+            public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+                io.execute(() -> {
+                    int foreignBefore = cancelPolls.get();
+                    StorageRetryCancellation.isCancelled();
+                    sawScopeOnForeign.set(cancelPolls.get() > foreignBefore);
+                    executor.execute(() -> {
+                        int before = cancelPolls.get();
+                        StorageRetryCancellation.isCancelled();
+                        sawScopeOnExecutor.set(cancelPolls.get() > before);
+                        listener.onResponse(List.of(new SplitRange(0, 2000)));
+                    });
+                });
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public void close() {}
+        };
+        try {
+            FileSplitProvider provider = rangeAwareProvider(reader, io);
+            SplitDiscoveryContext base = rangeAwareContext(1);
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+                base.metadata(),
+                base.fileList(),
+                base.schemaMap(),
+                base.config(),
+                base.partitionInfo(),
+                base.filterHints(),
+                base.querySchema(),
+                base.unifiedSchema(),
+                base.maxRecordBytes(),
+                () -> {
+                    cancelPolls.incrementAndGet();
+                    return false;
+                },
+                base.declaredReadSpec()
+            );
+            PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+            provider.discoverSplitsAsync(ctx, io, future);
+            assertEquals(1, future.actionGet(30, TimeUnit.SECONDS).splits().size());
+            assertFalse("foreign I/O thread must not see the query cancellation scope", sawScopeOnForeign.get());
+            assertTrue("fan-out continuation must run inside StorageRetryCancellation", sawScopeOnExecutor.get());
+        } finally {
+            io.shutdownNow();
+        }
+    }
+
+    /**
      * Sync {@link FileSplitProvider#discoverSplits} and async {@link FileSplitProvider#discoverSplitsAsync}
      * must agree on range-aware splits so tests keep using the joining path.
      */
@@ -1866,7 +1969,7 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     public void testDiscoverSplitsAsyncInvalidParquetDoesNotFallBackToWholeFile() {
         IllegalArgumentException invalid = new IllegalArgumentException(
-            "Could not read [s3://b/data-0.parquet] as a Parquet file: expected magic number at tail",
+            "Could not read the Parquet file: expected magic number at tail",
             new IOException("PARE")
         );
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(), () -> { throw invalid; });
@@ -1874,8 +1977,7 @@ public class FileSplitProviderTests extends ESTestCase {
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
         provider.discoverSplitsAsync(rangeAwareContext(1), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
         Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read"));
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("as a Parquet file"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read the Parquet file"));
     }
 
     /**
@@ -3299,8 +3401,8 @@ public class FileSplitProviderTests extends ESTestCase {
             executor.shutdown();
         }
 
-        assertThat(failure.getCause(), instanceOf(IOException.class));
-        assertEquals("connection reset", failure.getCause().getMessage());
+        assertNull("the read failure must not be chained to prevent caused_by leaks", failure.getCause());
+        assertThat(failure.getMessage(), containsString("connection reset"));
     }
 
     /**
@@ -6795,7 +6897,9 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.discoverSplits(handed));
-        assertThat(e.getMessage(), containsString("s3://b/b.parquet"));
+        // The object name only, never the bucket or full path: see FormatNameResolver.listedFormatConflictMessage.
+        assertThat(e.getMessage(), containsString("[b.parquet]"));
+        assertThat(e.getMessage(), not(containsString("s3://b/b.parquet")));
         assertThat(e.getMessage(), containsString("differs from the dataset format [csv]"));
     }
 
@@ -9318,6 +9422,27 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThanOrEqual(SRC, d, zero, null), Map.of("d", -0.0)));
         // Positive control: an ordinary double outside the range is still a confident prune.
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -1.5)));
+    }
+
+    // --- _score: per-row, must never certify a discovery-time comparison ---
+
+    public void testScoreMetadataAttributeNeverCertifiesAComparison() {
+        Expression filter = new GreaterThan(SRC, metadataAttr(ExternalMetadataColumns.SCORE), new Literal(SRC, 1.5, DataType.DOUBLE), null);
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of(ExternalMetadataColumns.SCORE, 0.0d)));
+    }
+
+    public void testScorePhysicalColumnStillPrunesNormally() {
+        Expression filter = new Equals(SRC, refAttr(ExternalMetadataColumns.SCORE), new Literal(SRC, new BytesRef("b"), DataType.KEYWORD));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(ExternalMetadataColumns.SCORE, new BytesRef("a"))));
+    }
+
+    public void testScoreHintDoesNotBlockPruningOnAConjunct() {
+        Expression filter = new And(
+            SRC,
+            new Equals(SRC, fieldAttr("year"), intLiteral(2023)),
+            new GreaterThan(SRC, metadataAttr(ExternalMetadataColumns.SCORE), new Literal(SRC, 1.5, DataType.DOUBLE), null)
+        );
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024, ExternalMetadataColumns.SCORE, 0.0d)));
     }
 
     /**

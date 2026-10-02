@@ -173,10 +173,11 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
     /**
      * How much of what a column held it summarises for a later merge, when a field names nothing of its own.
      *
-     * <p>The same half a megabyte the dictionary is capped at, since what a merge may name is bounded by that
-     * cap too: a summary larger than it describes terms no merged dictionary could hold.
+     * <p>The same half a megabyte the dictionary is capped at, so a flush and the merge that reads it are
+     * bounded alike. A wider summary is not wasted: it carries more candidates into the merge and leaves
+     * fewer occurrences unaccounted for, which tightens the bound, at the cost of bytes on every column.
      */
-    public static final SummaryPolicy DEFAULT_SUMMARY = new SummaryPolicy(DEFAULT_DICTIONARY.maxBytes());
+    public static final SummaryPolicy DEFAULT_SUMMARY = SummaryPolicy.sized(DEFAULT_DICTIONARY.maxBytes());
 
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,

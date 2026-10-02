@@ -189,13 +189,17 @@ public class CommandLineHttpClientTests extends ESTestCase {
             } else {
                 assertThat(thrown, instanceOf(SSLException.class));
             }
-            // FIPS reports the path-builder failure as "Unable to construct a valid chain" and nests the
-            // expiry underneath. Both providers format notAfter with Date.toString(), which uses the
-            // JVM default zone, so the calendar year is not stable (Jan 1 2021 GMT is still 2020 in
-            // US zones). Match this leaf's notAfter to distinguish it from the fixture CA.
+            // SunJSSE formats notAfter with Date.toString(), which uses the JVM default zone, so the
+            // calendar year is not stable (Jan 1 2021 GMT is still 2020 in US zones). BouncyCastle on a
+            // FIPS JVM reports the certificate's ASN.1 time instead
+            // ("certificate expired on 20210101000000GMT+00:00"). Match this leaf's notAfter either way
+            // to distinguish it from the fixture CA, which is also expired.
             Throwable cause = ExceptionsHelper.unwrap(thrown, CertificateExpiredException.class);
             assertThat(exceptionChain(thrown), cause, instanceOf(CertificateExpiredException.class));
-            assertThat(cause.getMessage(), containsString(leafCertificate.getNotAfter().toString()));
+            final String expectedExpiry = inFipsJvm()
+                ? "certificate expired on 20210101000000GMT+00:00"
+                : leafCertificate.getNotAfter().toString();
+            assertThat(cause.getMessage(), containsString(expectedExpiry));
         }
     }
 

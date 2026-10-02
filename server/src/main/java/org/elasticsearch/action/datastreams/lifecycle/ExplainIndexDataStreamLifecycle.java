@@ -40,10 +40,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField TIME_SINCE_ROLLOVER_FIELD = new ParseField("time_since_rollover");
     private static final ParseField GENERATION_TIME = new ParseField("generation_time");
     private static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
+    private static final ParseField LIFECYCLE_ENABLED_BY_DEFAULT_FIELD = new ParseField("lifecycle_enabled_by_default");
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ParseField FROZEN_TRANSITION_STATUS_FIELD = new ParseField("frozen_transition_status");
 
     static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
+    static final TransportVersion EXPLAIN_INDEX_DEFAULT_LIFECYCLE = TransportVersion.fromName("explain_index_default_lifecycle");
 
     private final String index;
     private final boolean managedByLifecycle;
@@ -60,6 +62,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private final ErrorEntry error;
     @Nullable
     private final FrozenTransitionStatus frozenTransitionStatus;
+    private final boolean lifecycleEnabledByDefault;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     public ExplainIndexDataStreamLifecycle(
@@ -70,21 +73,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
-        @Nullable ErrorEntry error
-    ) {
-        this(index, managedByLifecycle, isInternalDataStream, indexCreationDate, rolloverDate, generationDate, lifecycle, error, null);
-    }
-
-    public ExplainIndexDataStreamLifecycle(
-        String index,
-        boolean managedByLifecycle,
-        boolean isInternalDataStream,
-        @Nullable Long indexCreationDate,
-        @Nullable Long rolloverDate,
-        @Nullable TimeValue generationDate,
-        @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
-        @Nullable FrozenTransitionStatus frozenTransitionStatus
+        @Nullable FrozenTransitionStatus frozenTransitionStatus,
+        boolean lifecycleEnabledByDefault
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -95,6 +86,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         this.lifecycle = lifecycle;
         this.error = error;
         this.frozenTransitionStatus = frozenTransitionStatus;
+        this.lifecycleEnabledByDefault = lifecycleEnabledByDefault;
     }
 
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
@@ -110,6 +102,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.frozenTransitionStatus = in.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)
                 ? in.readOptionalEnum(FrozenTransitionStatus.class)
                 : null;
+            this.lifecycleEnabledByDefault = in.getTransportVersion().supports(EXPLAIN_INDEX_DEFAULT_LIFECYCLE) && in.readBoolean();
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -117,7 +110,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.lifecycle = null;
             this.error = null;
             this.frozenTransitionStatus = null;
+            this.lifecycleEnabledByDefault = false;
         }
+    }
+
+    public static ExplainIndexDataStreamLifecycle unmanagedIndex(String indexName) {
+        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, false);
     }
 
     @Override
@@ -161,6 +159,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
                 lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternalDataStream);
             }
+            if (lifecycleEnabledByDefault) {
+                builder.field(LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName(), lifecycleEnabledByDefault);
+            }
             if (this.error != null) {
                 if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
                     builder.field(ERROR_FIELD.getPreferredName(), error);
@@ -190,6 +191,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalWriteable(error);
             if (out.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)) {
                 out.writeOptionalEnum(frozenTransitionStatus);
+            }
+            if (out.getTransportVersion().supports(EXPLAIN_INDEX_DEFAULT_LIFECYCLE)) {
+                out.writeBoolean(lifecycleEnabledByDefault);
             }
         }
     }
@@ -262,6 +266,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return frozenTransitionStatus;
     }
 
+    /**
+     * @return true if the index is managed by the default data stream lifecycle because its data stream has no configured lifecycle
+     */
+    public boolean isLifecycleEnabledByDefault() {
+        return lifecycleEnabledByDefault;
+    }
+
     // public for testing purposes only
     public void setNowSupplier(Supplier<Long> nowSupplier) {
         this.nowSupplier = nowSupplier;
@@ -282,11 +293,21 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             && Objects.equals(rolloverDate, that.rolloverDate)
             && Objects.equals(lifecycle, that.lifecycle)
             && Objects.equals(error, that.error)
-            && Objects.equals(frozenTransitionStatus, that.frozenTransitionStatus);
+            && Objects.equals(frozenTransitionStatus, that.frozenTransitionStatus)
+            && lifecycleEnabledByDefault == that.lifecycleEnabledByDefault;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByLifecycle, indexCreationDate, rolloverDate, lifecycle, error, frozenTransitionStatus);
+        return Objects.hash(
+            index,
+            managedByLifecycle,
+            indexCreationDate,
+            rolloverDate,
+            lifecycle,
+            error,
+            frozenTransitionStatus,
+            lifecycleEnabledByDefault
+        );
     }
 }

@@ -100,6 +100,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ProjectMetadata metadata = state.metadata();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(metadata, request);
         List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
+        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
         Map<String, Set<Index>> pastFrozenAfterByDataStream = new HashMap<>();
         for (String index : concreteIndices) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
@@ -112,8 +113,12 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             }
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
-                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
-                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, false, null, null, null, null, null));
+                || parentDataStream.isIndexManagedByDataStreamLifecycle(
+                    idxMetadata.getIndex(),
+                    metadata::index,
+                    defaultLifecycleForTimeSeriesEnabled
+                ) == false) {
+                explainIndices.add(ExplainIndexDataStreamLifecycle.unmanagedIndex(idxMetadata.getIndex().getName()));
                 continue;
             }
 
@@ -129,7 +134,9 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 generationDate,
                 lifecycle,
                 errorStore.getError(state.projectId(), idxMetadata.getIndex()),
-                computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
+                computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream),
+                lifecycle == null
+                    && parentDataStream.getEffectiveLifecycleForIndex(idxMetadata.getIndex(), defaultLifecycleForTimeSeriesEnabled) != null
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }

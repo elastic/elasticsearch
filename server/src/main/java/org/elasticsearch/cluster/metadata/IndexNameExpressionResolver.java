@@ -848,10 +848,11 @@ public class IndexNameExpressionResolver {
         // trappy to hide throttled indices by default. In order to avoid breaking backward compatibility,
         // we changed it to look at the `index.frozen` setting instead, since frozen indices were the only
         // type of index to use the `search_throttled` threadpool at that time.
-        // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
+        // NOTE: The setting is no longer registered, so we use the flag that IndexMetadata caches when it is built rather than
+        // parsing the raw setting for every index on every search.
         if (context.options.ignoreThrottled()) {
             imd = imd != null ? imd : context.project.index(index);
-            return imd.getSettings().getAsBoolean("index.frozen", false) == false;
+            return imd.isFrozen() == false;
         } else {
             return true;
         }

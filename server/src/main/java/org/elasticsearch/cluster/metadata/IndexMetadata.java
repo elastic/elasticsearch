@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -287,6 +288,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
+
+    /**
+     * Key of the legacy (7.x) frozen indices setting. It is no longer registered as a {@link Setting} and can no longer be set by users,
+     * but indices created before 8.0 may still carry it. It is only consulted to emit deprecation warnings and to honour
+     * {@code ignore_throttled}; see {@link #isFrozen()}.
+     */
+    public static final String LEGACY_FROZEN_SETTING_KEY = "index.frozen";
 
     public enum APIBlock implements Writeable {
         READ_ONLY("read_only", INDEX_READ_ONLY_BLOCK, Property.ServerlessPublic),
@@ -698,6 +706,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean isPartialSearchableSnapshot;
 
+    /**
+     * Cached value of the legacy {@link #LEGACY_FROZEN_SETTING_KEY} setting, see {@link #isFrozen()}.
+     */
+    private final boolean isFrozen;
+
     @Nullable
     private final IndexMode indexMode;
     @Nullable
@@ -760,6 +773,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
         final boolean isPartialSearchableSnapshot,
+        final boolean isFrozen,
         @Nullable final IndexMode indexMode,
         @Nullable final Instant timeSeriesStart,
         @Nullable final Instant timeSeriesEnd,
@@ -821,6 +835,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.autoExpandReplicas = autoExpandReplicas;
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
+        this.isFrozen = isFrozen;
         this.indexCompatibilityVersion = indexCompatibilityVersion;
         assert indexCompatibilityVersion.equals(SETTING_INDEX_VERSION_COMPATIBILITY.get(settings));
         this.indexMode = indexMode;
@@ -882,6 +897,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
             this.isPartialSearchableSnapshot,
+            this.isFrozen,
             this.indexMode,
             this.timeSeriesStart,
             this.timeSeriesEnd,
@@ -948,6 +964,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
             this.isPartialSearchableSnapshot,
+            this.isFrozen,
             this.indexMode,
             this.timeSeriesStart,
             this.timeSeriesEnd,
@@ -1022,6 +1039,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
             this.isPartialSearchableSnapshot,
+            this.isFrozen,
             this.indexMode,
             this.timeSeriesStart,
             this.timeSeriesEnd,
@@ -1087,6 +1105,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
             this.isPartialSearchableSnapshot,
+            this.isFrozen,
             this.indexMode,
             this.timeSeriesStart,
             this.timeSeriesEnd,
@@ -1147,6 +1166,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
             this.isPartialSearchableSnapshot,
+            this.isFrozen,
             this.indexMode,
             this.timeSeriesStart,
             this.timeSeriesEnd,
@@ -1314,6 +1334,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isPartialSearchableSnapshot() {
         return isPartialSearchableSnapshot;
+    }
+
+    /**
+     * Whether this index carries the legacy {@link #LEGACY_FROZEN_SETTING_KEY} setting set to {@code true}. The value is computed once
+     * when the metadata is built because it is checked for every resolved index on the search path (on transport threads), where
+     * repeatedly parsing the raw setting is too expensive on clusters with many indices.
+     */
+    public boolean isFrozen() {
+        return isFrozen;
     }
 
     public boolean sequenceNumbersDisabled() {
@@ -2641,6 +2670,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
                 isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
+                // parse leniently: this legacy setting is no longer validated, and a malformed value must not make the metadata unbuildable
+                Booleans.isTrue(settings.get(LEGACY_FROZEN_SETTING_KEY)),
                 indexMode,
                 isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
                 isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null,

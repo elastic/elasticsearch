@@ -200,6 +200,75 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link IndexMetadata#isFrozen()} is derived from the legacy {@code index.frozen} setting when the metadata is built. Verify that it is
+     * computed correctly and that it survives every way of copying, diffing or (de)serializing the metadata, since the flag itself is not
+     * serialized.
+     */
+    public void testIsFrozen() throws IOException {
+        final Boolean frozenSetting = randomFrom(true, false, null);
+        final boolean expectedFrozen = Boolean.TRUE.equals(frozenSetting);
+        final Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
+        if (frozenSetting != null) {
+            settings.put(IndexMetadata.LEGACY_FROZEN_SETTING_KEY, frozenSetting);
+        }
+        final IndexMetadata metadata = IndexMetadata.builder("foo").settings(settings).build();
+        assertThat(metadata.isFrozen(), equalTo(expectedFrozen));
+
+        // copy methods
+        assertThat(metadata.withIncrementedPrimaryTerm(0).isFrozen(), equalTo(expectedFrozen));
+        assertThat(metadata.withSetPrimaryTerm(0, randomLongBetween(1, 100)).isFrozen(), equalTo(expectedFrozen));
+        assertThat(metadata.withIncrementedVersion().isFrozen(), equalTo(expectedFrozen));
+        assertThat(metadata.withInSyncAllocationIds(0, Set.of(randomAlphaOfLength(10))).isFrozen(), equalTo(expectedFrozen));
+        assertThat(metadata.withTimestampRanges(IndexLongFieldRange.EMPTY, IndexLongFieldRange.EMPTY).isFrozen(), equalTo(expectedFrozen));
+        assertThat(
+            metadata.withMappingMetadata(new MappingMetadata("_doc", Map.of("properties", Map.of()))).isFrozen(),
+            equalTo(expectedFrozen)
+        );
+        assertThat(IndexMetadata.builder(metadata).build().isFrozen(), equalTo(expectedFrozen));
+
+        // wire serialization
+        final BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+            assertThat(IndexMetadata.readFrom(in).isFrozen(), equalTo(expectedFrozen));
+        }
+
+        // xcontent serialization
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        IndexMetadata.FORMAT.toXContent(builder, metadata);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            assertThat(IndexMetadata.fromXContent(parser).isFrozen(), equalTo(expectedFrozen));
+        }
+
+        // diffs that change the setting recompute the flag
+        final IndexMetadata toggled = IndexMetadata.builder(metadata)
+            .settings(Settings.builder().put(metadata.getSettings()).put(IndexMetadata.LEGACY_FROZEN_SETTING_KEY, expectedFrozen == false))
+            .settingsVersion(metadata.getSettingsVersion() + 1)
+            .build();
+        assertThat(toggled.isFrozen(), equalTo(expectedFrozen == false));
+        assertThat(toggled.diff(metadata).apply(metadata).isFrozen(), equalTo(expectedFrozen == false));
+        assertThat(metadata.diff(toggled).apply(toggled).isFrozen(), equalTo(expectedFrozen));
+    }
+
+    /**
+     * The legacy {@code index.frozen} setting is no longer registered or validated, so a malformed value must not prevent the metadata from
+     * being built; it is simply not considered frozen.
+     */
+    public void testIsFrozenWithMalformedValue() {
+        final IndexMetadata metadata = IndexMetadata.builder("foo")
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(
+                    IndexMetadata.LEGACY_FROZEN_SETTING_KEY,
+                    randomFrom("", "yes", "TRUE", randomAlphaOfLength(5))
+                )
+            )
+            .build();
+        assertFalse(metadata.isFrozen());
+    }
+
     public void testIndexMetadataFromXContentParsingWithoutEventIngestedField() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);

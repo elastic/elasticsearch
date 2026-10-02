@@ -456,7 +456,10 @@ setup:
               "indexer_request_timeout": "5m"
             }
           }
-  - match: { settings.indexer_request_timeout: "5m" }
+  - do:
+      transform.get_transform:
+        transform_id: "indexer-timeout-transform"
+  - match: { transforms.0.settings.indexer_request_timeout: "5m" }
 
   - do:
       transform.update_transform:

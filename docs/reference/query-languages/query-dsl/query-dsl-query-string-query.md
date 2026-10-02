@@ -245,9 +245,9 @@ Allowing a wildcard at the beginning of a word (eg `"*ing"`) is particularly hea
 ::::
 
 
-By default, wildcard terms are only normalized. Character-level transformations such as lowercasing apply, but not stemming. Stemming is skipped because the wildcard could be completing a partial word, and stemming an incomplete form would produce incorrect results.
+By default, wildcard terms are only normalized using character-level token filters for the analyzer, such as lowercasing and ASCII folding (see [normalizers](/reference/text-analysis/normalizers.md) for the full list). Other token filters are skipped. This means stemming, stop word removal, and synonym expansion do not apply to wildcard terms when `analyze_wildcard` is false. Stemming in particular can produce unexpected results, as stemming an incomplete word would distort the pattern before matching.
 
-By setting `analyze_wildcard` to true, query terms that end with a `*` are fully analyzed using the field's search analyzer, including stemming. For example, `running*` with an English analyzer stems `running` to `run` before applying the wildcard, producing a prefix query for `run*`. This matches documents containing words like `running` or `runs`, which the English analyzer indexes as `run`. If analysis produces multiple tokens, a boolean query is built with exact matches on all but the last token and a prefix match on the last. Wildcard terms that do not end with `*`, such as `*running` or `run*ning`, are only normalized even when `analyze_wildcard` is true, as there is no complete leading term to analyze meaningfully.
+By setting `analyze_wildcard` to true, query terms that end with a `*` are fully analyzed using the field's search analyzer. For a concrete example, `running*` with an English analyzer stems `running` to `run` before applying the wildcard, producing a prefix query for `run*`. This matches documents containing words like `running` or `runs`, which the English analyzer indexes as `run`. If analysis produces multiple tokens, a boolean query is built with exact matches on all but the last token and a prefix match on the last. Wildcard terms that do not end with `*`, such as `*running` or `run*ning`, are only normalized even when `analyze_wildcard` is true, as there is no complete leading term to analyze meaningfully.
 
 
 #### Regular expressions [_regular_expressions]

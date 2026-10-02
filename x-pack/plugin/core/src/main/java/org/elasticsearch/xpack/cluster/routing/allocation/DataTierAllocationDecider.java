@@ -104,9 +104,13 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             if (node.hasRole(tierName)) {
                 return allocation.debugDecision() ? debugYesAllowed(allocation, tierPreference, tierName) : Decision.YES;
             }
-            return allocation.debugDecision() ? debugNoRequirementsNotMet(allocation, tierPreference, tierName) : Decision.NO;
+            return allocation.debugDecision()
+                ? debugNoRequirementsNotMet(allocation, tierPreference, tierName)
+                : allocation.decision(Decision.NO, NAME, null);
         }
-        return allocation.debugDecision() ? debugNoNoNodesAvailable(allocation, tierPreference) : Decision.NO;
+        return allocation.debugDecision()
+            ? debugNoNoNodesAvailable(allocation, tierPreference)
+            : allocation.decision(Decision.NO, NAME, null);
     }
 
     private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {

@@ -24,7 +24,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class StatelessAllocationDecider extends AllocationDecider {
 
-    private static final String NAME = "stateless_shard_role";
+    public static final String NAME = "stateless_shard_role";
 
     private static final Decision YES_SHARD_ROLE_MATCHES_NODE_ROLE = Decision.single(
         Decision.Type.YES,
@@ -44,16 +44,15 @@ public class StatelessAllocationDecider extends AllocationDecider {
 
     private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {
         var roles = routingNode.node().getRoles();
-        return canAllocateShardToNode(shardRouting, roles) ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
-            : allocation.debugDecision()
-                ? allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "shard role [%s] does not match stateless node role [%s]",
-                    shardRouting.role(),
-                    statelessNodeRole(roles)
-                )
-            : Decision.NO;
+        return canAllocateShardToNode(shardRouting, roles)
+            ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
+            : allocation.decision(
+                Decision.NO,
+                NAME,
+                "shard role [%s] does not match stateless node role [%s]",
+                shardRouting.role(),
+                statelessNodeRole(roles)
+            );
     }
 
     private static boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {

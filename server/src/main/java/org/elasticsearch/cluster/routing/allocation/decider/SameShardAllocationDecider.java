@@ -90,7 +90,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.getHostAddress()) : checkNode;
                 if (checkNode.getHostAddress().equals(node.node().getHostAddress())) {
-                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, checkNode, allocation) : Decision.NO;
+                    return debugNoAlreadyAllocatedToHost(node, checkNode, allocation);
                 }
             }
         }
@@ -131,22 +131,19 @@ public class SameShardAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation,
         Iterable<ShardRouting> assignedShards
     ) {
-        boolean debug = allocation.debugDecision();
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                return debug ? debugNo(shardRouting, assignedShard) : Decision.NO;
+                return debugNo(allocation, shardRouting, assignedShard);
             }
         }
         return YES_NO_COPY;
     }
 
-    private static Decision debugNo(ShardRouting shardRouting, ShardRouting assignedShard) {
-        final String explanation;
+    private static Decision debugNo(RoutingAllocation allocation, ShardRouting shardRouting, ShardRouting assignedShard) {
         if (assignedShard.isSameAllocation(shardRouting)) {
-            explanation = "this shard is already allocated to this node [" + shardRouting.toString() + "]";
+            return allocation.decision(Decision.NO, NAME, "this shard is already allocated to this node [%s]", shardRouting);
         } else {
-            explanation = "a copy of this shard is already allocated to this node [" + assignedShard + "]";
+            return allocation.decision(Decision.NO, NAME, "a copy of this shard is already allocated to this node [%s]", assignedShard);
         }
-        return Decision.single(Decision.Type.NO, NAME, explanation);
     }
 }

@@ -109,7 +109,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         } else if (allocation.clusterInfo().nodeIsWriteLoadHotspotting(node.nodeId())) {
             return allocation.decision(
@@ -144,7 +144,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 
@@ -277,7 +277,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             }
             return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
         } else {
-            return Decision.NOT_PREFERRED;
+            return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
         }
     }
 

@@ -44,6 +44,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1155,9 +1156,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
 
         final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.label(), equalTo("awareness"));
-        assertThat(decision.getExplanation(), equalTo(expectedMessage));
+        assertThat(decision, isNoDecisionWithExplanationMatching("awareness", equalTo(expectedMessage)));
     }
 
 }

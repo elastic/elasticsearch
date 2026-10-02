@@ -5,8 +5,8 @@ max_toc_depth: 2
 exclude:
   - README.md
   - AGENTS.md
-  - reference/query-languages/promql/AGENTS.md
-  - reference/query-languages/promql/CLAUDE.md
+  - "**/AGENTS.md"
+  - "**/CLAUDE.md"
   - internal/*
   - reference/query-languages/esql/kibana/**
   - reference/query-languages/esql/README.md

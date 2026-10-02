@@ -81,9 +81,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 indexSettingsValues,
                 false,
                 null,
-                null,
-                // the default lifecycle applies only to time series data streams, so it has no effect on this standard data stream
-                randomBoolean()
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -100,10 +98,6 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(Map.of("enabled", true)));
-                assertThat(
-                    dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()),
-                    is(nullValue())
-                );
                 assertThat(
                     dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                     is(ManagedBy.LIFECYCLE.displayValue)
@@ -187,9 +181,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 indexSettingsValues,
                 false,
                 null,
-                null,
-                // the default lifecycle applies only to time series data streams, so it has no effect on this standard data stream
-                randomBoolean()
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -207,10 +199,6 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(Map.of("enabled", false)));
-                assertThat(
-                    dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()),
-                    is(nullValue())
-                );
                 assertThat(
                     dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                     is(ManagedBy.UNMANAGED.displayValue)
@@ -282,9 +270,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 indexSettingsValues,
                 false,
                 null,
-                null,
-                // the default lifecycle applies only to time series data streams, so it has no effect on this standard data stream
-                randomBoolean()
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -309,188 +295,6 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
             }
-        }
-    }
-
-    /**
-     * A time series data stream without a configured lifecycle is managed by the default lifecycle when the default lifecycle for time
-     * series is enabled. In that case the response reports that the lifecycle is enabled by default and resolves which feature manages
-     * the next generation index based on the default lifecycle.
-     */
-    public void testResponseDefaultLifecycleForTimeSeriesRepresentation() throws Exception {
-        String dataStreamName = "metrics";
-        Index firstGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
-        Index writeIndex = new Index(getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
-        List<Index> indices = List.of(firstGenerationIndex, writeIndex);
-        DataStream timeSeriesWithoutLifecycle = DataStream.builder(dataStreamName, indices)
-            .setGeneration(2)
-            .setIndexMode(IndexMode.TIME_SERIES)
-            .build();
-        String ilmPolicyName = "rollover-30days";
-
-        {
-            // the default lifecycle for time series is enabled, so the data stream is managed by the data stream lifecycle
-            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
-                firstGenerationIndex,
-                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null),
-                writeIndex,
-                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null)
-            );
-            Map<String, Object> dataStreamMap = toDataStreamMap(
-                new Response.DataStreamInfo(
-                    timeSeriesWithoutLifecycle,
-                    false,
-                    ClusterHealthStatus.GREEN,
-                    "index-template",
-                    null,
-                    null,
-                    indexSettingsValues,
-                    false,
-                    null,
-                    IndexMode.TIME_SERIES.getName(),
-                    true
-                )
-            );
-            assertThat(dataStreamMap.get(DataStream.NAME_FIELD.getPreferredName()), is(dataStreamName));
-            // the default lifecycle is not displayed as the configured lifecycle
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(true));
-            assertThat(
-                dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
-                is(ManagedBy.LIFECYCLE.displayValue)
-            );
-            assertIndicesManagedBy(dataStreamMap, indices, ManagedBy.LIFECYCLE);
-        }
-
-        {
-            // the default lifecycle for time series is disabled, so the data stream is unmanaged
-            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
-                firstGenerationIndex,
-                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null),
-                writeIndex,
-                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null)
-            );
-            Map<String, Object> dataStreamMap = toDataStreamMap(
-                new Response.DataStreamInfo(
-                    timeSeriesWithoutLifecycle,
-                    false,
-                    ClusterHealthStatus.GREEN,
-                    "index-template",
-                    null,
-                    null,
-                    indexSettingsValues,
-                    false,
-                    null,
-                    IndexMode.TIME_SERIES.getName(),
-                    false
-                )
-            );
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(
-                dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
-                is(ManagedBy.UNMANAGED.displayValue)
-            );
-            assertIndicesManagedBy(dataStreamMap, indices, ManagedBy.UNMANAGED);
-        }
-
-        {
-            // the default lifecycle for time series is enabled and the template has an ILM policy, so prefer_ilm decides
-            boolean templatePreferIlm = randomBoolean();
-            ManagedBy expectedManagedBy = templatePreferIlm ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
-            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
-                firstGenerationIndex,
-                new Response.IndexProperties(templatePreferIlm, ilmPolicyName, expectedManagedBy, null),
-                writeIndex,
-                new Response.IndexProperties(templatePreferIlm, ilmPolicyName, expectedManagedBy, null)
-            );
-            Map<String, Object> dataStreamMap = toDataStreamMap(
-                new Response.DataStreamInfo(
-                    timeSeriesWithoutLifecycle,
-                    false,
-                    ClusterHealthStatus.GREEN,
-                    "index-template",
-                    ilmPolicyName,
-                    null,
-                    indexSettingsValues,
-                    templatePreferIlm,
-                    null,
-                    IndexMode.TIME_SERIES.getName(),
-                    true
-                )
-            );
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(templatePreferIlm));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(ilmPolicyName));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(true));
-            assertThat(
-                dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
-                is(expectedManagedBy.displayValue)
-            );
-            assertIndicesManagedBy(dataStreamMap, indices, expectedManagedBy);
-        }
-
-        {
-            // a configured lifecycle takes precedence, so the lifecycle is never reported as enabled by default
-            boolean lifecycleEnabled = randomBoolean();
-            ManagedBy expectedManagedBy = lifecycleEnabled ? ManagedBy.LIFECYCLE : ManagedBy.UNMANAGED;
-            DataStream timeSeriesWithLifecycle = timeSeriesWithoutLifecycle.copy()
-                .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(lifecycleEnabled).build())
-                .build();
-            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
-                firstGenerationIndex,
-                new Response.IndexProperties(false, null, expectedManagedBy, null),
-                writeIndex,
-                new Response.IndexProperties(false, null, expectedManagedBy, null)
-            );
-            Map<String, Object> dataStreamMap = toDataStreamMap(
-                new Response.DataStreamInfo(
-                    timeSeriesWithLifecycle,
-                    false,
-                    ClusterHealthStatus.GREEN,
-                    "index-template",
-                    null,
-                    null,
-                    indexSettingsValues,
-                    false,
-                    null,
-                    IndexMode.TIME_SERIES.getName(),
-                    randomBoolean()
-                )
-            );
-            assertThat(
-                dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()),
-                is(Map.of("enabled", lifecycleEnabled))
-            );
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(
-                dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
-                is(expectedManagedBy.displayValue)
-            );
-            assertIndicesManagedBy(dataStreamMap, indices, expectedManagedBy);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> toDataStreamMap(Response.DataStreamInfo dataStreamInfo) throws Exception {
-        Response response = new Response(List.of(dataStreamInfo));
-        XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
-        response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(contentBuilder))) {
-            List<Object> dataStreams = (List<Object>) parser.map().get(Response.DATA_STREAMS_FIELD.getPreferredName());
-            assertThat(dataStreams.size(), is(1));
-            return (Map<String, Object>) dataStreams.get(0);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void assertIndicesManagedBy(Map<String, Object> dataStreamMap, List<Index> indices, ManagedBy expectedManagedBy) {
-        List<Object> indicesRepresentation = (List<Object>) dataStreamMap.get(DataStream.INDICES_FIELD.getPreferredName());
-        assertThat(indicesRepresentation.size(), is(indices.size()));
-        for (int i = 0; i < indices.size(); i++) {
-            Map<String, Object> indexRepresentation = (Map<String, Object>) indicesRepresentation.get(i);
-            assertThat(indexRepresentation.get("index_name"), is(indices.get(i).getName()));
-            assertThat(indexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()), is(expectedManagedBy.displayValue));
         }
     }
 

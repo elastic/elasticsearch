@@ -227,7 +227,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
-            public static final ParseField LIFECYCLE_ENABLED_BY_DEFAULT_FIELD = new ParseField("lifecycle_enabled_by_default");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
@@ -260,9 +259,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final Long maximumTimestamp;
             @Nullable
             private final String indexMode;
-            // This flag indicated if this data stream has lifecycle activated as a default or not
-            // If the lifecycle is enabled explicitly then it's false.
-            private final boolean lifecycleEnabledByDefault;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -274,8 +270,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
                 @Nullable Long maximumTimestamp,
-                @Nullable String indexMode,
-                boolean defaultLifecycleForTimeSeriesEnabled
+                @Nullable String indexMode
             ) {
                 this.dataStream = dataStream;
                 this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
@@ -287,8 +282,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
                 this.indexMode = indexMode;
-                this.lifecycleEnabledByDefault = dataStream.getDataLifecycle() == null
-                    && dataStream.getEffectiveDataLifecycle(defaultLifecycleForTimeSeriesEnabled) != null;
             }
 
             public DataStream getDataStream() {
@@ -393,9 +386,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
                     dataStream.getDataLifecycle()
                         .toXContent(builder, params, rolloverConfiguration, dataGlobalRetention, dataStream.isInternal());
-                }
-                if (lifecycleEnabledByDefault) {
-                    builder.field(LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName(), lifecycleEnabledByDefault);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -507,7 +497,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return ManagedBy.fromLifecycleManagedBy(
                     DataStream.lifecycleManagedBy(
                         ilmPolicyName,
-                        dataStream.getEffectiveDataLifecycle(lifecycleEnabledByDefault),
+                        dataStream.getDataLifecycle(),
                         () -> templatePreferIlmValue,
                         dataStream.getIndexMode()
                     )
@@ -532,8 +522,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
                     && Objects.equals(maximumTimestamp, that.maximumTimestamp)
-                    && Objects.equals(indexMode, that.indexMode)
-                    && lifecycleEnabledByDefault == that.lifecycleEnabledByDefault;
+                    && Objects.equals(indexMode, that.indexMode);
             }
 
             @Override
@@ -548,8 +537,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     indexSettingsValues,
                     templatePreferIlmValue,
                     maximumTimestamp,
-                    indexMode,
-                    lifecycleEnabledByDefault
+                    indexMode
                 );
             }
         }

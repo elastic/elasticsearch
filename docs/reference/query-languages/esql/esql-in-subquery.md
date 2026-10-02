@@ -321,7 +321,7 @@ rows:
 :::{include} _snippets/generated/x-pack-esql/commands/examples/in_subquery.csv-spec/is_null_in_subquery.md
 :::
 
-Compare the boolean result with `==` or `!=`:
+Compare the boolean result with `==` or `!=`. This example uses `==`:
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/in_subquery.csv-spec/in_subquery_in_equals.md
 :::
@@ -378,7 +378,7 @@ and the per-aggregate `WHERE` filter of
 [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md)
 {applies_to}`stack: ga 9.6.0`.
 
-It is not supported in the other commands like [`SORT`](/reference/query-languages/esql/commands/sort.md),
+It is not supported in the other commands such as [`SORT`](/reference/query-languages/esql/commands/sort.md),
 [`LIMIT ... BY`](/reference/query-languages/esql/commands/limit.md), as a `STATS` or `INLINE STATS` grouping expression, or as an
 argument of an aggregation function such as
 `STATS c = SUM(CASE(x IN (...), 1, 0))`.

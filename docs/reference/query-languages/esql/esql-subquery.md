@@ -14,7 +14,7 @@ A subquery is a complete ES|QL query wrapped in parentheses, nested inside anoth
 You can use subqueries in two places:
 
 * **In a [`FROM` command](/reference/query-languages/esql/esql-from-subquery.md)**: each subquery runs its own pipeline and its rows are combined into the outer result set.
-* **With [`IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the subquery returns one column, or a tuple of columns matched by position, and can appear in [`WHERE`](/reference/query-languages/esql/commands/where.md), [`EVAL`](/reference/query-languages/esql/commands/eval.md), and the per-aggregate `WHERE` of [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md).
+* **With [`IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the subquery returns one column, or a tuple of columns matched by position, and can appear in [`WHERE`](/reference/query-languages/esql/commands/where.md). It can also appear in [`EVAL`](/reference/query-languages/esql/commands/eval.md), and the per-aggregate `WHERE` of [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) {applies_to}`stack: ga 9.6.0`.
 
 ## Supported source commands
 

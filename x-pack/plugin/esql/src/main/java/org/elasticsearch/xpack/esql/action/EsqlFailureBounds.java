@@ -36,8 +36,9 @@ import java.util.Set;
  * grows exponentially with the depth the renderer allows, and rendering it can exhaust the heap of the node that
  * builds the response. ES|QL is
  * not supposed to build loops (see {@link SuppressedFailures}); this replaces such a graph with a clean equivalent
- * before it is returned or stored, and logs that it did. Graphs that merely share an exception, without looping and
- * without rendering an excessive number of entries, are left alone.
+ * before it is returned or stored, and logs that it did. It does the same for a graph that does not loop but would
+ * still render too much (see {@link #MAX_RENDERED_WEIGHT}). Graphs that merely share an exception are otherwise left
+ * alone.
  * <p>
  * Not covered: {@code TransportEsqlStreamQueryAction}, and failures reported inside a successful response as partial
  * results ({@code ShardSearchFailure}).
@@ -53,11 +54,13 @@ public final class EsqlFailureBounds {
     static final int MAX_ADDITIONAL_FAILURES = 9;
 
     /**
-     * Entries a renderer may write for one failure before it is rebuilt. Far above what nested failure collectors
-     * legitimately produce (tens to a few hundred), far below what a loop produces. This bounds entries, not bytes: with
-     * {@code error_trace} each entry's stack trace also prints the entry's own subgraph.
+     * Rendering weight a failure may have before it is rebuilt: the sum, over every entry a renderer writes, of the
+     * entry's depth plus one. With {@code error_trace} each entry's stack trace also prints the entry's own subgraph, so
+     * the response grows with this sum rather than with the number of entries (a few KB per unit with typical stack
+     * depths, so roughly 20 MB at the limit). A failure collector holding ten collectors of ten failures each weighs 321
+     * and passes; thirty of thirty weighs 2761 and is rebuilt, as is any loop.
      */
-    static final int MAX_RENDERED_ENTRIES = 1000;
+    static final int MAX_RENDERED_WEIGHT = 2500;
 
     /** Cause links kept per rebuilt failure. */
     static final int MAX_CAUSE_CHAIN = 10;
@@ -72,41 +75,39 @@ public final class EsqlFailureBounds {
     }
 
     /**
-     * Returns {@code failure} unchanged unless its exception graph loops or would render more than
-     * {@link #MAX_RENDERED_ENTRIES} entries. Otherwise returns a rebuilt failure that references none of the original
+     * Returns {@code failure} unchanged unless its exception graph loops or weighs more than
+     * {@link #MAX_RENDERED_WEIGHT} to render. Otherwise returns a rebuilt failure that references none of the original
      * exceptions: it has the same message, stack trace and status as {@code failure} (a {@link CircuitBreakingException}
      * stays one), keeps up to {@link #MAX_CAUSE_CHAIN} links of its cause chain, rebuilt the same way, and carries up to
      * {@link #MAX_ADDITIONAL_FAILURES} further distinct failures from the graph, rebuilt the same way, as suppressed.
      */
     public static Exception bound(Exception failure, String query) {
-        Map<Throwable, Long> entries = new IdentityHashMap<>();
+        Map<Throwable, RenderCost> memo = new IdentityHashMap<>();
         Set<Throwable> onPath = Collections.newSetFromMap(new IdentityHashMap<>());
-        if (renderedEntries(failure, entries, onPath) <= MAX_RENDERED_ENTRIES) {
+        if (renderCost(failure, memo, onPath).weight() <= MAX_RENDERED_WEIGHT) {
             return failure;
         }
         List<Throwable> distinct = distinct(failure);
         logger.warn(
-            "query [{}] failed with an exception graph that loops or renders more than [{}] entries; rebuilding it from [{}] distinct "
+            "query [{}] failed with an exception graph that loops or weighs more than [{}] to render; rebuilding it from [{}] distinct "
                 + "exceptions",
             query,
-            MAX_RENDERED_ENTRIES,
+            MAX_RENDERED_WEIGHT,
             distinct.size()
         );
+        // causes beyond the kept links are dropped with their chain, so they never take a slot of their own
         Set<Throwable> inChain = Collections.newSetFromMap(new IdentityHashMap<>());
-        inChain.addAll(causeChain(failure));
+        inChain.addAll(causeChain(failure, Integer.MAX_VALUE));
         // the renderer reports the first non-wrapper exception as the error, so the rebuilt failure starts there too
-        List<Throwable> chain = causeChain(ExceptionsHelper.unwrapCause(failure));
-        inChain.addAll(chain);
-        Exception bounded = rebuild(chain);
+        Exception bounded = rebuild(causeChain(ExceptionsHelper.unwrapCause(failure), MAX_CAUSE_CHAIN));
         int added = 0;
         for (Throwable t : distinct) {
             if (added == MAX_ADDITIONAL_FAILURES) {
                 break;
             }
             if (inChain.contains(t) == false) {
-                List<Throwable> suppressedChain = causeChain(t);
-                inChain.addAll(suppressedChain);
-                bounded.addSuppressed(rebuild(suppressedChain));
+                inChain.addAll(causeChain(t, Integer.MAX_VALUE));
+                bounded.addSuppressed(rebuild(causeChain(t, MAX_CAUSE_CHAIN)));
                 added++;
             }
         }
@@ -114,36 +115,51 @@ public final class EsqlFailureBounds {
     }
 
     /**
-     * How many entries a renderer that follows every cause and suppressed link, without remembering what it wrote,
-     * writes for {@code t}; capped just above {@link #MAX_RENDERED_ENTRIES}, which a loop always reaches. The renderer's
-     * own depth limit is deliberately ignored: a count memoised below that limit would be reused above it, where the
-     * renderer expands further.
+     * What a renderer that follows every cause and suppressed link, without remembering what it wrote, writes for one
+     * exception: {@code entries} is how many entries, {@code weight} the sum over them of their depth below that
+     * exception plus one. Both are capped just above {@link #MAX_RENDERED_WEIGHT}.
      */
-    private static long renderedEntries(Throwable t, Map<Throwable, Long> memo, Set<Throwable> onPath) {
-        // a path this long renders more entries than the limit anyway; stopping here also bounds the recursion
-        if (onPath.contains(t) || onPath.size() >= MAX_RENDERED_ENTRIES) {
-            return MAX_RENDERED_ENTRIES + 1;
+    private record RenderCost(long entries, long weight) {
+        private static final long OVER = MAX_RENDERED_WEIGHT + 1L;
+        private static final RenderCost EXCESSIVE = new RenderCost(OVER, OVER);
+    }
+
+    /**
+     * The {@link RenderCost} of {@code t}; a loop is always {@link RenderCost#EXCESSIVE}. The renderer's own depth limit
+     * is deliberately ignored: a cost memoised below that limit would be reused above it, where the renderer expands
+     * further. Capping is safe because the weight of an exception is at least its entries and at least the weight of
+     * any child, so a capped child always makes its parent excessive too.
+     */
+    private static RenderCost renderCost(Throwable t, Map<Throwable, RenderCost> memo, Set<Throwable> onPath) {
+        // a path this long weighs more than the limit anyway; stopping here also bounds the recursion
+        if (onPath.contains(t) || onPath.size() >= MAX_RENDERED_WEIGHT) {
+            return RenderCost.EXCESSIVE;
         }
-        Long known = memo.get(t);
+        RenderCost known = memo.get(t);
         if (known != null) {
             return known;
         }
         onPath.add(t);
-        long count = 1;
+        long entries = 1;
+        long weight = 1;
         Throwable cause = t.getCause();
         if (cause != null) {
-            count += renderedEntries(cause, memo, onPath);
+            RenderCost child = renderCost(cause, memo, onPath);
+            entries += child.entries();
+            weight += child.weight() + child.entries();
         }
         for (Throwable suppressed : t.getSuppressed()) {
-            if (count > MAX_RENDERED_ENTRIES) {
+            if (weight > MAX_RENDERED_WEIGHT) {
                 break;
             }
-            count += renderedEntries(suppressed, memo, onPath);
+            RenderCost child = renderCost(suppressed, memo, onPath);
+            entries += child.entries();
+            weight += child.weight() + child.entries();
         }
         onPath.remove(t);
-        count = Math.min(count, MAX_RENDERED_ENTRIES + 1);
-        memo.put(t, count);
-        return count;
+        RenderCost cost = weight > MAX_RENDERED_WEIGHT ? RenderCost.EXCESSIVE : new RenderCost(entries, weight);
+        memo.put(t, cost);
+        return cost;
     }
 
     /** Every exception reachable from {@code root}, once each, starting with {@code root}. */
@@ -170,11 +186,11 @@ public final class EsqlFailureBounds {
         return distinct;
     }
 
-    /** {@code t} followed by its causes, stopping at a repeat or after {@link #MAX_CAUSE_CHAIN} links. */
-    private static List<Throwable> causeChain(Throwable t) {
+    /** {@code t} followed by its causes, stopping at a repeat or after {@code maxLinks} links. */
+    private static List<Throwable> causeChain(Throwable t, int maxLinks) {
         List<Throwable> chain = new ArrayList<>();
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Throwable current = t; current != null && chain.size() <= MAX_CAUSE_CHAIN && seen.add(current); current = current.getCause()) {
+        for (Throwable current = t; current != null && chain.size() <= maxLinks && seen.add(current); current = current.getCause()) {
             chain.add(current);
         }
         return chain;
@@ -210,8 +226,13 @@ public final class EsqlFailureBounds {
         private final RestStatus status;
 
         BoundedFailureException(Throwable original, @Nullable Exception cause) {
-            super(original.getMessage() == null ? "[{}]" : "[{}] {}", cause, typeName(original), original.getMessage());
+            super(describe(original), cause);
             this.status = ExceptionsHelper.status(original);
+        }
+
+        private static String describe(Throwable original) {
+            String type = "[" + typeName(original) + "]";
+            return original.getMessage() == null ? type : type + " " + original.getMessage();
         }
 
         private static String typeName(Throwable original) {

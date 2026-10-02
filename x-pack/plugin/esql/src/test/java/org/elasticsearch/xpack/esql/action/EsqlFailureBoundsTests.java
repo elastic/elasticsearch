@@ -81,9 +81,9 @@ public class EsqlFailureBoundsTests extends ESTestCase {
                 Level.WARN,
                 "query ["
                     + QUERY
-                    + "] failed with an exception graph that loops or renders more than ["
-                    + EsqlFailureBounds.MAX_RENDERED_ENTRIES
-                    + "] entries; rebuilding it from [2] distinct exceptions"
+                    + "] failed with an exception graph that loops or weighs more than ["
+                    + EsqlFailureBounds.MAX_RENDERED_WEIGHT
+                    + "] to render; rebuilding it from [2] distinct exceptions"
             )
         );
         Exception bounded = result.get();
@@ -213,6 +213,60 @@ public class EsqlFailureBoundsTests extends ESTestCase {
     }
 
     /**
+     * A failure collector holding ten collectors of ten failures each, the most a nested collector produces with its
+     * default budget, weighs 321 and reaches the client as it is.
+     */
+    public void testANestedCollectorFailureIsReturnedUnchanged() {
+        RuntimeException top = tree(10, 10);
+
+        assertThat(EsqlFailureBounds.bound(top, QUERY), sameInstance(top));
+    }
+
+    /**
+     * Thirty of thirty has only 931 entries, but with stack traces every entry reprints its subgraph, so it weighs 2761
+     * and is rebuilt.
+     */
+    public void testAWideTreeOfFailuresIsRebuilt() {
+        RuntimeException top = tree(30, 30);
+
+        Exception bounded = EsqlFailureBounds.bound(top, QUERY);
+
+        assertThat(bounded, not(sameInstance(top)));
+        assertNoRepeats(bounded);
+        assertThat(bounded.getSuppressed(), arrayWithSize(EsqlFailureBounds.MAX_ADDITIONAL_FAILURES));
+    }
+
+    /**
+     * A 100-deep cause chain with one side failure per link has only 201 entries, but the stack trace printed at each
+     * link covers everything below it, so it weighs about ten thousand and is rebuilt.
+     */
+    public void testADeepChainWithSideFailuresIsRebuilt() {
+        RuntimeException chain = new RuntimeException("leaf");
+        for (int i = 0; i < 100; i++) {
+            RuntimeException next = new RuntimeException("link-" + i, chain);
+            next.addSuppressed(new RuntimeException("side-" + i));
+            chain = next;
+        }
+
+        Exception bounded = EsqlFailureBounds.bound(chain, QUERY);
+
+        assertThat(bounded, not(sameInstance(chain)));
+        assertNoRepeats(bounded);
+    }
+
+    private static RuntimeException tree(int width, int leavesPerChild) {
+        RuntimeException top = new RuntimeException("top");
+        for (int i = 0; i < width; i++) {
+            RuntimeException child = new RuntimeException("child-" + i);
+            for (int j = 0; j < leavesPerChild; j++) {
+                child.addSuppressed(new RuntimeException("leaf-" + i + "-" + j));
+            }
+            top.addSuppressed(child);
+        }
+        return top;
+    }
+
+    /**
      * A breaker failure wrapped in another exception keeps its type through the rebuild, so the rendered
      * {@code root_cause} is still {@code circuit_breaking_exception}.
      */
@@ -297,6 +351,23 @@ public class EsqlFailureBoundsTests extends ESTestCase {
         assertThat(bounded.getSuppressed(), arrayWithSize(2));
         assertThat(bounded.getSuppressed()[0].getMessage(), equalTo("[runtime_exception] first"));
         assertThat(bounded.getSuppressed()[1].getMessage(), equalTo("[runtime_exception] second"));
+    }
+
+    /**
+     * Causes beyond the kept links of the top failure's cause chain are dropped; they must not take the slots of the
+     * failures suppressed onto it.
+     */
+    public void testTheTailOfALongCauseChainDoesNotUseTheBudget() {
+        RuntimeException top = new RuntimeException("top", causeChainOf(between(EsqlFailureBounds.MAX_CAUSE_CHAIN + 2, 120)));
+        RuntimeException sibling = new RuntimeException("sibling");
+        top.addSuppressed(sibling);
+        sibling.addSuppressed(top);
+
+        Exception bounded = EsqlFailureBounds.bound(top, QUERY);
+
+        assertNoRepeats(bounded);
+        assertThat(bounded.getSuppressed(), arrayWithSize(1));
+        assertThat(bounded.getSuppressed()[0].getMessage(), equalTo("[runtime_exception] sibling"));
     }
 
     private static RuntimeException causeChainOf(int length) {

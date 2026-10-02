@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -65,6 +66,23 @@ public class ExternalFailuresTests extends ESTestCase {
         var cancelled = new TaskCancelledException("cancelled");
         assertSame(cancelled, ExternalFailures.classify(cancelled));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(cancelled)));
+    }
+
+    /**
+     * Real breaker messages end with a reference-docs link ({@code https://www.elastic.co/docs/...}). That link must not
+     * be mistaken for a leaked storage URI: the leak assertion in {@code classify} is fatal to the node under {@code -ea}.
+     */
+    public void testCircuitBreakingWithReferenceDocsLinkIsNotALeak() {
+        var breaking = new CircuitBreakingException(
+            "[request] Data too large, data for [<esql_block_factory>] would be [181195099/172.8mb], which is larger than "
+                + "the limit of [181193932/172.7mb]; for more information, see "
+                + ReferenceDocs.CIRCUIT_BREAKER_ERRORS,
+            181195099,
+            181193932,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        assertSame(breaking, ExternalFailures.classify(breaking));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(breaking));
     }
 
     public void testRejectedExecutionIsBackpressureNotServerError() {
@@ -554,6 +572,17 @@ public class ExternalFailuresTests extends ESTestCase {
             "secretaccount.blob.core.windows.net: Temporary failure in name resolution",
             "secretaccount.blob.core.usgovcloudapi.net: Temporary failure in name resolution",
             "secretaccount.blob.core.chinacloudapi.cn: Temporary failure in name resolution" }) {
+            assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
+        }
+    }
+
+    public void testReferenceDocsLinkIsSafeButNotAStorageUriBesideIt() {
+        String docs = ReferenceDocs.CIRCUIT_BREAKER_ERRORS.toString();
+        assertTrue(ExternalFailures.safeForUserMessage("Data too large; for more information, see " + docs));
+        for (String unsafe : new String[] {
+            "see " + docs + " reading s3://bucket/prefix/file.parquet",
+            "see " + docs + " reading https://example.com/data/file.csv",
+            "see " + docs + " secret-bucket.s3.amazonaws.com: Name or service not known" }) {
             assertFalse(unsafe, ExternalFailures.safeForUserMessage(unsafe));
         }
     }

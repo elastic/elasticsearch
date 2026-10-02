@@ -164,10 +164,18 @@ public final class ExternalFailures {
         "(?:^|[\\s\\[(<'\"=,])/[^\\s/\\[\\]()<>'\",]+|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
     );
 
+    /**
+     * Prefix of the reference-docs links that core exceptions append to their messages (see
+     * {@link org.elasticsearch.common.ReferenceDocs}), e.g. {@code CircuitBreakingException}. Such a link is an
+     * Elastic documentation page, not a storage location, so it must not be mistaken for an {@code https://} endpoint.
+     */
+    private static final String REFERENCE_DOCS_PREFIX = "https://www.elastic.co/docs/";
+
     private static boolean containsStoragePath(String msg) {
         if (msg == null) {
             return false;
         }
+        msg = msg.replace(REFERENCE_DOCS_PREFIX, "");
         for (String scheme : STORAGE_URI_SCHEMES) {
             if (msg.contains(scheme)) {
                 return true;

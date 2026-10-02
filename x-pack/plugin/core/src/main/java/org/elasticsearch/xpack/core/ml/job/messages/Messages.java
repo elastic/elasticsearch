@@ -22,6 +22,9 @@ public final class Messages {
     public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
         "A job configured with a datafeed with an esql_query and delayed_data_check_config enabled must set "
             + "summary_count_field_name; the field must be produced as a column by the esql_query";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_MISSING_SUMMARY_COUNT_COLUMN =
+        "The ES|QL query must produce the summary_count_field_name [{0}] as a numeric count column when delayed-data checking is "
+            + "enabled; produce a numeric count column and set summary_count_field_name, or disable delayed-data checking";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =
@@ -37,12 +40,25 @@ public final class Messages {
     public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
     public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
         "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE =
+        "ES|QL datafeed{2} source_time_field [{0}] resolves to type [{1}] on the queried source, but must be date or "
+            + "date_nanos; source_time_field must name the raw indexed timestamp field on the source, not an alias "
+            + "produced by STATS, BUCKET, or EVAL.";
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED =
+        "ES|QL datafeed{2} source_time_field [{0}] could not be resolved as a field on the queried source: {1}; "
+            + "source_time_field must name the raw indexed timestamp field on the source, not an alias produced by "
+            + "STATS, BUCKET, or EVAL.";
     public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
         "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
     public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED =
         "grouping_interval must be a fixed time value (for example 1h or 30m); calendar intervals such as 1w or 1M are not supported";
     public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
         "grouping_interval [{0}] must equal the job bucket_span [{1}]";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED =
+        "Job [{0}] ES|QL extraction failed for emitted time field [{1}]: {2}; source window [{3,number,#}, {4,number,#}). {5}";
+    public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
+        "The final ES|QL output{1} is missing the configured job data_description.time_field [{0}]; "
+            + "project [{0}] in the final ES|QL output.";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
         "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
             + "wait for every node to support ES|QL datafeeds before previewing it.";
@@ -55,6 +71,9 @@ public final class Messages {
         "Cannot start ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_CREATE_DISABLED =
         "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
+        "ES|QL datafeeds do not support remote cluster sources in this release, but the index expression [{0}] in the "
+            + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate datafeed [{0}] to change its query shape. The update API only supports operational settings: "
             + "query delay, frequency, maximum empty searches, chunking, and delayed data checks.";

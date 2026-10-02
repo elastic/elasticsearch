@@ -1161,15 +1161,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
             }
-            switch (type) {
-                case CANNOT_REMAIN, NOT_PREFERRED -> balancedShardsAllocatorMetrics.incrementCannotRemainMoveCounter(
-                    cannotRemainMoveAttributes(moveDecision, shardRouting)
-                );
-                case REBALANCE -> {
-                }
-                default -> {
-                    assert false : "Unexpected move type [" + type + "]";
-                }
+            if (type == MoveType.CANNOT_REMAIN || type == MoveType.NOT_PREFERRED) {
+                balancedShardsAllocatorMetrics.incrementCannotRemainMoveCounter(cannotRemainMoveAttributes(moveDecision, shardRouting));
+            } else {
+                // If a new move type is added, we should assess whether it should have metrics recorded
+                assert type == MoveType.REBALANCE : "Unknown move type [" + type + "]";
             }
         }
 

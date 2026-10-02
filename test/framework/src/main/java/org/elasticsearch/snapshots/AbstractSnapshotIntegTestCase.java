@@ -643,7 +643,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     /**
      * Blocks all data nodes for the given repository, kicks off a non-blocking restore of
      * {@code snapshotName} to reconstruct {@code indexName}, and waits until the primary shard is
-     * INITIALIZING with a snapshot recovery source.
+     * INITIALIZING with a snapshot recovery source and a data node has actually
+     * hit the block.
      *
      * <p>Pair with {@link #unblockAndDeleteRestoringIndex(String, String)} in a {@code finally}
      * block to clean up after each test.
@@ -655,6 +656,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .setWaitForCompletion(false)
             .execute();
         awaitPrimaryInSnapshotRestore(indexName);
+        waitForBlockOnAnyDataNode(repoName);
     }
 
     /**

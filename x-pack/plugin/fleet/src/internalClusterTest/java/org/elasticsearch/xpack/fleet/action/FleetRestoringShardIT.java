@@ -31,6 +31,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Integration tests documenting the current behaviour of
@@ -103,21 +104,22 @@ public class FleetRestoringShardIT extends AbstractSnapshotIntegTestCase {
      */
     public void testGetGlobalCheckpointsWithWaitWhileRestoringParksUntilTimeout() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
-        GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
-            INDEX,
-            true,
-            true,
-            EMPTY_CHECKPOINTS,
-            TimeValue.timeValueMillis(200)
-        );
-        var future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
         try {
-            expectThrows(TimeoutException.class, () -> future.get(100, TimeUnit.MILLISECONDS));
+            GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+                INDEX,
+                true,
+                true,
+                EMPTY_CHECKPOINTS,
+                TimeValue.timeValueMillis(200)
+            );
+            Exception e = expectThrows(
+                Exception.class,
+                () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet(TimeValue.timeValueSeconds(30))
+            );
+            assertThat(e, instanceOf(UnavailableShardsException.class));
+            assertThat(((UnavailableShardsException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
-            try {
-                future.get(30, TimeUnit.SECONDS);
-            } catch (Exception ignored) {}
         }
     }
 

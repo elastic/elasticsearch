@@ -22,7 +22,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -462,28 +464,52 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], wT);
         }
 
+        // Group the vectors by cluster, so that a block of encodes shares a single centroid the way a
+        // posting list does, then encode cluster by cluster through the production block path.
+        int[][] clusterOrds = new int[nClusters][];
+        for (int c = 0; c < nClusters; c++) {
+            clusterOrds[c] = new int[counts[c]];
+        }
+        int[] filled = new int[nClusters];
         for (int i = 0; i < nVectors; i++) {
-            float[] c = centroids[assignments[i]];
-            AsymmetricHashingQuantizer.EncodedVector enc = ash.encode(vectors[i], c, wT, precomputedPerCluster[assignments[i]]);
-            byte[] packed = ESVectorUtil.ashPack(enc.xEnc(), bitsPerDim);
+            clusterOrds[assignments[i]][filled[assignments[i]]++] = i;
+        }
 
-            for (int q = 0; q < nQueries; q++) {
-                double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
-                double qDotC = ESVectorUtil.dotProduct(queries[q], c);
+        int maxBlockSize = 32;
+        AsymmetricHashingQuantizer.BlockEncoder encoder = ash.newBlockEncoder(wT, dim, maxBlockSize);
+        for (int c = 0; c < nClusters; c++) {
+            int[] cluster = clusterOrds[c];
+            for (int start = 0; start < cluster.length; start += maxBlockSize) {
+                int blockSize = Math.min(maxBlockSize, cluster.length - start);
+                encoder.reset();
+                for (int j = 0; j < blockSize; j++) {
+                    encoder.add(vectors[cluster[start + j]], centroids[c]);
+                }
+                encoder.encode(precomputedPerCluster[c]);
 
-                float approxScore = referenceScore(
-                    qt[q],
-                    new float[] { (float) qDotC },
-                    packed,
-                    0,
-                    nDims,
-                    bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
-                );
+                for (int j = 0; j < blockSize; j++) {
+                    int i = cluster[start + j];
+                    byte[] packed = ESVectorUtil.ashPack(encoder.code(j), bitsPerDim);
 
-                exact[q][i] = exactDot;
-                approx[q][i] = approxScore;
+                    for (int q = 0; q < nQueries; q++) {
+                        double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
+                        double qDotC = ESVectorUtil.dotProduct(queries[q], centroids[c]);
+
+                        float approxScore = referenceScore(
+                            qt[q],
+                            new float[] { (float) qDotC },
+                            packed,
+                            0,
+                            nDims,
+                            bitsPerDim,
+                            encoder.scale(j),
+                            encoder.offset(j)
+                        );
+
+                        exact[q][i] = exactDot;
+                        approx[q][i] = approxScore;
+                    }
+                }
             }
         }
 
@@ -510,6 +536,71 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         assertThat(pearson, greaterThan(pearsonThreshold));
         assertThat("recall@" + k, recall, greaterThan(recallThreshold));
+    }
+
+    /**
+     * Covers the block encoder over both a full and a partial block: every gathered vector must come
+     * back with a code of the right width holding valid levels, and with the uncentered
+     * {@code ⟨x, μ⟩} that the EUCLIDEAN corrections are written from.
+     * <p>
+     * This deliberately does not assert that the block path reproduces
+     * {@link AsymmetricHashingQuantizer#encode} exactly. The block multiply and the per-vector
+     * multiply accumulate the projection in different orders, and the greedy quantization sweep is
+     * flat near its optimum, so a latent component occasionally lands either side of a level
+     * boundary. The two codes are then equally good under the quantizer's own objective. Encoding
+     * quality is covered end to end by {@link #testScoreReconstructsDotProduct}.
+     */
+    public void testBlockEncoderCoversFullAndPartialBlocks() throws IOException {
+        int nVectors = 100;
+        int dim = 32;
+        float projectedDimsFraction = 0.25f;
+        int bitsPerDim = 2;
+        int nDims = (int) (dim * projectedDimsFraction);
+        // deliberately does not divide nVectors, so the last block of the run is a partial one
+        int maxBlockSize = 7;
+
+        float[][] vectors = new float[nVectors][];
+        for (int i = 0; i < nVectors; i++) {
+            vectors[i] = AshUtils.randomGaussians(random(), dim);
+        }
+        float[] centroid = AshUtils.randomGaussians(random(), dim);
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            projectedDimsFraction,
+            bitsPerDim,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            5,
+            10,
+            42L
+        );
+        float[] wT = trainWT(quantizer, vectors, centroidGetter);
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+
+        AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(wT, dim, maxBlockSize);
+        Set<Float> validLevels = Set.of(-1.5f, -0.5f, 0.5f, 1.5f);
+        for (int start = 0; start < nVectors; start += maxBlockSize) {
+            int blockSize = Math.min(maxBlockSize, nVectors - start);
+            encoder.reset();
+            assertThat(encoder.size(), equalTo(0));
+            for (int j = 0; j < blockSize; j++) {
+                encoder.add(vectors[start + j], centroid);
+            }
+            encoder.encode(precomputed);
+
+            assertThat(encoder.size(), equalTo(blockSize));
+            for (int j = 0; j < blockSize; j++) {
+                float[] code = encoder.code(j);
+                assertThat(code.length, equalTo(nDims));
+                for (float level : code) {
+                    assertThat(validLevels, hasItem(level));
+                }
+                assertThat((double) encoder.scale(j), greaterThan(0.0));
+                assertTrue(Float.isFinite(encoder.offset(j)));
+                // the dot product is taken before centering, so it must match the original vector
+                assertThat(encoder.vecCentroidDot(j), equalTo(ESVectorUtil.dotProduct(vectors[start + j], centroid)));
+            }
+        }
     }
 
     private static float[] trainWT(

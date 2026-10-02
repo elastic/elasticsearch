@@ -266,16 +266,48 @@ public final class AsymmetricHashingQuantizer {
     private static VectorAndNorm centralizeVector(float[] vector, float[] centroid) {
         int originalDim = vector.length;
         float[] centered = new float[originalDim];
-        for (int d = 0; d < originalDim; d++) {
-            centered[d] = vector[d] - centroid[d];
-        }
-        float normSq = ESVectorUtil.l2Normalize(centered);
+        float normSq = centralize(vector, centroid, centered, 0);
         return normSq == 0f ? new VectorAndNorm(new float[originalDim], 0) : new VectorAndNorm(centered, normSq);
     }
 
     /**
+     * Centers {@code vector} by {@code centroid} into {@code out[outOffset..]} and L2-normalizes it in
+     * place
+     *
+     * @return the squared norm of {@code vector - centroid}
+     */
+    private static float centralize(float[] vector, float[] centroid, float[] out, int outOffset) {
+        int originalDim = vector.length;
+        for (int d = 0; d < originalDim; d++) {
+            out[outOffset + d] = vector[d] - centroid[d];
+        }
+        return ESVectorUtil.l2Normalize(out, outOffset, originalDim);
+    }
+
+    /** Scale applied at scoring time: the centered vector's norm relative to the norm of its code. */
+    private static float computeScale(float normSq, float codeNorm) {
+        return codeNorm > 0 ? (float) Math.sqrt(normSq) / codeNorm : 0;
+    }
+
+    /**
+     * Additive correction for dot product reconstruction, per ASH paper Equation 19:
+     * {@code ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²}.
+     * <p>
+     * The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
+     * rather than the centered query W(q-μ). At query time the scorer computes ⟨Wq, code⟩,
+     * and the centroid's contribution is pre-subtracted here so no per-posting-list centroid
+     * recomputation is needed during search.
+     *
+     * @param vecCentroidDot ⟨x, μ⟩ for the original, uncentered vector
+     */
+    private static float computeOffset(float vecCentroidDot, float scale, float[] code, VectorAndNorm precomputed) {
+        float correction = ESVectorUtil.dotProduct(precomputed.vector(), code);
+        return vecCentroidDot - precomputed.normSq() - scale * correction;
+    }
+
+    /**
      * Precomputes centroid-dependent values for a posting list. Call once per cluster,
-     * then pass the result to {@link #encode} for each vector in that cluster.
+     * then pass the result to {@link BlockEncoder#encode} for each vector in that cluster.
      *
      * @param centroid the posting list centroid, length originalDim
      * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
@@ -326,21 +358,132 @@ public final class AsymmetricHashingQuantizer {
         float[] xEnc = qr.centeredCode();
         float codeNorm = qr.codeNorm();
 
-        // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.normSq()) / codeNorm : 0;
-
-        // Offset per ASH paper Equation 19: ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²
-        // The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
-        // rather than the centered query W(q-μ). At query time the scorer computes ⟨Wq, code⟩,
-        // and the centroid's contribution is pre-subtracted here so no per-posting-list centroid
-        // recomputation is needed during search.
-        float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
-        float offset = dotVecCent - precomputed.normSq();
-        float[] centroidProjected = precomputed.vector();
-        float correction = ESVectorUtil.dotProduct(centroidProjected, xEnc);
-        offset -= scale * correction;
+        float scale = computeScale(centered.normSq(), codeNorm);
+        float offset = computeOffset(ESVectorUtil.dotProduct(vector, centroid), scale, xEnc, precomputed);
 
         return new EncodedVector(xEnc, scale, offset);
+    }
+
+    /**
+     * Creates a reusable encoder that projects and quantizes vectors a block at a time. The returned
+     * encoder is tied to {@code wT}, so a caller must create a new one whenever W changes.
+     *
+     * @param wT the transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
+     * @param originalDim the original vector dimensionality
+     * @param maxBlockSize the largest block the caller gathers before encoding
+     */
+    public BlockEncoder newBlockEncoder(float[] wT, int originalDim, int maxBlockSize) {
+        return new BlockEncoder(wT, originalDim, maxBlockSize);
+    }
+
+    /**
+     * Encodes vectors a block at a time using matrix multiplication
+     */
+    public final class BlockEncoder {
+
+        private final int originalDim;
+        private final int nDims;
+        private final int maxBlockSize;
+        /** W as (originalDim x nDims), the right-operand shape the block multiply needs. */
+        private final float[] w;
+        /** The gathered vectors, centered and L2-normalized, row-major (maxBlockSize x originalDim). */
+        private final float[] centered;
+        /** The block projected into latent space, row-major (maxBlockSize x nDims). */
+        private final float[] latent;
+        private final float[][] codes;
+        private final float[] normSqs;
+        private final float[] vecCentroidDots;
+        private final float[] scales;
+        private final float[] offsets;
+        private int size;
+
+        private BlockEncoder(float[] wT, int originalDim, int maxBlockSize) {
+            assert wT.length == originalDim * nDims(originalDim)
+                : "projection matrix length [" + wT.length + "] does not match originalDim [" + originalDim + "]";
+            this.originalDim = originalDim;
+            this.nDims = wT.length / originalDim;
+            this.maxBlockSize = maxBlockSize;
+            this.w = ESVectorUtil.transposeMatrix(wT, nDims, originalDim);
+            this.centered = new float[maxBlockSize * originalDim];
+            this.latent = new float[maxBlockSize * nDims];
+            this.codes = new float[maxBlockSize][nDims];
+            this.normSqs = new float[maxBlockSize];
+            this.vecCentroidDots = new float[maxBlockSize];
+            this.scales = new float[maxBlockSize];
+            this.offsets = new float[maxBlockSize];
+        }
+
+        /** Discards the gathered block, ready for {@link #add}. */
+        public void reset() {
+            size = 0;
+        }
+
+        /**
+         * Centers and normalizes {@code vector} into the next row of the block, and records the two
+         * quantities that need the original vector: ‖vector - centroid‖² and ⟨vector, centroid⟩. The
+         * caller may overwrite or reuse {@code vector} as soon as this returns, so a provider handing
+         * out a shared buffer stays safe across a whole block.
+         */
+        public void add(float[] vector, float[] centroid) {
+            assert size < maxBlockSize : "block is full";
+            normSqs[size] = centralize(vector, centroid, centered, size * originalDim);
+            vecCentroidDots[size] = ESVectorUtil.dotProduct(vector, centroid);
+            size++;
+        }
+
+        /**
+         * Projects, quantizes, and derives the scale and offset for every vector gathered since the
+         * last {@link #reset}.
+         *
+         * @param precomputed the projected centroid and its squared norm for the posting list these
+         *        vectors belong to, from {@link AsymmetricHashingQuantizer#precomputeCentroid}
+         */
+        public void encode(VectorAndNorm precomputed) {
+            // The multiply doesn't have offsets, so the full matrix is calculated
+            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
+            // only 'count' rows are read back
+            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent);
+
+            for (int i = 0; i < size; i++) {
+                float[] code = codes[i];
+                float codeNorm = quantizer.quantizeExact(latent, i * nDims, code, 0, nDims);
+                float scale = computeScale(normSqs[i], codeNorm);
+                scales[i] = scale;
+                offsets[i] = computeOffset(vecCentroidDots[i], scale, code, precomputed);
+            }
+        }
+
+        /** Number of vectors gathered since the last {@link #reset}. */
+        public int size() {
+            return size;
+        }
+
+        /**
+         * The quantized code of the {@code i}th vector of the block, length nDims. Valid until the
+         * next {@link #encode} call.
+         */
+        public float[] code(int i) {
+            assert i < size;
+            return codes[i];
+        }
+
+        /** The scoring scale of the {@code i}th vector of the block. */
+        public float scale(int i) {
+            assert i < size;
+            return scales[i];
+        }
+
+        /** The dot product reconstruction offset of the {@code i}th vector of the block. */
+        public float offset(int i) {
+            assert i < size;
+            return offsets[i];
+        }
+
+        /** {@code ⟨x, μ⟩} for the {@code i}th vector of the block, taken before it was centered. */
+        public float vecCentroidDot(int i) {
+            assert i < size;
+            return vecCentroidDots[i];
+        }
     }
 
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {

@@ -1085,14 +1085,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
             return null;
         }
-
-        /**
-         * Defaults to 0 (never buffers more than one value's own bytes); overridden where storage is chunked.
-         */
-        @Override
-        public long maxDecodeBytes() {
-            return 0;
-        }
     }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {

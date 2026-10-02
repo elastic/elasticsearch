@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,13 +52,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private static final ParseField START_TIME = new ParseField("start_time");
     private static final ParseField MAX_ASSIGNED_ALLOCATIONS = new ParseField("max_assigned_allocations");
     public static final ParseField ADAPTIVE_ALLOCATIONS = new ParseField("adaptive_allocations");
-    private static final ParseField OBSERVED_PER_ALLOCATION_MEMORY_BYTES = new ParseField("observed_per_allocation_memory_bytes");
-
-    /**
-     * Gates wire serialization of {@link #observedPerAllocationMemoryBytes}. Shares the transport version introduced
-     * for surfacing runtime native memory (see {@code TrainedModelSizeStats}) since these changes ship together.
-     */
-    static final TransportVersion RUNTIME_NATIVE_MEMORY_STATS = TransportVersion.fromName("ml_runtime_native_memory_stats");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TrainedModelAssignment, Void> PARSER = new ConstructingObjectParser<>(
@@ -73,8 +65,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             (String) a[4],
             (Instant) a[5],
             (Integer) a[6],
-            (AdaptiveAllocationsSettings) a[7],
-            (Long) a[8]
+            (AdaptiveAllocationsSettings) a[7]
         )
     );
     static {
@@ -104,7 +95,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             null,
             ADAPTIVE_ALLOCATIONS
         );
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OBSERVED_PER_ALLOCATION_MEMORY_BYTES);
     }
 
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
@@ -114,13 +104,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final Instant startTime;
     private final int maxAssignedAllocations;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
-    /**
-     * The observed per-allocation native memory (resident set size), in bytes, derived from actual runtime
-     * measurements. {@code null} until enough measurements have been gathered (or in mixed-version clusters where
-     * this field is not serialized). When present it is used to make placement and scaling memory-bound by real
-     * usage instead of the a priori estimate.
-     */
-    private final Long observedPerAllocationMemoryBytes;
 
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
@@ -134,8 +117,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         String reason,
         Instant startTime,
         Integer maxAssignedAllocations,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        Long observedPerAllocationMemoryBytes
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
     ) {
         this(
             taskParams,
@@ -144,8 +126,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             reason,
             startTime,
             maxAssignedAllocations,
-            adaptiveAllocationsSettings,
-            observedPerAllocationMemoryBytes
+            adaptiveAllocationsSettings
         );
     }
 
@@ -167,8 +148,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         String reason,
         Instant startTime,
         Integer maxAssignedAllocations,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        Long observedPerAllocationMemoryBytes
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
     ) {
         this.taskParams = ExceptionsHelper.requireNonNull(taskParams, TASK_PARAMETERS);
         this.nodeRoutingTable = ExceptionsHelper.requireNonNull(nodeRoutingTable, ROUTING_TABLE);
@@ -179,7 +159,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             ? totalCurrentAllocations()
             : Math.max(maxAssignedAllocations, totalCurrentAllocations());
         this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
-        this.observedPerAllocationMemoryBytes = observedPerAllocationMemoryBytes;
     }
 
     public TrainedModelAssignment(StreamInput in) throws IOException {
@@ -190,11 +169,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.startTime = in.readInstant();
         this.maxAssignedAllocations = in.readVInt();
         this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        if (in.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
-            this.observedPerAllocationMemoryBytes = in.readOptionalVLong();
-        } else {
-            this.observedPerAllocationMemoryBytes = null;
-        }
     }
 
     public boolean isRoutedToNode(String nodeId) {
@@ -311,14 +285,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return adaptiveAllocationsSettings;
     }
 
-    /**
-     * @return the observed per-allocation native memory (resident set size) in bytes, or {@code null} if it has not
-     * yet been derived from runtime measurements.
-     */
-    public Long getObservedPerAllocationMemoryBytes() {
-        return observedPerAllocationMemoryBytes;
-    }
-
     public boolean isSatisfied(Set<String> assignableNodeIds) {
         int allocations = nodeRoutingTable.entrySet()
             .stream()
@@ -360,8 +326,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             && Objects.equals(assignmentState, that.assignmentState)
             && Objects.equals(startTime, that.startTime)
             && maxAssignedAllocations == that.maxAssignedAllocations
-            && Objects.equals(adaptiveAllocationsSettings, that.adaptiveAllocationsSettings)
-            && Objects.equals(observedPerAllocationMemoryBytes, that.observedPerAllocationMemoryBytes);
+            && Objects.equals(adaptiveAllocationsSettings, that.adaptiveAllocationsSettings);
     }
 
     @Override
@@ -373,8 +338,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             reason,
             startTime,
             maxAssignedAllocations,
-            adaptiveAllocationsSettings,
-            observedPerAllocationMemoryBytes
+            adaptiveAllocationsSettings
         );
     }
 
@@ -390,9 +354,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         builder.timestampField(START_TIME.getPreferredName(), startTime);
         builder.field(MAX_ASSIGNED_ALLOCATIONS.getPreferredName(), maxAssignedAllocations);
         builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
-        if (observedPerAllocationMemoryBytes != null) {
-            builder.field(OBSERVED_PER_ALLOCATION_MEMORY_BYTES.getPreferredName(), observedPerAllocationMemoryBytes);
-        }
         builder.endObject();
         return builder;
     }
@@ -406,9 +367,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeInstant(startTime);
         out.writeVInt(maxAssignedAllocations);
         out.writeOptionalWriteable(adaptiveAllocationsSettings);
-        if (out.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
-            out.writeOptionalVLong(observedPerAllocationMemoryBytes);
-        }
     }
 
     public Optional<AllocationStatus> calculateAllocationStatus() {
@@ -431,7 +389,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         private Instant startTime;
         private int maxAssignedAllocations;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
-        private Long observedPerAllocationMemoryBytes;
 
         public static Builder fromAssignment(TrainedModelAssignment assignment) {
             return new Builder(
@@ -441,8 +398,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
                 assignment.reason,
                 assignment.startTime,
                 assignment.maxAssignedAllocations,
-                assignment.adaptiveAllocationsSettings,
-                assignment.observedPerAllocationMemoryBytes
+                assignment.adaptiveAllocationsSettings
             );
         }
 
@@ -464,8 +420,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             String reason,
             Instant startTime,
             int maxAssignedAllocations,
-            AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-            Long observedPerAllocationMemoryBytes
+            AdaptiveAllocationsSettings adaptiveAllocationsSettings
         ) {
             this.taskParams = taskParams;
             this.nodeRoutingTable = new LinkedHashMap<>(nodeRoutingTable);
@@ -474,11 +429,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             this.startTime = startTime;
             this.maxAssignedAllocations = maxAssignedAllocations;
             this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
-            this.observedPerAllocationMemoryBytes = observedPerAllocationMemoryBytes;
         }
 
         private Builder(StartTrainedModelDeploymentAction.TaskParams taskParams, AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
-            this(taskParams, new LinkedHashMap<>(), AssignmentState.STARTING, null, Instant.now(), 0, adaptiveAllocationsSettings, null);
+            this(taskParams, new LinkedHashMap<>(), AssignmentState.STARTING, null, Instant.now(), 0, adaptiveAllocationsSettings);
         }
 
         public Builder setStartTime(Instant startTime) {
@@ -493,11 +447,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
 
         public Builder setAdaptiveAllocationsSettings(AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
             this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
-            return this;
-        }
-
-        public Builder setObservedPerAllocationMemoryBytes(Long observedPerAllocationMemoryBytes) {
-            this.observedPerAllocationMemoryBytes = observedPerAllocationMemoryBytes;
             return this;
         }
 
@@ -628,8 +577,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
                 reason,
                 startTime,
                 maxAssignedAllocations,
-                adaptiveAllocationsSettings,
-                observedPerAllocationMemoryBytes
+                adaptiveAllocationsSettings
             );
         }
     }

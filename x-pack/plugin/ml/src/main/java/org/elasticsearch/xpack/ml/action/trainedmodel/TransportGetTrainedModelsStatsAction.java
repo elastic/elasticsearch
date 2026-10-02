@@ -366,23 +366,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                             ? assignmentStats.getNumberOfAllocations()
                             : 0;
                         long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, numberOfAllocations);
-                        // Sum the OS-reported resident set size across the deployment's nodes so the API can surface the
-                        // actual runtime memory alongside the a priori estimate.
-                        long runtimeNativeMemoryBytes = 0L;
-                        long peakRuntimeNativeMemoryBytes = 0L;
-                        for (AssignmentStats.NodeStats nodeStats : assignmentStats.getNodeStats()) {
-                            runtimeNativeMemoryBytes += nodeStats.getAvgInferenceProcessMemoryRssBytes().orElse(0L);
-                            peakRuntimeNativeMemoryBytes += nodeStats.getMaxInferenceProcessMemoryRssBytes().orElse(0L);
-                        }
-                        modelSizeStatsByKey.put(
-                            deploymentId,
-                            new TrainedModelSizeStats(
-                                totalDefinitionLength,
-                                estimatedMemoryUsageBytes,
-                                runtimeNativeMemoryBytes,
-                                peakRuntimeNativeMemoryBytes
-                            )
-                        );
+                        modelSizeStatsByKey.put(deploymentId, new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes));
                     }
                 } else {
                     long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, 0);

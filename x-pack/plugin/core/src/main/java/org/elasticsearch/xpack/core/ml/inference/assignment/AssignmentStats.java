@@ -29,9 +29,6 @@ import java.util.Optional;
 public class AssignmentStats implements ToXContentObject, Writeable {
 
     public static final TransportVersion MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("assignment_stats_memory_stat");
-    // Introduced together with the runtime/peak native memory fields on TrainedModelSizeStats; a single shared
-    // transport version gates all of these fields since they ship in the same change.
-    public static final TransportVersion PEAK_MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("ml_runtime_native_memory_stats");
 
     public static class NodeStats implements ToXContentObject, Writeable {
         private final DiscoveryNode node;
@@ -53,7 +50,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final Double avgInferenceTimeLastPeriod;
         private final Long cacheHitCountLastPeriod;
         private final Long avgInferenceProcessMemoryRssBytes;
-        private final Long maxInferenceProcessMemoryRssBytes;
 
         public static AssignmentStats.NodeStats forStartedState(
             DiscoveryNode node,
@@ -116,50 +112,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long cacheHitCountLastPeriod,
             Long avgInferenceProcessMemoryRssBytes
         ) {
-            return forStartedState(
-                node,
-                inferenceCount,
-                avgInferenceTime,
-                avgInferenceTimeExcludingCacheHit,
-                pendingCount,
-                errorCount,
-                cacheHitCount,
-                rejectedExecutionCount,
-                timeoutCount,
-                lastAccess,
-                startTime,
-                threadsPerAllocation,
-                numberOfAllocations,
-                peakThroughput,
-                throughputLastPeriod,
-                avgInferenceTimeLastPeriod,
-                cacheHitCountLastPeriod,
-                avgInferenceProcessMemoryRssBytes,
-                null
-            );
-        }
-
-        public static AssignmentStats.NodeStats forStartedState(
-            DiscoveryNode node,
-            long inferenceCount,
-            Double avgInferenceTime,
-            Double avgInferenceTimeExcludingCacheHit,
-            int pendingCount,
-            int errorCount,
-            long cacheHitCount,
-            int rejectedExecutionCount,
-            int timeoutCount,
-            Instant lastAccess,
-            Instant startTime,
-            Integer threadsPerAllocation,
-            Integer numberOfAllocations,
-            long peakThroughput,
-            long throughputLastPeriod,
-            Double avgInferenceTimeLastPeriod,
-            long cacheHitCountLastPeriod,
-            Long avgInferenceProcessMemoryRssBytes,
-            Long maxInferenceProcessMemoryRssBytes
-        ) {
             return new AssignmentStats.NodeStats(
                 node,
                 inferenceCount,
@@ -179,8 +131,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
                 cacheHitCountLastPeriod,
-                avgInferenceProcessMemoryRssBytes,
-                maxInferenceProcessMemoryRssBytes
+                avgInferenceProcessMemoryRssBytes
             );
         }
 
@@ -202,7 +153,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 null,
                 0L,
                 0L,
-                null,
                 null,
                 null,
                 null
@@ -228,8 +178,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
             Long cacheHitCountLastPeriod,
-            Long avgInferenceProcessMemoryRssBytes,
-            Long maxInferenceProcessMemoryRssBytes
+            Long avgInferenceProcessMemoryRssBytes
         ) {
             this.node = node;
             this.inferenceCount = inferenceCount;
@@ -250,7 +199,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.avgInferenceTimeLastPeriod = avgInferenceTimeLastPeriod;
             this.cacheHitCountLastPeriod = cacheHitCountLastPeriod;
             this.avgInferenceProcessMemoryRssBytes = avgInferenceProcessMemoryRssBytes;
-            this.maxInferenceProcessMemoryRssBytes = maxInferenceProcessMemoryRssBytes;
 
             // if lastAccess time is null there have been no inferences
             assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
@@ -295,7 +243,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
                 cacheHitCountLastPeriod,
-                null,
                 null
             );
         }
@@ -323,11 +270,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.avgInferenceProcessMemoryRssBytes = in.readOptionalVLong();
             } else {
                 this.avgInferenceProcessMemoryRssBytes = null;
-            }
-            if (in.getTransportVersion().supports(PEAK_MEMORY_STAT_TRANSPORT_VERSION)) {
-                this.maxInferenceProcessMemoryRssBytes = in.readOptionalVLong();
-            } else {
-                this.maxInferenceProcessMemoryRssBytes = null;
             }
 
         }
@@ -404,22 +346,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             return Optional.ofNullable(cacheHitCountLastPeriod);
         }
 
-        /**
-         * The average resident set size (in bytes) reported by this node's native inference process for the
-         * deployment, or empty if no measurement has been received.
-         */
-        public Optional<Long> getAvgInferenceProcessMemoryRssBytes() {
-            return Optional.ofNullable(avgInferenceProcessMemoryRssBytes);
-        }
-
-        /**
-         * The peak resident set size (in bytes) reported by this node's native inference process for the
-         * deployment since it started, or empty if no measurement has been received.
-         */
-        public Optional<Long> getMaxInferenceProcessMemoryRssBytes() {
-            return Optional.ofNullable(maxInferenceProcessMemoryRssBytes);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -440,16 +366,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 if (avgInferenceTimeExcludingCacheHit != null) {
                     builder.field("average_inference_time_ms_excluding_cache_hits", avgInferenceTimeExcludingCacheHit);
                 }
-            }
-            // Native RSS is sampled from periodic pytorch_inference process stats, which are emitted even when the
-            // deployment is idle, so it is reported independently of the inference-count guard above. Each field is
-            // present only when a real native sample exists (null otherwise), matching the runtime_native_memory guard
-            // on TrainedModelSizeStats.
-            if (avgInferenceProcessMemoryRssBytes != null) {
-                builder.field("average_inference_process_memory_rss_bytes", avgInferenceProcessMemoryRssBytes);
-            }
-            if (maxInferenceProcessMemoryRssBytes != null) {
-                builder.field("peak_inference_process_memory_rss_bytes", maxInferenceProcessMemoryRssBytes);
+                if (avgInferenceProcessMemoryRssBytes != null) {
+                    builder.field("average_inference_process_memory_rss_bytes", avgInferenceProcessMemoryRssBytes);
+                }
             }
             if (cacheHitCount != null) {
                 builder.field("inference_cache_hit_count", cacheHitCount);
@@ -514,9 +433,6 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             if (out.getTransportVersion().supports(MEMORY_STAT_TRANSPORT_VERSION)) {
                 out.writeOptionalVLong(avgInferenceProcessMemoryRssBytes);
             }
-            if (out.getTransportVersion().supports(PEAK_MEMORY_STAT_TRANSPORT_VERSION)) {
-                out.writeOptionalVLong(maxInferenceProcessMemoryRssBytes);
-            }
         }
 
         @Override
@@ -542,8 +458,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 && Objects.equals(throughputLastPeriod, that.throughputLastPeriod)
                 && Objects.equals(avgInferenceTimeLastPeriod, that.avgInferenceTimeLastPeriod)
                 && Objects.equals(cacheHitCountLastPeriod, that.cacheHitCountLastPeriod)
-                && Objects.equals(avgInferenceProcessMemoryRssBytes, that.avgInferenceProcessMemoryRssBytes)
-                && Objects.equals(maxInferenceProcessMemoryRssBytes, that.maxInferenceProcessMemoryRssBytes);
+                && Objects.equals(avgInferenceProcessMemoryRssBytes, that.avgInferenceProcessMemoryRssBytes);
         }
 
         @Override
@@ -567,8 +482,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
                 cacheHitCountLastPeriod,
-                avgInferenceProcessMemoryRssBytes,
-                maxInferenceProcessMemoryRssBytes
+                avgInferenceProcessMemoryRssBytes
             );
         }
     }

@@ -221,15 +221,21 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
      * re-lists in {@code listForQuery} — proving evaluateFilter even if listing hints are broken.
      */
     public void testStartsWithFileNamePrunesAtEvaluateFilterUnionByName() throws Exception {
-        assertPrefixPruned(registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()), "STARTS_WITH(`_file.name`, \"a-\")");
+        assertAPrefixKeepsTwoOfThree(
+            registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "STARTS_WITH(`_file.name`, \"a-\")"
+        );
     }
 
     public void testLikeFileNamePrunesAtEvaluateFilterUnionByName() throws Exception {
-        assertPrefixPruned(registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()), "`_file.name` LIKE \"a-*\"");
+        assertAPrefixKeepsTwoOfThree(registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()), "`_file.name` LIKE \"a-*\"");
     }
 
     public void testRLikeFileNamePrunesAtEvaluateFilterUnionByName() throws Exception {
-        assertPrefixPruned(registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()), "`_file.name` RLIKE \"a-.*\"");
+        assertAPrefixKeepsTwoOfThree(
+            registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "`_file.name` RLIKE \"a-.*\""
+        );
     }
 
     /**
@@ -240,14 +246,17 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
      * {@code PartitionFilterHintExtractorTests} and {@code GlobExpanderTests}.
      */
     public void testStartsWithFileNamePrunesAtListingFirstFileWins() throws Exception {
-        assertPrefixPruned(
+        assertAPrefixKeepsTwoOfThree(
             registerLocalFileDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
             "STARTS_WITH(`_file.name`, \"a-\")"
         );
     }
 
     public void testLikeFileNamePrunesAtListingFirstFileWins() throws Exception {
-        assertPrefixPruned(registerLocalFileDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()), "`_file.name` LIKE \"a-*\"");
+        assertAPrefixKeepsTwoOfThree(
+            registerLocalFileDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "`_file.name` LIKE \"a-*\""
+        );
     }
 
     /**
@@ -280,7 +289,7 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
         return dir;
     }
 
-    private void assertPrefixPruned(String dataset, String predicate) {
+    private void assertAPrefixKeepsTwoOfThree(String dataset, String predicate) {
         String query = "FROM " + dataset + " METADATA _file.name | WHERE " + predicate + " | STATS c = COUNT(*)";
         var request = syncEsqlQueryRequest(query);
         request.profile(true);

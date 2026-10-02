@@ -121,9 +121,10 @@ public final class PartitionFilterHintExtractor {
      * <p>
      * This overload reads <em>resolved</em> columns ({@link FieldAttribute}, {@link ReferenceAttribute},
      * {@link ExternalMetadataAttribute}) against literals. Unresolved names are ignored — {@link #extract} is the
-     * pre-analysis path. Prefix predicates ({@code STARTS_WITH}, case-sensitive {@code LIKE 'lit*'}) become a
-     * GTE/LT range only for requested {@code _file.*} columns or names in {@code partitionKeys}; a data column
-     * is not a listing key. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing.
+     * pre-analysis path. Comparison, {@code IN}, and prefix predicates ({@code STARTS_WITH}, case-sensitive
+     * {@code LIKE 'lit*'}) emit hints only for requested {@code _file.*} columns or names in {@code partitionKeys};
+     * a data column is not a listing key and must not join the listing cache identity. Prefix predicates become
+     * a GTE/LT range. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing.
      */
     public static List<PartitionFilterHint> fromConjuncts(
         List<Expression> conjuncts,
@@ -297,9 +298,9 @@ public final class PartitionFilterHintExtractor {
     ) {
         for (Expression conjunct : Predicates.splitAnd(expr)) {
             if (conjunct instanceof EsqlBinaryComparison comparison) {
-                extractResolvedFromComparison(comparison, hints, requestedMetadata);
+                extractResolvedFromComparison(comparison, hints, requestedMetadata, partitionKeys);
             } else if (conjunct instanceof In in) {
-                extractResolvedFromIn(in, hints, requestedMetadata);
+                extractResolvedFromIn(in, hints, requestedMetadata, partitionKeys);
             } else if (conjunct instanceof StartsWith startsWith) {
                 extractResolvedPrefix(startsWith.str(), startsWith.prefix(), hints, requestedMetadata, partitionKeys);
             } else if (conjunct instanceof WildcardLike like
@@ -313,7 +314,8 @@ public final class PartitionFilterHintExtractor {
     private static void extractResolvedFromComparison(
         EsqlBinaryComparison comparison,
         List<PartitionFilterHint> hints,
-        Set<String> requestedMetadata
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys
     ) {
         Expression left = comparison.left();
         Expression right = comparison.right();
@@ -334,7 +336,7 @@ public final class PartitionFilterHintExtractor {
         if (columnName == null || literalValue == null) {
             return;
         }
-        if (isUnrequestedFileMetadata(columnName, requestedMetadata)) {
+        if (isPrefixHintColumn(columnName, requestedMetadata, partitionKeys) == false) {
             return;
         }
 
@@ -344,9 +346,14 @@ public final class PartitionFilterHintExtractor {
         }
     }
 
-    private static void extractResolvedFromIn(In in, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
+    private static void extractResolvedFromIn(
+        In in,
+        List<PartitionFilterHint> hints,
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys
+    ) {
         String columnName = resolvedColumnName(in.value());
-        if (columnName == null || isUnrequestedFileMetadata(columnName, requestedMetadata)) {
+        if (columnName == null || isPrefixHintColumn(columnName, requestedMetadata, partitionKeys) == false) {
             return;
         }
 

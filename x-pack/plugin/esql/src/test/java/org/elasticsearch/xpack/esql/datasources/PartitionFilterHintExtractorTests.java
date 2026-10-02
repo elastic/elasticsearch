@@ -633,6 +633,24 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2024))), hints);
     }
 
+    public void testResolvedEqualsOnDataColumnEmitsNothing() {
+        Expression filter = new Equals(SRC, intField("id"), intLiteral(123));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedInOnDataColumnEmitsNothing() {
+        Expression filter = new In(SRC, intField("id"), List.of(intLiteral(1), intLiteral(2)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedGreaterThanOnRequestedFileModifiedEmitsHint() {
+        Expression filter = new GreaterThan(SRC, fileMeta(FileMetadataColumns.MODIFIED), datetimeLiteral(1L));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.MODIFIED, Operator.GREATER_THAN, List.of(1L))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.MODIFIED), Set.of())
+        );
+    }
+
     public void testUnresolvedEqualsIsEmptyOnResolvedFromConjuncts() {
         assertTrue(
             PartitionFilterHintExtractor.fromConjuncts(

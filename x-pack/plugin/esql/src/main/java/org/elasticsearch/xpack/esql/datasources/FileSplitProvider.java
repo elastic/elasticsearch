@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -1212,6 +1213,7 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata = new IdentityHashMap<>();
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
             Map<String, Object> frozen;
@@ -1246,7 +1248,7 @@ public class FileSplitProvider implements SplitProvider {
                     Map<String, Object> filterValues = copyFilterValues
                         ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
                         : listingValues;
-                    if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
+                    if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints, regexAutomata) == false) {
                         certifiedSkips++;
                         continue;
                     }
@@ -4041,8 +4043,16 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {
+        return matchesPartitionFilters(partitionValues, filters, new IdentityHashMap<>());
+    }
+
+    static boolean matchesPartitionFilters(
+        Map<String, Object> partitionValues,
+        List<Expression> filters,
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
+    ) {
         for (Expression filter : filters) {
-            Boolean result = evaluateFilter(filter, partitionValues);
+            Boolean result = evaluateFilter(filter, partitionValues, regexAutomata);
             if (result != null && result == false) {
                 return false;
             }
@@ -4051,6 +4061,14 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     static Boolean evaluateFilter(Expression filter, Map<String, Object> partitionValues) {
+        return evaluateFilter(filter, partitionValues, new IdentityHashMap<>());
+    }
+
+    private static Boolean evaluateFilter(
+        Expression filter,
+        Map<String, Object> partitionValues,
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
+    ) {
         return switch (filter) {
             case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
             case NotEquals neq -> {
@@ -4148,12 +4166,32 @@ public class FileSplitProvider implements SplitProvider {
                 partitionValues,
                 (v, b) -> below(v, b, onTheBound(mvLess.options(), false))
             );
-            case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
-            case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
-            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
+            case And and -> nullableAnd(
+                evaluateFilter(and.left(), partitionValues, regexAutomata),
+                evaluateFilter(and.right(), partitionValues, regexAutomata)
+            );
+            case Or or -> nullableOr(
+                evaluateFilter(or.left(), partitionValues, regexAutomata),
+                evaluateFilter(or.right(), partitionValues, regexAutomata)
+            );
+            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues, regexAutomata));
             case StartsWith startsWith -> evaluateStartsWith(startsWith, partitionValues);
-            case WildcardLike like -> evaluateRegexMatch(like.field(), like.pattern(), like.caseInsensitive(), partitionValues);
-            case RLike rlike -> evaluateRegexMatch(rlike.field(), rlike.pattern(), rlike.caseInsensitive(), partitionValues);
+            case WildcardLike like -> evaluateRegexMatch(
+                like,
+                like.field(),
+                like.pattern(),
+                like.caseInsensitive(),
+                partitionValues,
+                regexAutomata
+            );
+            case RLike rlike -> evaluateRegexMatch(
+                rlike,
+                rlike.field(),
+                rlike.pattern(),
+                rlike.caseInsensitive(),
+                partitionValues,
+                regexAutomata
+            );
             default -> null;
         };
     }
@@ -4344,14 +4382,18 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Exact LIKE / RLIKE match on a listing value via {@link AutomataMatch#matches}. A missing key,
-     * a non-string value, or an automaton too complex to determinize is unknown.
+     * Exact LIKE / RLIKE match on a listing value via {@link AutomataMatch}. Compiles the automaton
+     * once per expression identity in {@code regexAutomata} so a 10k-file listing does not
+     * determinize the same pattern 10k times. A missing key, a non-string value, or an automaton
+     * too complex to determinize is unknown.
      */
     private static Boolean evaluateRegexMatch(
+        Expression regexExpr,
         Expression field,
         AbstractStringPattern pattern,
         boolean caseInsensitive,
-        Map<String, Object> partitionValues
+        Map<String, Object> partitionValues,
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
     ) {
         String columnName = extractColumnName(field);
         if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -4361,7 +4403,17 @@ public class FileSplitProvider implements SplitProvider {
         if (value == null) {
             return null;
         }
-        return AutomataMatch.matches(value, pattern.createAutomaton(caseInsensitive));
+        ByteRunAutomaton run;
+        if (regexAutomata.containsKey(regexExpr)) {
+            run = regexAutomata.get(regexExpr);
+        } else {
+            run = AutomataMatch.compile(pattern.createAutomaton(caseInsensitive));
+            regexAutomata.put(regexExpr, run);
+        }
+        if (run == null) {
+            return null;
+        }
+        return AutomataMatch.matches(value, run);
     }
 
     /**

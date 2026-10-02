@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStringPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
@@ -62,6 +64,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -713,9 +719,12 @@ public class FileSplitProvider implements SplitProvider {
         }
         StoragePath storagePath = StoragePath.of(pattern);
         try {
+            PartitionMetadata partitionInfo = context.partitionInfo();
+            Set<String> partitionKeys = partitionInfo == null ? Set.of() : partitionInfo.partitionColumns().keySet();
             List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
                 context.filterHints(),
-                context.metadataColumnNames()
+                context.metadataColumnNames(),
+                partitionKeys
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
@@ -3940,7 +3949,8 @@ public class FileSplitProvider implements SplitProvider {
      * column absent from the file and evaluates to UNKNOWN (which becomes FALSE in WHERE context).
      * <p>
      * Only simple leaf predicates are checked: comparisons ({@code =, !=, <, >, <=, >=}),
-     * {@link In}, and {@link IsNotNull}. These all evaluate to UNKNOWN/FALSE for a missing column.
+     * {@link In}, {@link IsNotNull}, {@link StartsWith}, {@link WildcardLike}, and {@link RLike}.
+     * These all evaluate to UNKNOWN/FALSE for a missing column.
      * {@link IsNull} on a missing column evaluates to TRUE (all rows match), so it does NOT
      * trigger a skip.
      * <p>
@@ -4017,6 +4027,15 @@ public class FileSplitProvider implements SplitProvider {
         }
         if (expr instanceof MvCompare mvCompare) {
             return isNonNullLiteral(mvCompare.bound()) ? extractColumnName(mvCompare.field()) : null;
+        }
+        if (expr instanceof StartsWith startsWith) {
+            return extractColumnName(startsWith.str());
+        }
+        if (expr instanceof WildcardLike like) {
+            return extractColumnName(like.field());
+        }
+        if (expr instanceof RLike rlike) {
+            return extractColumnName(rlike.field());
         }
         return null;
     }
@@ -4132,6 +4151,9 @@ public class FileSplitProvider implements SplitProvider {
             case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
             case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
+            case StartsWith startsWith -> evaluateStartsWith(startsWith, partitionValues);
+            case WildcardLike like -> evaluateRegexMatch(like.field(), like.pattern(), like.caseInsensitive(), partitionValues);
+            case RLike rlike -> evaluateRegexMatch(rlike.field(), rlike.pattern(), rlike.caseInsensitive(), partitionValues);
             default -> null;
         };
     }
@@ -4301,6 +4323,60 @@ public class FileSplitProvider implements SplitProvider {
             case Literal lit -> lit.value();
             default -> null;
         };
+    }
+
+    /**
+     * Exact prefix match on a listing value. Missing key or a non-string value is unknown — the file
+     * is kept. Never rewritten to a GTE/LT range here; that conversion is a listing-hint superset only.
+     */
+    private static Boolean evaluateStartsWith(StartsWith startsWith, Map<String, Object> partitionValues) {
+        String columnName = extractColumnName(startsWith.str());
+        Object literalValue = extractLiteralValue(startsWith.prefix());
+        if (columnName == null || literalValue == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        BytesRef value = bytesOf(partitionValues.get(columnName));
+        BytesRef prefix = bytesOf(literalValue);
+        if (value == null || prefix == null) {
+            return null;
+        }
+        return ByteMatchers.startsWith(value, prefix);
+    }
+
+    /**
+     * Exact LIKE / RLIKE match on a listing value via {@link AutomataMatch#matches}. A missing key,
+     * a non-string value, or an automaton too complex to determinize is unknown.
+     */
+    private static Boolean evaluateRegexMatch(
+        Expression field,
+        AbstractStringPattern pattern,
+        boolean caseInsensitive,
+        Map<String, Object> partitionValues
+    ) {
+        String columnName = extractColumnName(field);
+        if (columnName == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        BytesRef value = bytesOf(partitionValues.get(columnName));
+        if (value == null) {
+            return null;
+        }
+        return AutomataMatch.matches(value, pattern.createAutomaton(caseInsensitive));
+    }
+
+    /**
+     * Listing values for {@code _file.name}/{@code path}/{@code directory} are {@link BytesRef};
+     * Hive string partitions are {@link String}. Anything else cannot be a string match.
+     */
+    @Nullable
+    private static BytesRef bytesOf(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return bytesRef;
+        }
+        if (value instanceof String string) {
+            return new BytesRef(string);
+        }
+        return null;
     }
 
 }

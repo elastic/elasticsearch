@@ -18,6 +18,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -42,6 +43,27 @@ public class AutomataMatch {
 
         ByteRunAutomaton run = new ByteRunAutomaton(automaton, true);
         return new AutomataMatchEvaluator.Factory(source, field, run, toDot(automaton));
+    }
+
+    /**
+     * Whether {@code input} is accepted by {@code utf32Automaton} after converting that automaton
+     * to UTF-8. {@code null} when the automaton is too complex to determinize — callers must treat
+     * that as unknown rather than a miss, so a file is kept rather than skipped unread.
+     */
+    @Nullable
+    public static Boolean matches(BytesRef input, Automaton utf32Automaton) {
+        if (input == null) {
+            return false;
+        }
+        try {
+            Automaton automaton = Operations.determinize(
+                new UTF32ToUTF8().convert(utf32Automaton),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            );
+            return new ByteRunAutomaton(automaton, true).run(input.bytes, input.offset, input.length);
+        } catch (TooComplexToDeterminizeException e) {
+            return null;
+        }
     }
 
     @Evaluator

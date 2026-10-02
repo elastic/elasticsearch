@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -1894,7 +1895,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             )
         );
         assertOpenFailurePreserved(new IOException("Object not found: s3://bucket/key"));
-        assertOpenFailurePreserved(new ExternalClientException("Access denied reading [s3://bucket/key]"));
+        assertOpenFailurePreserved(ExternalFailures.rowError(null, "Access denied reading [s3://bucket/key]"));
     }
 
     private void assertOpenFailurePreserved(Exception failure) throws Exception {

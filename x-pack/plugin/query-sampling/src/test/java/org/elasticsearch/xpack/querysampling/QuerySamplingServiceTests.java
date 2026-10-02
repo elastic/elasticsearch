@@ -93,7 +93,7 @@ public class QuerySamplingServiceTests extends ESTestCase {
     }
 
     private CaptureHandoff handoff(Executor executor, Random random) {
-        return new CaptureHandoff(executor, new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), buffer));
+        return new CaptureHandoff(executor, new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(buffer)));
     }
 
     private QuerySamplingService service(QueryCaptureFilter filter, CaptureHandoff handoff) {

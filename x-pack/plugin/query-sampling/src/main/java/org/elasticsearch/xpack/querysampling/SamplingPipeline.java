@@ -14,15 +14,16 @@ import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
-import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
  * Everything that happens to a captured search after it left the search thread: it is recognised if it was
- * seen before, the sampler decides whether it joins the sample, and if so it is stored. Must only be
- * driven from one thread at a time.
+ * seen before, the sampler decides whether it joins the sample, and if so the listeners are told. Must
+ * only be driven from one thread at a time.
  */
 public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
@@ -30,12 +31,12 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     private final MultiplicityTracker tracker;
     private final QuerySampler sampler;
-    private final Tier1Buffer buffer;
+    private final List<SampleListener> listeners;
 
-    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, Tier1Buffer buffer) {
+    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners) {
         this.tracker = tracker;
         this.sampler = sampler;
-        this.buffer = buffer;
+        this.listeners = List.copyOf(listeners);
     }
 
     @Override
@@ -43,8 +44,13 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint);
         if (tracked != null && sampler.offer(tracked)) {
-            if (buffer.add(new SampledQuery(fingerprint, captured, tracked)) == false) {
-                logger.debug("tier 1 buffer is full, dropping sampled kNN search on field [{}]", captured.query().field());
+            SampledQuery sampled = new SampledQuery(fingerprint, captured, tracked);
+            for (SampleListener listener : listeners) {
+                try {
+                    listener.onSampled(sampled);
+                } catch (Exception e) {
+                    logger.debug("a sample listener failed", e);
+                }
             }
         }
     }

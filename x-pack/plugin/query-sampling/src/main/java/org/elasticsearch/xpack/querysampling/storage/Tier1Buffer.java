@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.querysampling.storage;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 
 import java.util.List;
 import java.util.Map;
@@ -23,7 +26,9 @@ import java.util.concurrent.atomic.LongAdder;
  * probability is overstated; the acceptance regulation planned for the sampler is meant to keep the buffer
  * from filling up, which keeps that error small.
  */
-public final class Tier1Buffer {
+public final class Tier1Buffer implements SampleListener {
+
+    private static final Logger logger = LogManager.getLogger(Tier1Buffer.class);
 
     private final int capacity;
     private final Map<QueryFingerprint, SampledQuery> queries = new ConcurrentHashMap<>();
@@ -31,6 +36,13 @@ public final class Tier1Buffer {
 
     public Tier1Buffer(int capacity) {
         this.capacity = capacity;
+    }
+
+    @Override
+    public void onSampled(SampledQuery query) {
+        if (add(query) == false) {
+            logger.debug("tier 1 buffer is full, dropping sampled kNN search on field [{}]", query.search().query().field());
+        }
     }
 
     /**

@@ -85,7 +85,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin {
         SamplingPipeline pipeline = new SamplingPipeline(
             tracker,
             new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),
-            buffer
+            List.of(buffer)
         );
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff);

@@ -12,12 +12,15 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SamplingPipelineTests extends ESTestCase {
 
@@ -80,7 +83,7 @@ public class SamplingPipelineTests extends ESTestCase {
             public double nextDouble() {
                 return 0.0;
             }
-        }), smallBuffer);
+        }), List.of(smallBuffer));
 
         for (int i = 0; i < 5; i++) {
             pipeline.accept(search(new float[] { i }));
@@ -91,8 +94,25 @@ public class SamplingPipelineTests extends ESTestCase {
         assertThat(tracker.distinct(), equalTo(5));
     }
 
+    public void testEveryListenerIsToldAndAFailingOneDoesNotStopTheOthers() {
+        List<SampledQuery> first = new ArrayList<>();
+        List<SampledQuery> last = new ArrayList<>();
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0;
+            }
+        }), List.of(first::add, query -> { throw new IllegalStateException("listener failed"); }, last::add));
+
+        pipeline.accept(search(new float[] { 1f }));
+
+        assertThat(first.size(), equalTo(1));
+        assertThat(last.size(), equalTo(1));
+        assertThat(last.get(0), sameInstance(first.get(0)));
+    }
+
     private SamplingPipeline pipeline(Random random) {
-        return new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), buffer);
+        return new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(buffer));
     }
 
     private static CapturedSearch search(float[] vector) {

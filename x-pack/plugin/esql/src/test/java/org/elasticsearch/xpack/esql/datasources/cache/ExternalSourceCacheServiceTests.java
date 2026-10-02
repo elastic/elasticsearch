@@ -175,7 +175,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         ExecutorService exec = Executors.newFixedThreadPool(10);
         try {
             AtomicInteger loaderCalls = new AtomicInteger();
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
             int threadCount = 10;
             CountDownLatch entered = new CountDownLatch(threadCount);
             CountDownLatch release = new CountDownLatch(1);
@@ -216,8 +216,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             AtomicInteger listingLoads = new AtomicInteger();
             AtomicInteger metadataLoads = new AtomicInteger();
-            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), "");
-            FileMetadataCacheKey metadataKey = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
+            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey metadataKey = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
 
             service.getOrComputeListing(listingKey, k -> {
                 listingLoads.incrementAndGet();

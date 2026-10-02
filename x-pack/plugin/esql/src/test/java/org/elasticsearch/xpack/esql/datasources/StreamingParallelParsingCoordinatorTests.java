@@ -1922,6 +1922,32 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code tryAdvance} must throw the opener failure even after {@code close()}. Closed-first
+     * used to return null and the AESOF drain treated that as EOF, swallowing 403/404 on cancel.
+     */
+    public void testTryAdvanceSurfacesOpenFailureAfterClose() throws Exception {
+        IOException failure = new IOException("Access denied reading [s3://bucket/key] (403)");
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = openerRead(() -> { throw failure; }, pool);
+            assertBusy(() -> {
+                Exception thrown = expectThrows(Exception.class, () -> {
+                    Page page = it.tryAdvance();
+                    if (page != null) {
+                        page.releaseBlocks();
+                    }
+                });
+                assertSame(failure, thrown);
+            });
+            it.close();
+            Exception afterClose = expectThrows(Exception.class, it::tryAdvance);
+            assertSame(failure, afterClose);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     private static CloseableIterator<Page> openerRead(StreamingParallelParsingCoordinator.StreamOpener opener, Executor executor)
         throws IOException {
         return openerRead(opener, executor, StreamingSegmentatorAdmission.unbounded());

@@ -683,7 +683,9 @@ public final class StreamingParallelParsingCoordinator {
                         stream = Objects.requireNonNull(this.opener.open(), "opener");
                     } catch (Throwable t) {
                         openFailure.compareAndSet(null, t);
-                        signalReady();
+                        // Do not signalReady here: finally decrements tasksOutstanding and signals
+                        // when it hits 0. Signaling now would wake the consumer into close() before
+                        // that decrement, burning a 50ms poll for a task microseconds from exit.
                         return;
                     }
                     this.decompressedStream = stream;
@@ -1441,7 +1443,11 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public Page tryAdvance() {
+            // Errors first: a concurrent close must not hide opener 403/404 as silent EOF.
+            // Production drain (AESOF) uses tryAdvance; hasNext still short-circuits on closed.
+            checkError();
             if (closed.get()) {
+                checkError();
                 return null;
             }
             if (buffered != null) {
@@ -1449,7 +1455,6 @@ public final class StreamingParallelParsingCoordinator {
                 buffered = null;
                 return result;
             }
-            checkError();
             skipDrainedPoison();
             if (currentChunk >= chunksDispatched.get()) {
                 return null;

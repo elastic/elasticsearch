@@ -539,10 +539,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     /**
      * Seeds the prefetch queue at construction time so that the first {@link #advanceRowGroup()}
-     * call finds ready data instead of falling through to synchronous I/O.
+     * call finds ready data instead of falling through to synchronous I/O. Storage without
+     * {@link StorageObject#supportsNativeAsync()} stays on that sync path.
      */
     private void prefetchFirstRowGroup() {
-        if (storageObject == null) {
+        if (storageObject == null || storageObject.supportsNativeAsync() == false) {
             return;
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
@@ -577,6 +578,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     private void fillPrefetchQueue(int fromOrdinal, boolean firstGroupMayBlock) {
+        if (storageObject == null || storageObject.supportsNativeAsync() == false) {
+            return;
+        }
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         // Under two-phase, the queued (Phase 1) prefetch only covers predicate columns; the
         // projection columns are fetched synchronously in advanceRowGroup once the survivor mask

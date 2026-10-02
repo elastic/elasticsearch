@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.smoketest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -16,7 +17,7 @@ import org.junit.ClassRule;
  * Runs the YAML rest tests against an external cluster
  */
 public class WatcherYamlRestIT extends WatcherYamlSuiteTestCase {
-    public WatcherYamlRestIT(ClientYamlTestCandidate testCandidate) {
+    public WatcherYamlRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

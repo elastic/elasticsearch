@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -279,6 +279,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private volatile SharedMinCompetitive.Supplier minCompetitiveSupplier;
     @Nullable
     private volatile String thresholdColumnName;
+    /**
+     * Pre-formatted dataset label set by the planner after factory construction, e.g.
+     * {@code "in dataset [tmax] from data source [noaa] (s3)"}. {@code null} for inline
+     * {@code EXTERNAL} and tests that do not wire it. Passed to each operator in
+     * {@link #get(DriverContext)} so classified failures carry the dataset context.
+     */
+    @Nullable
+    private volatile String datasetLabel;
     @Nullable
     private volatile ElementType thresholdElementType;
     private volatile boolean thresholdAscending;
@@ -821,6 +829,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         closeDynamicThreshold();
     }
 
+    /**
+     * Assembles and sets the dataset label from its components. Delegates to
+     * {@link ExternalException#buildDatasetLabel(String, String, String)} for the label format.
+     * Must be called during planning, before the first {@link #get(DriverContext)} call.
+     */
+    public void setDatasetContext(String datasetName, String datasourceName, String datasourceType) {
+        this.datasetLabel = ExternalException.buildDatasetLabel(datasetName, datasourceName, datasourceType);
+    }
+
+    @Override
+    public String datasetLabel() {
+        return datasetLabel;
+    }
+
     @Override
     public SourceOperator get(DriverContext driverContext) {
         // Producer hold: released by existing {@link #releaseOperator} sites when this instance's
@@ -895,7 +917,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 externalSourceMetrics,
                 scheme,
                 formatName,
-                operatorHold
+                operatorHold,
+                datasetLabel
             );
             succeeded = true;
             return operator;
@@ -1661,11 +1684,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Single-step producer loop, split across two pools so the parser workers and the consumer that drains their
      * pages never contend for the same threads. When no unit is open it opens the next one on the read/parse
      * executor ({@code esql_external_io}) — that phase does the blocking {@code length()}/{@code computeSegments}
-     * probes and dispatches the segment parser workers, all of which belong on the I/O pool — then hands off to the
-     * (non-blocking) drain on the consumer executor ({@code esql_worker}). When a unit is already open it drains
-     * directly on the consumer executor. Keeping the blocking open off the consumer pool and the drain off the
-     * parser pool is what breaks the multi-file parallel-parse stall: a full I/O pool of blocked parser workers can
-     * no longer starve the drain that must consume their pages.
+     * probes, and for uncompressed splits dispatches parser workers, all of which belong on the I/O pool.
+     * Streaming iterators only admit a segmentator here; {@code newStream()} and parsers start later.
+     * Then hands off to the (non-blocking) drain on the consumer executor ({@code esql_worker}). When a unit is
+     * already open it drains directly on the consumer executor. Keeping the blocking open off the consumer pool
+     * and the drain off the parser pool is what breaks the multi-file parallel-parse stall: a full I/O pool of
+     * blocked parser workers can no longer starve the drain that must consume their pages.
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
         if (state.pages == null) {
@@ -1677,7 +1701,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Open phase (runs on the read/parse executor). Advances to the next unit — blocking {@code length()} /
-     * {@code computeSegments} probes plus parser-worker dispatch — then resumes the drain on the consumer executor.
+     * {@code computeSegments} probes. Uncompressed splits also dispatch parser workers here; streaming
+     * paths only admit a segmentator ({@code newStream()} and parsers start later). Then resumes the
+     * drain on the consumer executor.
      * A {@code false} return from {@link #advanceToNextUnit} means the producer is exhausted (terminal success).
      */
     private void openUnitThenDrain(ProducerState state, ActionListener<Void> completionListener) {
@@ -1694,8 +1720,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     l.onResponse(null);
                     return;
                 }
-                // Unit opened (iterator built, parser workers dispatched on this pool); drain it on the consumer
-                // pool so the parser workers cannot starve their own consumer.
+                // Unit opened (iterator built, segmentator admitted — not necessarily running yet). Drain
+                // on the consumer pool so later parser tasks cannot starve their own consumer.
                 try {
                     producerExecutor.execute(() -> drainCurrentUnit(state, l));
                 } catch (Exception e) {
@@ -2006,10 +2032,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
 
         CloseableIterator<Page> pages = null;
-        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(
-            errorPolicy,
-            ExternalFailures.redactHttpUrl(fileSplit.path().toString())
-        );
+        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(errorPolicy, fileSplit.path().objectName());
         // true on text-reader path: reader owns its parse-error budget separately; adapter must own rowCount
         // so max_error_ratio applies to reconciliation-cast drops (parse-error drops stay in reader's budget).
         boolean adapterOwnsRowCount = false;
@@ -2323,7 +2346,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 ),
                 filePath.objectName()
             );
-            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, ExternalFailures.redactHttpUrl(filePath.toString()));
+            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, filePath.objectName());
             pages = openWithParallelism(
                 fileReader,
                 obj,
@@ -2882,37 +2905,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             + recordAlignedMacroSplit
                     );
                 }
-                InputStream raw = obj.newStream();
-                try {
-                    return StreamingParallelParsingCoordinator.parallelRead(
-                        seg,
-                        raw,
-                        obj,
-                        cols,
-                        batchSize,
-                        parsingParallelism,
-                        executor,
-                        policy,
-                        perFileReadSchema,
-                        baseFileOffset,
-                        maxRecordBytes,
-                        captureSink,
-                        statsStripeSize,
-                        statsColumnScope,
-                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
-                        streamingSegmentatorAdmission,
-                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
-                        readCounters,
-                        formatCounters
-                    );
-                } catch (Exception e) {
-                    try {
-                        obj.abortStream(raw);
-                    } catch (IOException abortEx) {
-                        e.addSuppressed(abortEx);
-                    }
-                    throw e;
-                }
+                return StreamingParallelParsingCoordinator.parallelRead(
+                    seg,
+                    obj::newStream,
+                    obj,
+                    cols,
+                    batchSize,
+                    parsingParallelism,
+                    executor,
+                    policy,
+                    perFileReadSchema,
+                    baseFileOffset,
+                    maxRecordBytes,
+                    captureSink,
+                    statsStripeSize,
+                    statsColumnScope,
+                    new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
+                    streamingSegmentatorAdmission,
+                    producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
+                    readCounters,
+                    formatCounters
+                );
             }
             case STREAM_ONLY_COMPRESSED -> {
                 // No open-segment cap here, unlike SEGMENTABLE_UNCOMPRESSED: a compressed file is read as a
@@ -2930,47 +2943,38 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // native handle (e.g. the PanamaZstdInputStream Arena) and the raw connection without
                 // draining it. DecompressingStorageObject.newStream() wraps raw in UncloseableInputStream
                 // before handing it to the codec, so the decompressor's close() never cascades into a
-                // draining raw.close(). On a parallelRead failure abortStream() closes the decompressor
-                // first (releasing the Arena) then aborts raw through the provider's abort path (S3
-                // ResponseInputStream.abort()), keeping both codecs with and without JDK Cleaner support
-                // on equal footing and matching the abort-chain contract tested in StorageObjectAbortChainTests.
+                // draining raw.close(). On a segmentator-side open failure abortStream() closes the
+                // decompressor first (releasing the Arena) then aborts raw through the provider's abort
+                // path (S3 ResponseInputStream.abort()), matching the abort-chain contract tested in
+                // StorageObjectAbortChainTests. newStream() itself runs inside the admitted segmentator
+                // so this thread returns without holding a storage permit.
                 DecompressingStorageObject decompressing = new DecompressingStorageObject(
                     obj,
                     codec,
                     streamingBreaker,
                     cdr.maxDecompressionRatio()
                 );
-                InputStream stream = decompressing.newStream();
-                try {
-                    return StreamingParallelParsingCoordinator.parallelRead(
-                        seg,
-                        stream,
-                        decompressing,
-                        cols,
-                        batchSize,
-                        parsingParallelism,
-                        executor,
-                        policy,
-                        perFileReadSchema,
-                        baseFileOffset,
-                        maxRecordBytes,
-                        captureSink,
-                        statsStripeSize,
-                        statsColumnScope,
-                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
-                        streamingSegmentatorAdmission,
-                        streamingBreaker,
-                        readCounters,
-                        formatCounters
-                    );
-                } catch (Exception e) {
-                    try {
-                        decompressing.abortStream(stream);
-                    } catch (IOException abortEx) {
-                        e.addSuppressed(abortEx);
-                    }
-                    throw e;
-                }
+                return StreamingParallelParsingCoordinator.parallelRead(
+                    seg,
+                    decompressing::newStream,
+                    decompressing,
+                    cols,
+                    batchSize,
+                    parsingParallelism,
+                    executor,
+                    policy,
+                    perFileReadSchema,
+                    baseFileOffset,
+                    maxRecordBytes,
+                    captureSink,
+                    statsStripeSize,
+                    statsColumnScope,
+                    new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
+                    streamingSegmentatorAdmission,
+                    streamingBreaker,
+                    readCounters,
+                    formatCounters
+                );
             }
             case SPLITTABLE_OR_INDEXED_COMPRESSED -> {
                 // Splittable / indexed codecs (e.g. bzip2) need codec-aware segmenting because
@@ -3039,7 +3043,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             + ", mode="
             + asyncMode
             + ", path="
-            + path
+            + path.objectName()
             + ", batchSize="
             + batchSize
             + ", maxBufferBytes="

@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[MVLESS(kw{r}#0,c[KEYWORD],MapExpression[[include_bound[KEYWORD], true[BOOLEAN]]]) AND MVINRANGE(i{r}#1,-2147483648[INTEGER],9[INTEGER]) AND MVINRANGE(l{r}#2,-9223372036854775808[LONG],9[LONG]) AND MVLESS(d{r}#3,2.5[DOUBLE],MapExpression[[include_bound[KEYWORD], true[BOOLEAN]]]) AND MVLESS(dt{r}#4,1578095999999[DATETIME],MapExpression[[include_bound[KEYWORD], true[BOOLEAN]]]) AND MVLESS(dn{r}#5,1578095999999999999[DATE_NANOS],MapExpression[[include_bound[KEYWORD], true[BOOLEAN]]])]
+  \_ExternalRelation[s3://bucket/every_type.parquet][parquet][kw{r}#0, txt{r}#6, i{r}#1, l{r}#2, d{r}#3, b{r}#7, dt{r}#4, dn{r}#5, ul{r}#8, ip{r}#9, v{r}#10]

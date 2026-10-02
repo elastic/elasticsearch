@@ -29,6 +29,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Notices raised while <em>resolving</em> an external source (as opposed to while reading it) must reach the client.
@@ -59,7 +60,7 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         String dataset = registerDataset("null_marker_hint", StoragePath.fileUri(dir.resolve("a.csv")), Map.of("mode", "plain"));
         String query = "FROM " + dataset + " | SORT id | KEEP note";
 
-        String hint = "null marker, but the current mode keeps it as literal text";
+        String hint = "is read as text; set [mode] to [escaped] to read it as null";
         assertThat("cold resolve", warningsOf(query), hasItem(containsString(hint)));
         assertThat("cached resolve", warningsOf(query), hasItem(containsString(hint)));
     }
@@ -74,7 +75,7 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
             Map.of("mode", "escaped", "quote", "\"")
         );
 
-        assertThat(warningsOf("FROM " + dataset + " | KEEP note"), hasItem(containsString("disables the escaped-mode decode")));
+        assertThat(warningsOf("FROM " + dataset + " | KEEP note"), hasItem(containsString("turns off the [escaped] mode")));
     }
 
     /**
@@ -95,7 +96,7 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         );
         String glob = registerStrictDataset("escaped_quote_strict_glob", StoragePath.fileUri(dir) + "/*.csv", idAndNote(), settings);
 
-        String notice = "disables the escaped-mode decode";
+        String notice = "turns off the [escaped] mode";
         for (String dataset : List.of(single, glob)) {
             String query = "FROM " + dataset + " | KEEP note";
             assertThat(dataset + " cold", warningsOf(query), hasItem(containsString(notice)));
@@ -110,7 +111,8 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         return columns;
     }
 
-    public void testFileExclusionWarningReachesClient() throws Exception {
+    /** A {@code file_exclusions} drop from a listing with files is logged on the node, not added to the response. */
+    public void testFileExclusionIsNotAResponseWarning() throws Exception {
         Path dir = createTempDir().resolve("exclusion");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("a.csv"), "id,note\n1,x\n", StandardCharsets.UTF_8);
@@ -118,17 +120,14 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         // The bare glob has no extension to infer the format from, so name it; a Spark _SUCCESS marker never has one either.
         String dataset = registerDataset("exclusion", StoragePath.fileUri(dir) + "/*", Map.of("format", "csv"));
 
-        assertThat(
-            warningsOf("FROM " + dataset + " | KEEP note"),
-            hasItem(containsString("was excluded by the [file_exclusions] dataset setting"))
-        );
+        assertThat(warningsOf("FROM " + dataset + " | KEEP note"), not(hasItem(containsString("[file_exclusions]"))));
     }
 
     /**
-     * {@code first_file_wins} resolves through the listing cache, so the second run must replay the notice that the
-     * cached expansion raised, exactly as the first did.
+     * {@code first_file_wins} resolves through the listing cache, so the second run reads the cached expansion; neither
+     * run adds the exclusion to the response.
      */
-    public void testFileExclusionWarnsOnColdAndCachedListing() throws Exception {
+    public void testFileExclusionIsNotAResponseWarningOnColdOrCachedListing() throws Exception {
         Path dir = createTempDir().resolve("exclusion_cached");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("a.csv"), "id,note\n1,x\n", StandardCharsets.UTF_8);
@@ -140,9 +139,8 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         );
         String query = "FROM " + dataset + " | KEEP note";
 
-        String notice = "was excluded by the [file_exclusions] dataset setting";
-        assertThat("cold listing", warningsOf(query), hasItem(containsString(notice)));
-        assertThat("cached listing", warningsOf(query), hasItem(containsString(notice)));
+        assertThat("cold listing", warningsOf(query), not(hasItem(containsString("[file_exclusions]"))));
+        assertThat("cached listing", warningsOf(query), not(hasItem(containsString("[file_exclusions]"))));
     }
 
     public void testReservedPartitionNameRenameWarningReachesClient() throws Exception {
@@ -154,7 +152,7 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         String dataset = registerDataset("reserved_partition", glob, Map.of("hive_partitioning", true));
         String query = "FROM " + dataset + " | KEEP note";
 
-        String notice = "partition column [_index] surfaced as [_partition._index]";
+        String notice = "partition key [_index] is named [_partition._index]";
         assertThat("cold listing", warningsOf(query), hasItem(containsString(notice)));
         assertThat("cached listing", warningsOf(query), hasItem(containsString(notice)));
     }
@@ -172,9 +170,22 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
 
         String query = "FROM " + dataset + " | SORT id | KEEP col";
 
-        String notice = "widened columns to keyword";
+        String notice = "are read as [keyword]";
         assertThat("cold resolve", warningsOf(query), hasItem(containsString(notice)));
         assertThat("cached resolve", warningsOf(query), hasItem(containsString(notice)));
+    }
+
+    public void testMetadataShadowWarningReachesClient() throws Exception {
+        Path dir = createTempDir().resolve("metadata_shadow");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("a.csv"), "_id,emp_no\nrow-a,1\n", StandardCharsets.UTF_8);
+        String dataset = registerDataset("metadata_shadow", StoragePath.fileUri(dir.resolve("a.csv")), Map.of("format", "csv"));
+
+        String notice = "Column [_id] in dataset ["
+            + dataset
+            + "] is shadowed by METADATA; the METADATA value is used; rename it in the dataset mapping to read both";
+        assertThat(warningsOf("FROM " + dataset + " METADATA _id | KEEP emp_no"), hasItem(containsString(notice)));
+        assertThat(warningsOf("FROM " + dataset + " | KEEP emp_no"), not(hasItem(containsString("shadowed by METADATA"))));
     }
 
     /** Runs {@code query} over HTTP and returns the {@code Warning} header messages of the response. */

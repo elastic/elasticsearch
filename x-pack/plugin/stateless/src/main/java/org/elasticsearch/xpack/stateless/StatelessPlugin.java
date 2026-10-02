@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
@@ -91,15 +92,19 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.PostRecoveryMerger;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryGate;
+import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -483,7 +488,9 @@ public class StatelessPlugin extends Plugin
                 prewarmMaxThreads,
                 TimeValue.timeValueMinutes(5),
                 true,
-                PREWARM_THREAD_POOL_SETTING
+                PREWARM_THREAD_POOL_SETTING,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             ),
             new ScalingExecutorBuilder(
                 UPLOAD_PREWARM_THREAD_POOL,
@@ -798,7 +805,7 @@ public class StatelessPlugin extends Plugin
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
         final MeterRegistry meterRegistry = services.telemetryProvider().getMeterRegistry();
-        final var blobCacheMetrics = setAndGet(this.blobCacheMetrics, new BlobCacheMetrics(meterRegistry));
+        final var blobCacheMetrics = setAndGet(this.blobCacheMetrics, new BlobCacheMetrics(meterRegistry, threadPool));
 
         final Collection<Object> components = new ArrayList<>();
         var objectStoreService = setAndGet(
@@ -918,7 +925,7 @@ public class StatelessPlugin extends Plugin
         StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
-        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
+        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(settings, threadPool, meterRegistry));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
             objectStoreService,
@@ -992,7 +999,7 @@ public class StatelessPlugin extends Plugin
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
         // Memory metrics service for heap usage tracking
-        var memoryMetricsService = new StatelessMemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
+        var memoryMetricsService = new StatelessMemoryMetricsService(threadPool::relativeTimeInNanos, clusterService);
         clusterService.addListener(memoryMetricsService);
         this.statelessMemoryMetricsService.set(memoryMetricsService);
         components.add(memoryMetricsService);
@@ -1050,7 +1057,8 @@ public class StatelessPlugin extends Plugin
                 commitServiceProvider,
                 indexShardCacheWarmer,
                 hollowShardMetrics.get(),
-                services.client()
+                services.client(),
+                JvmInfo.jvmInfo().getMem().getHeapMax()
             )
         );
         components.add(primaryRelocationSourceService);
@@ -1377,6 +1385,7 @@ public class StatelessPlugin extends Plugin
             ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS,
             ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD,
             ObjectStoreService.CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING,
+            BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING,
             ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
             ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
@@ -1471,6 +1480,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
@@ -1524,7 +1534,16 @@ public class StatelessPlugin extends Plugin
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
             PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY,
-            StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING
+            StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING,
+            StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
+            PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
+            RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
+            RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
+            RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
+            RecoveryGateMonitor.RECHECK_INTERVAL_SETTING
         );
     }
 

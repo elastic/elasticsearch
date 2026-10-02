@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[salary{r}#0 > 1000[INTEGER]]
+  \_UnionAll[[emp_no{r}#1, salary{r}#0, dept{r}#2]]
+    |_Project[[emp_no{r}#3, salary{r}#4, dept{r}#5]]
+    | \_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#3, salary{r}#4, dept{r}#5]
+    \_Project[[emp_no{r}#6, salary{r}#7, dept{r}#8]]
+      \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#6, salary{r}#7, dept{r}#8]

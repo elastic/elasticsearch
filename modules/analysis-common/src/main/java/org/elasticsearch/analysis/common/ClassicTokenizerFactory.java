@@ -24,9 +24,12 @@ public class ClassicTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int maxTokenLength;
 
+    private final Object sharingKey;
+
     ClassicTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        this.sharingKey = new Key(maxTokenLength);
     }
 
     @Override
@@ -35,4 +38,11 @@ public class ClassicTokenizerFactory extends AbstractTokenizerFactory {
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int maxTokenLength) {}
 }

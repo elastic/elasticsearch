@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -37,20 +38,33 @@ final class FileListCompactor {
      * Compacts a raw file list into the smallest faithful representation available, or returns the
      * original list when compaction does not apply or overflows.
      * <p>
-     * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — not
-     * because it needs the partition values (it does not read them), but as a cost heuristic: that is
-     * the signal a layout has repeated directories worth grouping. {@link GlobExpander} attaches no
-     * partition metadata when hive partitioning is off, so such listings take the dictionary encoding
-     * directly.
+     * The directory-grouped encoding is only built when {@link PartitionMetadata} was detected — that is
+     * the cost heuristic for layouts with repeated directories worth grouping. Building that candidate also
+     * rewrites its partition metadata via {@link PartitionMetadata#shareByGroups(short[], int)} so identical
+     * Hive tuples are stored once per directory. Both encodings receive those shared rows when grouping
+     * succeeded; overflow ({@code groupedCandidate == null}) keeps the unshared metadata. {@link GlobExpander}
+     * attaches no partition metadata when hive partitioning is off, so such listings take the dictionary
+     * encoding directly.
      */
     static FileList compact(String basePath, GenericFileList raw) {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
             return raw;
         }
+        // Neither compacted encoding carries the truncation flag, so compacting would report a bounded listing as
+        // a complete one. Refused here rather than at the caller so a future caller cannot drop the flag. The
+        // cost: a listing bounded at a raised partition_sample_size is carried uncompacted through planning.
+        // Teaching the encodings to carry the flag would remove the trade-off.
+        if (raw.isTruncated()) {
+            return raw;
+        }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
         FileList groupedCandidate = pm != null && pm.isEmpty() == false ? tryDirectoryGrouped(normalizedBase, raw) : null;
-        FileList dictCandidate = tryDictionary(normalizedBase, raw);
+        // A grouped candidate already shared one row per directory. The dictionary list must carry those
+        // rows too, so a dictionary win still reports rowCount as the directory count. Overflow (null
+        // candidate) keeps the unshared metadata.
+        PartitionMetadata dictionaryMetadata = groupedCandidate == null ? pm : groupedCandidate.partitionMetadata();
+        FileList dictCandidate = tryDictionary(normalizedBase, raw, dictionaryMetadata);
         // Collect the listed keys once so both candidates verify against one array instead of walking the raw
         // entries again per candidate. These are stored strings; the reconstruction cost sits on the candidate
         // side. Skipped when neither encoding was built, since then there is nothing to verify.
@@ -216,6 +230,12 @@ final class FileListCompactor {
             }
         }
 
+        PartitionMetadata pm = raw.partitionMetadata();
+        if (pm != null && pm.isEmpty() == false) {
+            // One value row per directory group when that shrinks storage (Hive tuples are per-directory).
+            // compact() also hands this metadata to the dictionary candidate so both encodings share rows.
+            pm = pm.shareByGroups(fileGroups, numGroups);
+        }
         return new DirectoryGroupedFileList(
             normalizedBase,
             dirs.toArray(new String[0]),
@@ -226,7 +246,7 @@ final class FileListCompactor {
             leafNames,
             sharedExt,
             raw.originalPattern(),
-            raw.partitionMetadata(),
+            pm,
             count,
             raw.fileSetFingerprint(),
             raw.listingWarnings()
@@ -237,7 +257,7 @@ final class FileListCompactor {
     // Dictionary-encoded encoding
     // ------------------------------------------------------------------
 
-    private static FileList tryDictionary(String normalizedBase, GenericFileList raw) {
+    private static FileList tryDictionary(String normalizedBase, GenericFileList raw, @Nullable PartitionMetadata partitionMetadata) {
         List<StorageEntry> files = raw.files();
         int count = files.size();
         long[] sizes = new long[count];
@@ -345,7 +365,7 @@ final class FileListCompactor {
             mtimes,
             sharedExt,
             raw.originalPattern(),
-            raw.partitionMetadata(),
+            partitionMetadata,
             count,
             raw.fileSetFingerprint(),
             raw.listingWarnings()

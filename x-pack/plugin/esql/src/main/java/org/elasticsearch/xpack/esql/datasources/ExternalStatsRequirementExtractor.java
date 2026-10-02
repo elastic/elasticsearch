@@ -12,8 +12,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.HashSet;
@@ -38,12 +41,17 @@ import java.util.Set;
  * queries that do not consume the global stats (e.g. {@code LIMIT}, {@code SELECT *}, grouped
  * {@code STATS ... BY}, {@code INLINESTATS}).
  *
- * <h2>Deliberate safety bias</h2>
- * An ungrouped aggregate is matched <em>anywhere above</em> the relation, not only as its direct
- * parent. A false <em>negative</em> would turn a metadata-only {@code COUNT(*)} over a huge glob
- * into a full N-file scan (a severe regression); a false <em>positive</em> (e.g.
- * {@code ... | WHERE x > 5 | STATS COUNT(*)}, which usually will not actually skip split discovery)
- * only costs the over-read we already tolerate today. We bias toward eager for ungrouped aggregates.
+ * <h2>Blocking nodes between STATS and the relation</h2>
+ * Eager harvest only helps when skip-discovery can fire: ungrouped {@code STATS} whose walk down
+ * to the relation hits no {@link Filter}, {@link Limit}, or {@link Sample}. Those nodes already
+ * make {@code canSkipSplitDiscovery} false, so harvesting every footer in Phase 1 is wasted
+ * (hive/VPC {@code WHERE} especially). {@code KEEP}/{@code DROP}/{@code RENAME}/{@code Project}/
+ * {@code Eval} stay non-blocking ({@code PruneColumns} strips unused KEEP for {@code COUNT(*)}).
+ *
+ * <p>A node <em>above</em> the aggregate (e.g. {@code STATS COUNT(*) | LIMIT}) does not sit on the
+ * aggregate-to-relation path and does not block. Remaining risk is a false <em>negative</em>
+ * (defer when skip-discovery could still have fired); over-reading every file for Filter/Limit
+ * is no longer the bias.
  *
  * <h2>Per-path conservatism for mixed branches</h2>
  * The result is a {@link Set}: if the same path appears under an ungrouped aggregate in one branch
@@ -57,8 +65,9 @@ public final class ExternalStatsRequirementExtractor {
 
     /**
      * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} that has an
-     * <b>ungrouped</b> {@link Aggregate} ancestor. The path-key derivation is identical to
-     * {@code PreAnalyzer} and {@code EsqlSession#extractExternalConfigs}
+     * <b>ungrouped</b> {@link Aggregate} ancestor with no {@link Filter}, {@link Limit}, or
+     * {@link Sample} on the walk from that aggregate down to the relation. The path-key derivation
+     * is identical to {@code PreAnalyzer} and {@code EsqlSession#extractExternalConfigs}
      * ({@code BytesRefs.toString(literal.value())}), so the keys match the resolver's
      * {@code icebergPaths} by construction.
      *
@@ -86,6 +95,12 @@ public final class ExternalStatsRequirementExtractor {
             ungroupedAggAbove = true;
         }
 
+        // Filter/Limit/Sample between an ungrouped STATS and the relation already prevent
+        // skip-discovery; do not harvest every footer for a path that will still run discovery.
+        if (blocksEagerHarvest(node)) {
+            ungroupedAggAbove = false;
+        }
+
         if (node instanceof UnresolvedExternalRelation relation) {
             if (ungroupedAggAbove) {
                 String path = extractPath(relation);
@@ -99,6 +114,15 @@ public final class ExternalStatsRequirementExtractor {
         for (Node<?> child : node.children()) {
             collect(child, ungroupedAggAbove, result);
         }
+    }
+
+    /**
+     * Nodes that sit between an ungrouped aggregate and the relation and already make the
+     * metadata-only skip-discovery path ineligible. {@code KEEP}/{@code DROP}/{@code RENAME}/
+     * {@code Project}/{@code Eval} are deliberately not listed.
+     */
+    private static boolean blocksEagerHarvest(Node<?> node) {
+        return node instanceof Filter || node instanceof Limit || node instanceof Sample;
     }
 
     /**

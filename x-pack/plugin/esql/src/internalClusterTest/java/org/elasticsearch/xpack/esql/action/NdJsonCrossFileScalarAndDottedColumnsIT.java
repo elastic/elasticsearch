@@ -38,16 +38,20 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end: one file's scalar {@code user} and another's nested {@code user.id}/{@code user.tier}
- * are independent columns under {@code UNION_BY_NAME}. Both files' rows return; the object file
- * null-fills {@code user}. Runs through a real {@code FROM <dataset>} query.
+ * End-to-end: one file's scalar {@code user} and another's nested {@code user.id}/{@code user.tier}.
+ * Explicit {@code union_by_name} (and a legacy stored document missing the key) keep both files'
+ * columns; {@code first_file_wins} drops later dotted columns. Runs through a real {@code FROM <dataset>}
+ * query.
  */
 public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    private static final String FILE_DS = "file_ds";
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -109,8 +113,8 @@ public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTe
 
     /**
      * {@code a.ndjson}'s {@code user} is a string; {@code b.ndjson}'s is a nested object.
-     * Registers {@code default_ds} (default error policy) and {@code skip_row_ds}
-     * ({@code error_mode: skip_row}) over the same two-file directory.
+     * Registers explicit UBN datasets, explicit FFW, a legacy omit-key document (TestValidator),
+     * and a new omit-key PUT through {@code FileDataSourceValidator} (stored FFW).
      */
     @Before
     public void writeFixtureAndRegister() throws Exception {
@@ -125,19 +129,53 @@ public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTe
         String resource = StoragePath.fileUri(fixtureDir) + "/*.ndjson";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
-            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("default_ds", "local_ds", resource, Map.of("format", "ndjson")))
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("default_ds", "local_ds", resource, Map.of("format", "ndjson", "schema_resolution", "union_by_name"))
+            )
         );
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                putDatasetRequest("skip_row_ds", "local_ds", resource, Map.of("format", "ndjson", "error_mode", "skip_row"))
+                putDatasetRequest(
+                    "skip_row_ds",
+                    "local_ds",
+                    resource,
+                    Map.of("format", "ndjson", "error_mode", "skip_row", "schema_resolution", "union_by_name")
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "ffw_ds",
+                    "local_ds",
+                    resource,
+                    Map.of("format", "ndjson", "schema_resolution", "first_file_wins", "error_mode", "null_field", "file_sort_by", "name")
+                )
+            )
+        );
+        assertAcked(
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("legacy_ds", "local_ds", resource, Map.of("format", "ndjson")))
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "omit_put_ds",
+                    FILE_DS,
+                    resource,
+                    Map.of("format", "ndjson", "error_mode", "null_field", "file_sort_by", "name")
+                )
             )
         );
     }
 
     @After
     public void cleanupRegistry() throws Exception {
-        for (String dataset : List.of("default_ds", "skip_row_ds")) {
+        for (String dataset : List.of("default_ds", "skip_row_ds", "ffw_ds", "legacy_ds", "omit_put_ds")) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(dataset)).get(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
@@ -146,12 +184,14 @@ public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTe
                 logger.warn("dataset cleanup [{}] failed", dataset, e);
             }
         }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).get(30, TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
+        for (String dataSource : List.of("local_ds", FILE_DS)) {
+            try {
+                client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dataSource)).get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted
+            } catch (Exception e) {
+                logger.warn("data source cleanup [{}] failed", dataSource, e);
+            }
         }
         Files.walk(fixtureDir).sorted((a, b) -> b.compareTo(a)).forEach(p -> {
             try {
@@ -163,12 +203,70 @@ public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTe
     }
 
     /**
-     * Default settings ({@code UNION_BY_NAME}, strict error policy) keep both files: a scalar
-     * {@code user} and dotted {@code user.id}/{@code user.tier} are independent columns, not a
-     * value error. The object file null-fills {@code user}.
+     * Explicit {@code union_by_name} keeps both files: a scalar {@code user} and dotted
+     * {@code user.id}/{@code user.tier} are independent columns, not a value error. The object file
+     * null-fills {@code user}.
      */
     public void testDefaultSettingsKeepsBothFiles() {
         try (var response = run(syncEsqlQueryRequest("FROM default_ds | KEEP event, user, `user.id`, `user.tier` | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertNull(rows.get(0).get(2));
+            assertNull(rows.get(0).get(3));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertNull(rows.get(1).get(1));
+            assertThat(rows.get(1).get(2), equalTo("bob"));
+            assertThat(rows.get(1).get(3), equalTo("gold"));
+        }
+    }
+
+    /**
+     * First-file-wins takes {@code a.ndjson}'s columns only ({@code file_sort_by: name}). Later dotted
+     * {@code user.id}/{@code user.tier} are not in the schema. The object file's {@code user} is
+     * unreadable as the anchor's keyword and nulls under {@code error_mode: null_field}.
+     */
+    public void testFirstFileWinsDropsLaterDottedColumns() {
+        try (var response = run(syncEsqlQueryRequest("FROM ffw_ds | KEEP event, user | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertNull(rows.get(1).get(1));
+        }
+        Exception unknown = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM ffw_ds | KEEP `user.id`"), TIMEOUT)) {}
+        });
+        assertThat(unknown.getMessage(), containsString("user.id"));
+    }
+
+    /**
+     * A new PUT that omits {@code schema_resolution} goes through {@code FileDataSourceValidator}
+     * and stores {@code first_file_wins}. Same columns as {@link #testFirstFileWinsDropsLaterDottedColumns}.
+     */
+    public void testOmittedKeyPutMaterializesFirstFileWins() {
+        try (var response = run(syncEsqlQueryRequest("FROM omit_put_ds | KEEP event, user | SORT event"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo("alice"));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertNull(rows.get(1).get(1));
+        }
+        Exception unknown = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM omit_put_ds | KEEP `user.id`"), TIMEOUT)) {}
+        });
+        assertThat(unknown.getMessage(), containsString("user.id"));
+    }
+
+    /**
+     * A stored dataset whose settings omit {@code schema_resolution} (legacy cluster-state document)
+     * still unions: both files' columns are present.
+     */
+    public void testLegacyMissingKeyHydratesUnionByName() {
+        try (var response = run(syncEsqlQueryRequest("FROM legacy_ds | KEEP event, user, `user.id`, `user.tier` | SORT event"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), equalTo(2));
             assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
@@ -199,6 +297,10 @@ public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTe
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+    }
+
+    private static PutDataSourceAction.Request putLocalFileDataSourceRequest() {
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>());
     }
 
     private static PutDatasetAction.Request putDatasetRequest(

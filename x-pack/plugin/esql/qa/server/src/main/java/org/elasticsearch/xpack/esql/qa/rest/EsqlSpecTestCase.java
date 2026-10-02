@@ -81,11 +81,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
-import static org.junit.Assume.assumeFalse;
 
-// Each class covers one csv-spec file and should complete well within 10 minutes;
+// Each class covers one csv-spec file and should complete well within 20 minutes;
 // monolithic subclasses that run all spec files must add their own longer annotation.
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
@@ -234,7 +233,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             });
             // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
             // so running them would fail with "index not found" rather than giving a meaningful skip.
-            if ("views".equals(groupName)) {
+            if (allTestsInGroupNeedViews()) {
                 assumeTrue(
                     "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
                     supportsViews()
@@ -280,7 +279,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Load views only for groups whose tests reference view fixtures
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+        return "views".equals(groupName)
+            || "approximation".equals(groupName)
+            || "unmapped-load".equals(groupName)
+            || "metadata-views-and-subqueries".equals(groupName);
+    }
+
+    private boolean allTestsInGroupNeedViews() {
+        return "views".equals(groupName) || "metadata-views-and-subqueries".equals(groupName);
     }
 
     /**

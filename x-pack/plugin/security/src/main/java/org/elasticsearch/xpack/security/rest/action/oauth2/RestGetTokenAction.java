@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +51,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * expected to be JSON
  */
 @ServerlessScope(Scope.INTERNAL)
-public final class RestGetTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
+public final class RestGetTokenAction extends SecurityBaseRestHandler implements RestRequestFilter {
+
+    private static final Logger logger = LogManager.getLogger(RestGetTokenAction.class);
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>(
         "token_request",

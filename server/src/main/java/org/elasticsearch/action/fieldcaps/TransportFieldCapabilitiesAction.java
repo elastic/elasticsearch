@@ -318,7 +318,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         curr.get(),
                         true,
                         curr.getIndexMode(),
-                        resp.getNumberOfShards()
+                        resp.getNumberOfShards(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion()
                     );
                 }
             }
@@ -338,7 +340,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         mergedCaps,
                         true,
                         a.getIndexMode(),
-                        a.getNumberOfShards()
+                        a.getNumberOfShards(),
+                        a.getIndexSettingsVersion(),
+                        a.getMappingVersion()
                     );
                 });
             }
@@ -443,7 +447,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.get(),
                                 resp.canMatch(),
                                 resp.getIndexMode(),
-                                resp.getNumberOfShards()
+                                resp.getNumberOfShards(),
+                                resp.getIndexSettingsVersion(),
+                                resp.getMappingVersion()
                             )
                         );
                     }

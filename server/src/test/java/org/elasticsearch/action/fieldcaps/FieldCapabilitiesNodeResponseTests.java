@@ -49,7 +49,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     randomFieldCaps(),
                     randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0
                 )
             );
         }
@@ -77,7 +80,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     randomFieldCaps(),
                     randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0
                 )
             );
             case 1 -> {
@@ -93,7 +99,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        0,
+                        0,
+                        0
                     )
                 );
             }
@@ -107,7 +116,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        resp.getNumberOfShards(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion()
                     )
                 );
             }

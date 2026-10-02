@@ -38,29 +38,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private final transient TransportVersion originVersion;
     private final IndexMode indexMode;
     private final int numberOfShards;  // 0 indicates that the value is unavailable
-    private final long settingsVersion;
+    private final long indexSettingsVersion;
     private final long mappingVersion;
-
-    public FieldCapabilitiesIndexResponse(
-        String indexName,
-        @Nullable String indexMappingHash,
-        Map<String, IndexFieldCapabilities> responseMap,
-        boolean canMatch,
-        IndexMode indexMode
-    ) {
-        this(indexName, indexMappingHash, responseMap, canMatch, indexMode, 0);
-    }
-
-    public FieldCapabilitiesIndexResponse(
-        String indexName,
-        @Nullable String indexMappingHash,
-        Map<String, IndexFieldCapabilities> responseMap,
-        boolean canMatch,
-        IndexMode indexMode,
-        int numberOfShards
-    ) {
-        this(indexName, indexMappingHash, responseMap, canMatch, indexMode, numberOfShards, 0, 0);
-    }
 
     public FieldCapabilitiesIndexResponse(
         String indexName,
@@ -69,7 +48,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         boolean canMatch,
         IndexMode indexMode,
         int numberOfShards,
-        long settingsVersion,
+        long indexSettingsVersion,
         long mappingVersion
     ) {
         this.indexName = indexName;
@@ -79,7 +58,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.originVersion = TransportVersion.current();
         this.indexMode = indexMode;
         this.numberOfShards = numberOfShards;
-        this.settingsVersion = settingsVersion;
+        this.indexSettingsVersion = indexSettingsVersion;
         this.mappingVersion = mappingVersion;
     }
 
@@ -92,10 +71,10 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.indexMode = IndexMode.readFrom(in);
         this.numberOfShards = in.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION) ? in.readVInt() : 0;
         if (in.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
-            this.settingsVersion = in.readVLong();
+            this.indexSettingsVersion = in.readVLong();
             this.mappingVersion = in.readVLong();
         } else {
-            this.settingsVersion = 0;
+            this.indexSettingsVersion = 0;
             this.mappingVersion = 0;
         }
     }
@@ -111,7 +90,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             out.writeVInt(numberOfShards);
         }
         if (out.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
-            out.writeVLong(settingsVersion);
+            out.writeVLong(indexSettingsVersion);
             out.writeVLong(mappingVersion);
         }
     }
@@ -215,7 +194,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                 o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeInt(r.numberOfShards));
             }
             if (output.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
-                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.settingsVersion));
+                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.indexSettingsVersion));
                 o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.mappingVersion));
             }
             var first = fieldCapabilitiesIndexResponses.get(0);
@@ -273,14 +252,14 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     /**
-     * Settings version of the index metadata this response was computed from, or {@code 0} if unavailable.
+     * Index setting version or {@code 0} if unavailable.
      */
-    public long getSettingsVersion() {
-        return settingsVersion;
+    public long getIndexSettingsVersion() {
+        return indexSettingsVersion;
     }
 
     /**
-     * Mapping version of the index metadata this response was computed from, or {@code 0} if unavailable.
+     * Mapping version or {@code 0} if unavailable.
      */
     public long getMappingVersion() {
         return mappingVersion;
@@ -297,7 +276,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
         return canMatch == that.canMatch
             && numberOfShards == that.numberOfShards
-            && settingsVersion == that.settingsVersion
+            && indexSettingsVersion == that.indexSettingsVersion
             && mappingVersion == that.mappingVersion
             && Objects.equals(indexName, that.indexName)
             && Objects.equals(indexMappingHash, that.indexMappingHash)
@@ -306,6 +285,6 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMappingHash, responseMap, canMatch, numberOfShards, settingsVersion, mappingVersion);
+        return Objects.hash(indexName, indexMappingHash, responseMap, canMatch, numberOfShards, indexSettingsVersion, mappingVersion);
     }
 }

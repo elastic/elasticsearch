@@ -57,7 +57,7 @@ final class FieldCapsCache {
         if (response.canMatch() && response.get().size() <= 10 && response.getMappingVersion() > 0) {
             Key responseKey = new Key(
                 key.indexUUID(),
-                response.getSettingsVersion(),
+                response.getIndexSettingsVersion(),
                 response.getMappingVersion(),
                 key.fields(),
                 key.filters()

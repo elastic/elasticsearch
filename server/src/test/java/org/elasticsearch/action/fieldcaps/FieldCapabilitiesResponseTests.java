@@ -50,7 +50,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
+            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode, 0, 0, 0));
         }
         randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
         return randomResponse;
@@ -167,9 +167,9 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         var response = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(
-                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD),
-                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD),
-                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD)
+                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD, 0, 0, 0),
+                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0),
+                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0)
                 )
             )
             .build();

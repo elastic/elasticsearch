@@ -169,7 +169,7 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
             // Unique per-index hash so the resolver doesn't dedup the responses; otherwise it would only see one entry per source type
             // and lose track of which indices contributed which type.
             String mappingHash = "hash_" + i;
-            indexResponses.add(new FieldCapabilitiesIndexResponse("idx_" + i, mappingHash, fields, false, IndexMode.STANDARD));
+            indexResponses.add(new FieldCapabilitiesIndexResponse("idx_" + i, mappingHash, fields, false, IndexMode.STANDARD, 0, 0, 0));
         }
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(indexResponses, List.of());
         IndexResolver.FieldsInfo info = new IndexResolver.FieldsInfo(caps, transportVersion, false, false, false, false, true);

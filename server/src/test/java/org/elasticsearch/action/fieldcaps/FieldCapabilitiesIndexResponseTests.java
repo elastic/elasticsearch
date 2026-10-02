@@ -125,7 +125,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
      */
     public void testOldVersionDefaultsShardCountToZero() throws IOException {
         List<FieldCapabilitiesIndexResponse> responses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", null, randomFieldCaps(), true, IndexMode.STANDARD, between(1, 100))
+            new FieldCapabilitiesIndexResponse("idx", null, randomFieldCaps(), true, IndexMode.STANDARD, between(1, 100), 1, 1)
         );
 
         // Simulate an old node: write without shard counts.
@@ -140,7 +140,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
 
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0).getNumberOfShards(), equalTo(0));
-        assertThat(result.get(0).getSettingsVersion(), equalTo(0L));
+        assertThat(result.get(0).getIndexSettingsVersion(), equalTo(0L));
         assertThat(result.get(0).getMappingVersion(), equalTo(0L));
     }
 
@@ -194,7 +194,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
             var indexMode = randomFrom(IndexMode.availableModes());
             String mappingHash = e.getKey();
             for (String index : e.getValue()) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode));
+                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode, 0, 0, 0));
             }
         }
         return responses;
@@ -206,7 +206,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             String index = "index_without_mapping_hash_" + i;
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode));
+            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0));
         }
         return responses;
     }

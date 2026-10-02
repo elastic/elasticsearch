@@ -33,7 +33,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,6 +72,12 @@ public final class RestResponse implements Releasable {
     /// their stack traces were suppressed or not. We should probably just call them "REST errors".
     ///
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+
+    /**
+     * Bounds the document size when a search fails on many shards. The distinct count is reported unbounded alongside the list, so
+     * truncation is identifiable.
+     */
+    private static final int MAX_REPORTED_SHARD_FAILURES = 10;
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
@@ -319,7 +327,69 @@ public final class RestResponse implements Releasable {
             .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
             .field("elasticsearch.error.root_cause.message", rootCause.getMessage());
         addFailureLocation(message, e, causes);
+        addShardFailures(message, e);
         return message;
+    }
+
+    private static void addShardFailures(ESLogMessage message, Exception e) {
+        if (ExceptionsHelper.unwrap(e, SearchPhaseExecutionException.class) instanceof SearchPhaseExecutionException search) {
+            final ShardSearchFailure[] shardFailures = search.shardFailures();
+            if (shardFailures.length == 0) {
+                return;
+            }
+            final DistinctShardFailures distinct = distinctShardFailures(shardFailures);
+            message.field("elasticsearch.error.shard_failure_count", shardFailures.length);
+            message.field("elasticsearch.error.distinct_shard_failure_count", distinct.count());
+            message.field("elasticsearch.error.shard_failures", distinct.reported());
+        }
+    }
+
+    private record DistinctShardFailures(int count, List<Map<String, Object>> reported) {}
+
+    /**
+     * Identities are kept for every failure, but only the first {@link #MAX_REPORTED_SHARD_FAILURES} are rendered, so a search that
+     * failed on very many shards does not build a document it cannot log. {@link ExceptionsHelper#groupBy} is not used because it
+     * keys on the immediate cause, which hides a failure whose own deepest cause differs from another's behind a shared wrapper; the
+     * response body groups that way and keeps its existing semantics.
+     */
+    private static DistinctShardFailures distinctShardFailures(ShardSearchFailure[] shardFailures) {
+        final Set<ReportedCause> seen = new HashSet<>();
+        final List<Map<String, Object>> reported = new ArrayList<>(MAX_REPORTED_SHARD_FAILURES);
+        for (ShardSearchFailure failure : shardFailures) {
+            final ReportedCause cause = ReportedCause.from(failure);
+            if (seen.add(cause) && reported.size() < MAX_REPORTED_SHARD_FAILURES) {
+                reported.add(cause.fields(failure));
+            }
+        }
+        return new DistinctShardFailures(seen.size(), reported);
+    }
+
+    /**
+     * The reported cause of one shard failure, which is also its identity: holding the logged values in the deduplication key is what
+     * keeps the two from drifting apart. The shard and node of a representative occurrence are added by {@link #fields} and are
+     * deliberately not part of the identity, so one cause across many shards stays a single entry.
+     */
+    private record ReportedCause(String type, @Nullable String message, @Nullable String index) {
+        static ReportedCause from(ShardSearchFailure failure) {
+            final Throwable cause = walkCauseChain(failure.getCause()).deepest();
+            return new ReportedCause(cause.getClass().getName(), cause.getMessage(), failure.index());
+        }
+
+        Map<String, Object> fields(ShardSearchFailure failure) {
+            final Map<String, Object> fields = new LinkedHashMap<>();
+            fields.put("type", type);
+            if (message != null) {
+                fields.put("message", message);
+            }
+            if (index != null) {
+                fields.put("index", index);
+                fields.put("shard", failure.shardId());
+            }
+            if (failure.shard() != null && failure.shard().getNodeId() != null) {
+                fields.put("node", failure.shard().getNodeId());
+            }
+            return fields;
+        }
     }
 
     private static void addFailureLocation(ESLogMessage message, Exception e, CauseChain causes) {

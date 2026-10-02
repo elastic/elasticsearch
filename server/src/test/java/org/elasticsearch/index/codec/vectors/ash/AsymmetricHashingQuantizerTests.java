@@ -25,8 +25,8 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the core ASH algorithm components: SVD, quantizers, and the full pipeline.
@@ -342,7 +342,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            42L
+            seed
         );
         var w = train(ash, vectors, centroidGetter);
         int nDims = ash.nDims(dim);
@@ -469,7 +469,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
 
         AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
-        Set<Float> validLevels = Set.of(-1.5f, -0.5f, 0.5f, 1.5f);
+        Float[] validLevels = new Float[] { -1.5f, -0.5f, 0.5f, 1.5f };
+
         for (int start = 0; start < nVectors; start += maxBlockSize) {
             int blockSize = Math.min(maxBlockSize, nVectors - start);
             encoder.reset();
@@ -484,9 +485,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 float[] code = encoder.code(j);
                 assertThat(code.length, equalTo(nDims));
                 for (float level : code) {
-                    assertThat(validLevels, hasItem(level));
+                    assertThat(level, oneOf(validLevels));
                 }
-                assertThat((double) encoder.scale(j), greaterThan(0.0));
+                assertThat(encoder.scale(j), greaterThan(0f));
                 assertTrue(Float.isFinite(encoder.offset(j)));
                 // the dot product is taken before centering, so it must match the original vector
                 assertThat(encoder.vecCentroidDot(j), equalTo(ESVectorUtil.dotProduct(vectors[start + j], centroid)));
@@ -523,38 +524,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             .limit(k)
             .mapToInt(Integer::intValue)
             .toArray();
-    }
-
-    private static double computeRankCorrelation(float[][] vectors, float[] query, float[] approxScores) {
-        int n = vectors.length;
-        float[] exactScores = new float[n];
-        for (int i = 0; i < n; i++) {
-            exactScores[i] = ESVectorUtil.dotProduct(query, vectors[i]);
-        }
-
-        // Spearman rank correlation (simplified)
-        int[] exactRanks = ranks(exactScores);
-        int[] approxRanks = ranks(approxScores);
-        double sumD2 = 0;
-        for (int i = 0; i < n; i++) {
-            // no ESVectorUtil.squareDistance method with ints :(
-            double d = exactRanks[i] - approxRanks[i];
-            sumD2 = Math.fma(d, d, sumD2);
-        }
-        return 1.0 - 6.0 * sumD2 / (n * ((long) n * n - 1));
-    }
-
-    private static int[] ranks(float[] scores) {
-        int[] indices = IntStream.range(0, scores.length)
-            .boxed()
-            .sorted(Comparator.comparingDouble(i -> scores[i]))
-            .mapToInt(Integer::intValue)
-            .toArray();
-        int[] ranks = new int[indices.length];
-        for (int r = 0; r < indices.length; r++) {
-            ranks[indices[r]] = r;
-        }
-        return ranks;
     }
 
     /**

@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
-- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
-  method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
-  issue: https://github.com/elastic/elasticsearch/issues/156435
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/156465
@@ -435,9 +432,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
-  method: testLargeMsearchTemplateDoesNotOom
-  issue: https://github.com/elastic/elasticsearch/issues/158428
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -672,3 +666,9 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
+  method: testProfileFailureStore
+  issue: https://github.com/elastic/elasticsearch/issues/160877
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/160885

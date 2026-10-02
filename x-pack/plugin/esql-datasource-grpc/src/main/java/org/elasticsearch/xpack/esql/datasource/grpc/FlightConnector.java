@@ -96,7 +96,7 @@ class FlightConnector implements Connector {
         URI uri = URI.create(loc);
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
-            throw new IllegalArgumentException("Invalid location URI: missing host: " + loc);
+            throw new IllegalArgumentException("Invalid Flight endpoint location: missing host");
         }
         int port = getPort(uri);
         String key = host + ":" + port;

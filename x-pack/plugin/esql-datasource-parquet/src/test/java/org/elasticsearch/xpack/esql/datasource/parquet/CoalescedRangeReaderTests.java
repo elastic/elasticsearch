@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -998,6 +1000,94 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         try {
             assertEquals(0, counting.asyncGets.get());
             assertRangeEquals(file, result.ranges().get(new ByteRange(0, 40)), viewStart, 40);
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testUnissuedCountsGetMissesOnly() throws Exception {
+        byte[] data = sequentialBytes(100 * 1024);
+        CountingStorage counting = new CountingStorage(data);
+        FooterByteCache cache = footerCache();
+        int tail = 64 * 1024;
+        cache.put(FooterByteCache.Key.keyFor(counting), java.util.Arrays.copyOfRange(data, data.length - tail, data.length));
+
+        RowGroupIo lease = new RowGroupIo();
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
+            result = awaitCoalesced(counting, List.of(new ByteRange(0, 100), new ByteRange(data.length - 50, 50)), cache);
+        }
+        try {
+            assertEquals("only footer-cache misses are unissued GETs", 1, lease.outstanding());
+            assertEquals(1, counting.asyncGets.get());
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testScopeVisibleOnCallingThreadDuringStart() throws Exception {
+        byte[] data = sequentialBytes(64);
+        RowGroupIo lease = new RowGroupIo();
+        AtomicReference<RowGroupIo> seenLease = new AtomicReference<>();
+        AtomicBoolean seenCountGets = new AtomicBoolean();
+        CountingStorage counting = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+                seenLease.set(scope == null ? null : scope.lease());
+                seenCountGets.set(scope != null && scope.countGets);
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
+            result = awaitCoalesced(counting, List.of(new ByteRange(0, 16)), null);
+        }
+        try {
+            assertSame(lease, seenLease.get());
+            assertTrue(seenCountGets.get());
+        } finally {
+            result.release().close();
+        }
+    }
+
+    public void testNestedScopeRestoresOuter() throws Exception {
+        byte[] data = sequentialBytes(64);
+        RowGroupIo outerLease = new RowGroupIo();
+        RowGroupIo innerLease = new RowGroupIo();
+        AtomicReference<RowGroupIo> seenDuringStart = new AtomicReference<>();
+        CountingStorage counting = new CountingStorage(data) {
+            @Override
+            public Releasable startReadBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+                seenDuringStart.set(scope == null ? null : scope.lease());
+                return super.startReadBytesAsync(position, length, factory, executor, listener);
+            }
+        };
+        CoalescedRangeResult result;
+        try (StorageIoAffinity.Scope outer = StorageIoAffinity.open(outerLease, true)) {
+            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(innerLease, false)) {
+                result = awaitCoalesced(counting, List.of(new ByteRange(0, 8)), null);
+            }
+            assertSame(outer, StorageIoAffinity.current());
+            assertSame(outerLease, StorageIoAffinity.current().lease());
+            assertTrue(StorageIoAffinity.current().countGets);
+        }
+        assertNull(StorageIoAffinity.current());
+        try {
+            assertSame(innerLease, seenDuringStart.get());
         } finally {
             result.release().close();
         }

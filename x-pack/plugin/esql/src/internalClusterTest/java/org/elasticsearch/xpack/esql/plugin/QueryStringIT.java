@@ -354,7 +354,8 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
                 // Needs an analyzer set on content to effectively test the analyze_wildcard option
-                .setMapping("id", "type=integer", "content", "type=text,analyzer=english"));
+                .setMapping("id", "type=integer", "content", "type=text,analyzer=english")
+        );
         client().prepareBulk()
             .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "running fast"))
             .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "runs daily"))

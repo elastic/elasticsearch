@@ -93,6 +93,17 @@ public record TranslationConstraint(Set<String> labels, Set<Set<String>> skips) 
         return new TranslationConstraint(remaining, covering);
     }
 
+    /**
+     * A constraint without {@code keys}: the promoted labels outside the set, the rest unchanged. Where the series' one
+     * {@code _timeseries} is edited in place ({@code TimeSeriesUnset}), a node dropping labels unsets them itself, so the
+     * child keeps carrying its whole rest instead of one already excluding them ({@link #subtract}).
+     */
+    public static TranslationConstraint exclude(TranslationConstraint constraint, Collection<String> keys) {
+        var remaining = new LinkedHashSet<>(constraint.labels);
+        remaining.removeAll(keys);
+        return new TranslationConstraint(remaining, constraint.skips);
+    }
+
     /** Only the promoted labels among {@code names}; the rest unchanged. Trims what a child exposes to what is required. */
     public static TranslationConstraint project(TranslationConstraint constraint, Collection<String> names) {
         var retained = new LinkedHashSet<>(constraint.labels);

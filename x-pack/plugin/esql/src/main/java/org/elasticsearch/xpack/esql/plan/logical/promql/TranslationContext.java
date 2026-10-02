@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -75,7 +77,9 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.exclude;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.intersect;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.project;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.rest;
@@ -85,6 +89,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContex
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapPromoted;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapRest;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapToRef;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Filter.IGNORING;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
@@ -133,6 +138,110 @@ public record TranslationContext(
 
     public Attribute stepAttr() {
         return stepBucketAlias != null ? stepBucketAlias.toAttribute() : cmd.stepAttribute();
+    }
+
+    /**
+     * Whether the translation edits one {@code _timeseries} per node with {@link TimeSeriesUnset}. Every translate function where
+     * a series' identity changes ({@code without}, {@code ignoring}, the {@code le} of a classic histogram) branches on this
+     * explicitly:
+     * <ul>
+     *     <li>Every node the query reaches - the minimum transport version across the local cluster and every remote cluster -
+     *     can run {@link TimeSeriesUnset}: each node carries its series' one {@code _timeseries}, loaded complete, and unsets the
+     *     labels its identity drops right where it drops them.</li>
+     *     <li>Any node is older, an older cluster or a mixed one mid-upgrade: the translation asks the source for one
+     *     {@code _timeseries} per exclusion set, exactly the plan such a cluster has always run. The coordinator decides once for
+     *     the whole command, and {@link TimeSeriesUnset} refuses to serialize to an older node.</li>
+     *     <li>A label the command drops may be an alias the plan can't resolve ({@link #resolvesStoredNames}): the command also
+     *     asks the source for one {@code _timeseries} per exclusion set, as the source resolves an alias per shard.</li>
+     * </ul>
+     */
+    public boolean supportsTimeSeriesUnset() {
+        return supportsTimeSeriesUnset(analyzer.minimumVersion()) && droppedLabels().stream().allMatch(this::resolvesStoredNames);
+    }
+
+    static boolean supportsTimeSeriesUnset(TransportVersion minimumVersion) {
+        return minimumVersion.supports(TimeSeriesUnset.ESQL_TIMESERIES_METADATA_UNSET);
+    }
+
+    /** The labels the command may drop from a series' identity: those of {@code without}, {@code ignoring} and a histogram's le. */
+    private Set<String> droppedLabels() {
+        var labels = new TreeSet<String>();
+        cmd.promqlPlan().forEachDown(plan -> {
+            switch (plan) {
+                case AcrossSeriesAggregate aggregate when aggregate.grouping() == WITHOUT -> labels.addAll(
+                    mapPromoted(aggregate.groupings())
+                );
+                case VectorBinaryOperator operator when operator.match().filter() == IGNORING -> labels.addAll(
+                    operator.match().filterLabels()
+                );
+                case HistogramFunctionCall histogram -> labels.add(HistogramFunctionCall.LE_LABEL);
+                default -> {
+                }
+            }
+        });
+        return labels;
+    }
+
+    /**
+     * The table with {@code labels} unset from its {@code _timeseries}, redefined under the same name; a table carrying no
+     * {@code _timeseries} (promoted labels only) is returned as is. Only when {@link #supportsTimeSeriesUnset}.
+     */
+    public IntermediateResult unsetLabels(IntermediateResult table, Collection<String> labels) {
+        assert supportsTimeSeriesUnset() : "invariant: TimeSeriesUnset only once every node the query reaches can run it";
+        Attribute timeseries = deliveredSkips(table.plan()).contains(Set.of()) ? find(table.plan().output(), mapRest()) : null;
+        if (timeseries == null) {
+            return table;
+        }
+        Alias unset = new Alias(cmd.source(), mapRest(), timeSeriesUnset(timeseries, labels));
+        return table.with(new Eval(cmd.source(), table.plan(), List.of(unset)), table.value());
+    }
+
+    /** {@link TimeSeriesUnset} of {@code labels}, each named by the field names the source relation stores it under. */
+    private Expression timeSeriesUnset(Expression timeseries, Collection<String> labels) {
+        var names = new TreeSet<String>();
+        labels.forEach(label -> names.addAll(storedNames(label)));
+        List<Expression> dimensions = names.stream().<Expression>map(name -> Literal.keyword(cmd.source(), name)).toList();
+        return new TimeSeriesUnset(cmd.source(), timeseries, dimensions);
+    }
+
+    /** The field names a label is stored under: the label itself and the dimension fields it names ({@code labels.pod}). */
+    private Set<String> storedNames(String label) {
+        var names = new TreeSet<String>(List.of(label));
+        for (FieldAttribute dimension : dimensions()) {
+            if (mapPromoted(dimension).equals(label)) {
+                names.add(dimension.fieldName().string());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Whether {@link #storedNames} are all the fields a label may name. A field of the label's own name may be an alias of
+     * another dimension, a passthrough alias such as OTel {@code cpu} for {@code attributes.cpu}: the source resolves it per
+     * shard, the plan can't. So a label that names a field while another dimension ends in it may name more than its stored
+     * names, and is unset at the source instead. An alias to an unrelated name ({@code pod} for {@code kubernetes.pod.name})
+     * looks like any field to the plan.
+     */
+    private boolean resolvesStoredNames(String label) {
+        List<FieldAttribute> dimensions = dimensions();
+        if (dimensions.stream().noneMatch(dimension -> dimension.fieldName().string().equals(label))) {
+            return true;
+        }
+        Set<String> names = storedNames(label);
+        return dimensions.stream()
+            .map(dimension -> dimension.fieldName().string())
+            .noneMatch(fieldName -> fieldName.endsWith("." + label) && names.contains(fieldName) == false);
+    }
+
+    /** The source relation's dimension fields. */
+    private List<FieldAttribute> dimensions() {
+        return cmd.child()
+            .output()
+            .stream()
+            .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
+            .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
+            .map(FieldAttribute.class::cast)
+            .toList();
     }
 
     /** Translates one merge branch with its own step bucket and evaluation time. */
@@ -190,6 +299,13 @@ public record TranslationContext(
         return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, finest, id)));
     }
 
+    /** Whether the plan edits a {@code _timeseries} with {@link TimeSeriesUnset}. */
+    private static boolean unsets(LogicalPlan plan) {
+        return plan.anyMatch(
+            node -> node instanceof Eval eval && eval.fields().stream().anyMatch(field -> field.child() instanceof TimeSeriesUnset)
+        );
+    }
+
     /**
      * Union combinator over independently translated tabular results.
      * {@link UnionAll} aligns columns by name and null-fills missing header, then
@@ -205,10 +321,17 @@ public record TranslationContext(
                 + "]";
 
         var source = cmd.source();
+        // Otherwise every branch's _timeseries is as the source loads it, and they compare as they always have.
+        boolean canonicalize = supportsTimeSeriesUnset() && intermediateResults.stream().anyMatch(ir -> unsets(ir.plan()));
         var branchPlans = new ArrayList<LogicalPlan>(intermediateResults.size());
         for (int i = 0; i < intermediateResults.size(); i++) {
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
             var ir = intermediateResults.get(i);
+            if (canonicalize) {
+                // The dedup below compares _timeseries across branches, one as loaded and another as edited: unsetting
+                // nothing rewrites each in its canonical form, so the same labels compare equal.
+                ir = unsetLabels(ir, List.of());
+            }
             LogicalPlan branchPlan = emitNullsFilter(source, emitTimeSeriesAlias(ir, new NameId()), ir.valueColumn());
             var branchTagExpression = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
             LogicalPlan tagged = new Eval(source, branchPlan, List.of(branchTagExpression));
@@ -324,6 +447,17 @@ public record TranslationContext(
         TranslationConstraint regrouped = intersect(childLabels, keys);
         assert childLabels.hasRest() == false || regrouped.hasRest()
             : "invariant: required [" + required + "] must declare a _timeseries column excluding " + keys + ", got " + childLabels;
+        return regrouped.hasRest() ? project(regrouped, required.labels()) : regrouped;
+    }
+
+    /**
+     * {@link #regroupWithout} when the child's one {@code _timeseries} already has the keys unset ({@link #unsetLabels}): the
+     * child's labels without the keys, its {@code _timeseries} kept. As there, under a {@code _timeseries} the labels are derived
+     * columns, so only those the enclosing translation asks for are carried.
+     */
+    public TranslationConstraint regroupUnset(TranslationConstraint childLabels, List<String> keys) {
+        assert supportsTimeSeriesUnset() : "invariant: TimeSeriesUnset only once every node the query reaches can run it";
+        TranslationConstraint regrouped = exclude(childLabels, keys);
         return regrouped.hasRest() ? project(regrouped, required.labels()) : regrouped;
     }
 

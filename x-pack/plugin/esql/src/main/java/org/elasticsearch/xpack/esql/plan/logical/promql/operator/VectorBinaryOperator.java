@@ -367,7 +367,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             childHeader = union(childHeader, promoted(match.filterLabels()));
         } else if (match.filter() == VectorMatch.Filter.IGNORING) {
             // The key is each operand's own label set minus the ignored labels: a _timeseries column for an opaque operand.
-            childHeader = union(childHeader, rest(match.filterLabels()));
+            if (context.supportsTimeSeriesUnset()) {
+                // One _timeseries per node: each operand carries its series' whole _timeseries, the ignored labels unset
+                // from it below.
+                childHeader = union(childHeader, rest());
+            } else {
+                // Each operand delivers the _timeseries already excluding them, one _timeseries per exclusion set.
+                childHeader = union(childHeader, rest(match.filterLabels()));
+            }
         } else {
             // No on/ignoring: the key is each operand's whole label set. The verifier admits only operands with
             // concrete label sets here, so the operator's declared output already names every label of both sides
@@ -388,7 +395,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
 
-        LogicalPlan join = emitJoin(context.cmd(), probe, build, keyLabels(left, right));
+        boolean unset = match.filter() == VectorMatch.Filter.IGNORING && context.supportsTimeSeriesUnset();
+        if (unset) {
+            probe = context.unsetLabels(probe, match.filterLabels());
+            build = context.unsetLabels(build, match.filterLabels());
+        }
+        LogicalPlan join = emitJoin(context.cmd(), probe, build, keyLabels(left, right), unset);
         List<NamedExpression> output = bindOutput(header, declared, probe, build);
         return bindResult(context, leftValue, rightValue, probe.step(), join, output);
     }
@@ -464,10 +476,19 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return new IntermediateResult(plan, value, step, input.pendingFilter(), input.kind());
     }
 
-    /** The inner join of the two operands on step plus the packed match key. */
-    private LogicalPlan emitJoin(PromqlCommand cmd, IntermediateResult probe, IntermediateResult build, List<String> keyLabels) {
-        Input probeInput = emitInput(cmd, probe, keyLabels);
-        Input buildInput = emitInput(cmd, build, keyLabels);
+    /**
+     * The inner join of the two operands on step plus the packed match key. With {@code unset}, the ignored labels are already
+     * unset from each operand's one {@code _timeseries}.
+     */
+    private LogicalPlan emitJoin(
+        PromqlCommand cmd,
+        IntermediateResult probe,
+        IntermediateResult build,
+        List<String> keyLabels,
+        boolean unset
+    ) {
+        Input probeInput = emitInput(cmd, probe, keyLabels, unset);
+        Input buildInput = emitInput(cmd, build, keyLabels, unset);
 
         // The build side carries its join fields plus what the join adds: its value and the group_x labels. Neither can
         // already be a join field (the step, or the freshly packed key), so the two lists are disjoint.
@@ -501,8 +522,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /** One side's plan with its match key defined and packed next to step; step alone when the key is empty. */
-    private Input emitInput(PromqlCommand cmd, IntermediateResult input, List<String> keyLabels) {
-        List<NamedExpression> key = joinKey(input, keyLabels);
+    private Input emitInput(PromqlCommand cmd, IntermediateResult input, List<String> keyLabels, boolean unset) {
+        List<NamedExpression> key = joinKey(input, keyLabels, unset);
         List<Alias> nullFills = defined(key);
         LogicalPlan plan = nullFills.isEmpty() ? input.plan() : new Eval(cmd.source(), input.plan(), nullFills);
         if (key.isEmpty()) {
@@ -516,13 +537,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /**
      * The operand's match key columns: its {@code _timeseries} columns surviving the ignored labels (an opaque operand
      * under ignoring), then the shared key labels, each as the operand's own column or a null where it lacks the label.
+     * With {@code unset}, the operand's one {@code _timeseries} already has the ignored labels unset, and is the key.
      */
-    private List<NamedExpression> joinKey(IntermediateResult input, List<String> keyLabels) {
+    private List<NamedExpression> joinKey(IntermediateResult input, List<String> keyLabels, boolean unset) {
         var key = new ArrayList<NamedExpression>();
         if (match.filter() != VectorMatch.Filter.ON) {
             var surviving = new LinkedHashSet<Set<String>>();
             for (Set<String> skip : deliveredSkips(input.plan())) {
-                if (skip.containsAll(match.filterLabels())) {
+                if (unset ? skip.isEmpty() : skip.containsAll(match.filterLabels())) {
                     surviving.add(skip);
                 }
             }

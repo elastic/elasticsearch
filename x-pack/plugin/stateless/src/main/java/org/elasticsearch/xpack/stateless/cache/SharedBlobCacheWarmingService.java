@@ -376,6 +376,19 @@ public class SharedBlobCacheWarmingService {
     );
 
     /**
+     * Upper bound on the total time a recovering search shard may wait for warming, summed over the initial timeout and all
+     * re-evaluation extensions, when no relocation source is shutting down. Unlike {@link #SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING}
+     * it is independent of shutdown metadata (defaults to 14 minutes, i.e. just-in-time for CSP timeout).
+     */
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING = Setting.timeSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_total_timeout_cap",
+        TimeValue.timeValueMinutes(14),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Factor applied to the equal per-shard share of remaining shutdown time when the relocation source is shutting down (SIGTERM with
      * grace period).
      */
@@ -508,6 +521,7 @@ public class SharedBlobCacheWarmingService {
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingReshardTargetTimeout;
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
+    private volatile TimeValue searchRecoveryWarmingTotalTimeoutCap;
     private volatile boolean searchRecoveryWarmingTimeoutReevaluationEnabled;
     private volatile TimeValue searchRecoveryReevaluationAbortThreshold;
     private volatile TimeValue searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard;
@@ -673,6 +687,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             value -> this.searchRecoveryWarmingGracePeriodCap = value
+        );
+        clusterSettings.initializeAndWatch(
+            SEARCH_RECOVERY_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
+            value -> this.searchRecoveryWarmingTotalTimeoutCap = value
         );
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
@@ -1213,14 +1231,14 @@ public class SharedBlobCacheWarmingService {
             return SearchRecoveryTimeout.extendable(
                 searchRecoveryWarmingRelocationTimeout,
                 "relocation source not shutting down, no cluster shutdown",
-                searchRecoveryWarmingGracePeriodCap
+                searchRecoveryWarmingTotalTimeoutCap
             );
         }
         if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
             return SearchRecoveryTimeout.extendable(
                 searchRecoveryWarmingNonRelocationTimeout,
                 "not a relocation, another active shard copy",
-                searchRecoveryWarmingGracePeriodCap
+                searchRecoveryWarmingTotalTimeoutCap
             );
         }
         if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {

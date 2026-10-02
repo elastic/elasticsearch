@@ -94,7 +94,7 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
         };
     }
 
-    /** The similarity SourceConfirmedTextQuery scores with, so a search returns the frequency itself. */
+    /** The similarity ReanalyzingTextQuery scores with, so a search returns the frequency itself. */
     private static final Similarity FREQ = new Similarity() {
         @Override
         public long computeNorm(FieldInvertState state) {
@@ -168,9 +168,9 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
             }
             final PhraseQuery query = builder.build();
 
-            assertNotNull("exact consecutive phrase", SourceConfirmedTextQuery.walkablePhrase(query));
+            assertNotNull("exact consecutive phrase", ReanalyzingTextQuery.walkablePhrase(query));
             final float expected = memoryIndexFreq(values, query, analyzer);
-            final int actual = SourceConfirmedTextQuery.walkPhraseFreq(terms, FIELD, analyzer, values);
+            final int actual = ReanalyzingTextQuery.walkPhraseFreq(terms, FIELD, analyzer, values);
             if (expected > 0) {
                 nonZero++;
             }

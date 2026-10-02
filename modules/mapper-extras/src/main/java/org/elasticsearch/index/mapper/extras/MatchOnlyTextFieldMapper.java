@@ -87,6 +87,7 @@ import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldValueFetchers;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -94,10 +95,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
-import org.elasticsearch.index.mapper.PositionalValueFetchers;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
-import org.elasticsearch.index.mapper.SourceConfirmedTextQuery;
-import org.elasticsearch.index.mapper.SourceIntervalsSource;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -472,10 +472,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // if doc_values are enabled, fetch directly from them
             if (hasDocValues()) {
                 if (usesBinaryDocValues) {
-                    return PositionalValueFetchers.fromBinaryDocValues(name(), binaryFormat());
+                    return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat());
                 } else {
                     var ifd = searchExecutionContext.getForField(this, MappedFieldType.FielddataOperation.SEARCH);
-                    return PositionalValueFetchers.fromFieldData(ifd);
+                    return FieldValueFetchers.fromFieldData(ifd);
                 }
             }
 
@@ -496,12 +496,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 } else {
                     // otherwise, fetch the value from fallback fields
                     if (usesBinaryDocValuesForFallbackFields) {
-                        return PositionalValueFetchers.fromBinaryDocValues(
+                        return FieldValueFetchers.fromBinaryDocValues(
                             syntheticSourceFallbackFieldName(),
                             BinaryDocValuesFormat.SEPARATE_COUNT
                         );
                     }
-                    return PositionalValueFetchers.fromStoredFields(name(), syntheticSourceFallbackFieldName());
+                    return FieldValueFetchers.fromStoredFields(name(), syntheticSourceFallbackFieldName());
                 }
             }
 
@@ -537,7 +537,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             assert searchExecutionContext.isSourceSynthetic() : "Synthetic source should be enabled";
 
-            var fromParent = PositionalValueFetchers.fromParent(searchExecutionContext, name());
+            var fromParent = FieldValueFetchers.fromParent(searchExecutionContext, name());
             if (fromParent == null) {
                 assert false : "parent field should either be stored or have doc values";
                 return sourceFieldFetcher(searchExecutionContext);
@@ -560,22 +560,22 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                 // The fallback field may be stored in binary doc values or stored fields depending on index version
                 var fallbackFetcher = usesBinaryDocValuesForFallbackFields
-                    ? PositionalValueFetchers.fromBinaryDocValues(fallbackName, BinaryDocValuesFormat.SEPARATE_COUNT)
-                    : PositionalValueFetchers.fromStoredFields(fallbackName);
+                    ? FieldValueFetchers.fromBinaryDocValues(fallbackName, BinaryDocValuesFormat.SEPARATE_COUNT)
+                    : FieldValueFetchers.fromStoredFields(fallbackName);
 
                 if (keywordDelegate.isStored()) {
-                    return PositionalValueFetchers.concat(PositionalValueFetchers.fromStoredFields(delegateFieldName), fallbackFetcher);
+                    return FieldValueFetchers.concat(FieldValueFetchers.fromStoredFields(delegateFieldName), fallbackFetcher);
                 } else if (keywordDelegate.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                    return PositionalValueFetchers.concat(PositionalValueFetchers.fromFieldData(ifd), fallbackFetcher);
+                    return FieldValueFetchers.concat(FieldValueFetchers.fromFieldData(ifd), fallbackFetcher);
                 }
             }
 
             if (keywordDelegate.isStored()) {
-                return PositionalValueFetchers.fromStoredFields(keywordDelegate.name());
+                return FieldValueFetchers.fromStoredFields(keywordDelegate.name());
             } else if (keywordDelegate.hasDocValues()) {
                 var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                return PositionalValueFetchers.fromFieldData(ifd);
+                return FieldValueFetchers.fromFieldData(ifd);
             } else {
                 assert false : "multi field should either be stored or have doc values";
                 return sourceFieldFetcher(searchExecutionContext);
@@ -583,9 +583,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
-            return new ConstantScoreQuery(
-                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer)
-            );
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
         }
 
         private IntervalsSource toIntervalsSource(
@@ -593,7 +591,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             Query approximation,
             SearchExecutionContext searchExecutionContext
         ) {
-            return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
+            return new ReanalyzingIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
         }
 
         @Override

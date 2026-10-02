@@ -34,7 +34,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.SourceIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.hamcrest.Matchers;
 
@@ -170,53 +170,53 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     public void testTermIntervals() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
-        assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
+        assertThat(termIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
+        assertEquals(Intervals.term(new BytesRef("foo")), ((ReanalyzingIntervalsSource) termIntervals).getIntervalsSource());
     }
 
     public void testPrefixIntervals() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(prefixIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) prefixIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) prefixIntervals).getIntervalsSource()
         );
     }
 
     public void testWildcardIntervals() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(wildcardIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) wildcardIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) wildcardIntervals).getIntervalsSource()
         );
     }
 
     public void testRegexpIntervals() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(regexpIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) regexpIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) regexpIntervals).getIntervalsSource()
         );
     }
 
     public void testFuzzyIntervals() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
-        assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(fuzzyIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
     }
 
     public void testRangeIntervals() {
         PatternTextFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
-        assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertThat(rangeIntervals, Matchers.instanceOf(ReanalyzingIntervalsSource.class));
         assertEquals(
             Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
-            ((SourceIntervalsSource) rangeIntervals).getIntervalsSource()
+            ((ReanalyzingIntervalsSource) rangeIntervals).getIntervalsSource()
         );
     }
 

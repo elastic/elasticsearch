@@ -32,14 +32,14 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.SourceIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-public class SourceIntervalsSourceTests extends ESTestCase {
+public class ReanalyzingIntervalsSourceTests extends ESTestCase {
 
     private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
         context -> docID -> Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
@@ -77,7 +77,7 @@ public class SourceIntervalsSourceTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals(2, reader.leaves().size());
 
-                IntervalsSource source = new SourceIntervalsSource(
+                IntervalsSource source = new ReanalyzingIntervalsSource(
                     Intervals.term(new BytesRef("d")),
                     new TermQuery(new Term("body", "d")),
                     SOURCE_FETCHER_PROVIDER,
@@ -110,7 +110,7 @@ public class SourceIntervalsSourceTests extends ESTestCase {
                 assertEquals(null, source.intervals("body", reader.leaves().get(1)));
 
                 // Same test, but with a bad approximation now
-                source = new SourceIntervalsSource(
+                source = new ReanalyzingIntervalsSource(
                     Intervals.term(new BytesRef("d")),
                     Queries.ALL_DOCS_INSTANCE,
                     SOURCE_FETCHER_PROVIDER,

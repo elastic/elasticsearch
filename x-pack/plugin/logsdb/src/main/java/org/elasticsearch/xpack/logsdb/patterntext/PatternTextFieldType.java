@@ -31,8 +31,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IndexType;
-import org.elasticsearch.index.mapper.SourceConfirmedTextQuery;
-import org.elasticsearch.index.mapper.SourceIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -173,12 +173,12 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         if (hasPositions) {
             return new ConstantScoreQuery(query);
         } else {
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
         }
     }
 
     private IntervalsSource toIntervalsSource(IntervalsSource source, Query approximation, SearchExecutionContext searchExecutionContext) {
-        return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
+        return new ReanalyzingIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
     }
 
     @Override

@@ -51,7 +51,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.SourceConfirmedTextQuery;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -64,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SourceConfirmedTextQueryTests extends ESTestCase {
+public class ReanalyzingTextQueryTests extends ESTestCase {
 
     private static final AtomicInteger sourceFetchCount = new AtomicInteger();
 
@@ -94,20 +94,20 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
 
                 TermQuery query = new TermQuery(new Term("body", "c"));
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
                 ScoreDoc[] phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
-                ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phraseHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                ScoreDoc[] reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phraseHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Term query with missing term
                 query = new TermQuery(new Term("body", "e"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
             }
         }
     }
@@ -122,8 +122,8 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = newSearcher(reader);
                 PhraseQuery query = new PhraseQuery("missing_field", "b", "c");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                Explanation explanation = searcher.explain(sourceConfirmedPhraseQuery, 0);
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Explanation explanation = searcher.explain(reanalyzingPhraseQuery, 0);
                 assertFalse(explanation.isMatch());
 
                 Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE, 1);
@@ -151,36 +151,36 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
 
                 PhraseQuery query = new PhraseQuery("body", "b", "c");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
                 ScoreDoc[] phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
-                ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phraseHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                ScoreDoc[] reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phraseHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Sloppy phrase query
                 query = new PhraseQuery(1, "body", "b", "d");
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
                 phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
-                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phraseHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phraseHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Phrase query with no matches
                 query = new PhraseQuery("body", "d", "c");
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
 
                 // Phrase query with one missing term
                 query = new PhraseQuery("body", "b", "e");
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
             }
         }
     }
@@ -207,44 +207,44 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     .add(new Term[] { new Term("body", "c") }, 1)
                     .build();
 
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
 
                 ScoreDoc[] phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
-                ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phraseHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                ScoreDoc[] reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phraseHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Sloppy multi phrase query
                 query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "a"), new Term("body", "b") }, 0)
                     .add(new Term[] { new Term("body", "d") }, 1)
                     .setSlop(1)
                     .build();
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
                 phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
-                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phraseHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phraseHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Multi phrase query with no matches
                 query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "d"), new Term("body", "c") }, 0)
                     .add(new Term[] { new Term("body", "a") }, 1)
                     .build();
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
 
                 // Multi phrase query with one missing term
                 query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "d"), new Term("body", "c") }, 0)
                     .add(new Term[] { new Term("body", "e") }, 1)
                     .build();
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
             }
         }
     }
@@ -268,59 +268,59 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
 
                 MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("body");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 ScoreDoc[] phrasePrefixHits = searcher.search(query, 10).scoreDocs;
-                ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                ScoreDoc[] reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
 
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "c"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 phrasePrefixHits = searcher.search(query, 10).scoreDocs;
-                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
 
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "b"));
                 query.add(new Term("body", "c"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 phrasePrefixHits = searcher.search(query, 10).scoreDocs;
-                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
 
                 // Sloppy multi phrase prefix query
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "a"));
                 query.add(new Term("body", "c"));
                 query.setSlop(2);
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 phrasePrefixHits = searcher.search(query, 10).scoreDocs;
-                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
 
                 // Multi phrase prefix query with no matches
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "d"));
                 query.add(new Term("body", "b"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
 
                 // Multi phrase query with one missing term
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "d"));
                 query.add(new Term("body", "f"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(0, searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
             }
         }
     }
@@ -348,14 +348,14 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     0,
                     false
                 );
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
                 ScoreDoc[] spanHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, spanHits.length);
-                ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, spanHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                ScoreDoc[] reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, spanHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Sloppy span near query
                 query = new SpanNearQuery(
@@ -363,13 +363,13 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     1,
                     false
                 );
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
                 spanHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, spanHits.length);
-                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
-                CheckHits.checkEqual(query, spanHits, sourceConfirmedHits);
-                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                reanalyzingHits = searcher.search(reanalyzingPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, spanHits, reanalyzingHits);
+                CheckHits.checkExplanations(reanalyzingPhraseQuery, "body", searcher);
 
                 // Span near query with no matches
                 query = new SpanNearQuery(
@@ -377,9 +377,9 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     0,
                     false
                 );
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
 
                 // Span near query with one missing term
                 query = new SpanNearQuery(
@@ -387,50 +387,47 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     0,
                     false
                 );
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
-                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+                reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(reanalyzingPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(reanalyzingPhraseQuery, 10).scoreDocs);
             }
         }
     }
 
     public void testToString() {
         PhraseQuery query = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-        assertEquals(query.toString(), sourceConfirmedPhraseQuery.toString());
+        Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+        assertEquals(query.toString(), reanalyzingPhraseQuery.toString());
     }
 
     public void testEqualsHashCode() {
         PhraseQuery query1 = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery1 = new SourceConfirmedTextQuery(query1, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+        Query reanalyzingPhraseQuery1 = new ReanalyzingTextQuery(query1, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
-        assertEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery1);
-        assertEquals(sourceConfirmedPhraseQuery1.hashCode(), sourceConfirmedPhraseQuery1.hashCode());
+        assertEquals(reanalyzingPhraseQuery1, reanalyzingPhraseQuery1);
+        assertEquals(reanalyzingPhraseQuery1.hashCode(), reanalyzingPhraseQuery1.hashCode());
 
         PhraseQuery query2 = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery2 = new SourceConfirmedTextQuery(query2, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-        assertEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery2);
+        Query reanalyzingPhraseQuery2 = new ReanalyzingTextQuery(query2, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+        assertEquals(reanalyzingPhraseQuery1, reanalyzingPhraseQuery2);
 
         PhraseQuery query3 = new PhraseQuery("body", "b", "d");
-        Query sourceConfirmedPhraseQuery3 = new SourceConfirmedTextQuery(query3, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-        assertNotEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery3);
+        Query reanalyzingPhraseQuery3 = new ReanalyzingTextQuery(query3, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+        assertNotEquals(reanalyzingPhraseQuery1, reanalyzingPhraseQuery3);
 
         PhraseQuery query4 = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery6 = new SourceConfirmedTextQuery(query4, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-        assertEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery6);
+        Query reanalyzingPhraseQuery6 = new ReanalyzingTextQuery(query4, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+        assertEquals(reanalyzingPhraseQuery1, reanalyzingPhraseQuery6);
     }
 
     public void testApproximation() {
-        assertEquals(
-            new TermQuery(new Term("body", "text")),
-            SourceConfirmedTextQuery.approximate(new TermQuery(new Term("body", "text")))
-        );
+        assertEquals(new TermQuery(new Term("body", "text")), ReanalyzingTextQuery.approximate(new TermQuery(new Term("body", "text"))));
 
         assertEquals(
             new BooleanQuery.Builder().add(new TermQuery(new Term("body", "a")), Occur.FILTER)
                 .add(new TermQuery(new Term("body", "b")), Occur.FILTER)
                 .build(),
-            SourceConfirmedTextQuery.approximate(new PhraseQuery("body", "a", "b"))
+            ReanalyzingTextQuery.approximate(new PhraseQuery("body", "a", "b"))
         );
 
         MultiPhraseQuery query = new MultiPhraseQuery.Builder().add(new Term("body", "a"))
@@ -447,21 +444,21 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 Occur.FILTER
             )
             .build();
-        assertEquals(approximation, SourceConfirmedTextQuery.approximate(query));
+        assertEquals(approximation, ReanalyzingTextQuery.approximate(query));
 
         MultiPhrasePrefixQuery phrasePrefixQuery = new MultiPhrasePrefixQuery("body");
-        assertEquals(Queries.NO_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ReanalyzingTextQuery.approximate(phrasePrefixQuery));
 
         phrasePrefixQuery.add(new Term("body", "apache"));
         approximation = new BooleanQuery.Builder().add(new PrefixQuery(new Term("body", "apache")), Occur.FILTER).build();
-        assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+        assertEquals(approximation, ReanalyzingTextQuery.approximate(phrasePrefixQuery));
 
         phrasePrefixQuery.add(new Term("body", "luc"));
         approximation = new BooleanQuery.Builder().add(
             new BooleanQuery.Builder().add(new TermQuery(new Term("body", "apache")), Occur.SHOULD).build(),
             Occur.FILTER
         ).build();
-        assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+        assertEquals(approximation, ReanalyzingTextQuery.approximate(phrasePrefixQuery));
     }
 
     public void testBinaryDocValuesFieldFetcherIsLazy() throws Exception {
@@ -534,8 +531,8 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = newSearcher(reader);
                 PhraseQuery query = new PhraseQuery("body", "a", "b");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
-                assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));
+                Query reanalyzingPhraseQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                assertEquals(0, searcher.count(reanalyzingPhraseQuery));
             }
         }
     }
@@ -562,18 +559,18 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             doc.add(new KeywordField("sort", "2", Store.NO));
             w.addDocument(doc);
 
-            Query sourceConfirmedQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+            Query reanalyzingQuery = new ReanalyzingTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
             try (IndexReader ir = DirectoryReader.open(w)) {
                 {
                     IndexSearcher searcher = new IndexSearcher(ir);
                     TopDocs td = searcher.search(
-                        sourceConfirmedQuery,
+                        reanalyzingQuery,
                         3,
                         new Sort(KeywordField.newSortField("sort", false, SortedSetSelector.Type.MAX))
                     );
 
-                    Weight weight = searcher.createWeight(searcher.rewrite(sourceConfirmedQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
+                    Weight weight = searcher.createWeight(searcher.rewrite(reanalyzingQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
 
                     int firstDoc = td.scoreDocs[0].doc;
                     LeafReaderContext firstCtx = searcher.getLeafContexts().get(ReaderUtil.subIndex(firstDoc, searcher.getLeafContexts()));
@@ -589,7 +586,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     IndexSearcher searcher = new IndexSearcher(ir);
                     TopDocs td = searcher.search(KeywordField.newExactQuery("sort", "0"), 1);
 
-                    Weight weight = searcher.createWeight(searcher.rewrite(sourceConfirmedQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
+                    Weight weight = searcher.createWeight(searcher.rewrite(reanalyzingQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
                     int firstDoc = td.scoreDocs[0].doc;
                     LeafReaderContext firstCtx = searcher.getLeafContexts().get(ReaderUtil.subIndex(firstDoc, searcher.getLeafContexts()));
                     checkMatches(weight, firstCtx, firstDoc - firstCtx.docBase, new int[0], 0, false);

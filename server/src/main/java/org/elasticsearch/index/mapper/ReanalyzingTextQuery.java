@@ -62,12 +62,12 @@ import java.util.Set;
 
 /**
  * A variant of {@link TermQuery}, {@link PhraseQuery}, {@link MultiPhraseQuery}
- * and span queries that uses postings for its approximation and reads the
- * document's own values back wherever term frequencies or positions are needed.
- * Where those values live is the caller's to say; see {@link PositionalValueFetchers}.
+ * and span queries that uses postings for its approximation and analyzes the
+ * document's own values again wherever term frequencies or positions are needed.
+ * Where those values live is the caller's to say; see {@link FieldValueFetchers}.
  * This query matches and scores the same way as the wrapped query.
  */
-public final class SourceConfirmedTextQuery extends Query {
+public final class ReanalyzingTextQuery extends Query {
 
     /**
      * Create an approximation for the given query. The returned approximation
@@ -136,7 +136,7 @@ public final class SourceConfirmedTextQuery extends Query {
      * Similarity that produces the frequency as a score.
      */
     /**
-     * The terms of a phrase that can be confirmed by walking a document's values rather than indexing them, or null
+     * The terms of a phrase that can be counted by walking a document's values rather than reading positions, or null
      * where it cannot: anything but an exact phrase, whose terms sit at consecutive positions, on one field.
      */
     static Term[] walkablePhrase(Query query) {
@@ -246,7 +246,7 @@ public final class SourceConfirmedTextQuery extends Query {
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
-    public SourceConfirmedTextQuery(
+    public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
@@ -270,7 +270,7 @@ public final class SourceConfirmedTextQuery extends Query {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        SourceConfirmedTextQuery that = (SourceConfirmedTextQuery) obj;
+        ReanalyzingTextQuery that = (ReanalyzingTextQuery) obj;
         // We intentionally do not compare the value fetcher or analyzer, as they
         // do not typically implement equals() themselves, and the inner
         // Query is sufficient to establish identity.
@@ -294,14 +294,14 @@ public final class SourceConfirmedTextQuery extends Query {
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query inRewritten = in.rewrite(searcher);
         if (inRewritten != in) {
-            return new SourceConfirmedTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
+            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
         } else if (in instanceof ConstantScoreQuery) {
             Query sub = ((ConstantScoreQuery) in).getQuery();
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(sub, valueFetcherProvider, indexAnalyzer));
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer));
         } else if (in instanceof BoostQuery) {
             Query sub = ((BoostQuery) in).getQuery();
             float boost = ((BoostQuery) in).getBoost();
-            return new BoostQuery(new SourceConfirmedTextQuery(sub, valueFetcherProvider, indexAnalyzer), boost);
+            return new BoostQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer), boost);
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
@@ -371,7 +371,7 @@ public final class SourceConfirmedTextQuery extends Query {
                 if (scorerSupplier == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
-                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0);
+                ReanalyzingScorer scorer = (ReanalyzingScorer) scorerSupplier.get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
@@ -403,7 +403,7 @@ public final class SourceConfirmedTextQuery extends Query {
                         final DocIdSetIterator approximation = approximationScorer.iterator();
                         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
                         NumericDocValues norms = context.reader().getNormValues(field);
-                        return new RuntimePhraseScorer(approximation, simScorer, norms, valueFetcher, field, in);
+                        return new ReanalyzingScorer(approximation, simScorer, norms, valueFetcher, field, in);
                     }
 
                     @Override
@@ -430,7 +430,7 @@ public final class SourceConfirmedTextQuery extends Query {
                 if (scorerSupplier == null) {
                     return null;
                 }
-                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0L);
+                ReanalyzingScorer scorer = (ReanalyzingScorer) scorerSupplier.get(0L);
                 if (scorer == null) {
                     return null;
                 }
@@ -453,7 +453,7 @@ public final class SourceConfirmedTextQuery extends Query {
         }
     }
 
-    private class RuntimePhraseScorer extends Scorer {
+    private class ReanalyzingScorer extends Scorer {
         private final SimScorer scorer;
         private final CheckedIntFunction<List<Object>, IOException> valueFetcher;
         private final String field;
@@ -469,7 +469,7 @@ public final class SourceConfirmedTextQuery extends Query {
         private int doc = -1;
         private float freq;
 
-        private RuntimePhraseScorer(
+        private ReanalyzingScorer(
             DocIdSetIterator approximation,
             SimScorer scorer,
             NumericDocValues norms,

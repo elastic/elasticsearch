@@ -1168,7 +1168,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            return confirmIntervals(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
+            return reanalyzeIntervals(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
         }
 
         @Override
@@ -1177,7 +1177,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (prefixFieldType != null && prefixFieldType.getTextSearchInfo().hasPositions()) {
                 return prefixFieldType.intervals(term);
             }
-            return confirmIntervals(
+            return reanalyzeIntervals(
                 Intervals.prefix(term, IndexSearcher.getMaxClauseCount()),
                 new PrefixQuery(new Term(name(), term)),
                 context
@@ -1202,17 +1202,17 @@ public final class TextFieldMapper extends FieldMapper {
                 context,
                 name()
             );
-            return confirmIntervals(Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term), fq, context);
+            return reanalyzeIntervals(Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term), fq, context);
         }
 
         @Override
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            return confirmIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
+            return reanalyzeIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
         }
 
         @Override
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-            return confirmIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
+            return reanalyzeIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
         }
 
         @Override
@@ -1223,7 +1223,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return confirmIntervals(
+            return reanalyzeIntervals(
                 Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
                 Queries.ALL_DOCS_INSTANCE,
                 context
@@ -1239,12 +1239,12 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether a query over positions this field did not index can be confirmed against its values instead. Only a
+         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
          * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
          * none of its own, in its parent's.
          */
         private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
-            // The confirmation runs over the documents the field's own terms match, so it needs those terms.
+            // The values are read for the documents the field's own terms match, so it needs those terms.
             if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {
                 return false;
             }
@@ -1265,34 +1265,39 @@ public final class TextFieldMapper extends FieldMapper {
             return parent.hasDocValues() || parent.isStored();
         }
 
-        /** Reads this field's values back, for the queries that confirm against them. */
+        /** Reads this field's values back, for the queries that analyze them again. */
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
             SearchExecutionContext context
         ) {
             if (hasDocValues()) {
                 assert usesBinaryDocValues() : "a strictly columnar text field keeps its values in a binary column";
-                return PositionalValueFetchers.fromBinaryDocValues(name(), binaryFormat());
+                return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat());
             }
-            return PositionalValueFetchers.fromParent(context, name());
+            return FieldValueFetchers.fromParent(context, name());
         }
 
-        /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
-        private Query confirmPositions(Query query, SearchExecutionContext context) {
+        /** {@code query} as it stands where the field indexed positions, over its values again where it did not. */
+        private Query reanalyzePositions(Query query, SearchExecutionContext context) {
             if (verifiesPositionsFromDocValues(context) == false) {
                 return query;
             }
-            return new SourceConfirmedTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
         }
 
         /** The same for an interval, which also needs the query that finds the documents worth reading. */
-        private IntervalsSource confirmIntervals(IntervalsSource source, Query approximation, SearchExecutionContext context) {
+        private IntervalsSource reanalyzeIntervals(IntervalsSource source, Query approximation, SearchExecutionContext context) {
             if (getTextSearchInfo().hasPositions()) {
                 return source;
             }
             if (verifiesPositionsFromDocValues(context) == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            return new SourceIntervalsSource(source, approximation, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+            return new ReanalyzingIntervalsSource(
+                source,
+                approximation,
+                valueFetcherProvider(context),
+                context.getIndexAnalyzer(f -> null)
+            );
         }
 
         @Override
@@ -1330,7 +1335,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
 
             // Answered by the shingle subfield, which indexes its own positions.
-            return field.equals(name()) ? confirmPositions(builder.build(), context) : builder.build();
+            return field.equals(name()) ? reanalyzePositions(builder.build(), context) : builder.build();
         }
 
         @Override
@@ -1346,7 +1351,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             final Query query = createPhraseQuery(stream, field, slop, enablePositionIncrements);
             // Answered by the shingle subfield, which indexes its own positions.
-            return field.equals(name()) ? confirmPositions(query, context) : query;
+            return field.equals(name()) ? reanalyzePositions(query, context) : query;
         }
 
         private static int countTokens(TokenStream ts) throws IOException {
@@ -1361,18 +1366,17 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            final boolean confirms = verifiesPositionsFromDocValues(context);
-            if (countTokens(stream) > 1 && confirms == false) {
+            final boolean reanalyzes = verifiesPositionsFromDocValues(context);
+            if (countTokens(stream) > 1 && reanalyzes == false) {
                 checkForPositions(false);
             }
-            return confirmPositions(analyzePhrasePrefix(stream, slop, maxExpansions, confirms), context);
+            return reanalyzePositions(analyzePhrasePrefix(stream, slop, maxExpansions, reanalyzes), context);
         }
 
-        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions, boolean confirmsFromDocValues)
-            throws IOException {
-            // The prefix subfield indexes no positions either, and the confirmation reads this field's values, so the
-            // query it confirms has to ask about this field's terms.
-            String prefixField = prefixFieldType == null || slop > 0 || confirmsFromDocValues ? null : prefixFieldType.name();
+        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions, boolean reanalyzesValues) throws IOException {
+            // The prefix subfield indexes no positions either, and this field's own values are what is read, so the
+            // query it wraps has to ask about this field's terms.
+            String prefixField = prefixFieldType == null || slop > 0 || reanalyzesValues ? null : prefixFieldType.name();
             IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
             return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }

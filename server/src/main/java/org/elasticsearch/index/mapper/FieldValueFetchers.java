@@ -27,13 +27,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Where {@link SourceConfirmedTextQuery} and {@link SourceIntervalsSource} read a document's values from when they
- * confirm positions a field did not index. A field holding its values in doc values is read there rather than from
- * {@code _source}.
+ * Where {@link ReanalyzingTextQuery} and {@link ReanalyzingIntervalsSource} read a document's values from when they
+ * analyze them again. A field holding its values in doc values is read there rather than from {@code _source}.
  */
-public final class PositionalValueFetchers {
+public final class FieldValueFetchers {
 
-    private PositionalValueFetchers() {}
+    private FieldValueFetchers() {}
 
     /**
      * A document's values read from its binary doc values.

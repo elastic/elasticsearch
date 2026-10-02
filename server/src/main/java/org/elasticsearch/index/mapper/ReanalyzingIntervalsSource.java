@@ -32,16 +32,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A wrapper of {@link IntervalsSource} for the case when positions are not indexed.
+ * A wrapper of {@link IntervalsSource} for the case when positions are not indexed: the document's own values are
+ * analyzed again to find the intervals. Where those values live is the caller's to say; see
+ * {@link FieldValueFetchers}.
  */
-public final class SourceIntervalsSource extends IntervalsSource {
+public final class ReanalyzingIntervalsSource extends IntervalsSource {
 
     private final IntervalsSource in;
     private final Query approximation;
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
-    public SourceIntervalsSource(
+    public ReanalyzingIntervalsSource(
         IntervalsSource in,
         Query approximation,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
@@ -114,7 +116,7 @@ public final class SourceIntervalsSource extends IntervalsSource {
             private boolean setIterator(int doc) throws IOException {
                 final List<Object> values = valueFetcher.apply(doc);
                 final LeafReaderContext singleDocContext = createSingleDocLeafReaderContext(field, values);
-                in = SourceIntervalsSource.this.in.intervals(field, singleDocContext);
+                in = ReanalyzingIntervalsSource.this.in.intervals(field, singleDocContext);
                 final boolean isSet = in != null && in.nextDoc() != NO_MORE_DOCS;
                 assert isSet == false || in.docID() == 0;
                 return isSet;
@@ -184,7 +186,7 @@ public final class SourceIntervalsSource extends IntervalsSource {
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        SourceIntervalsSource that = (SourceIntervalsSource) other;
+        ReanalyzingIntervalsSource that = (ReanalyzingIntervalsSource) other;
         // Not using matchesProvider and valueFetcherProvider, which don't identify this source but are only used to avoid scanning linearly
         // through all documents
         return in.equals(that.in) && indexAnalyzer.equals(that.indexAnalyzer);

@@ -4240,6 +4240,7 @@ public class ExternalSourceResolver {
         // those answers are properties of the dataset, not of who asked. The listing-charge soak is
         // inferred FFW (no mapping); that rail passes hints through listAndRecord because that
         // listing is also the files the query reads. A strict mapping still lists the unfiltered set.
+        // TODO: pass hints once declared-mapping listing is allowed to be the query's file set.
         List<PartitionFilterHintExtractor.PartitionFilterHint> schemaHints = null;
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(

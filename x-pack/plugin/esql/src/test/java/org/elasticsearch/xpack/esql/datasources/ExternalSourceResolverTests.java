@@ -2440,15 +2440,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertTrue(listing.path(i).toString().startsWith("s3://bucket/data/year=2026/month=07/day=13/"));
         }
 
-        // chargeListingPlanning remainder (planningBytes - 700n + 760n): the listing's own size.
-        // queryHeld also keeps walk credit for keys the flat stub enumerated then dropped, so it
-        // is larger (~6.1 MB here) — still off the ~14.3 MB year plateau.
-        long n = listing.fileCount();
-        long listingCharge = listing.planningBytes() - n * FileList.LISTING_BYTES_PER_ENTRY + n * 760L;
-        assertThat("chargeListingPlanning remainder for 24 files", listingCharge, lessThan(2_000_000L));
-        long held = reservation.queryHeld();
-        assertThat("queryHeld=" + held + " must drop off the ~14.3 MB year plateau", held, lessThan(10_000_000L));
-        assertThat("queryHeld=" + held, held, greaterThan(0L));
+        // planningBytes of the 24-file listing, vs the year listing's per-entry credit. Avoids
+        // SCHEMA_MAP_BYTES_PER_FILE (private) and the stub's ~6.1 MB walk leftover on queryHeld.
+        assertThat(listing.planningBytes(), lessThan(2_000_000L));
+        assertThat(listing.planningBytes() * 50, lessThan(365L * 24 * FileList.LISTING_BYTES_PER_ENTRY));
+        assertThat(reservation.queryHeld(), greaterThan(0L));
         assertThat(metadataReads.get(), greaterThan(0));
 
         // Production EsqlSession always passes a non-null set. LIMIT panels are bounded
@@ -5197,7 +5193,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
      * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
      * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
-     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate.
+     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate. Inferred
+     * {@code first_file_wins} now passes the same hints, so it must take the same fallback.
      */
     public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5218,13 +5215,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-            ExternalSourceResolution resolution = resolveWith(
-                resolver,
-                glob,
-                Map.of(glob, List.of(hint)),
-                FormatReader.SchemaResolution.UNION_BY_NAME
-            );
-            assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                assertEquals(
+                    "[" + strategy + "] a rewrite to a missing folder must fall back to the full listing",
+                    1,
+                    resolution.resolvedSource(glob).fileList().fileCount()
+                );
+            }
         }
     }
 

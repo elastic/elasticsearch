@@ -154,12 +154,13 @@ public interface FileList {
 
     /**
      * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
-     * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
+     * list is a prefix of the files the pattern (and any partition filters) matches and {@link #fileCount()} is
+     * a floor, not a total.
      * <p>
-     * Only resolution ever asks for a bound, and it asks on the dataset's behalf rather than the query's: what
-     * defines a dataset's columns is its {@code schema_resolution} mode, so under {@code first_file_wins} or a
-     * declared mapping one page answers that whatever the query goes on to do. A query that reads rows can
-     * therefore be handed one. Turning it into the query's own file set is split discovery's job
+     * Only resolution ever asks for a bound. Under inferred {@code first_file_wins} that prefix is of the files
+     * this query's filters keep, large enough for one file to define the schema. A declared mapping still asks
+     * on the dataset's behalf: no file defines the columns, so the prefix is of the unfiltered glob. Turning a
+     * truncated listing into the query's own file set is split discovery's job
      * ({@code FileSplitProvider#overTheQuerysFileSet}), and everything resolution derived per file from the bounded
      * listing — partition values, per-file read schemas — moves with the file set when it does
      * ({@code SplitDiscoveryContext#withScanFileSet}).

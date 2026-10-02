@@ -5260,6 +5260,35 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * A range filter cannot splice the prefix. Under a bound the walk is skipped, so the first page may keep
+     * nothing: {@code listed} hits the bound before the matching key. The empty truncated listing must retry
+     * unbounded, or FIRST_FILE_WINS (which now passes value filters here) would miss files past the prefix.
+     */
+    public void testBoundedRangeFilterMatchingPastTheBoundRelistsInFull() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2025));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/year=*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+
+        assertEquals("the matching file past the bound must still be found", 1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2025/b.parquet", result.path(0).toString());
+        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+    }
+
+    /**
      * The re-list after a bounded page matched nothing is the whole glob, so partition detection folds over all of
      * it. Keeping the partition sample across that retry would type a column from the front of a listing that
      * shipped every file, and leave every file past the sample with no partition values at all.

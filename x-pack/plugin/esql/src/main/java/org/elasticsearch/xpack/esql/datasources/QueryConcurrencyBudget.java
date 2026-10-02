@@ -15,7 +15,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,8 +60,8 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
 
-    private final List<RowGroupIo> registry = new ArrayList<>();
-    private final List<Waiter> waiters = new ArrayList<>();
+    private final Set<RowGroupIo> registry = new LinkedHashSet<>();
+    private final Set<Waiter> waiters = new LinkedHashSet<>();
     private long nextStartSeq;
     private RowGroupIo favoured;
     private RowGroupIo pinnedLease;
@@ -126,6 +130,9 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             if (closed) {
                 throw new TimeoutException("Budget was closed while waiting for permit");
             }
+            if (lease != null && lease.isFinished()) {
+                throw new TimeoutException("Row group lease was finished while waiting for permit");
+            }
             if (waiters.isEmpty() && inFlight < maxPermits) {
                 takePermit(lease, countGets);
                 return;
@@ -137,6 +144,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                     if (closed) {
                         waiters.remove(waiter);
                         throw new TimeoutException("Budget was closed while waiting for permit");
+                    }
+                    if (lease != null && lease.isFinished()) {
+                        waiters.remove(waiter);
+                        throw new TimeoutException("Row group lease was finished while waiting for permit");
                     }
                     long waitNanos = deadlineNanos - System.nanoTime();
                     if (waitNanos <= 0) {
@@ -250,10 +261,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         if (maxPermits <= 0) {
             return;
         }
-        closed = true;
         List<RowGroupIo> toCancel;
         lock.lock();
         try {
+            closed = true;
             toCancel = new ArrayList<>(registry);
             for (Waiter waiter : waiters) {
                 waiter.condition.signal();
@@ -337,6 +348,14 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             }
             registry.remove(io);
             io.markFinished();
+            Iterator<Waiter> it = waiters.iterator();
+            while (it.hasNext()) {
+                Waiter waiter = it.next();
+                if (waiter.lease == io) {
+                    it.remove();
+                    waiter.condition.signal();
+                }
+            }
         } finally {
             lock.unlock();
         }
@@ -373,7 +392,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
      * {@code acquire(null)} is FIFO among null leases and never becomes {@code favoured}, except a
      * null waiter that has waited {@link #NULL_LEASE_MAX_WAIT_MS} takes one grant.
      */
-    Waiter choose(List<Waiter> waiting) {
+    Waiter choose(Collection<Waiter> waiting) {
         Waiter nullDue = oldestNullLeaseWaitingAtLeast(waiting, NULL_LEASE_MAX_WAIT_MS);
         if (nullDue != null) {
             return nullDue;
@@ -403,7 +422,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return oldest;
     }
 
-    private static Waiter waiterFor(List<Waiter> waiting, RowGroupIo lease) {
+    private static Waiter waiterFor(Collection<Waiter> waiting, RowGroupIo lease) {
         if (lease == null) {
             return null;
         }
@@ -415,7 +434,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return null;
     }
 
-    private static Waiter closestOther(List<Waiter> waiting, RowGroupIo incumbent) {
+    private static Waiter closestOther(Collection<Waiter> waiting, RowGroupIo incumbent) {
         Waiter best = null;
         for (Waiter waiter : waiting) {
             if (waiter.lease == null || waiter.lease.isFinished() || waiter.lease == incumbent) {
@@ -426,7 +445,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return best;
     }
 
-    private static Waiter smallestStartSeq(List<Waiter> waiting) {
+    private static Waiter smallestStartSeq(Collection<Waiter> waiting) {
         Waiter oldest = null;
         for (Waiter waiter : waiting) {
             if (waiter.lease == null || waiter.lease.isFinished()) {
@@ -439,7 +458,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return oldest;
     }
 
-    private static Waiter smallestOutstanding(List<Waiter> waiting) {
+    private static Waiter smallestOutstanding(Collection<Waiter> waiting) {
         Waiter best = null;
         for (Waiter waiter : waiting) {
             if (waiter.lease == null || waiter.lease.isFinished()) {
@@ -464,7 +483,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return best;
     }
 
-    private static Waiter oldestNull(List<Waiter> waiting) {
+    private static Waiter oldestNull(Collection<Waiter> waiting) {
         Waiter oldest = null;
         for (Waiter waiter : waiting) {
             if (waiter.lease != null) {
@@ -477,7 +496,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return oldest;
     }
 
-    private static Waiter oldestNullLeaseWaitingAtLeast(List<Waiter> waiting, long minWaitMs) {
+    private static Waiter oldestNullLeaseWaitingAtLeast(Collection<Waiter> waiting, long minWaitMs) {
         long minWaitNanos = TimeUnit.MILLISECONDS.toNanos(minWaitMs);
         long now = System.nanoTime();
         Waiter oldest = null;

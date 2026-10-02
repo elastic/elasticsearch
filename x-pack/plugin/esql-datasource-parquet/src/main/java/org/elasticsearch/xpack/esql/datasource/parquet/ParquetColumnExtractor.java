@@ -611,10 +611,20 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         }
     }
 
+    /** One lease per physical row-group index, created on first use and rebound after finish. */
+    private RowGroupIo[] extractorLeases;
+
     private RowGroupIo leaseForExtractor(int rowGroupIndex) {
-        RowGroupIo lease = new RowGroupIo();
-        if (storageObject != null) {
-            storageObject.bindRowGroup(lease);
+        if (extractorLeases == null) {
+            extractorLeases = new RowGroupIo[ownedFooter.getBlocks().size()];
+        }
+        RowGroupIo lease = extractorLeases[rowGroupIndex];
+        if (lease == null || lease.isFinished()) {
+            lease = new RowGroupIo();
+            extractorLeases[rowGroupIndex] = lease;
+            if (storageObject != null) {
+                storageObject.bindRowGroup(lease);
+            }
         }
         return lease;
     }

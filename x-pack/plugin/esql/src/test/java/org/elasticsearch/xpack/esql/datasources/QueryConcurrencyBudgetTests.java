@@ -387,6 +387,45 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         budget.release();
     }
 
+    public void testFinishUnblocksWaiterForThatLease() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo done = bound(budget, 3);
+        RowGroupIo live = bound(budget, 3);
+        budget.acquire();
+        AtomicReference<Exception> doneErr = new AtomicReference<>();
+        CountDownLatch doneFinished = new CountDownLatch(1);
+        Thread doneWaiter = new Thread(() -> {
+            try {
+                budget.acquire(done);
+            } catch (Exception e) {
+                doneErr.set(e);
+            } finally {
+                doneFinished.countDown();
+            }
+        });
+        doneWaiter.start();
+        Thread liveWaiter = startAcquire(budget, live);
+        awaitWaiters(budget, 2);
+        done.finish();
+        assertTrue(doneFinished.await(5, TimeUnit.SECONDS));
+        assertTrue(doneErr.get() instanceof TimeoutException);
+        assertThat(doneErr.get().getMessage(), containsString("finished"));
+        assertTrue("other lease waiters stay queued", liveWaiter.isAlive());
+        assertEquals(1, budget.waiterCount());
+        budget.release();
+        liveWaiter.join(5_000);
+        budget.release();
+    }
+
+    public void testAcquireOnFinishedLeaseThrows() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo lease = bound(budget, 1);
+        lease.finish();
+        TimeoutException e = expectThrows(TimeoutException.class, () -> budget.acquire(lease));
+        assertThat(e.getMessage(), containsString("finished"));
+        assertEquals(0, budget.inFlight());
+    }
+
     public void testUnlimitedAcquireIgnoresLease() throws Exception {
         RowGroupIo lease = new RowGroupIo();
         lease.addUnissued(4);

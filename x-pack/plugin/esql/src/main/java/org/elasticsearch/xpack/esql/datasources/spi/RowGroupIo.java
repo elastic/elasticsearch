@@ -164,8 +164,9 @@ public final class RowGroupIo {
     }
 
     /**
-     * Marks this lease finished and drops it from the bound scheduler's registry. With no
-     * scheduler, only the local finished flag is set.
+     * Marks this lease finished and drops it from the bound scheduler's registry. The scheduler
+     * must also unblock any {@code acquire} waiters for this lease. With no scheduler, only the
+     * local finished flag is set.
      */
     public void finish() {
         RowGroupScheduler s = scheduler;

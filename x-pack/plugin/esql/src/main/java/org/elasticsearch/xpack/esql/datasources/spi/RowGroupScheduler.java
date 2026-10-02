@@ -27,7 +27,10 @@ public interface RowGroupScheduler {
 
     /**
      * Marks {@code io} finished, drops it from the scheduler's registry, and clears a stale
-     * favourite/pin that still points at it.
+     * favourite/pin that still points at it. Must also unblock any thread blocked in
+     * {@code acquire} for this lease — typically by signalling its wait condition so the
+     * waiter observes {@link RowGroupIo#isFinished()} and fails the acquire. Implementors
+     * that skip this leave those waiters parked until the acquire timeout.
      */
     void finish(RowGroupIo io);
 }

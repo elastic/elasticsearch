@@ -26,3 +26,10 @@ $$$enrich-options$$$
 | `on_failure` | no | - | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
+::::{important}
+The enrich processor performs several operations and can impact the speed of your ingest pipeline. We recommend [node roles](/reference/elasticsearch/configuration-reference/node-settings.md) co-locating ingest and data roles to minimize remote search operations.
+
+We strongly recommend testing and benchmarking your enrich processors before deploying them in production.
+
+We do not recommend using the enrich processor to append real-time data. The enrich processor works best with reference data that doesn’t change frequently.
+::::

@@ -665,7 +665,7 @@ public class SearchableSnapshotDirectoryFactory {
             DiscoveryNode.getRolesFromSettings(Settings.EMPTY),
             null
         );
-        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
+        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null, 0);
 
         recoveryState.setStage(RecoveryState.Stage.INIT)
             .setStage(RecoveryState.Stage.INDEX)

@@ -51,15 +51,18 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
     }
 
     /**
-     * A columnar field is answered by its column, through the queries in the columnar library, so one reaching a
+     * A columnar field, in either of the framings the column answers, is answered by its column, through the queries
+     * in the columnar library, so one reaching a
      * scanning query is a caller that routed it wrongly - see BinaryDocValuesQueries, which is what chooses between
      * the two. Refused here rather than where the scan would run, so it fails when the query is built.
      */
     static BinaryDocValuesFormat rejectColumnar(BinaryDocValuesFormat binaryFormat, String fieldName) {
-        if (Objects.requireNonNull(binaryFormat) == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            throw new IllegalArgumentException("field [" + fieldName + "] is a column and is not answered by scanning");
-        }
-        return binaryFormat;
+        return switch (Objects.requireNonNull(binaryFormat)) {
+            case COLUMNAR_PAYLOAD, PLAIN -> throw new IllegalArgumentException(
+                "field [" + fieldName + "] is a column and is not answered by scanning"
+            );
+            case SEPARATE_COUNT, ARRAY_ORDER_INLINE_NULL -> binaryFormat;
+        };
     }
 
     @Override
@@ -110,7 +113,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         }
         return switch (binaryFormat) {
             // Refused by the constructor, so a query holding this format does not exist.
-            case COLUMNAR_PAYLOAD -> throw new AssertionError("columnar field [" + fieldName + "]");
+            case COLUMNAR_PAYLOAD, PLAIN -> throw new AssertionError("columnar field [" + fieldName + "]");
             case ARRAY_ORDER_INLINE_NULL -> {
                 // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
                 // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.

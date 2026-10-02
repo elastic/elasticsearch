@@ -297,35 +297,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     private void assertCloseMidGrowPoisonsCapturedStats(boolean recordEndsAtGrowBufferFill) throws Exception {
         CountDownLatch parked = new CountDownLatch(1);
         CountDownLatch resume = new CountDownLatch(1);
-        // An endless record that parks once mid-grow, after the first chunk-sized read.
-        InputStream stream = new InputStream() {
-            long delivered = 0;
-
-            @Override
-            public int read() {
-                throw new AssertionError("segmentator reads in bulk");
-            }
-
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                if (delivered >= 768 && parked.getCount() > 0) {
-                    parked.countDown();
-                    try {
-                        resume.await();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IOException("interrupted", e);
-                    }
-                }
-                int n = Math.min(len, 256);
-                Arrays.fill(b, off, off + n, (byte) 'x');
-                if (recordEndsAtGrowBufferFill && delivered == 768) {
-                    b[off + n - 1] = '\n';
-                }
-                delivered += n;
-                return n;
-            }
-        };
+        InputStream stream = parkingMidGrowStream(parked, resume, recordEndsAtGrowBufferFill);
         String path = "mem://streaming-close-before-eof-test";
         StorageObject file = new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"));
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
@@ -372,6 +344,95 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
         boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
         assertTrue("a close mid-grow must publish a poison marker even when the consumer is caught up", poisoned);
+    }
+
+    /**
+     * A close mid-grow is a stop, not a failure: a consumer already parked in {@code hasNext()} when the close
+     * lands must see a clean end of iteration, and no error may be recorded for a later {@code tryAdvance()} to
+     * surface. This is the LIMIT / cancellation path, where the query already has its rows and must not fail.
+     */
+    public void testCloseMidGrowStopsParkedConsumerCleanly() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        InputStream stream = parkingMidGrowStream(parked, resume, randomBoolean());
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            safeAwait(parked);
+            // Nothing has been dispatched yet, so the consumer parks in hasNext() until the close wakes it.
+            PlainActionFuture<Boolean> consumerHasNext = new PlainActionFuture<>();
+            Thread consumer = new Thread(() -> ActionListener.completeWith(consumerHasNext, iter::hasNext));
+            consumer.start();
+            assertBusy(() -> assertEquals(Thread.State.WAITING, consumer.getState()), 10, TimeUnit.SECONDS);
+
+            // close() waits for the segmentator, so run it on its own thread and resume the stream only once
+            // close is polling: the segmentator must observe the close mid-grow, not race ahead of it.
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closer.start();
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, closer.getState()), 10, TimeUnit.SECONDS);
+            resume.countDown();
+            closer.join(TimeUnit.SECONDS.toMillis(30));
+            assertFalse("close() must return once the segmentator exits", closer.isAlive());
+
+            assertFalse("a consumer parked across a close mid-grow must see a clean end", safeGet(consumerHasNext));
+            consumer.join(TimeUnit.SECONDS.toMillis(30));
+            // tryAdvance checks recorded errors before the closed short-circuit, so it throws if the close was
+            // stored as a failure.
+            assertNull("a close mid-grow must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * An endless record that parks once mid-grow. With a 512-byte chunk and 256-byte reads, the stream parks
+     * before its fourth read, while the segmentator is growing past the first chunk. If
+     * {@code recordEndsAtGrowBufferFill}, that read ends the first record with a newline.
+     */
+    private static InputStream parkingMidGrowStream(CountDownLatch parked, CountDownLatch resume, boolean recordEndsAtGrowBufferFill) {
+        return new InputStream() {
+            long delivered = 0;
+
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (delivered >= 768 && parked.getCount() > 0) {
+                    parked.countDown();
+                    try {
+                        resume.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted", e);
+                    }
+                }
+                int n = Math.min(len, 256);
+                Arrays.fill(b, off, off + n, (byte) 'x');
+                if (recordEndsAtGrowBufferFill && delivered == 768) {
+                    b[off + n - 1] = '\n';
+                }
+                delivered += n;
+                return n;
+            }
+        };
     }
 
     public void testParserErrorPropagates() throws Exception {

@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,12 +26,15 @@ import org.elasticsearch.compute.operator.DriverEarlyTerminationException;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -38,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -58,33 +64,75 @@ import static org.mockito.Mockito.when;
  */
 public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
 
+    private static final String TEST_EXECUTOR_NAME = "external_field_operator_tests";
+
     // Leak-tracking factory: ComputeTestCase's teardown asserts every block allocated by any
     // test is released, so each test doubles as a leak test. Initialized in a @Before method
     // rather than a field initializer to avoid a this-escape during construction.
     private BlockFactory blockFactory;
+
+    private TestThreadPool threadPool;
 
     @Before
     public void initBlockFactory() {
         blockFactory = blockFactory();
     }
 
+    @Before
+    public void setThreadPool() {
+        int numThreads = randomBoolean() ? 1 : between(2, 16);
+        threadPool = new TestThreadPool(
+            "test",
+            new FixedExecutorBuilder(Settings.EMPTY, TEST_EXECUTOR_NAME, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        terminate(threadPool);
+    }
+
+    /**
+     * Materializes on a separate thread after a random delay, instead of inline on the calling
+     * thread, so {@link #simple} exercises the operator's real isBlocked/checkpoint handling
+     * rather than always completing synchronously inside {@code addInput}.
+     */
+    private Executor randomDelayExecutor() {
+        return command -> threadPool.schedule(
+            command,
+            TimeValue.timeValueMillis(randomIntBetween(0, 10)),
+            threadPool.executor(TEST_EXECUTOR_NAME)
+        );
+    }
+
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        long[] sortKeys = new long[size];
-        long[] rowPositions = new long[size];
-        int[] passThrough = new int[size];
-        for (int p = 0; p < size; p++) {
-            sortKeys[p] = p;
-            rowPositions[p] = SourceExtractors.encode(0, p);
-            passThrough[p] = p;
-        }
-        Page page = new Page(
-            size,
-            blockFactory.newLongArrayVector(sortKeys, size).asBlock(),
-            blockFactory.newLongArrayVector(rowPositions, size).asBlock(),
-            blockFactory.newIntArrayVector(passThrough, size).asBlock()
-        );
-        return new CannedSourceOperator(List.of(page).iterator());
+        return new AbstractBlockSourceOperator(blockFactory, 5 * randomPageSize()) {
+            @Override
+            protected int remaining() {
+                return size - currentPosition;
+            }
+
+            @Override
+            protected Page createPage(int positionOffset, int length) {
+                long[] sortKeys = new long[length];
+                long[] rowPositions = new long[length];
+                int[] passThrough = new int[length];
+                for (int i = 0; i < length; i++) {
+                    int globalPosition = positionOffset + i;
+                    sortKeys[i] = globalPosition;
+                    rowPositions[i] = SourceExtractors.encode(0, globalPosition);
+                    passThrough[i] = globalPosition;
+                }
+                currentPosition += length;
+                return new Page(
+                    length,
+                    blockFactory.newLongArrayVector(sortKeys, length).asBlock(),
+                    blockFactory.newLongArrayVector(rowPositions, length).asBlock(),
+                    blockFactory.newIntArrayVector(passThrough, length).asBlock()
+                );
+            }
+        };
     }
 
     @Override
@@ -108,18 +156,31 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
             for (int p = 0; p < inputPage.getPositionCount(); p++) {
                 assertEquals(inputSortKeys.getLong(p), resultSortKeys.getLong(p));
                 assertEquals(inputPassThrough.getInt(p), resultPassThrough.getInt(p));
-                assertEquals(Math.multiplyExact(p, p), resultExtracted.getInt(p));
+                int globalPosition = inputPassThrough.getInt(p);
+                assertEquals(Math.multiplyExact(globalPosition, globalPosition), resultExtracted.getInt(p));
             }
         }
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
+        // testSimpleCircuitBreaking drives this factory through dozens of binary-search iterations;
+        // keep it synchronous there so it stays fast and so each iteration behaves identically.
+        Executor executor = options.requiresDeterministicFactory() ? Runnable::run : randomDelayExecutor();
         return new ExternalFieldExtractOperator.Factory(1, List.of(0, 2), List.of("col"), List.of(DataType.INTEGER), driverContext -> {
             SourceExtractors registry = new SourceExtractors();
             registry.register(new SquaredPositionExtractor());
             return registry;
-        }, null, Runnable::run);
+        }, null, executor);
+    }
+
+    @Override
+    protected int largeInputSize() {
+        // ExternalFieldExtractOperator serializes materializations (maxOutstandingRequests = 1), and
+        // randomDelayExecutor() adds a real per-page delay, so the default (up to 10,000 rows split
+        // into pages as small as 1) can blow past TestDriverRunner's 30s budget. Bound it like
+        // InferenceOperatorTestCase does for the same reason.
+        return between(500, 5_000);
     }
 
     @Override

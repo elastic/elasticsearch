@@ -725,6 +725,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             value = null;
         } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
             value = null;
+        } else if (parser.currentToken() == Token.START_OBJECT && ignoreMalformed.value() == false) {
+            throw new IllegalArgumentException("Cannot parse object as number");
         } else {
             try {
                 numericValue = parser.doubleValue(coerce.value());
@@ -734,6 +736,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
                         FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                    } else {
+                        // capture() consumes objects; without it we must skip them ourselves so the parser
+                        // ends on the value's last token and the rest of the document is parsed at the right level.
+                        parser.skipChildren();
                     }
                     return;
                 } else {

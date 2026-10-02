@@ -352,6 +352,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // Whole-file fills must not become FooterByteCache entries: isTailRead would otherwise
             // be true (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would
             // evict genuine footers from the configured per-reader footer cache budget.
+            // Charge before getOrLoad so a breaker trip does not issue that cold-tail GET.
+            getOrAllocateWindow();
             boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
             if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
@@ -369,7 +371,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             windowLength = 0;
 
             int target = (int) toRead;
-            windowBytes();
             final InputStream in;
             try {
                 in = storageObject.newStream(fetchPos, toRead);
@@ -497,7 +498,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             windowStart = -1;
             windowLength = 0;
             ByteBuffer src = chunk.data();
-            src.get(src.position() + offsetInChunk, windowBytes(), 0, copyLen);
+            src.get(src.position() + offsetInChunk, getOrAllocateWindow(), 0, copyLen);
             windowStart = pos;
             windowLength = copyLen;
             return true;
@@ -509,7 +510,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 int from = (int) (pos - cachedStart);
                 windowStart = -1;
                 windowLength = 0;
-                System.arraycopy(cached, from, windowBytes(), 0, toRead);
+                System.arraycopy(cached, from, getOrAllocateWindow(), 0, toRead);
                 windowStart = pos;
                 windowLength = toRead;
                 return true;
@@ -596,9 +597,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
 
         /**
-         * First write of the window array. Second call is a no-op.
+         * Returns the sliding window, allocating and charging it on first use.
          */
-        private byte[] windowBytes() {
+        private byte[] getOrAllocateWindow() {
             if (window == null) {
                 allocateWindow();
             }

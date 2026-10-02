@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LabelledDecisionCache {
 
     /// This is a hard limit on how many decisions we'll cache per decision type, we shouldn't hit it if things are working as expected.
-    private static final int DECIDER_SIZE_LIMIT = 500;
+    static final int DECIDER_SIZE_LIMIT = 500;
     private static final Set<Decision.Type> INTERESTING_DECISION_TYPES = Set.of(Decision.Type.NO, Decision.Type.NOT_PREFERRED);
     private final EnumMap<Decision.Type, Map<String, Decision>> decisionCache = new EnumMap<>(Decision.Type.class);
 

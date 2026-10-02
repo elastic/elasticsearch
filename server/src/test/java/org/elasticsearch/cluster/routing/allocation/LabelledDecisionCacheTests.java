@@ -50,7 +50,7 @@ public class LabelledDecisionCacheTests extends ESTestCase {
 
     public void testFullCacheStillServesCachedLabelsButDoesNotCacheNewOnes() {
         final var first = cache.get(Decision.NO, "label-0");
-        for (int i = 1; i < 500; i++) {
+        for (int i = 1; i < LabelledDecisionCache.DECIDER_SIZE_LIMIT; i++) {
             cache.get(Decision.NO, "label-" + i);
         }
 
@@ -63,7 +63,7 @@ public class LabelledDecisionCacheTests extends ESTestCase {
     }
 
     public void testSizeLimitIsAppliedPerDecisionType() {
-        for (int i = 0; i < 500; i++) {
+        for (int i = 0; i < LabelledDecisionCache.DECIDER_SIZE_LIMIT; i++) {
             cache.get(Decision.NO, "label-" + i);
         }
         assertThat(cache.get(Decision.NO, "one-more"), sameInstance(Decision.NO));

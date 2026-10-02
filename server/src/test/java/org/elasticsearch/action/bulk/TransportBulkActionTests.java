@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
@@ -87,6 +89,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -96,6 +99,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -112,8 +116,26 @@ public class TransportBulkActionTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
+    // the bytes most recently reserved for a coordinating operation, see RecordingIndexingPressure
+    private final AtomicLong lastCoordinatingOperationBytes = new AtomicLong(-1);
     private FeatureService mockFeatureService;
     private AtomicReference<ProjectId> activeProjectId = new AtomicReference<>();
+
+    /**
+     * A real {@link IndexingPressure} that additionally records the bytes most recently reserved for a coordinating operation, so
+     * tests can assert what the bulk action accounts for without altering the accounting itself.
+     */
+    private class RecordingIndexingPressure extends IndexingPressure {
+        RecordingIndexingPressure() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
+            lastCoordinatingOperationBytes.set(bytes);
+            return super.markCoordinatingOperationStarted(operations, bytes, forceExecution);
+        }
+    }
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -123,7 +145,7 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
         Runnable beforeIndexCreation = null;
 
-        TestTransportBulkAction() {
+        TestTransportBulkAction(IndexingPressure indexingPressure) {
             super(
                 TransportBulkActionTests.this.threadPool,
                 transportService,
@@ -132,7 +154,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
                 ActionFilters.EMPTY,
                 new Resolver(),
-                new IndexingPressure(Settings.EMPTY),
+                indexingPressure,
                 new SystemIndices(
                     List.of(
                         new SystemIndices.Feature(
@@ -221,7 +243,7 @@ public class TransportBulkActionTests extends ESTestCase {
         mockFeatureService = mock(FeatureService.class);
         when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         activeProjectId.set(Metadata.DEFAULT_PROJECT_ID);
-        bulkAction = new TestTransportBulkAction();
+        bulkAction = new TestTransportBulkAction(new RecordingIndexingPressure());
     }
 
     @After
@@ -657,6 +679,31 @@ public class TransportBulkActionTests extends ESTestCase {
         } finally {
             blockingLatch.countDown();
         }
+    }
+
+    /**
+     * The request context (headers and accountable transient values such as the security authentication) is retained for as long
+     * as the bulk request is in flight, so the coordinating operation must reserve it in addition to the request payload.
+     */
+    public void testRequestContextBytesAreAccountedInCoordinatingOperation() throws Exception {
+        final BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"));
+        // captured up front because the bulk action releases the items of a processed request
+        final long payloadBytes = bulkRequest.ramBytesUsed();
+        final String headerValue = randomAlphaOfLengthBetween(1024, 8192);
+        final long accountableBytes = randomLongBetween(1024, 1 << 20);
+
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", headerValue);
+            threadContext.putTransient("accountable", (Accountable) () -> accountableBytes);
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            future.actionGet();
+        }
+        assertThat(
+            lastCoordinatingOperationBytes.get(),
+            greaterThanOrEqualTo(payloadBytes + "large-header".length() + headerValue.length() + accountableBytes)
+        );
     }
 
     public void testRejectionAfterCreateIndexIsPropagated() {

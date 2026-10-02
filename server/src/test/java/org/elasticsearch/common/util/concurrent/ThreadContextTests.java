@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1400,5 +1402,41 @@ public class ThreadContextTests extends ESTestCase {
                 r.run();
             }
         };
+    }
+
+    public void testEstimatedRequestContextBytes() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final long emptyContextBytes = threadContext.estimatedRequestContextBytes();
+
+        // header keys and values are retained as (Latin-1) strings for the lifetime of the context
+        final String headerValue = randomAlphaOfLengthBetween(100, 1000);
+        threadContext.putHeader("large-header", headerValue);
+        final long withHeaderBytes = threadContext.estimatedRequestContextBytes();
+        assertThat(withHeaderBytes, greaterThanOrEqualTo(emptyContextBytes + "large-header".length() + headerValue.length()));
+
+        // transient values that cannot report their size are not counted
+        threadContext.putTransient("opaque", new Object());
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(withHeaderBytes));
+
+        // accountable transient values, such as the security authentication, contribute their own estimate
+        final long accountableBytes = randomLongBetween(1, 1 << 20);
+        threadContext.putTransient("accountable", (Accountable) () -> accountableBytes);
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(withHeaderBytes + accountableBytes));
+
+        // a stashed context starts over, and the original estimate is restored with the original context
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            assertThat(threadContext.estimatedRequestContextBytes(), equalTo(emptyContextBytes));
+        }
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(withHeaderBytes + accountableBytes));
+    }
+
+    public void testEstimatedRequestContextBytesToleratesNulls() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final long emptyContextBytes = threadContext.estimatedRequestContextBytes();
+
+        // a null header value and a null transient are accepted by the context, so the estimate must not fail on them
+        threadContext.putHeader("null-header", (String) null);
+        threadContext.putTransient("null-transient", null);
+        assertThat(threadContext.estimatedRequestContextBytes(), greaterThanOrEqualTo(emptyContextBytes));
     }
 }

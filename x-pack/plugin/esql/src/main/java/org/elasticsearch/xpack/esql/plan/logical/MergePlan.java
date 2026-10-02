@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -118,7 +117,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       with zero children. The caller is expected either to short-circuit the
      *       all-empty case before calling (e.g. {@code PruneEmptyMergeBranches} replaces with
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
-     *       analyzer's verifier surface the empty-merge state via {@link #checkNonEmpty}.</li>
+     *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
      * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
@@ -243,56 +242,23 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkNonEmpty;
-    }
-
-    @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
         AnalysisRegistry analysisRegistry,
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
         return (plan, failures) -> {
+            if (plan != this) {
+                return;
+            }
+            checkBranchCount(plan, failures, pragmas, flags);
             postAnalysisPlanVerification().accept(plan, failures);
-            int maxBranches = pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
-            String limitSource = pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
-            checkMaxBranchCount(plan, maxBranches, limitSource, failures);
         };
     }
 
-    /**
-     * Shared empty-merge check for every {@link MergePlan} subclass. Lives at post-analysis verification rather than the constructor so
-     * that compaction passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both {@code Fork::checkFork} and
-     * {@code UnionAll::checkUnionAll} since each subclass dispatches to its own {@link #postAnalysisPlanVerification()} override. This
-     * check can be deferred to logical verifier once we have a logical planner rule that can flatten and simplify a {@code MergePlan}
-     * further.
-     */
-    static void checkNonEmpty(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge && merge.children().isEmpty()) {
-            failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
-        }
-    }
-
-    /**
-     * Rejects a {@link MergePlan} whose direct children exceed {@code maxBranches}, the resolved {@code max_branch_count_per_merge}.
-     */
-    public static void checkMaxBranchCount(LogicalPlan plan, int maxBranches, String limitSource, Failures failures) {
-        if (plan instanceof MergePlan merge && merge.children().size() > maxBranches) {
-            String sourceText = merge.sourceText();
-            String errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
-                ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
-                : sourceText;
-            failures.add(
-                Failure.fail(
-                    merge,
-                    "{} resolved to {} branches, exceeding the limit of {} set by the {}",
-                    errorMessage,
-                    merge.children().size(),
-                    maxBranches,
-                    limitSource
-                )
-            );
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        if (plan.children().isEmpty()) {
+            failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
         }
     }
 }

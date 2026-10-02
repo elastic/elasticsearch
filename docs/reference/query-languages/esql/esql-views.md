@@ -221,7 +221,7 @@ When multiple views are referenced within the same index pattern, each view exec
 ::::{applies-switch}
 
 :::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
-One merge — a single `FORK`, one flattened view union, or one index pattern expansion — is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). A `max_branch_count_per_merge` query pragma overrides it. For example, a single index pattern with 9 views exceeds that default and the query fails. Nested leaves across the whole query are capped separately at 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides that query-wide total.
+[Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 8 branches by default (`esql.query.max_branch_count_per_merge`). A `max_branch_count_per_merge` query pragma overrides it. If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. A wide already-flat set of views in one `FROM` is not rejected by this setting. The total number of leaf branches in the query is capped separately at 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides that query-wide total.
 :::
 
 :::{applies-item} stack: preview 9.4-9.5
@@ -239,7 +239,7 @@ Branching and nesting are allowed in combination as long as there is never more 
 
 ### Query compaction
 
-When a view definition itself contains branches (subqueries or references to other views), those inner branches would normally create a second level of branching, which ES|QL does not allow. Query compaction solves this by flattening the inner branches into the outer branch set, producing a single-level plan.
+When a view definition itself contains branches (subqueries or references to other views), those inner branches would normally create a second level of branching, which ES|QL does not allow. Query compaction solves this by flattening the inner branches into the outer branch set, producing a single-level plan when the flattened width is within `esql.query.max_branch_count_per_merge` (8 by default). If flattening would exceed that cap, compaction is skipped and the nested plan is kept.
 
 The following example shows how compaction works. Two views are each defined as a pair of subqueries:
 

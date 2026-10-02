@@ -133,10 +133,7 @@ public final class QueryPragmas implements Writeable {
      * run at once, this limits how many there are in total.
      * <p>
      * Each leaf becomes a data node query (or a coordinator-local source). Nested {@code UnionAll}s are merge segments, not leaves, they
-     * are bounded separately by {@link #MAX_BRANCH_LEVEL}. The direct children of one merge ({@code FORK}, view union,
-     * dataset {@code FROM}, PromQL {@code or}) are bounded separately by {@link #MAX_BRANCH_COUNT_PER_MERGE}.
-     * {@code FROM} subquery unions are not; they are bounded by this leaf cap.
-     * Subqueries nest, so without a query-wide leaf limit the total grows as a power of the nesting depth.
+     * are bounded separately by {@link #MAX_BRANCH_LEVEL}.
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
      * setting for this query only.
@@ -144,11 +141,8 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
 
     /**
-     * Cap on how many direct children one merge may have. Applies to {@code FORK}, view union, dataset {@code FROM}
-     * expansion, and a top-level PromQL {@code or} chain. A user-written {@code FROM} subquery union is not capped here;
-     * it is bounded by {@link #MAX_BRANCH_COUNT}. Where {@link #MAX_BRANCH_COUNT} limits how many leaves the whole query has, this
-     * limits how wide a single merge node may be. View compaction also uses this cap as the flatten-width gate so flattening a nested view
-     * union does not produce a merge wider than this limit.
+     * Cap on how many direct children one merge may have. Applies to {@code FORK}, view compaction, dataset rewrite, and a top-level
+     * PromQL {@code or} chain.
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE} supplies the cap. An explicit value overrides the
      * cluster setting for this query only.

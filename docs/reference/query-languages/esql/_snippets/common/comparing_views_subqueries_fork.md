@@ -16,7 +16,7 @@
 ::::{applies-switch}
 
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
-One merge — a single `FORK`, one flattened view union, or one pattern expansion — is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). A `max_branch_count_per_merge` query pragma overrides it. Nested leaves across the whole query are capped separately at 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides that query-wide total.
+A single `FORK` or one dataset pattern expansion is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). View [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction) uses the same cap as a flatten budget: if flattening would exceed it, the nested plan is kept rather than rejected. A `max_branch_count_per_merge` query pragma overrides the cap. Nested leaves across the whole query are capped separately at 20 by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides that query-wide total.
 :::
 
 :::{applies-item} stack: preview 9.1-9.5

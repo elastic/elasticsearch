@@ -1994,11 +1994,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * Tests a 12x10 matrix with non-compactable views only on the diagonal (where depth == branch).
      * Wrapper views (branch 1 at depth &ge; 2) are always compactable, so the ViewResolver can flatten
-     * nested ViewUnionAlls through them. The result is a single-level ViewUnionAll that accumulates
-     * one branch per diagonal view. The effective FORK branch count grows with min(N, B), hitting the
-     * FORK limit when the total (diagonal count + query-level diagonal + 1 for compactable
-     * UnresolvedRelation) exceeds 8.
-     * No nested FORK errors occur because flattening eliminates all nesting.
+     * nested ViewUnionAlls through them when the flat width is within {@code max_branch_count_per_merge}.
+     * In that case the result is a single-level ViewUnionAll that accumulates one branch per diagonal
+     * view, and nested FORK checks must pass. When flattening would exceed the cap, it is skipped and
+     * the nested ViewUnionAlls stay; resolution still succeeds. Nesting above the view-depth limit
+     * fails independently of the flatten budget.
      */
     public void testDiagonalNonCompactableViewNestingBranchingMatrix() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
@@ -2021,8 +2021,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                     } else {
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         assertNotNull("Diagonal resolution should succeed for nesting=" + nesting + ", branching=" + branching, result);
-                        // When flattening stays within MAX_BRANCHES, nesting is eliminated and no nested FORK errors occur.
-                        // When flattening would exceed MAX_BRANCHES, it is skipped, keeping nested ViewUnionAlls.
+                        // When flattening stays within max_branch_count_per_merge, nesting is eliminated and no nested FORK errors occur.
+                        // When flattening would exceed max_branch_count_per_merge, it is skipped, keeping nested ViewUnionAlls.
                         if (branching >= 2
                             && effectiveDiagonalBranches(nesting, branching) <= EsqlFlags.DEFAULTS.maxBranchCountPerMerge()) {
                             Failures failures = new Failures();

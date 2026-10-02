@@ -392,8 +392,9 @@ public final class DatasetRewriter {
             );
         }
 
-        // A shadow strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded later by MergePlan.checkMaxBranchCount.
+        // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
+        // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
+        // shadow is a real read bounded by logical verifier.
         if (children.size() > maxBranchCountPerMerge) {
             throw new VerificationException(
                 "FROM ["

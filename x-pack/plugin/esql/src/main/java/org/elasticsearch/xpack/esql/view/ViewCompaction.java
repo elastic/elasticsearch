@@ -302,7 +302,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // Process non-merge entries first so that all outer keys are in `flat` before we attempt
         // to flatten inner merges. This makes the conflict check order-independent —
         // without it, an inner merge processed before a later outer entry with the same key would
-        // miss the conflict, producing extra branches that can exceed max_branch_count_per_merge.
+        // miss the conflict, producing extra branches that can exceed the MergePlan branch limit.
         List<Map.Entry<String, LogicalPlan>> mergeEntries = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
             String key = entry.getKey();

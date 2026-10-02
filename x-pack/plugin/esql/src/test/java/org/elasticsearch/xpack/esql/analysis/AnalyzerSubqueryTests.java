@@ -2093,36 +2093,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
     }
 
-    public void testTooManySubqueries() {
-        analyzer().addDefaultIndex()
-            .error(
-                "FROM (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
-                    + " (FROM test)",
-                allOf(
-                    containsString(
-                        "(FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
-                            + " (FROM test), (FROM ... resolved to 9 branches, exceeding the limit of 8 set by the"
-                            + " [esql.query.max_branch_count_per_merge] cluster setting"
-                    )
-                )
-            );
-    }
-
-    public void testTooManySubqueriesInNestedSubquery() {
-        analyzer().addDefaultIndex()
-            .error(
-                "FROM (FROM (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
-                    + " (FROM test)), (FROM (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test))",
-                allOf(
-                    containsString(
-                        "(FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test),"
-                            + " (FROM test), (FROM ... resolved to 9 branches, exceeding the limit of 8 set by the"
-                            + " [esql.query.max_branch_count_per_merge] cluster setting"
-                    )
-                )
-            );
-    }
-
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());

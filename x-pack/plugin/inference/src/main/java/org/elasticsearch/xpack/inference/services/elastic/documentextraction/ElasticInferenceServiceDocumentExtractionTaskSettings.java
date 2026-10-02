@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.documentextraction;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -117,7 +118,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public boolean isEmpty() {
-        return (outputFormat == null || outputFormat.isEmpty()) && css.isEmpty();
+        return Strings.isNullOrEmpty(outputFormat) && css.isEmpty();
     }
 
     @Override
@@ -156,7 +157,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
      * under {@code task_settings}, so the request entity uses this to inline them. Unset settings are skipped.
      */
     public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        if (outputFormat != null && outputFormat.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(outputFormat) == false) {
             builder.field(OUTPUT_FORMAT, outputFormat);
         }
         if (css.isEmpty() == false) {

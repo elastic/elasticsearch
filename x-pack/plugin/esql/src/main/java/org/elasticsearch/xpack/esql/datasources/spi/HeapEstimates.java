@@ -43,14 +43,6 @@ public final class HeapEstimates {
     }
 
     /**
-     * Heap one schema column keeps reachable when its name {@code String} is owned elsewhere, such as by a schema
-     * cache entry that is weighed against the cache budget: the attribute shell only.
-     */
-    public static long columnShellBytes() {
-        return COLUMN_SHELL_BYTES;
-    }
-
-    /**
      * About 40 bytes for the {@code String} object and its backing array headers on a 64-bit JVM with compressed
      * references, plus two bytes per character. Both parts round up on purpose (compact Latin-1 strings use one byte
      * per character); this feeds a cache budget, where over-counting evicts a little early and under-counting lets the

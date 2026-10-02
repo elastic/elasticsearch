@@ -90,45 +90,28 @@ public final class SchemaInterner {
      * Bytes of one file's private attribute list: {@link HeapEstimates#columnBytes} per column, which includes the
      * column name, plus the list shell. Charged on a resolve-scoped run for the gather, not on {@code queryHeld}.
      * Not a measured deep size.
-     *
-     * @param namesShared the column name strings belong to a schema cache entry, which weighs them against the cache
-     *                    budget, so only the attribute shells are charged here
      */
-    static long privateListBytes(List<Attribute> columns, boolean namesShared) {
+    static long privateListBytes(List<Attribute> columns) {
         long bytes = SHAPE_BASE_BYTES + SHAPE_PER_COLUMN_BYTES * columns.size();
         for (int i = 0; i < columns.size(); i++) {
-            bytes += columnBytes(columns.get(i), namesShared);
+            bytes += HeapEstimates.columnBytes(columns.get(i).name().length());
         }
         return bytes;
-    }
-
-    private static long columnBytes(Attribute column, boolean nameShared) {
-        return nameShared ? HeapEstimates.columnShellBytes() : HeapEstimates.columnBytes(column.name().length());
-    }
-
-    /**
-     * {@link #canonicalize(List, boolean)} for a list whose column names are not owned by a schema cache entry.
-     */
-    public List<Attribute> canonicalize(List<Attribute> raw) {
-        return canonicalize(raw, false);
     }
 
     /**
      * Returns the canonical attribute list for {@code raw}: each column is the first instance kept for its key
      * (name, type, nullability, synthetic — not {@code NameId}), and the sequence itself is the first list kept
      * for that series of instances.
-     *
-     * @param namesShared the column name strings of {@code raw} belong to a schema cache entry, which weighs them
-     *                    against the cache budget, so a column kept from {@code raw} is charged its shell only
      */
-    public synchronized List<Attribute> canonicalize(List<Attribute> raw, boolean namesShared) {
+    public synchronized List<Attribute> canonicalize(List<Attribute> raw) {
         List<Attribute> existing = shapes.get(raw);
         if (existing != null) {
             return existing;
         }
         List<Attribute> interned = new ArrayList<>(raw.size());
         for (int i = 0; i < raw.size(); i++) {
-            interned.add(internColumn(raw.get(i), namesShared));
+            interned.add(internColumn(raw.get(i)));
         }
         List<Attribute> candidate = List.copyOf(interned);
         existing = shapes.get(candidate);
@@ -168,13 +151,13 @@ public final class SchemaInterner {
         return candidate;
     }
 
-    private Attribute internColumn(Attribute raw, boolean nameShared) {
+    private Attribute internColumn(Attribute raw) {
         ColumnKey key = new ColumnKey(raw.name(), raw.dataType(), raw.nullable(), raw.synthetic());
         Attribute existing = columns.get(key);
         if (existing != null) {
             return existing;
         }
-        retain(columnBytes(raw, nameShared));
+        retain(HeapEstimates.columnBytes(raw.name().length()));
         columns.put(key, raw);
         return raw;
     }

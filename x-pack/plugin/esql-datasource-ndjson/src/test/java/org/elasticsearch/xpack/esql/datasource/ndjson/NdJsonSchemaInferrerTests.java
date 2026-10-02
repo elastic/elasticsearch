@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
@@ -585,19 +586,31 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Esql-planning#2143: the repro shape. Only a few hundred nodes are alive, so the field tree is cheap and this
-     * trips on the dotted names built from it. 900 levels and 100 leaves is ~380 KB of names against a tree of ~310 KB:
+     * Esql-planning#2143: the repro shape. Only about a thousand nodes are alive, so the field tree is cheap and this
+     * trips on the dotted names built from it. 900 levels and 100 leaves is ~380 KB of names against a tree of ~300 KB:
      * a limit between the two admits the tree and refuses the columns, so the column charge alone is what trips.
      */
     public void testDeeplyNestedRecordTripsOnColumnNamesNotOnTheFieldTree() throws IOException {
-        String record = deeplyNestedRecord(900, 100);
-        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(500));
+        int depth = 900;
+        int leaves = 100;
+        String record = deeplyNestedRecord(depth, leaves);
+        ByteSizeValue limit = ByteSizeValue.ofKb(500);
+        // The root, one node per level and one per leaf, each with its name.
+        long tree = (1L + depth + leaves) * NdJsonSchemaInferrer.FIELD_INFO_BYTES + HeapEstimates.stringBytes((String) null) + depth
+            * HeapEstimates.stringBytes("a");
+        for (int i = 0; i < leaves; i++) {
+            tree += HeapEstimates.stringBytes("k" + i);
+        }
+        assertThat("the field tree alone must fit, so only the column charge can trip", tree, lessThan(limit.getBytes()));
+
+        LimitedBreaker breaker = new LimitedBreaker("test", limit);
         expectThrows(CircuitBreakingException.class, () -> infer(record, breaker));
         assertThat(breaker.getUsed(), equalTo(0L));
 
         // The same record fits when the breaker has headroom for the names, so the refusal above was theirs.
         LimitedBreaker roomy = new LimitedBreaker("test", ByteSizeValue.ofMb(4));
-        assertThat(infer(record, roomy).size(), equalTo(100));
+        assertThat(infer(record, roomy).size(), equalTo(leaves));
+        assertThat(roomy.getUsed(), equalTo(0L));
     }
 
     public void testNothingIsLeftReservedAfterSuccess() throws IOException {
@@ -617,6 +630,15 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> infer(ndjson, breaker));
         assertThat(breaker.trips.get(), equalTo(1));
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * An empty first segment is still a parent, so its children keep the separator. {@code ".b"} is a column of its own
+     * and must not merge into, or share a name with, {@code "b"}.
+     */
+    public void testEmptyFirstSegmentKeepsLeadingDot() throws IOException {
+        check("{\".b\":1,\"b\":\"x\"}\n", field(".b", DataType.INTEGER), field("b", DataType.KEYWORD));
+        check("{\"\":{\"b\":1}}\n", field(".b", DataType.INTEGER));
     }
 
     /** Records the most it held at once, so a test can read what an inference charged before releasing it. */
@@ -669,8 +691,9 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * The dotted path is charged as it is spelled, including the prefixes of object nodes that are never columns, so a
-     * deep chain of objects with one leaf is held against the breaker for more than its single column name.
+     * The shared path buffer is charged by the longest path it spells, on top of the field tree and the column, so a
+     * deep chain of objects with one leaf is held against the breaker twice for its path: once as the buffer and once
+     * as the column name built from it.
      */
     public void testObjectPathIsChargedWhileSpelled() throws IOException {
         String key = "a.".repeat(2_000) + "b";

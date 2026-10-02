@@ -1073,7 +1073,7 @@ public class ExternalSourceResolver {
                 pendingMetadataWarnings.addAll(schemaEntry.warnings());
                 harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, true, fileConfig, harvestedStatistics);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, fileConfig, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, fileConfig);
@@ -1862,21 +1862,14 @@ public class ExternalSourceResolver {
     private static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
-        boolean namesHeldByCache,
         Map<String, Object> queryConfig
     ) {
-        return buildMetadataFromCache(entry, schema, namesHeldByCache, queryConfig, null);
+        return buildMetadataFromCache(entry, schema, queryConfig, null);
     }
 
-    /**
-     * @param namesHeldByCache {@code schema} came from {@code entry.toAttributes()} and {@code entry} is held by the
-     *                         schema cache, so the column name strings are weighed against the cache budget and a
-     *                         planning charge counts only the attribute shells
-     */
     private static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
-        boolean namesHeldByCache,
         Map<String, Object> queryConfig,
         @Nullable SourceStatistics harvestedStatistics
     ) {
@@ -1907,11 +1900,6 @@ public class ExternalSourceResolver {
             @Override
             public boolean sharesCachedSourceMetadata() {
                 return finalMetadata == entry.safeMetadata();
-            }
-
-            @Override
-            public boolean sharesCachedColumnNames() {
-                return namesHeldByCache;
             }
 
             @Override
@@ -2289,8 +2277,7 @@ public class ExternalSourceResolver {
     /**
      * Estimated heap one file's metadata keeps reachable in {@link #gatherPerFile}'s results array until the gather
      * completes. Not a measured deep size. Counts the shell and location, the private schema list when
-     * {@code chargeSchema} (the reconcile path charges it on its own run; column names the schema cache owns are not
-     * charged again), the config map's entries, harvested
+     * {@code chargeSchema} (the reconcile path charges it on its own run), the config map's entries, harvested
      * {@link SourceStatistics} (never shared from the schema cache), and the source-metadata map unless it is the
      * schema cache entry's own map.
      *
@@ -2300,18 +2287,10 @@ public class ExternalSourceResolver {
      * stores the resolved metadata as is.
      */
     static long gatheredFileBytes(SourceMetadata meta, boolean chargeSchema) {
-        return gatheredFileBytes(meta, chargeSchema, sharesCachedColumnNames(meta));
-    }
-
-    /**
-     * {@link #gatheredFileBytes(SourceMetadata, boolean)} for a record, such as a {@link RunningFileStatsFold#slim}
-     * one, that keeps the schema of a metadata whose column names may be owned by the schema cache.
-     */
-    static long gatheredFileBytes(SourceMetadata meta, boolean chargeSchema, boolean namesShared) {
         // object header + field references
         long bytes = 64L + HeapEstimates.stringBytes(meta.location());
         if (chargeSchema && meta.schema() != null) {
-            bytes += SchemaInterner.privateListBytes(meta.schema(), namesShared);
+            bytes += SchemaInterner.privateListBytes(meta.schema());
         }
         Optional<SourceStatistics> statistics = meta.statistics();
         if (statistics != null && statistics.isPresent()) {
@@ -2334,13 +2313,6 @@ public class ExternalSourceResolver {
      */
     private interface CacheBackedMetadata extends ExternalSourceMetadata {
         boolean sharesCachedSourceMetadata();
-
-        /** The schema's column name strings are the cache entry's own, weighed against the cache budget. */
-        boolean sharesCachedColumnNames();
-    }
-
-    private static boolean sharesCachedColumnNames(SourceMetadata meta) {
-        return meta instanceof CacheBackedMetadata cached && cached.sharesCachedColumnNames();
     }
 
     private static void closePrivateSchemaLists(@Nullable ExternalPlanningReservation.Run privateLists) {
@@ -2484,7 +2456,7 @@ public class ExternalSourceResolver {
                 // file list.
                 if (privateLists != null) {
                     List<Attribute> rawSchema = meta.schema();
-                    privateLists.charge(SchemaInterner.privateListBytes(rawSchema, sharesCachedColumnNames(meta)));
+                    privateLists.charge(SchemaInterner.privateListBytes(rawSchema));
                     if (schemaGatherRunProbe != null) {
                         schemaGatherRunProbe.accept(privateLists);
                     }
@@ -2501,13 +2473,13 @@ public class ExternalSourceResolver {
                 if (resultsRun != null) {
                     // Charge what the results array retains: the slimmed record when folding, before the
                     // canonical wrapper hides the private schema list.
-                    resultsRun.charge(gatheredFileBytes(stored, privateLists == null, sharesCachedColumnNames(meta)));
+                    resultsRun.charge(gatheredFileBytes(stored, privateLists == null));
                     if (gatherResultsRunProbe != null) {
                         gatherResultsRunProbe.accept(resultsRun);
                     }
                 }
                 if (schemaInterner != null) {
-                    stored = withCanonicalSchema(stored, schemaInterner.canonicalize(meta.schema(), sharesCachedColumnNames(meta)));
+                    stored = withCanonicalSchema(stored, schemaInterner.canonicalize(meta.schema()));
                 }
                 results.set(i, stored);
             }, e -> failure.compareAndSet(null, e)), releasable::close);
@@ -2629,16 +2601,15 @@ public class ExternalSourceResolver {
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             pendingMetadataWarnings.addAll(cached.warnings());
-            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), true, config));
+            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
             return;
         }
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
-            boolean admitted = admission == null || admission.tryAdmit(entry);
-            if (admitted) {
+            if (admission == null || admission.tryAdmit(entry)) {
                 cacheService.putSchema(schemaKey, entry);
             }
-            return buildMetadataFromCache(entry, entry.toAttributes(), admitted, config, meta.statistics().orElse(null));
+            return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
 
@@ -4130,7 +4101,7 @@ public class ExternalSourceResolver {
             // Mirror the cold branch's wrapAsExternalSourceMetadata schema guard here — buildMetadataFromCache does not
             // validate — so warm and cold enforce the same invariant.
             validateSchemaUsesOnlyReferenceAttributes(logicalSchema);
-            ExternalSourceMetadata full = buildMetadataFromCache(entry, logicalSchema, false, config);
+            ExternalSourceMetadata full = buildMetadataFromCache(entry, logicalSchema, config);
             return replaceSourceMetadata(full, rowCountOnlyStats(full.sourceMetadata()));
         }
         return wrapAsExternalSourceMetadata(
@@ -4776,7 +4747,7 @@ public class ExternalSourceResolver {
             schemaKey,
             k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
         );
-        return buildMetadataFromCache(entry, entry.toAttributes(), true, config);
+        return buildMetadataFromCache(entry, entry.toAttributes(), config);
     }
 
     private ExternalSourceMetadata wrapAsExternalSourceMetadata(

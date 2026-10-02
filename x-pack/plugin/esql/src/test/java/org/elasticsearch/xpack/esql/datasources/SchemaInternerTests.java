@@ -129,7 +129,7 @@ public class SchemaInternerTests extends ESTestCase {
         List<Attribute> shortNamed = List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false));
         List<Attribute> longNamed = List.of(attribute(longName, DataType.KEYWORD, Nullability.FALSE, false));
         assertThat(
-            SchemaInterner.privateListBytes(longNamed, false) - SchemaInterner.privateListBytes(shortNamed, false),
+            SchemaInterner.privateListBytes(longNamed) - SchemaInterner.privateListBytes(shortNamed),
             equalTo(2L * (longName.length() - 1))
         );
 
@@ -141,24 +141,6 @@ public class SchemaInternerTests extends ESTestCase {
 
         expectThrows(CircuitBreakingException.class, () -> new SchemaInterner(reservation, 0L).canonicalize(longNamed));
         assertThat(reservation.queryHeld(), equalTo(baseline));
-    }
-
-    /**
-     * Names a schema cache entry owns are weighed against the cache budget, so a list built from that entry is charged
-     * its attribute shells only and costs the same whatever its names' length.
-     */
-    public void testNamesSharedWithTheSchemaCacheAreNotChargedAgain() {
-        String longName = "a.".repeat(1_000);
-        List<Attribute> shortNamed = List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false));
-        List<Attribute> longNamed = List.of(attribute(longName, DataType.KEYWORD, Nullability.FALSE, false));
-        assertThat(SchemaInterner.privateListBytes(longNamed, true), equalTo(SchemaInterner.privateListBytes(shortNamed, true)));
-        assertThat(SchemaInterner.privateListBytes(longNamed, true), lessThan(SchemaInterner.privateListBytes(longNamed, false)));
-
-        CircuitBreaker breaker = requestBreaker("1kb");
-        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
-        // The same long name that trips 1kb when private fits once it is the cache's: only the shell is charged.
-        new SchemaInterner(reservation, 0L).canonicalize(longNamed, true);
-        assertThat(reservation.queryHeld(), equalTo(HeapEstimates.columnShellBytes() + 40L));
     }
 
     public void testMaxAllowanceChargesNothing() {

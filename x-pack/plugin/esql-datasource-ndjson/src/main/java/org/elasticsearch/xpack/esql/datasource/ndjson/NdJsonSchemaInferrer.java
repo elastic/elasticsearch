@@ -101,8 +101,8 @@ public class NdJsonSchemaInferrer {
      * and whether they stay charged after that is the caller's choice: the multi-file gather and the schema interner
      * charge what they keep, while a single-file resolve and a data-node read keep it uncharged. A flattened nested field
      * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
-     * produced it. A {@link org.elasticsearch.common.breaker.CircuitBreakingException} leaves this method unchanged and
-     * stops inference. It is not a malformed line, so it must never be caught as one.
+     * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
+     * line, so it must never be caught as one.
      */
     public static List<Attribute> inferSchema(
         InputStream inputStream,
@@ -268,7 +268,7 @@ public class NdJsonSchemaInferrer {
         StringBuilder path = new StringBuilder();
         int chargedPathLength = 0;
         Deque<SchemaFrame> stack = new ArrayDeque<>();
-        stack.push(new SchemaFrame(root.children.entrySet().iterator(), 0));
+        stack.push(new SchemaFrame(root.children.entrySet().iterator(), NO_PARENT_PATH));
         while (stack.isEmpty() == false) {
             SchemaFrame frame = stack.peek();
             if (frame.children().hasNext() == false) {
@@ -278,14 +278,14 @@ public class NdJsonSchemaInferrer {
             Map.Entry<String, FieldInfo> entry = frame.children().next();
             String name = entry.getKey();
             FieldInfo info = entry.getValue();
-            int pathLength = frame.pathLength() == 0 ? name.length() : frame.pathLength() + 1 + name.length();
+            int pathLength = frame.pathLength() == NO_PARENT_PATH ? name.length() : frame.pathLength() + 1 + name.length();
             if (pathLength > chargedPathLength) {
                 // Two bytes per character also covers the builder's doubling growth for Latin-1 names.
                 charge((pathLength - chargedPathLength) * (long) Character.BYTES);
                 chargedPathLength = pathLength;
             }
-            path.setLength(frame.pathLength());
-            if (frame.pathLength() > 0) {
+            path.setLength(Math.max(frame.pathLength(), 0));
+            if (frame.pathLength() != NO_PARENT_PATH) {
                 path.append('.');
             }
             path.append(name);
@@ -302,6 +302,12 @@ public class NdJsonSchemaInferrer {
             }
         }
     }
+
+    /**
+     * Path length of the root's children's parent. Distinct from 0 because an empty segment is a real parent whose
+     * children are still separated from it by a dot.
+     */
+    private static final int NO_PARENT_PATH = -1;
 
     /** One level of {@link #buildSchema}'s walk: the children still to visit and the length of their parent's path. */
     private record SchemaFrame(Iterator<Map.Entry<String, FieldInfo>> children, int pathLength) {}

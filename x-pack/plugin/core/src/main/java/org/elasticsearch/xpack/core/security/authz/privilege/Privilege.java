@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
 public class Privilege implements Accountable {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Privilege.class);
     private static final long GRANTS_ALL_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedSupplier.class) + RamUsageEstimator
         .alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
@@ -103,10 +102,14 @@ public class Privilege implements Accountable {
      * automaton is not added separately because the predicate already includes it. The run automaton that evaluates the predicate
      * references the same {@link Automaton} object as {@link #automaton} and counts it in its own size, see
      * {@link Automatons#predicate(Automaton)}. Adding the automaton here would count it twice.
+     * <p>
+     * The shallow size is that of the runtime class, so the fields a subclass declares are included. A subclass whose fields reference
+     * objects it owns must override this method and add them.
      */
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + GRANTS_ALL_SIZE + RamUsageEstimator.sizeOfObject(predicate) + RamUsageEstimator.sizeOfCollection(name);
+        return RamUsageEstimator.shallowSizeOf(this) + GRANTS_ALL_SIZE + RamUsageEstimator.sizeOfObject(predicate) + RamUsageEstimator
+            .sizeOfCollection(name);
     }
 
     /**

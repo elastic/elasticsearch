@@ -1844,8 +1844,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         @Override
-        public SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
-            final var plan = super.searchRecoveryTimeout(state, indexShard, totalBytesToWarm);
+        public SearchRecoveryTimeout searchRecoveryTimeout(
+            ClusterState state,
+            IndexShard indexShard,
+            long totalBytesToWarm,
+            boolean reevaluation
+        ) {
+            final var plan = super.searchRecoveryTimeout(state, indexShard, totalBytesToWarm, reevaluation);
             searchRecoveryTimeoutEvaluations.add(new TimeoutEvaluation(indexShard.shardId(), totalBytesToWarm, plan));
             return plan;
         }

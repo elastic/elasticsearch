@@ -768,6 +768,17 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 planUncapped.timeoutContext(),
                 equalTo("relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)")
             );
+            assertThat("data volume based plans are never extended", planUncapped.extendable(), is(false));
+
+            // A re-evaluation that lands on the data-volume heuristic must not extend the wait
+            final var reevaluatedPlan = service.searchRecoveryTimeout(
+                stateUncapped,
+                mockIndexShard(selfUncapped),
+                totalBytesToWarm(endTargetsToWarm),
+                true
+            );
+            assertThat(reevaluatedPlan.awaitWarming(), is(false));
+            assertThat(reevaluatedPlan.extendable(), is(false));
 
             // Scenario 2: 3 ongoing relocations — same per-shard value scaled by 3 exceeds remaining → capped
             final ShardRouting selfCapped = stateCapped.routingTable(DEFAULT_PROJECT_ID)
@@ -930,7 +941,23 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 .shardsWithState(RELOCATING)
                 .getFirst()
                 .getTargetRelocatingShard();
-            final SharedBlobCacheWarmingService.SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            final SharedBlobCacheWarmingService.SearchRecoveryTimeout firstPlan = service.searchRecoveryTimeout(
+                state,
+                mockIndexShard(self),
+                0L
+            );
+            assertThat("first calculation does not reserve budget for pending shards", firstPlan.timeout().millis(), equalTo(4000L));
+            assertThat(
+                firstPlan.timeoutContext(),
+                equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
+            );
+
+            final SharedBlobCacheWarmingService.SearchRecoveryTimeout plan = service.searchRecoveryTimeout(
+                state,
+                mockIndexShard(self),
+                0L,
+                true
+            );
 
             assertThat(plan.awaitWarming(), is(true));
             assertThat(plan.timeout().millis(), equalTo(3000L));
@@ -1414,7 +1441,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             public SharedBlobCacheWarmingService.SearchRecoveryTimeout searchRecoveryTimeout(
                 ClusterState state,
                 IndexShard indexShard,
-                long totalBytesToWarm
+                long totalBytesToWarm,
+                boolean reevaluation
             ) {
                 return planSupplier.get();
             }

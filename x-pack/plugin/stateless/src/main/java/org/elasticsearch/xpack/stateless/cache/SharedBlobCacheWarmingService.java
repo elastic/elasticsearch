@@ -1176,14 +1176,33 @@ public class SharedBlobCacheWarmingService {
      * a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and there
      * is no cluster shutdown metadata, using {@link #SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING}.
      */
-    public SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
+    public final SearchRecoveryTimeout searchRecoveryTimeout(ClusterState state, IndexShard indexShard, long totalBytesToWarm) {
+        return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, false);
+    }
+
+    /**
+     * @param reevaluation {@code false} for the first calculation, {@code true} when re-evaluating on expiry of a previous slice. Only
+     *                     re-evaluations reserve budget for pending shards, and only equal-share plans can be extended.
+     */
+    public SearchRecoveryTimeout searchRecoveryTimeout(
+        ClusterState state,
+        IndexShard indexShard,
+        long totalBytesToWarm,
+        boolean reevaluation
+    ) {
         final ShardRouting shardRouting = indexShard.routingEntry();
         assert shardRouting.isPromotableToPrimary() == false;
         if (isRelocationTarget(shardRouting)) {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
+                return computeRelocationSourceShutdownWarmingTimeout(
+                    state,
+                    sourceNodeId,
+                    shardRouting.currentNodeId(),
+                    totalBytesToWarm,
+                    reevaluation
+                );
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return SearchRecoveryTimeout.fixed(
@@ -1260,7 +1279,7 @@ public class SharedBlobCacheWarmingService {
                 }
                 if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.extendable()) {
                     try {
-                        final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
+                        final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm, true);
                         final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
                         final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, elapsed);
                         if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {
@@ -1437,12 +1456,17 @@ public class SharedBlobCacheWarmingService {
      *   i.e. {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
      * </ol>
      * with {@code deadline = start + min(metadata grace, cap)}.
+     *
+     * <p>Only equal-share plans are {@linkplain SearchRecoveryTimeout#extendable extendable}. When {@code reevaluation} is {@code true}
+     * the equal-share timeout is additionally capped to reserve time for shards still pending on the source, and a data-volume result
+     * yields a zero timeout so that the wait ends rather than being extended.
      */
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
-        long totalBytesToWarm
+        long totalBytesToWarm,
+        boolean reevaluation
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
@@ -1476,39 +1500,52 @@ public class SharedBlobCacheWarmingService {
             ongoingRelocations = 1;
         }
 
-        final double timeoutMs;
-        final String context;
         // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
         // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
         // to be relocated between two given nodes, so we can't know which of the two heuristics is more suitable overall.
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
         if (dataVolumeMs > equalShareMs) {
-            timeoutMs = Math.min(remaining, dataVolumeMs * ongoingRelocations);
-            context = "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";
-        } else {
-            timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
-            context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
+            // The data-volume estimate already accounts for everything this shard needs, so it is never extended: a re-evaluation
+            // that lands here yields a zero timeout, which makes the listener fire the timeout instead of rescheduling.
+            if (reevaluation) {
+                return SearchRecoveryTimeout.fixed(
+                    TimeValue.ZERO,
+                    "relocation source shutting down (data volume proportional, not extended)"
+                );
+            }
+            return SearchRecoveryTimeout.fixed(
+                TimeValue.timeValueMillis(Math.round(Math.min(remaining, dataVolumeMs * ongoingRelocations))),
+                "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)"
+            );
         }
-
-        if (searchRecoveryWarmingTimeoutReevaluationEnabled) {
-            // Reserve a min budget for every shard on source that has not yet begun
-            // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
-            // grace-period time and leave those shards with no budget when their recovery eventually starts.
-            final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
-            final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
-            final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
-            final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
-            final String finalContext = cappedTimeoutMs < timeoutMs
-                ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
-                : context;
+        final double timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
+        final String context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
+        if (searchRecoveryWarmingTimeoutReevaluationEnabled == false) {
+            return SearchRecoveryTimeout.fixed(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+        }
+        if (reevaluation == false) {
             return SearchRecoveryTimeout.extendable(
-                TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
-                finalContext,
+                TimeValue.timeValueMillis(Math.round(timeoutMs)),
+                context,
                 searchRecoveryWarmingGracePeriodCap
             );
         }
-        return SearchRecoveryTimeout.fixed(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+        // Reserve a min budget for every shard on source that has not yet begun
+        // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
+        // grace-period time and leave those shards with no budget when their recovery eventually starts.
+        final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
+        final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
+        final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
+        final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
+        final String finalContext = cappedTimeoutMs < timeoutMs
+            ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
+            : context;
+        return SearchRecoveryTimeout.extendable(
+            TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
+            finalContext,
+            searchRecoveryWarmingGracePeriodCap
+        );
     }
 
     /**

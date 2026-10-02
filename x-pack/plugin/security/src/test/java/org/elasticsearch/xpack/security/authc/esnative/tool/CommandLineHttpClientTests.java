@@ -190,10 +190,12 @@ public class CommandLineHttpClientTests extends ESTestCase {
                 assertThat(thrown, instanceOf(SSLException.class));
             }
             // FIPS reports the path-builder failure as "Unable to construct a valid chain" and nests the
-            // expiry underneath. The leaf expired in 2021; the fixture CA expired in 2024.
+            // expiry underneath. Both providers format notAfter with Date.toString(), which uses the
+            // JVM default zone, so the calendar year is not stable (Jan 1 2021 GMT is still 2020 in
+            // US zones). Match this leaf's notAfter to distinguish it from the fixture CA.
             Throwable cause = ExceptionsHelper.unwrap(thrown, CertificateExpiredException.class);
             assertThat(exceptionChain(thrown), cause, instanceOf(CertificateExpiredException.class));
-            assertThat(cause.getMessage(), containsString("2021"));
+            assertThat(cause.getMessage(), containsString(leafCertificate.getNotAfter().toString()));
         }
     }
 

@@ -76,6 +76,12 @@ public final class SearchCapabilities {
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
     /** Terms-family aggregations reject an include/exclude regex longer than index.max_regex_length instead of compiling it. */
     private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT = "aggregation_include_exclude_regex_length_limit";
+    /**
+     * Terms-family aggregations compile the include/exclude regex on the shard through the charged compiler: one set of
+     * flags whether the request was parsed locally or deserialized, each build charged to the request breaker, and the
+     * build and the include/exclude product bounded by a work limit.
+     */
+    private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED = "aggregation_include_exclude_regex_charged";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -116,6 +122,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT);
+        capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

@@ -672,3 +672,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
+  method: testProfileFailureStore
+  issue: https://github.com/elastic/elasticsearch/issues/160877

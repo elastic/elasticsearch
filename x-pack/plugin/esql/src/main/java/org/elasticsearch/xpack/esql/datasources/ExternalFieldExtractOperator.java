@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -77,7 +78,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         private final List<String> deferredColumnNames;
         private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
-        @org.elasticsearch.core.Nullable
+        @Nullable
         private final String datasetLabel;
         private final Executor executor;
 
@@ -101,7 +102,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             List<String> deferredColumnNames,
             List<DataType> deferredColumnTypes,
             Function<DriverContext, SourceExtractors> sourceExtractorsLookup,
-            @org.elasticsearch.core.Nullable String datasetLabel,
+            @Nullable String datasetLabel,
             Executor executor
         ) {
             if (rowPositionChannel < 0) {
@@ -176,7 +177,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
     private final SourceExtractors registry;
     private final RefCountingRunnable registryRefs;
     private final BlockFactory blockFactory;
-    @org.elasticsearch.core.Nullable
+    @Nullable
     private final String datasetLabel;
     private final Executor executor;
     private final LongAdder rowsExtracted = new LongAdder();
@@ -230,7 +231,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         List<DataType> deferredColumnTypes,
         SourceExtractors registry,
         BlockFactory blockFactory,
-        @org.elasticsearch.core.Nullable String datasetLabel
+        @Nullable String datasetLabel
     ) {
         this(
             rowPositionChannel,
@@ -251,7 +252,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         List<DataType> deferredColumnTypes,
         SourceExtractors registry,
         DriverContext driverContext,
-        @org.elasticsearch.core.Nullable String datasetLabel,
+        @Nullable String datasetLabel,
         Executor executor
     ) {
         // Materialization does not produce response headers; AsyncOperator still requires a ThreadContext.
@@ -507,14 +508,7 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
         final long extractNanos;
         final long extractCpuNanos;
 
-        Status(
-            long receivedPages,
-            long completedPages,
-            long processNanos,
-            long rowsExtracted,
-            long extractNanos,
-            long extractCpuNanos
-        ) {
+        Status(long receivedPages, long completedPages, long processNanos, long rowsExtracted, long extractNanos, long extractCpuNanos) {
             super(receivedPages, completedPages, processNanos);
             this.rowsExtracted = rowsExtracted;
             this.extractNanos = extractNanos;

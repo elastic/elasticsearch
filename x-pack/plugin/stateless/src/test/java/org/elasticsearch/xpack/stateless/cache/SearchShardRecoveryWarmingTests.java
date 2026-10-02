@@ -895,6 +895,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         ) {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
                 .put(
                     SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING
                         .getKey(),
@@ -907,7 +908,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
             final long startedAtMillis = threadPool.absoluteTimeInMillis();
 
-            final Index index = new Index("idx", randomUUID());
+            final var index = new Index("idx", randomUUID());
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
 
@@ -926,7 +927,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
                 .shardRoutingTable(new ShardId(index, 0))
                 .shardsWithState(RELOCATING)
-                .get(0)
+                .getFirst()
                 .getTargetRelocatingShard();
             final SharedBlobCacheWarmingService.SearchRecoveryTimeout plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
 
@@ -1269,7 +1270,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10)
                 ),
@@ -1303,7 +1304,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10)
                 ),
@@ -1334,7 +1335,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             Exception thrown = safeAwaitFailure(
                 Void.class,
                 resumeListener -> service.searchRecoveryWarmingListener(
-                    SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(
+                    SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(
                         TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                         randomAlphaOfLength(10)
                     ),
@@ -1523,11 +1524,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService service = newReevaluatingService(
                 threadPool,
                 settings,
-                () -> new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "reeval-ctx")
+                () -> SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(sliceSize, "reeval-ctx")
             );
             final var resume = new PlainActionFuture<Void>();
             service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "initial-ctx", budget),
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.extendable(sliceSize, "initial-ctx", budget),
                 () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
@@ -1574,14 +1575,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             .build();
 
         final var planRef = new AtomicReference<>(
-            new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "context-before-switch")
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(sliceSize, "context-before-switch")
         );
 
         try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
             final SharedBlobCacheWarmingService service = newReevaluatingService(threadPool, settings, planRef::get);
             final var resume = new PlainActionFuture<Void>();
             service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "initial", budget),
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.extendable(sliceSize, "initial", budget),
                 () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
@@ -1593,7 +1594,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             assertThat(task, notNullValue());
 
             // switch the plan before the first re-evaluation fires — the supplier must be read lazily
-            planRef.set(new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "context-after-switch"));
+            planRef.set(SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(sliceSize, "context-after-switch"));
 
             assertThatLogger(
                 task,
@@ -1626,11 +1627,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var service = newReevaluatingService(
                 threadPool,
                 settings,
-                () -> new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "reeval-ctx")
+                () -> SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(sliceSize, "reeval-ctx")
             );
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
-                new SharedBlobCacheWarmingService.SearchRecoveryTimeout(sliceSize, "initial", budget),
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.extendable(sliceSize, "initial", budget),
                 () -> null, // unused in this test case
                 randomMockIndexShard(),
                 mockDirectory(),
@@ -1665,7 +1666,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var service = newWarmingService(threadPool);
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
-                SharedBlobCacheWarmingService.SearchRecoveryTimeout.withDisabledReevaluation(timeout, timeoutContext),
+                SharedBlobCacheWarmingService.SearchRecoveryTimeout.fixed(timeout, timeoutContext),
                 () -> null, // unused in this test case
                 mockIndexShard(
                     TestShardRouting.newShardRouting(shardId, randomIdentifier(), false, STARTED, ShardRouting.Role.SEARCH_ONLY)

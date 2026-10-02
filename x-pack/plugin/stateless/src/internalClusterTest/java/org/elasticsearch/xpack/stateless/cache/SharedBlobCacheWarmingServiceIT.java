@@ -1897,7 +1897,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     endTargetsToWarm,
                     false,
                     searchRecoveryWarmingListener(
-                        new SearchRecoveryTimeout(TimeValue.timeValueMinutes(1), "test: awaiting warming"),
+                        SearchRecoveryTimeout.fixed(TimeValue.timeValueMinutes(1), "test: awaiting warming"),
                         clusterStateSupplier,
                         indexShard,
                         directory,

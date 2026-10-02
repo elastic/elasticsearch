@@ -1138,25 +1138,21 @@ public class SharedBlobCacheWarmingService {
      *
      * <p>{@link #totalBudget}: when greater than zero, caps the total accumulated timeout across all re-evaluation slices.
      *
-     * <p>{@link #reevaluationEnabled}: when {@code false}, the re-evaluation loop fires the race immediately on first expiry without
+     * <p>{@link #extendable}: when {@code false}, the re-evaluation loop fires the race immediately on first expiry without
      * re-reading the cluster state or rescheduling, regardless of the node-level re-evaluation setting.
      */
-    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget, boolean reevaluationEnabled) {
-
-        public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext) {
-            this(timeout, timeoutContext, TimeValue.ZERO, true);
-        }
-
-        public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
-            this(timeout, timeoutContext, totalBudget, true);
-        }
+    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget, boolean extendable) {
 
         public static SearchRecoveryTimeout skip() {
             return new SearchRecoveryTimeout(TimeValue.ZERO, "", TimeValue.ZERO, false);
         }
 
-        public static SearchRecoveryTimeout withDisabledReevaluation(TimeValue timeout, String timeoutContext) {
+        public static SearchRecoveryTimeout fixed(TimeValue timeout, String timeoutContext) {
             return new SearchRecoveryTimeout(timeout, timeoutContext, TimeValue.ZERO, false);
+        }
+
+        public static SearchRecoveryTimeout extendable(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
+            return new SearchRecoveryTimeout(timeout, timeoutContext, totalBudget, true);
         }
 
         /** When {@code true}, recovery should use {@link #searchRecoveryWarmingListener} with {@link #timeout()} (which is then &gt; 0). */
@@ -1195,27 +1191,27 @@ public class SharedBlobCacheWarmingService {
                 return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
-                return new SearchRecoveryTimeout(
+                return SearchRecoveryTimeout.extendable(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
                     "relocation source not shutting down, cluster shutdown metadata present",
                     searchRecoveryWarmingGracePeriodCap
                 );
             }
-            return new SearchRecoveryTimeout(
+            return SearchRecoveryTimeout.extendable(
                 searchRecoveryWarmingRelocationTimeout,
                 "relocation source not shutting down, no cluster shutdown",
                 searchRecoveryWarmingGracePeriodCap
             );
         }
         if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
-            return new SearchRecoveryTimeout(
+            return SearchRecoveryTimeout.extendable(
                 searchRecoveryWarmingNonRelocationTimeout,
                 "not a relocation, another active shard copy",
                 searchRecoveryWarmingGracePeriodCap
             );
         }
         if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {
-            return SearchRecoveryTimeout.withDisabledReevaluation(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
+            return SearchRecoveryTimeout.fixed(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
         }
         return SearchRecoveryTimeout.skip();
     }
@@ -1270,7 +1266,7 @@ public class SharedBlobCacheWarmingService {
                 if (race.isDone()) {
                     return;
                 }
-                if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.reevaluationEnabled()) {
+                if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.extendable()) {
                     try {
                         final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
                         final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, totalOfflineWarmingTime.get());
@@ -1469,7 +1465,7 @@ public class SharedBlobCacheWarmingService {
         final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
         final long remaining = deadline - now;
         if (remaining <= 0) {
-            return new SearchRecoveryTimeout(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
+            return SearchRecoveryTimeout.fixed(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
         }
         int shardsOnSource = countShardsOnNode(state, sourceNodeId);
         if (shardsOnSource <= 0) {
@@ -1516,13 +1512,13 @@ public class SharedBlobCacheWarmingService {
             final String finalContext = cappedTimeoutMs < timeoutMs
                 ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
                 : context;
-            return new SearchRecoveryTimeout(
+            return SearchRecoveryTimeout.extendable(
                 TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
                 finalContext,
                 searchRecoveryWarmingGracePeriodCap
             );
         }
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+        return SearchRecoveryTimeout.fixed(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 
     /**

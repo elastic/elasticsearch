@@ -317,11 +317,13 @@ public final class ExternalSourceSettings {
     /**
      * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
      * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
+     * Default: 25,000 — generous for legitimate use, catches truly degenerate cases. Planning memory for
+     * the kept files is charged to the request breaker, so raising this cap fails a query that does not
+     * fit with a circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
-        10000,
+        25_000,
         1,
         1000000,
         Setting.Property.NodeScope,

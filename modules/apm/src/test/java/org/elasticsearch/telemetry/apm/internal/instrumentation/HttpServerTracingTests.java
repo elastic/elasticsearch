@@ -31,13 +31,14 @@ import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static java.util.Map.entry;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class APMHttpServerInstrumentationTests extends ESTestCase {
+public class HttpServerTracingTests extends ESTestCase {
 
     final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
-    final APMHttpServerInstrumentation instrumentation = new APMHttpServerInstrumentation(tracer);
+    final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
 
     public void test_start_setsRequestAttributes_minimal() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
@@ -93,8 +94,9 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
             )
             .build();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        var route = "/{index}/_search";
 
-        instrumentation.start(threadContext, request, "/{index}/_search");
+        instrumentation.start(threadContext, request, route);
 
         var inOrder = inOrder(tracer);
         inOrder.verify(tracer)
@@ -151,12 +153,17 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
     }
 
     public void test_end_setsResponseAttributes_minimal() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
         RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
-        instrumentation.end(request, response);
+        var releasable = instrumentation.prepareEnd(threadContext, request, response);
+
+        verifyNoMoreInteractions(tracer, spanStatusBuilder);
+
+        releasable.close();
 
         var inOrder = inOrder(tracer, spanStatusBuilder);
         inOrder.verify(tracer).setAttribute(request, "http.status_code", 200L);
@@ -173,6 +180,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
     }
 
     public void test_end_setsResponseAttributes_full() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
@@ -180,7 +188,11 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
 
         when(tracer.spanStatusBuilder(request)).thenReturn(spanStatusBuilder);
 
-        instrumentation.end(request, response);
+        var releasable = instrumentation.prepareEnd(threadContext, request, response);
+
+        verifyNoMoreInteractions(tracer, spanStatusBuilder);
+
+        releasable.close();
 
         var inOrder = inOrder(tracer, spanStatusBuilder);
         inOrder.verify(tracer).setAttribute(request, "http.status_code", 500L);

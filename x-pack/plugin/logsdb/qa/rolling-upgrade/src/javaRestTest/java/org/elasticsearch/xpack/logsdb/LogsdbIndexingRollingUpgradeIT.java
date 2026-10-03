@@ -36,6 +36,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
     private static final String TEMPLATE = """
         {
+            %%settings%%
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -70,8 +71,21 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         {
             maybeEnableLogsdbByDefault();
 
+            final Version oldVersion = System.getProperty("tests.old_cluster_version") != null
+                ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+                : Version.CURRENT;
+            // 9.4.x nodes write _ignored_source using stored fields on release builds but doc values
+            // on snapshot builds, making the on-disk format ambiguous during a rolling upgrade.
+            // Disable the TSDB doc-values format so both old and new nodes use stored fields,
+            // eliminating the conflict while still exercising _ignored_source via synthetic_source_keep.
+            final boolean ignoredSourceFormatIsStable = oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+            final String settingsJson = ignoredSourceFormatIsStable
+                ? ""
+                : "\"settings\": {\"index.use_time_series_doc_values_format\": false},";
+            String template = TEMPLATE.replace("%%settings%%", settingsJson);
+
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-            createTemplate(dataStreamName, templateId, TEMPLATE);
+            createTemplate(dataStreamName, templateId, template);
 
             time = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);

@@ -95,6 +95,15 @@ public abstract class AbstractBulkByPaginatedSearchRequestTestCase<R extends Abs
         extraForSliceAssertions(original, forSliced);
     }
 
+    public void testRequestsPerSecondRejectsNaN() {
+        R request = newRequest();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request.setRequestsPerSecond(Float.NaN));
+        assertThat(
+            exception.getMessage(),
+            equalTo("[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.")
+        );
+    }
+
     public void testForSlice_maxDocsSumsCorrectly() {
         R original = newRequest();
         int originalMaxDocs = between(0, Integer.MAX_VALUE);

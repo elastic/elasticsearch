@@ -79,8 +79,10 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -98,9 +100,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapperUnitTests.fieldPermissionDef;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /** Simple tests for this filterreader */
 public class FieldSubsetReaderTests extends MapperServiceTestCase {
@@ -795,7 +800,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(
             DirectoryReader.open(iw),
             new CharacterRunAutomaton(automaton),
@@ -839,7 +844,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             iw.close();
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(List.of("fieldA"));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -874,7 +879,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(List.of("obj.fieldC"));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -910,7 +915,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns("arr.fieldD");
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -950,8 +955,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     /**
      * Same shape as {@link #testIgnoredSourceFilteringIntegration()}, but on an index that stores _ignored_source in binary doc values
      * (logsdb / time-series doc values format) with the SeparateCount framing, and using an FLS automaton built the way roles actually
-     * build it ({@link FieldPermissions#buildPermittedFieldsAutomaton}), which unions in the "_*" metadata automaton and therefore also
-     * exposes the "_ignored_source.counts" companion field to the reader.
+     * build it (via {@link FieldPermissions}), where the metadata fields allowlist predicate also exposes the "_ignored_source.counts"
+     * companion field to the reader.
      */
     public void testIgnoredSourceDocValuesFilteringIntegration() throws Exception {
         doTestIgnoredSourceDocValuesFilteringIntegration(1);
@@ -987,9 +992,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         })).documentMapper();
 
         // A role that grants everything except one field, exactly like the reported "logs-* minus dns.question.*" role.
-        var filter = new CharacterRunAutomaton(
-            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
-        );
+        var filter = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { "excluded" }))
+            .getPermittedFieldsAutomaton();
 
         // survivingCount == 1: .counts says 1, so the reader takes the count==1 "the whole blob is the value" fast path.
         // survivingCount > 1: the reader takes the multi-value length-prefixed path and misreads the leading count vInt as a length.
@@ -1055,7 +1059,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // Grant-only role: grants fieldA but NOT _ignored_source. With the bug, _ignored_source was completely hidden,
         // making the loader see an empty iterator and silently drop fieldA's value.
-        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "fieldA" }, null));
+        var filter = new FieldPermissions(fieldPermissionDef(new String[] { "fieldA" }, null)).getPermittedFieldsAutomaton();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
@@ -1099,9 +1103,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             b.startObject("excluded").field("type", "long").endObject();
         })).documentMapper();
 
-        var filter = new CharacterRunAutomaton(
-            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
-        );
+        var filter = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { "excluded" }))
+            .getPermittedFieldsAutomaton();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
@@ -1145,7 +1148,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             b.startObject("keep").field("type", "long").field("ignore_malformed", true).endObject();
         })).documentMapper();
 
-        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+        var filter = new FieldPermissions(fieldPermissionDef(new String[] { "keep" }, null)).getPermittedFieldsAutomaton();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
@@ -1190,7 +1193,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     doc.add(new NumericDocValuesField(dropped + suffix + counts, 2));
                     iw.addDocument(doc);
 
-                    var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { kept }, null));
+                    var filter = new FieldPermissions(fieldPermissionDef(new String[] { kept }, null)).getPermittedFieldsAutomaton();
                     try (
                         DirectoryReader ir = FieldSubsetReader.wrap(
                             wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
@@ -1229,7 +1232,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 doc.add(new NumericDocValuesField(mapped, 2));
                 iw.addDocument(doc);
 
-                var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { mapped }, null));
+                var filter = new FieldPermissions(fieldPermissionDef(new String[] { mapped }, null)).getPermittedFieldsAutomaton();
                 try (
                     DirectoryReader ir = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
@@ -1328,7 +1331,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("bar", "baz");
 
         CharacterRunAutomaton include = new CharacterRunAutomaton(Automata.makeString("foo"));
-        Map<String, Object> filtered = FieldSubsetReader.filter(map, include, 0);
+        Map<String, Object> filtered = FieldSubsetReader.filter(map, include);
         Map<String, Object> expected = new HashMap<>();
         expected.put("foo", 3);
 
@@ -1343,7 +1346,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("bar", "baz");
 
         include = new CharacterRunAutomaton(Automatons.patterns("foo.*"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         expected.put("foo", subMap);
 
@@ -1351,7 +1354,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // include on leading wildcard
         include = new CharacterRunAutomaton(Automatons.patterns("*.bar"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subMap = new HashMap<>();
         subMap.put("bar", 42);
@@ -1361,7 +1364,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // include on inner value
         include = new CharacterRunAutomaton(Automatons.patterns("foo.bar"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
 
         assertEquals(expected, filtered);
 
@@ -1369,7 +1372,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo.bar"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         expected.put("bar", "baz");
         expected.put("foo", Collections.singletonMap("baz", 6));
@@ -1380,7 +1383,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo.*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = Collections.singletonMap("bar", "baz");
 
         assertEquals(expected, filtered);
@@ -1396,7 +1399,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("foo", subArray);
 
         include = new CharacterRunAutomaton(Automatons.patterns("foo.bar"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subMap = new HashMap<>();
@@ -1408,7 +1411,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // include on inner array 2
         include = new CharacterRunAutomaton(Automatons.patterns("foo"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subArray.add(12);
@@ -1420,7 +1423,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo.baz"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subMap = new HashMap<>();
@@ -1435,7 +1438,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subMap = new HashMap<>();
@@ -1456,7 +1459,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("bar", values);
 
         include = new CharacterRunAutomaton(Automatons.patterns("bar.baz"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
 
         expected = new HashMap<>();
         expected.put("bar", Arrays.asList(new HashMap<>(), Collections.singletonMap("baz", "2")));
@@ -1466,7 +1469,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map = new HashMap<>();
         map.put("a", new ArrayList<>());
         include = new CharacterRunAutomaton(Automatons.patterns("a"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         assertEquals(Collections.singletonMap("a", Collections.emptyList()), filtered);
 
         // an empty array under a field that is only a prefix of a granted field (grant "a.b", value at "a") is likewise retained, even
@@ -1474,7 +1477,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map = new HashMap<>();
         map.put("a", new ArrayList<>());
         include = new CharacterRunAutomaton(Automatons.patterns("a.b"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         assertEquals(Collections.singletonMap("a", Collections.emptyList()), filtered);
     }
 
@@ -1493,7 +1496,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("plain", 3);
 
         CharacterRunAutomaton include = new CharacterRunAutomaton(Automatons.patterns("field" + x));
-        Map<String, Object> filtered = FieldSubsetReader.filter(map, include, 0);
+        Map<String, Object> filtered = FieldSubsetReader.filter(map, include);
         assertEquals(Map.of("field" + x, 1), filtered);
 
         // nested object with non-BMP segments on both levels: "obj𝕏.inner𝕏" is granted, sibling is dropped
@@ -1504,7 +1507,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("obj" + x, inner);
 
         include = new CharacterRunAutomaton(Automatons.patterns("obj" + x + ".inner" + x));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         assertEquals(Map.of("obj" + x, Map.of("inner" + x, 42)), filtered);
     }
 
@@ -1525,9 +1528,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Set<String> fields = new HashSet<>();
-        fields.add("fieldA");
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", FieldNamesFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(
             DirectoryReader.open(iw),
             new CharacterRunAutomaton(automaton),
@@ -1631,7 +1632,56 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA", "fieldC");
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (fieldName) -> false
+        );
+
+        // see only two fields
+        LeafReader segmentReader = ir.leaves().get(0).reader();
+        Terms terms = segmentReader.terms(FieldNamesFieldMapper.NAME);
+        TermsEnum termsEnum = terms.iterator();
+        assertEquals(new BytesRef("fieldA"), termsEnum.next());
+        assertEquals(new BytesRef("fieldC"), termsEnum.next());
+        assertNull(termsEnum.next());
+
+        // seekExact
+        termsEnum = terms.iterator();
+        assertTrue(termsEnum.seekExact(new BytesRef("fieldA")));
+        assertFalse(termsEnum.seekExact(new BytesRef("fieldB")));
+        assertTrue(termsEnum.seekExact(new BytesRef("fieldC")));
+
+        // seekCeil
+        termsEnum = terms.iterator();
+        assertEquals(SeekStatus.FOUND, termsEnum.seekCeil(new BytesRef("fieldA")));
+        assertEquals(SeekStatus.NOT_FOUND, termsEnum.seekCeil(new BytesRef("fieldB")));
+        assertEquals(new BytesRef("fieldC"), termsEnum.term());
+        assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldD")));
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, iw, dir);
+    }
+
+    public void testMetadataFieldNames() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add document with 2 fields
+        Document doc = new Document();
+        doc.add(new StringField("fieldA", "test", Field.Store.NO));
+        doc.add(new StringField("fieldB", "test", Field.Store.NO));
+        doc.add(new StringField("fieldC", "test", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldC", Field.Store.NO));
+        iw.addDocument(doc);
+
+        // open reader
+        Automaton automaton = Automatons.patterns("fieldA", "fieldC");
         DirectoryReader ir = FieldSubsetReader.wrap(
             DirectoryReader.open(iw),
             new CharacterRunAutomaton(automaton),
@@ -1681,7 +1731,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA", "fieldC");
         DirectoryReader ir = FieldSubsetReader.wrap(
             DirectoryReader.open(iw),
             new CharacterRunAutomaton(automaton),
@@ -1705,6 +1755,77 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         IOUtils.close(ir, iw, dir);
     }
 
+    public void testMetadataFieldFiltering() {
+        var result = new FieldPermissions(fieldPermissionDef(new String[] {}, null));
+        for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
+            FieldInfos actual = filterPermittedFields(field, result);
+            assertThat(actual.size(), equalTo(1));
+            assertThat(actual.fieldInfo(field), is(notNullValue()));
+
+            actual = filterPermittedFields(field + "." + "field", result);
+            assertThat(actual.size(), equalTo(1));
+            assertThat(actual.fieldInfo(field + "." + "field"), is(notNullValue()));
+
+            actual = filterPermittedFields(field + "x", result);
+            assertThat(actual.size(), equalTo(0));
+
+            actual = filterPermittedFields("field", result);
+            assertThat(actual.size(), equalTo(0));
+        }
+
+        for (var notAllowed : List.of("_uid", "_timestamp", "_ttl", "_some_plugin_meta_field", "_idx", "_seq_nox")) {
+            assertThat(filterPermittedFields(notAllowed, result).size(), equalTo(0));
+        }
+    }
+
+    public void testMetadataFieldsAccessibleWithEmptyGrantFls() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        Document doc = new Document();
+        doc.add(new StringField("fieldA", "test", Field.Store.NO));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 1));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 2));
+        doc.add(new NumericDocValuesField("_custom_meta", 3));
+        byte[] bytes = "{\"fieldA\":\"testA\",\"_custom\":\"x\"}".getBytes(StandardCharsets.UTF_8);
+        doc.add(new StoredField(SourceFieldMapper.NAME, bytes, 0, bytes.length));
+        iw.addDocument(doc);
+
+        // an FLS role with an empty grant list: no user fields are visible, but allowlisted metadata fields are
+        var filter = new FieldPermissions(fieldPermissionDef(new String[] {}, null)).getPermittedFieldsAutomaton();
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            filter,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (fieldName) -> false
+        );
+
+        LeafReader segmentReader = ir.leaves().get(0).reader();
+        assertNotNull(segmentReader.getNumericDocValues(SeqNoFieldMapper.NAME));
+        assertNotNull(segmentReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME));
+        assertNotNull(segmentReader.getNumericDocValues(VersionFieldMapper.NAME));
+        assertNull(segmentReader.getNumericDocValues("_custom_meta"));
+        assertNull(segmentReader.terms("fieldA"));
+
+        Document d = ir.storedFields().document(0);
+        assertEquals(1, d.getFields().size());
+        assertEquals("{}", d.getBinaryValue(SourceFieldMapper.NAME).utf8ToString());
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, iw, dir);
+    }
+
+    private FieldInfos filterPermittedFields(String fieldName, FieldPermissions fieldPermissions) {
+        return FieldSubsetReader.filterPermittedFields(
+            new FieldInfos(new FieldInfo[] { getFieldInfoWithName(fieldName) }),
+            fieldPermissions.getPermittedFieldsAutomaton(),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (name) -> true
+        );
+    }
+
     /**
      * test where _field_names does not exist
      */
@@ -1720,7 +1841,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(
             DirectoryReader.open(iw),
             new CharacterRunAutomaton(automaton),
@@ -1911,10 +2032,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertEquals(1, nestedProperties.size());
             assertTrue(nestedProperties.containsKey("inner1"));
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
-            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             assertEquals(2, filtered.size());
             Map<String, Object> object = (Map<String, Object>) filtered.get("object");
             assertEquals(1, object.size());
@@ -1955,10 +2075,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertEquals(1, inner2.size());
             assertEquals("keyword", inner2.get("type"));
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
-            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             assertEquals(1, filtered.size());
             Map<String, Object> object = (Map<String, Object>) filtered.get("object");
             assertEquals(2, object.size());
@@ -1983,10 +2102,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             Map<String, Object> objectProperties = (Map<String, Object>) objectMapping.get("properties");
             assertEquals(0, objectProperties.size());
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
-            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             // TODO FLS filters out empty objects from source, although they are granted access.
             // When filtering mappings though we keep them.
             assertEquals(0, filtered.size());
@@ -2014,10 +2132,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertEquals(1, nestedProperties.size());
             assertTrue(nestedProperties.containsKey("inner2"));
 
-            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
-            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             assertEquals(1, filtered.size());
             List<Map<String, Object>> nested = (List<Map<String, Object>>) filtered.get("nested");
             assertEquals(2, nested.size());
@@ -2048,7 +2165,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.commit();
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(
             DirectoryReader.open(iw),
             new CharacterRunAutomaton(automaton),

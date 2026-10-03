@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
@@ -16,7 +15,6 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
@@ -25,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,11 +32,10 @@ import java.util.Map;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity.convertInputType;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_AllOptionsDefined_textEmbedding() throws IOException {
+    public void testCreateRequest_AllOptionsDefined_textEmbedding() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomWithNull();
         boolean lateChunking = randomBoolean();
         var modelName = "modelName";
@@ -62,12 +60,10 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        assertThat(httpPost.getURI().toString(), is(url));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(url));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
         assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
@@ -89,11 +85,11 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             expectedRequestMap.put("task", convertInputType(inputType));
         }
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, is(expectedRequestMap));
     }
 
-    public void testCreateRequest_AllOptionsDefined_multimodalEmbedding() throws IOException {
+    public void testCreateRequest_AllOptionsDefined_multimodalEmbedding() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomWithNull();
         boolean lateChunking = randomBoolean();
         var modelName = "modelName";
@@ -118,12 +114,10 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        assertThat(httpPost.getURI().toString(), is(url));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(url));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
         assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
@@ -145,11 +139,11 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             expectedRequestMap.put("task", convertInputType(inputType));
         }
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, is(expectedRequestMap));
     }
 
-    public void testCreateRequest_TaskSettingsInputType() throws IOException {
+    public void testCreateRequest_TaskSettingsInputType() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomWithoutUnspecified();
         var modelName = "modelName";
         var url = "url";
@@ -173,12 +167,10 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        assertThat(httpPost.getURI().toString(), is(url));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(url));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
         assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
@@ -189,11 +181,11 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             expectedRequestMap.put("task", convertInputType(inputType));
         }
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, is(expectedRequestMap));
     }
 
-    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
+    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException, URISyntaxException {
         var requestInputType = InputTypeTests.randomWithNull();
         var taskSettingsInputType = InputTypeTests.randomWithoutUnspecified();
         var modelName = "modelName";
@@ -213,12 +205,10 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        assertThat(httpPost.getURI().toString(), is(url));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is(url));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
         assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
@@ -229,7 +219,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             expectedRequestMap.put("task", convertInputType(taskSettingsInputType));
         }
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, is(expectedRequestMap));
     }
 

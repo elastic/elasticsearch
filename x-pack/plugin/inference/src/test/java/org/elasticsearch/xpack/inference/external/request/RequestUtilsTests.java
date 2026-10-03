@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +53,7 @@ public class RequestUtilsTests extends ESTestCase {
     }
 
     public void testDecorateWithAuthHeader() throws URISyntaxException {
-        var httpPost = new HttpPost(new URI("https://example.com/v1/embeddings"));
+        var httpPost = SimpleRequestBuilder.post(new URI("https://example.com/v1/embeddings")).build();
         decorateWithAuthHeader(httpPost, new SecureString(SECRET.toCharArray()));
 
         assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));

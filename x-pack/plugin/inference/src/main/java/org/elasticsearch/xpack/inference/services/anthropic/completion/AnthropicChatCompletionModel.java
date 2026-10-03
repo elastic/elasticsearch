@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;

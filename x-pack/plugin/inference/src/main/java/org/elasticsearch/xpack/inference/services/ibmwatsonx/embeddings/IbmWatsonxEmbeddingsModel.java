@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -97,7 +97,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),

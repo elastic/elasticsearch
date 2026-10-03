@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.message.BasicHeader;
 
 public class OpenAiUtils {
     public static final String HOST = "api.openai.com";

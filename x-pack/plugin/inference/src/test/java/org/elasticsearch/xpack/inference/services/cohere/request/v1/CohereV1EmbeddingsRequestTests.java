@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -27,15 +26,15 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CohereV1EmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest() throws IOException {
+    public void testCreateRequest() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomWithNull();
         var request = createRequest(
             List.of("abc"),
@@ -44,25 +43,24 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/embed"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("https://api.cohere.ai/v1/embed"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
         validateInputType(requestMap, null, inputType);
     }
 
-    public void testCreateRequest_AllOptionsDefined() throws IOException {
+    public void testCreateRequest_AllOptionsDefined() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomWithNull();
         var request = createRequest(
             List.of("abc"),
@@ -79,19 +77,18 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("http://localhost:8080/v1/embed"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("http://localhost:8080/v1/embed"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("model"), is("model"));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
@@ -116,25 +113,24 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("end"));
         validateInputType(requestMap, inputType, null);
     }
 
-    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
+    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException, URISyntaxException {
         var requestInputType = InputTypeTests.randomSearchAndIngestWithNull();
         var taskSettingInputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
@@ -152,26 +148,25 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/embed"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("https://api.cohere.ai/v1/embed"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("end"));
         validateInputType(requestMap, taskSettingInputType, requestInputType);
     }
 
-    public void testCreateRequest_InputTypeSearch_EmbeddingTypeInt8_TruncateEnd() throws IOException {
+    public void testCreateRequest_InputTypeSearch_EmbeddingTypeInt8_TruncateEnd() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomWithNull();
         var request = createRequest(
             List.of("abc"),
@@ -188,19 +183,18 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/embed"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("https://api.cohere.ai/v1/embed"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("model"), is("model"));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("int8")));
@@ -225,18 +219,17 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("model"), is("model"));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("binary")));
@@ -261,18 +254,17 @@ public class CohereV1EmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(CohereUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("none"));

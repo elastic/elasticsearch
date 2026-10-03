@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
@@ -21,13 +20,13 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.completion.Tencen
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -42,29 +41,27 @@ public class TencentCloudChatCompletionRequestTests extends ESTestCase {
     private static final String DEFAULT_URI = "https://bj.aisearch.tencentelasticsearch.com/v1/chat/completions";
     private static final String CUSTOM_REGION_URI = "https://sh.aisearch.tencentelasticsearch.com/v1/chat/completions";
 
-    public void testCreateRequest_DefaultRegion_SetsCorrectUri() {
+    public void testCreateRequest_DefaultRegion_SetsCorrectUri() throws URISyntaxException {
         var request = createRequest(DEFAULT_REGION, randomAlphaOfLength(10), false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is(DEFAULT_URI));
+        var httpPost = httpRequest.httpRequest();
+        assertThat(httpPost.getUri().toString(), is(DEFAULT_URI));
     }
 
-    public void testCreateRequest_CustomRegion_SetsCorrectUri() {
+    public void testCreateRequest_CustomRegion_SetsCorrectUri() throws URISyntaxException {
         var request = createRequest(CUSTOM_REGION, randomAlphaOfLength(10), false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is(CUSTOM_REGION_URI));
+        var httpPost = httpRequest.httpRequest();
+        assertThat(httpPost.getUri().toString(), is(CUSTOM_REGION_URI));
     }
 
     public void testCreateRequest_SetsAuthorizationHeader() {
         var request = createRequest(DEFAULT_REGION, randomAlphaOfLength(10), false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY)));
     }
 
@@ -72,7 +69,7 @@ public class TencentCloudChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(DEFAULT_REGION, randomAlphaOfLength(10), false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), containsString("application/json"));
     }
 
@@ -81,8 +78,8 @@ public class TencentCloudChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(DEFAULT_REGION, input, true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("stream"), is(true));
         assertThat(requestMap.get("model"), is(MODEL_ID));
         assertThat(requestMap.get("n"), is(1));
@@ -96,8 +93,8 @@ public class TencentCloudChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(DEFAULT_REGION, input, false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("stream"), is(false));
         assertThat(requestMap.get("model"), is(MODEL_ID));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", ROLE, "content", input))));

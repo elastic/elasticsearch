@@ -50,14 +50,13 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 /**
  * A service for queuing and executing {@link RequestTask}. This class is useful because the
- * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager} will block when leasing a connection if no
+ * {@link org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager} will block when leasing a connection if no
  * connections are available. To avoid blocking the inference transport threads, this executor will queue up the
  * requests until connections are available.
  *
- * <b>NOTE:</b> It is the responsibility of the class constructing the
- * {@link org.apache.http.client.methods.HttpUriRequest} to set a timeout for how long this executor will wait
- * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
- * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
+ * <b>NOTE:</b> requests wait for a pooled connection indefinitely: the http client disables the connection lease timeout
+ * ({@link org.apache.hc.client5.http.config.RequestConfig.Builder#setConnectionRequestTimeout}), so a queued task is bounded
+ * only by the per-request inference timeout.
  *
  * The request flow looks as follows:
  *

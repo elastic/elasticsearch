@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -153,10 +152,8 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandlerTests ex
     }
 
     private static HttpResult httpResult(int statusCode, String body, BasicHeader... headers) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = new BasicHttpResponse(statusLine);
+        // A real BasicHttpResponse rather than a mock so that getFirstHeader(...) behaves for the Retry-After assertions.
+        var httpResponse = new BasicHttpResponse(statusCode);
         for (var header : headers) {
             httpResponse.addHeader(header);
         }

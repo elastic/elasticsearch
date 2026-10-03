@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -20,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -109,14 +105,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
     }
 
     private static RetryException callHandleFailureStatusCode(int statusCode, String modelId) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+        when(httpResponse.getCode()).thenReturn(statusCode);
 
         var mockRequest = mock(OutboundRequest.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(modelId);

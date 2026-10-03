@@ -57,7 +57,7 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500) {
             return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 503) {

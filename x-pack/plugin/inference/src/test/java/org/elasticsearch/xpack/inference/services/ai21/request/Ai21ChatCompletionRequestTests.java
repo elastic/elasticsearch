@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ai21.request;
 
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -20,7 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class Ai21ChatCompletionRequestTests extends ESTestCase {
@@ -29,10 +27,9 @@ public class Ai21ChatCompletionRequestTests extends ESTestCase {
         var request = createRequest("secret", randomAlphaOfLength(15), "model", true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("stream"), is(true));
     }
 
@@ -43,10 +40,9 @@ public class Ai21ChatCompletionRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is("https://api.ai21.com/studio/v1/chat/completions"));
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(5));
 
         // We do not truncate for AI21 chat completions

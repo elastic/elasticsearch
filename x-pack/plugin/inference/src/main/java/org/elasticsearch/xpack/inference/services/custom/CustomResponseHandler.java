@@ -65,7 +65,7 @@ public class CustomResponseHandler extends BaseResponseHandler {
      */
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
 
         // handle error codes
         if (statusCode >= 500) {

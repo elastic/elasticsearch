@@ -1212,9 +1212,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                     && "\\r".equals(s) == false
                     && "\\\\".equals(s) == false) {
                     throw new IllegalArgumentException(
-                        "Invalid character value for [delimiter] ["
-                            + delimiter
-                            + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+                        "Invalid character value for [delimiter] [" + delimiter + "]: expected a single character or one of \\t, \\\\"
                     );
                 }
             }

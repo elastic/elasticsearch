@@ -897,7 +897,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return s.charAt(0);
         }
         throw new IllegalArgumentException(
-            "Invalid character value for [" + settingName + "] [" + value + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+            "Invalid character value for [" + settingName + "] [" + value + "]: expected a single character or one of \\t, \\\\"
         );
     }
 

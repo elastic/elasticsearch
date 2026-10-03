@@ -151,6 +151,14 @@ final class DecompressingStorageObject implements StorageObject {
         return READ_TO_END;
     }
 
+    /**
+     * Compressed delegate size when already known, else {@link StorageObject#READ_TO_END}.
+     * Streaming fill-buffer hint only — not decompressed EOF and not a substitute for {@link #knownLength()}.
+     */
+    long delegateKnownLength() {
+        return delegate.knownLength();
+    }
+
     @Override
     public String contentGeneration() {
         return delegate.contentGeneration();

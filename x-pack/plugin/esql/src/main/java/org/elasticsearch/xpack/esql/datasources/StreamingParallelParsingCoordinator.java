@@ -392,6 +392,19 @@ public final class StreamingParallelParsingCoordinator {
         );
     }
 
+    /**
+     * Alloc ceiling for streaming fill buffers. Gzip/zstd wrappers keep {@link StorageObject#knownLength()}
+     * as {@link StorageObject#READ_TO_END} (decompressed EOF is unknown); the compressed listing/GET size
+     * is the fill hint only. Uncompressed objects use {@link StorageObject#knownLength()}. Missing object
+     * or unknown size keeps the format {@code minimumSegmentSize()}.
+     */
+    static long streamingFillHint(@Nullable StorageObject storageObject) {
+        if (storageObject instanceof DecompressingStorageObject decompressing) {
+            return decompressing.delegateKnownLength();
+        }
+        return storageObject == null ? StorageObject.READ_TO_END : storageObject.knownLength();
+    }
+
     // Package-private so close-path tests can assert on segmentator wait state via
     // isSegmentatorParkedOnDispatchPermits(); production callers see only CloseableIterator<Page>.
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
@@ -469,6 +482,12 @@ public final class StreamingParallelParsingCoordinator {
         private final int bufferPoolSize;
         /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
         private final int pageQueueRingSize;
+        /**
+         * Fill-buffer length charged to {@link #breaker} for each pooled array. Format
+         * {@link SegmentableFormatReader#minimumSegmentSize()} clamped by
+         * {@link ExternalSourceSettings#ioFillBytes} to a known object size when that is smaller
+         * (compressed size for {@link DecompressingStorageObject}, else {@link StorageObject#knownLength()}).
+         */
         private final int chunkSize;
         /**
          * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
@@ -654,7 +673,7 @@ public final class StreamingParallelParsingCoordinator {
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
-            this.chunkSize = Math.toIntExact(reader.minimumSegmentSize());
+            this.chunkSize = ExternalSourceSettings.ioFillBytes(reader.minimumSegmentSize(), streamingFillHint(storageObject));
 
             this.bufferPool = new ArrayBlockingQueue<>(bufferPoolSize);
             this.buffersAllocated = new AtomicInteger(0);
@@ -957,13 +976,27 @@ public final class StreamingParallelParsingCoordinator {
                         continue;
                     }
 
-                    int validLen = isEof ? totalBytes : lastNewline + 1;
-
-                    if (isEof == false && validLen < totalBytes) {
-                        carryLen = totalBytes - validLen;
-                        carry = new byte[carryLen];
-                        System.arraycopy(buf, validLen, carry, 0, carryLen);
+                    // A full buffer is not EOF. Peek one byte so a file whose size equals chunkSize
+                    // (clamp-to-object fill) still marks last=true. Without this, the next loop's
+                    // empty read sets reachedEof after a last=false dispatch and stripe harvest
+                    // stays PARTIAL_CHUNK, so warm COUNT(*) re-scans.
+                    if (isEof == false) {
+                        int peek = stream.read();
+                        if (peek < 0) {
+                            isEof = true;
+                        } else {
+                            int leftoverStart = lastNewline + 1;
+                            int leftover = totalBytes - leftoverStart;
+                            carryLen = leftover + 1;
+                            carry = new byte[carryLen];
+                            if (leftover > 0) {
+                                System.arraycopy(buf, leftoverStart, carry, 0, leftover);
+                            }
+                            carry[leftover] = (byte) peek;
+                        }
                     }
+
+                    int validLen = isEof ? totalBytes : lastNewline + 1;
 
                     if (chunkIndex == 0) {
                         prepareFromFirstChunk(buf, validLen);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.routing.RecoverySource.ReshardSplitRecoverySource;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,10 +45,16 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_SIMULATING = Decision.single(Decision.Type.YES, NAME, "previous failures ignored when simulating");
 
+    private static final Decision YES_RESHARD_SPLIT = Decision.single(Decision.Type.YES, NAME, "reshard split target shard");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (allocation.isSimulating()) {
             return YES_SIMULATING;
+        }
+
+        if (shardRouting.recoverySource() instanceof ReshardSplitRecoverySource) {
+            return YES_RESHARD_SPLIT;
         }
 
         final int maxRetries = SETTING_ALLOCATION_MAX_RETRY.get(allocation.metadata().indexMetadata(shardRouting.index()).getSettings());

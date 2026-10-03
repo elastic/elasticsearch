@@ -1,0 +1,6 @@
+pr: 147741
+summary: Make `significant_terms` background frequency counts cancellable
+area: Aggregations
+type: bug
+issues:
+ - 144442

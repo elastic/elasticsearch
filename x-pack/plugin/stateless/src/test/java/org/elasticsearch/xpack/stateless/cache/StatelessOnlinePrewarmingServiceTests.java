@@ -401,7 +401,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         BlobCacheMetrics.NOOP,
                         clusterService,
                         TestUtils.mockIndicesService(clusterService),
-                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                        EvictionPolicyExtension.NOOP
                     ) {
                         @Override
                         public void maybeFetchRange(

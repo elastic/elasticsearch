@@ -30,25 +30,41 @@ import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheSe
 public enum StatelessCacheEvictionPolicyType {
     ALWAYS {
         @Override
-        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, TimeProvider timeProvider) {
+        EvictionPolicy<FileCacheKey> doCreate(
+            ClusterService clusterService,
+            IndicesService indicesService,
+            TimeProvider timeProvider,
+            EvictionPolicyExtension evictionPolicyExtension
+        ) {
             return new DefaultEvictionPolicy<>();
         }
     },
     PINNED_WINDOW {
         @Override
-        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, TimeProvider timeProvider) {
+        EvictionPolicy<FileCacheKey> doCreate(
+            ClusterService clusterService,
+            IndicesService indicesService,
+            TimeProvider timeProvider,
+            EvictionPolicyExtension evictionPolicyExtension
+        ) {
             return new PinnedWindowEvictionPolicy(
                 clusterService.getClusterSettings(),
                 timeProvider,
                 // We consult IndicesService rather than cluster-state routing because routing can lag behind locally open shards
                 // during cluster-state application. Once a shard is open here, IndicesService reflects that immediately.
-                indicesService.hasShardPredicate()
+                indicesService.hasShardPredicate(),
+                evictionPolicyExtension
             );
         }
     },
     INDEX_AGE {
         @Override
-        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, TimeProvider timeProvider) {
+        EvictionPolicy<FileCacheKey> doCreate(
+            ClusterService clusterService,
+            IndicesService indicesService,
+            TimeProvider timeProvider,
+            EvictionPolicyExtension evictionPolicyExtension
+        ) {
             return new IndexAgeEvictionPolicy(clusterService);
         }
     };
@@ -60,11 +76,25 @@ public enum StatelessCacheEvictionPolicyType {
         IndicesService indicesService,
         TimeProvider timeProvider
     ) {
-        logger.info("creating eviction policy of type [{}]", this);
-        return doCreate(clusterService, indicesService, timeProvider);
+        return create(clusterService, indicesService, timeProvider, EvictionPolicyExtension.NOOP);
     }
 
-    abstract EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, TimeProvider timeProvider);
+    public final EvictionPolicy<FileCacheKey> create(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        TimeProvider timeProvider,
+        EvictionPolicyExtension evictionPolicyExtension
+    ) {
+        logger.info("creating eviction policy of type [{}]", this);
+        return doCreate(clusterService, indicesService, timeProvider, evictionPolicyExtension);
+    }
+
+    abstract EvictionPolicy<FileCacheKey> doCreate(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        TimeProvider timeProvider,
+        EvictionPolicyExtension evictionPolicyExtension
+    );
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         // Explicit configuration takes precedence when on search nodes
@@ -91,10 +121,21 @@ public enum StatelessCacheEvictionPolicyType {
         IndicesService indicesService,
         TimeProvider timeProvider
     ) {
+        return createEvictionPolicy(settings, clusterService, indicesService, timeProvider, EvictionPolicyExtension.NOOP);
+    }
+
+    public static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        TimeProvider timeProvider,
+        EvictionPolicyExtension evictionPolicyExtension
+    ) {
         return resolveEvictionPolicyFromSettings(settings).create(
             clusterService,
             Objects.requireNonNull(indicesService),
-            Objects.requireNonNull(timeProvider)
+            Objects.requireNonNull(timeProvider),
+            Objects.requireNonNull(evictionPolicyExtension)
         );
     }
 }

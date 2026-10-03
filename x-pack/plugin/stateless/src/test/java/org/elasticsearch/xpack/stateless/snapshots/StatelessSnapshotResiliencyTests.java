@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAlloc
 import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -836,7 +837,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 BlobCacheMetrics.NOOP,
                 clusterService,
                 services.indicesService(),
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                EvictionPolicyExtension.NOOP
             );
 
             this.cacheBlobReaderService = new CacheBlobReaderService(

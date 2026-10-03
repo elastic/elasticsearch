@@ -111,7 +111,7 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
         final var threadPool = taskQueue.getThreadPool();
         final var clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final var indicesService = TestUtils.mockIndicesService(clusterService);
-        return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+        return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool, EvictionPolicyExtension.NOOP);
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {

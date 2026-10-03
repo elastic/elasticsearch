@@ -33,6 +33,7 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension.PinnedWindow;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.junit.After;
@@ -49,6 +50,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PinnedWindowEvictionPolicyTests extends ESTestCase {
@@ -74,13 +76,27 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         clusterService.close();
     }
 
+    public void testNegativePinnedWindowDurationRejected() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedWindow.Duration(TimeValue.MINUS_ONE)
+        );
+        assertThat(e.getMessage(), containsString("must not be negative"));
+        assertThat(new PinnedWindow.Duration(TimeValue.ZERO).duration(), equalTo(TimeValue.ZERO));
+    }
+
     public void testDurationBelowMinimumRejected() {
         Settings settings = Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "10ms").build();
         expectThrows(IllegalArgumentException.class, () -> PINNED_WINDOW_DURATION_SETTING.get(settings));
     }
 
     public void testPinnedWindowDurationUpdatesDynamically() {
-        final var policy = new PinnedWindowEvictionPolicy(clusterSettings, clusterService.threadPool(), shardId -> false);
+        final var policy = new PinnedWindowEvictionPolicy(
+            clusterSettings,
+            clusterService.threadPool(),
+            shardId -> false,
+            EvictionPolicyExtension.NOOP
+        );
         assertThat(policy.getPinnedWindowDuration(), equalTo(PINNED_WINDOW_DURATION));
 
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
@@ -88,7 +104,12 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     public void testPinnedWindowDurationNotUpdatedAfterClose() {
-        final var policy = new PinnedWindowEvictionPolicy(clusterSettings, clusterService.threadPool(), shardId -> false);
+        final var policy = new PinnedWindowEvictionPolicy(
+            clusterSettings,
+            clusterService.threadPool(),
+            shardId -> false,
+            EvictionPolicyExtension.NOOP
+        );
 
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
         assertThat(policy.getPinnedWindowDuration(), equalTo(TimeValue.timeValueHours(6)));
@@ -150,6 +171,57 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertTrue(canEvict(policy, region(shardId, now - PINNED_WINDOW_DURATION.millis() - 1)));
     }
 
+    public void testPerShardResolverShortensWindowForOneShard() {
+        final ShardId shortShard = new ShardId("short-index", randomUUID(), 0);
+        final ShardId longShard = new ShardId("long-index", randomUUID(), 0);
+        final long now = TimeValue.timeValueHours(48).millis();
+        final TimeValue configured = TimeValue.timeValueHours(12);
+        final TimeValue shortWindow = TimeValue.timeValueHours(1);
+        final EvictionPolicyExtension resolver = (shardId, configuredDuration) -> shardId.equals(shortShard)
+            ? new PinnedWindow.Duration(shortWindow)
+            : new PinnedWindow.Duration(configuredDuration);
+        final var policy = new PinnedWindowEvictionPolicy(
+            createClusterSettingsWithPinnedWindowDuration(configured),
+            TimeProviderUtils.create(() -> now),
+            shardId -> shardId.equals(shortShard) || shardId.equals(longShard),
+            resolver
+        );
+        final long timestampMillis = now - TimeValue.timeValueHours(2).millis();
+
+        assertTrue(canEvict(policy, region(shortShard, timestampMillis)));
+        assertFalse(canEvict(policy, region(longShard, timestampMillis)));
+    }
+
+    public void testAlwaysPinsEveryRegionOfAPresentShard() {
+        final long now = TimeValue.timeValueDays(365).millis();
+        final ShardId shardId = new ShardId("index", randomUUID(), 0);
+        final var policy = new PinnedWindowEvictionPolicy(
+            createClusterSettingsWithPinnedWindowDuration(PINNED_WINDOW_DURATION),
+            TimeProviderUtils.create(() -> now),
+            candidate -> candidate.equals(shardId),
+            (id, configuredDuration) -> new PinnedWindow.Always()
+        );
+
+        assertFalse(canEvict(policy, region(shardId, now - TimeValue.timeValueDays(30).millis())));
+        assertFalse(canEvict(policy, region(shardId, UNKNOWN_TIMESTAMP)));
+        assertFalse(canEvict(policy, region(shardId, BACKFILL_IN_PROGRESS_TIMESTAMP)));
+    }
+
+    public void testNeverPinsNoRegionOfAPresentShard() {
+        final long now = TimeValue.timeValueHours(48).millis();
+        final ShardId shardId = new ShardId("index", randomUUID(), 0);
+        final var policy = new PinnedWindowEvictionPolicy(
+            createClusterSettingsWithPinnedWindowDuration(PINNED_WINDOW_DURATION),
+            TimeProviderUtils.create(() -> now),
+            candidate -> candidate.equals(shardId),
+            (id, configuredDuration) -> new PinnedWindow.Never()
+        );
+
+        assertTrue(canEvict(policy, region(shardId, now)));
+        assertTrue(canEvict(policy, region(shardId, UNKNOWN_TIMESTAMP)));
+        assertTrue(canEvict(policy, region(shardId, BACKFILL_IN_PROGRESS_TIMESTAMP)));
+    }
+
     public void testShrinkingPinnedWindowMakesRegionEvictable() {
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION).build());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
@@ -158,7 +230,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            candidate -> candidate.equals(shardId)
+            candidate -> candidate.equals(shardId),
+            EvictionPolicyExtension.NOOP
         );
         final var region = region(shardId, timestampMillis);
 
@@ -200,7 +273,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
                 BlobCacheMetrics.NOOP,
                 cacheClusterService,
                 mockIndicesService(cacheClusterService, oldShard, newShard),
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                EvictionPolicyExtension.NOOP
             )
         ) {
             assertEquals(numRegions, SharedBlobCacheServiceTestUtils.freeRegionCount(cacheService));
@@ -255,14 +329,15 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         return new PinnedWindowEvictionPolicy(
             createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration),
             TimeProviderUtils.create(() -> now),
-            hasShardPredicate
+            hasShardPredicate,
+            EvictionPolicyExtension.NOOP
         );
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
         final boolean canEvict = policy.createPredicate(region).test(region);
         assertThat(
-            "createPredicate must be the negation of isProtected for the same region/cutoff",
+            "createPredicate must be the negation of isProtected for the same region",
             canEvict,
             equalTo(policy.isProtected(region) == false)
         );

@@ -24,6 +24,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -132,7 +133,8 @@ public class TestUtils {
             new BlobCacheMetrics(meterRegistry == null ? MeterRegistry.NOOP : meterRegistry, NOOP_TIME_PROVIDER),
             clusterService,
             mockIndicesService(clusterService),
-            new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+            new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+            EvictionPolicyExtension.NOOP
         );
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -454,7 +455,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         meterRegistry == null ? BlobCacheMetrics.NOOP : new BlobCacheMetrics(meterRegistry, TestUtils.NOOP_TIME_PROVIDER),
                         clusterService,
                         TestUtils.mockIndicesService(clusterService),
-                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                        EvictionPolicyExtension.NOOP
                     ) {
                         @Override
                         public Executor getShardReadThreadPoolExecutor() {

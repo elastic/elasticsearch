@@ -152,6 +152,8 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrde
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtensionFactory;
 import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
@@ -529,6 +531,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
     protected final SetOnce<RefreshManagerServiceFactory> refreshManagerServiceFactory = new SetOnce<>();
+    private final SetOnce<EvictionPolicyExtensionFactory> evictionPolicyExtensionFactory = new SetOnce<>();
     private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<StatelessPrimaryRelocationSourceService> primaryRelocationSourceService = new SetOnce<>();
@@ -1209,9 +1212,19 @@ public class StatelessPlugin extends Plugin
             blobCacheMetrics,
             clusterService,
             indicesService,
-            metricHolder
+            metricHolder,
+            evictionPolicyExtension(clusterService)
         );
         return statelessSharedBlobCacheService;
+    }
+
+    /**
+     * Returns the eviction-policy extension for {@code clusterService}. Visible for tests that check SPI wiring
+     * without constructing the shared blob cache.
+     */
+    protected EvictionPolicyExtension evictionPolicyExtension(ClusterService clusterService) {
+        final EvictionPolicyExtensionFactory extensionFactory = evictionPolicyExtensionFactory.get();
+        return extensionFactory == null ? EvictionPolicyExtension.NOOP : extensionFactory.create(clusterService);
     }
 
     public SharedBlobCacheWarmingService getSharedBlobCacheWarmingService() {
@@ -1898,6 +1911,13 @@ public class StatelessPlugin extends Plugin
             throw new IllegalStateException(RefreshManagerServiceFactory.class + " may not have multiple implementations");
         } else if (refreshManagerServiceFactories.size() == 1) {
             this.refreshManagerServiceFactory.set(refreshManagerServiceFactories.getFirst());
+        }
+
+        var evictionPolicyExtensionFactories = loader.loadExtensions(EvictionPolicyExtensionFactory.class);
+        if (evictionPolicyExtensionFactories.size() > 1) {
+            throw new IllegalStateException(EvictionPolicyExtensionFactory.class + " may not have multiple implementations");
+        } else if (evictionPolicyExtensionFactories.size() == 1) {
+            this.evictionPolicyExtensionFactory.set(evictionPolicyExtensionFactories.getFirst());
         }
 
         var searchShardSizeCollectorProviders = loader.loadExtensions(SearchShardSizeCollectorProvider.class);

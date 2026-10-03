@@ -50,6 +50,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.stateless.cache.EvictionPolicyExtension;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -434,7 +435,16 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             IndicesService indicesService,
             PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
+            super(
+                environment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                clusterService,
+                indicesService,
+                metricHolder,
+                EvictionPolicyExtension.NOOP
+            );
         }
 
         @Override

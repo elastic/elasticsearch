@@ -1550,7 +1550,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndicesService indicesService,
             PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
+            super(
+                environment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                clusterService,
+                indicesService,
+                metricHolder,
+                EvictionPolicyExtension.NOOP
+            );
         }
 
         @Override

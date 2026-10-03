@@ -848,7 +848,16 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             IndicesService indicesService,
             PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
+            super(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                clusterService,
+                indicesService,
+                metricHolder,
+                EvictionPolicyExtension.NOOP
+            );
         }
 
         /** Starts tracking eviction tasks. Must be followed by {@link #stopTrackingAndAwait}. */

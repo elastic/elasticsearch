@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
@@ -139,6 +140,8 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
@@ -2241,12 +2244,6 @@ public class LocalExecutionPlanner {
 
         int pushedLimit = externalSource.pushedLimit();
 
-        // Shrink buffer for small limits
-        int effectiveBufferSize = 10;
-        if (pushedLimit != FormatReader.NO_LIMIT) {
-            effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
-        }
-
         FileList fileList = externalSource.fileList();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
@@ -2276,6 +2273,8 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
+        instanceCount = capInstanceCountByCoveringSplits(instanceCount, pushedLimit, externalSource.splits(), externalSource.config());
+        int effectiveBufferSize = externalSourceBufferSize(pushedLimit, instanceCount, pageSize);
         // Hive-style partition column names from the serialized PARTITION_COLUMNS_KEY stamp via the
         // node-safe accessor, not the fileList: on a data node the resolved FileList is not serialized
         // (see the slice-queue note above), so reading it there yields nothing, whereas the stamp
@@ -2480,7 +2479,100 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+        LimitOperator.Factory factory = new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx));
+        observeExternalLimit(limit.child(), source.sourceOperatorFactory, factory);
+        return source.with(factory, source.layout);
+    }
+
+    /**
+     * Installs the downstream limiter on an external source when {@code child} is a
+     * {@link FilterExec} / {@link EvalExec} / {@link ProjectExec} chain over
+     * {@link ExternalSourceExec}. Pushed LIMIT still wires; the source ignores
+     * observed remaining when it owns a {@code sourceLimiter}.
+     */
+    static void observeExternalLimit(PhysicalPlan child, SourceOperatorFactory sourceFactory, LimitOperator.Factory limitFactory) {
+        if (canObserveExternalLimit(child) == false) {
+            return;
+        }
+        if (sourceFactory instanceof AsyncExternalSourceOperatorFactory aesof) {
+            aesof.setObservedLimiter(limitFactory.limiter());
+        } else if (sourceFactory instanceof AsyncConnectorSourceOperatorFactory acsof) {
+            acsof.setObservedLimiter(limitFactory.limiter());
+        }
+    }
+
+    /**
+     * True when {@code plan} is an {@link ExternalSourceExec} reached through only
+     * {@link FilterExec} / {@link EvalExec} / {@link ProjectExec}. Aggregates, {@code MV_EXPAND},
+     * joins, and {@code LIMIT BY} sit between LIMIT and the source too often for a remaining-row
+     * observation to be meaningful.
+     */
+    static boolean canObserveExternalLimit(PhysicalPlan plan) {
+        PhysicalPlan p = plan;
+        while (true) {
+            if (p instanceof ExternalSourceExec) {
+                return true;
+            }
+            if (p instanceof FilterExec || p instanceof EvalExec || p instanceof ProjectExec) {
+                p = ((UnaryExec) p).child();
+                continue;
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Caps driver count at how many splits in list order cover {@code pushedLimit} rows.
+     * Fail closed (return {@code instanceCount} unchanged) when any split lacks stats or the
+     * error policy may drop rows.
+     */
+    static int capInstanceCountByCoveringSplits(
+        int instanceCount,
+        int pushedLimit,
+        List<ExternalSplit> splits,
+        Map<String, Object> config
+    ) {
+        if (pushedLimit == FormatReader.NO_LIMIT || splits.isEmpty()) {
+            return instanceCount;
+        }
+        if (ErrorPolicy.forReader(config, null).isStrict() == false) {
+            return instanceCount;
+        }
+        for (ExternalSplit split : splits) {
+            if (split.splitStats() == null) {
+                return instanceCount;
+            }
+        }
+        return Math.min(instanceCount, coveringSplitCount(splits, pushedLimit));
+    }
+
+    /**
+     * Walks {@code splits} in list order (the same order {@link ExternalSliceQueue} claims),
+     * summing {@code splitStats().rowCount()}. A {@code CoalescedSplit} counts as one queue item.
+     * Callers must have verified every split has stats.
+     */
+    static int coveringSplitCount(List<ExternalSplit> splits, int pushedLimit) {
+        long covered = 0;
+        int count = 0;
+        for (ExternalSplit split : splits) {
+            count++;
+            covered += split.splitStats().rowCount();
+            if (covered >= pushedLimit) {
+                return count;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Per-driver page buffer after {@code instanceCount} is final. Floor 2, cap 10. Not a row cap.
+     */
+    static int externalSourceBufferSize(int pushedLimit, int instanceCount, int pageSize) {
+        if (pushedLimit == FormatReader.NO_LIMIT) {
+            return 10;
+        }
+        int sharePages = (int) Math.ceilDiv((long) pushedLimit, (long) instanceCount * pageSize);
+        return Math.min(10, Math.max(2, sharePages + 1));
     }
 
     private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {

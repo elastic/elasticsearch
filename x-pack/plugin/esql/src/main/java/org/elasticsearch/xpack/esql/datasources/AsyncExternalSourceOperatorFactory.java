@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
@@ -159,6 +160,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int batchSize;
     private final int maxBufferSize;
     private final int rowLimit;
+    /**
+     * Factory-owned limiter for a <em>pushed</em> LIMIT. Shared across every driver this factory
+     * hands out. {@code null} when {@link #rowLimit} is {@link FormatReader#NO_LIMIT}. Never the
+     * downstream {@link org.elasticsearch.compute.operator.LimitOperator} limiter — those are
+     * separate so {@code tryAccumulateHits} is not applied twice to the same rows.
+     */
+    @Nullable
+    private final Limiter sourceLimiter;
+    /**
+     * Downstream {@link org.elasticsearch.compute.operator.LimitOperator} limiter, installed by the
+     * planner when a Filter/Eval/Project chain sits between LIMIT and this source. Read-only: used
+     * only to stop producing once the operator has filled the limit. Ignored when
+     * {@link #sourceLimiter} is non-null (pushed LIMIT wins).
+     */
+    @Nullable
+    private volatile Limiter observedLimiter;
     private final Executor executor;
     /**
      * Executor for the page <em>consumer</em> — the producer loop ({@link #runProducerLoop}) and the
@@ -384,6 +401,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
+        this.sourceLimiter = rowLimit == FormatReader.NO_LIMIT ? null : new Limiter(rowLimit);
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         // Route bound ExternalMetadataAttribute names through VirtualColumnIterator's constant-block
@@ -820,6 +838,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.thresholdAscending = ascending;
         this.thresholdNullsFirst = nullsFirst;
         closeDynamicThreshold();
+    }
+
+    /**
+     * Installs the downstream {@link org.elasticsearch.compute.operator.LimitOperator} limiter so this source can stop producing once
+     * that limiter is exhausted. Must be called during planning, before the first
+     * {@link #get(DriverContext)} call. Ignored when a pushed {@link #sourceLimiter} is present.
+     */
+    public void setObservedLimiter(Limiter limiter) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("observed limiter must be installed before source operators are created");
+        }
+        this.observedLimiter = limiter;
     }
 
     @Override
@@ -1483,7 +1513,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private boolean noFurtherCandidates() {
         DynamicThreshold threshold = dynamicThreshold();
-        return threshold != null && threshold.noFurtherCandidates();
+        if (threshold != null && threshold.noFurtherCandidates()) {
+            return true;
+        }
+        Limiter limiter = sourceLimiter != null ? sourceLimiter : observedLimiter;
+        return limiter != null && limiter.remaining() == 0;
+    }
+
+    /**
+     * Row cap to hand a reader that is about to open a unit already gated by
+     * {@link #noFurtherCandidates()}. Strict pushed LIMIT may prefetch-clip at
+     * {@code remaining()}. Non-strict policies ({@code skip_row}) pass
+     * {@link FormatReader#NO_LIMIT} so adapter drops after the reader can still
+     * fill N; the producer limiter charges in {@code deliverPage}. The slice-queue
+     * text/CSV path keeps {@link FormatReader#NO_LIMIT} regardless.
+     */
+    int sourceReaderRowLimit() {
+        if (sourceLimiter == null || errorPolicy.isStrict() == false) {
+            return FormatReader.NO_LIMIT;
+        }
+        return sourceLimiter.remaining();
     }
 
     private FormatReader readerWithDynamicThreshold(FormatReader reader) {
@@ -1518,7 +1567,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         buffer.setSplitsTotal(sliceQueue.totalSlices());
-        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit, operatorReader, formatCounters);
+        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, operatorReader, formatCounters);
         try {
             producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -1549,16 +1598,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         buffer.setSplitsTotal(fileList.fileCount());
-        ProducerState state = new ProducerState(
-            null,
-            fileList,
-            projectedColumns,
-            buffer,
-            driverContext,
-            rowLimit,
-            operatorReader,
-            formatCounters
-        );
+        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, operatorReader, formatCounters);
         state.schemaInfo = schemaMap;
         try {
             producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
@@ -1599,7 +1639,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable
         List<ExternalSplit> leaves;
         int leafIndex;
-        int rowsRemaining;
         @Nullable
         CloseableIterator<Page> pages;
         @Nullable
@@ -1626,7 +1665,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             @Nullable List<String> projectedColumns,
             AsyncExternalSourceBuffer buffer,
             DriverContext driverContext,
-            int rowsRemaining,
             FormatReader operatorReader,
             @Nullable FormatReadCounters formatCounters
         ) {
@@ -1638,7 +1676,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.projectedColumns = projectedColumns;
             this.buffer = buffer;
             this.driverContext = driverContext;
-            this.rowsRemaining = rowsRemaining;
             this.operatorReader = operatorReader;
             this.formatCounters = formatCounters;
         }
@@ -1815,9 +1852,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
             }
-            if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
-                return DrainResult.DONE;
-            }
             // Yield on upstream-blocked (e.g. streaming-parallel iterator waiting on parser threads)
             // — symmetric to the downstream-buffer-full yield below. Without this the producer-loop
             // would spin inside {@code hasNext()} holding its executor slot while the iterator's
@@ -1863,7 +1897,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (space.isDone() == false) {
                 return parkUntilReadyWithPage(space, page, state, completionListener);
             }
-            if (buffer.noMoreInputs()) {
+            if (buffer.noMoreInputs() || noFurtherCandidates()) {
                 page.releaseBlocks();
                 return DrainResult.DONE;
             }
@@ -1923,15 +1957,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> completionListener
     ) {
         signal.addListener(ActionListener.wrap(v -> {
+            boolean transferred = false;
             try {
-                if (state.buffer.noMoreInputs()) {
+                if (state.buffer.noMoreInputs() || noFurtherCandidates()) {
                     page.releaseBlocks();
+                    transferred = true;
                 } else {
                     deliverPage(page, state);
+                    transferred = true;
                 }
                 producerExecutor.execute(() -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
-                page.releaseBlocks();
+                if (transferred == false) {
+                    page.releaseBlocks();
+                }
                 clearCurrentIterator(state);
                 completionListener.onFailure(e);
             }
@@ -1944,12 +1983,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void deliverPage(Page page, ProducerState state) {
-        int rows = page.getPositionCount();
-        page.allowPassingToDifferentDriver();
-        state.buffer.addPage(page);
-        if (rowLimit != FormatReader.NO_LIMIT) {
-            state.rowsRemaining -= rows;
+        deliverPage(page, state.buffer);
+    }
+
+    private void deliverPage(Page page, AsyncExternalSourceBuffer buffer) {
+        if (sourceLimiter == null) {
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+            return;
         }
+        int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
+        if (accepted == 0) {
+            page.releaseBlocks();
+            return;
+        }
+        // Full page: downstream LimitOperator slices overflow. Do not slice here.
+        page.allowPassingToDifferentDriver();
+        buffer.addPage(page);
     }
 
     /**
@@ -1963,9 +2013,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 return false;
             }
             if (state.buffer.noMoreInputs()) {
-                return false;
-            }
-            if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
                 return false;
             }
             if (state.queue != null) {
@@ -2069,7 +2116,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     PhysicalNames.translateSchema(perFileResolvedAttributes, renames),
                     errorPolicy,
                     bufferedInformationalWarningSink(state.buffer),
-                    rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining,
+                    sourceReaderRowLimit(),
                     splitBudget,
                     state.formatCounters
                 );
@@ -2363,11 +2410,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             );
             boolean adapterOwnsRowCount = pages != null;
             if (pages == null) {
-                int fileRowLimit = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                     .batchSize(batchSize)
-                    .rowLimit(fileRowLimit)
+                    .rowLimit(sourceReaderRowLimit())
                     .errorPolicy(errorPolicy)
                     .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
@@ -2463,7 +2509,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
             .batchSize(batchSize)
-            .rowLimit(rowLimit)
+            .rowLimit(sourceReaderRowLimit())
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
@@ -2535,7 +2581,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
                         .batchSize(batchSize)
-                        .rowLimit(rowLimit)
+                        .rowLimit(sourceReaderRowLimit())
                         .errorPolicy(errorPolicy)
                         .maxRecordBytes(maxRecordBytes)
                         .statsColumnScope(statsColumnScope)
@@ -2568,6 +2614,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 producerExecutor,
                 // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
                 buffer::readCancelled,
+                this::noFurtherCandidates,
+                page -> deliverPage(page, buffer),
                 // Close the iterator chain and record telemetry BEFORE notifying the buffer:
                 // closing publishes the finalize marker into the capture sink (via
                 // StatsCapturingIterator and the parallel coordinators' finalize hook), and
@@ -2620,6 +2668,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 producerExecutor,
                 // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
                 buffer::readCancelled,
+                this::noFurtherCandidates,
+                page -> deliverPage(page, buffer),
                 // See startSyncWrapperRead: close the iterator chain and record telemetry
                 // before notifying the buffer so the finalize marker and the telemetry
                 // counters reach the operator status snapshot before isFinished() flips.
@@ -3113,6 +3163,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public int rowLimit() {
         return rowLimit;
+    }
+
+    @Nullable
+    Limiter sourceLimiter() {
+        return sourceLimiter;
+    }
+
+    @Nullable
+    Limiter observedLimiter() {
+        return observedLimiter;
     }
 
     public Executor executor() {

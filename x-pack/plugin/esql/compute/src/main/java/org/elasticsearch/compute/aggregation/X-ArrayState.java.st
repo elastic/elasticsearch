@@ -28,10 +28,8 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
-$if(long)$
 import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
-$endif$
 
 /**
  * Aggregator state for an array of $type$s. It is created in a mode where it
@@ -333,9 +331,8 @@ $endif$
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Long.BYTES$else$$BYTES$$endif$ * length);
     }
 
-$if(long)$
     private static long bytesUsedByPartitionPage(int length) {
-        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Byte.BYTES$else$$BYTES$$endif$ * length);
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $BYTES$ * length);
     }
 
     private static long bytesUsedBySeenPage(int length) {
@@ -400,7 +397,7 @@ $if(long)$
 
         private $Type$PartitionSplitter(CircuitBreaker partitionBreaker) {
             this.partitionBreaker = partitionBreaker;
-            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), $BYTES$);
             partitionedState = new $Type$PartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
         }
 
@@ -451,7 +448,7 @@ $if(long)$
             if (oldValues.length >= minSize) {
                 return;
             }
-            final int newSize = ArrayUtil.oversize(minSize, $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
+            final int newSize = ArrayUtil.oversize(minSize, $BYTES$);
             partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), $Type$PartitionedState.LABEL);
             partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
             partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
@@ -517,7 +514,6 @@ $else$
 $endif$
         trackGroupIds(firstId, end);
     }
-$endif$
 
     @Override
     public void close() {

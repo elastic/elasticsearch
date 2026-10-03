@@ -1,0 +1,6 @@
+pr: 144265
+summary: Add X-Opaque-Id to root-level application logs
+area: Logs
+type: enhancement
+issues:
+  - 51451

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 145769
+summary: Add bounded authc failure reason labels to security metrics
+type: feature

@@ -29,6 +29,7 @@ import static org.elasticsearch.core.Strings.format;
 class ApiKeyAuthenticator implements Authenticator {
 
     public static final String ATTRIBUTE_API_KEY_TYPE = "es_security_api_key_type";
+    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es_security_api_key_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 
@@ -45,6 +46,7 @@ class ApiKeyAuthenticator implements Authenticator {
             SecurityMetricType.AUTHC_API_KEY,
             meterRegistry,
             credentials -> Map.of(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value()),
+            ATTRIBUTE_AUTHC_FAILURE_REASON,
             nanoTimeSupplier
         );
         this.apiKeyService = apiKeyService;
@@ -74,31 +76,36 @@ class ApiKeyAuthenticator implements Authenticator {
         apiKeyService.tryAuthenticate(
             context.getThreadContext(),
             apiKeyCredentials,
-            InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, apiKeyCredentials, ActionListener.wrap(authResult -> {
-                if (authResult.isAuthenticated()) {
-                    final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
-                    listener.onResponse(AuthenticationResult.success(authentication));
-                } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                    Exception e = (authResult.getException() != null)
-                        ? authResult.getException()
-                        : Exceptions.authenticationError(authResult.getMessage());
-                    logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
-                    context.getRequest().exceptionProcessingRequest(e, authenticationToken);
-                    listener.onFailure(e);
-                } else {
-                    if (authResult.getMessage() != null) {
-                        if (authResult.getException() != null) {
-                            logger.warn(
-                                () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
-                                authResult.getException()
-                            );
-                        } else {
-                            logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+            InstrumentedSecurityActionListener.wrapForAuthc(
+                authenticationMetrics,
+                apiKeyCredentials,
+                ApiKeyAuthcFailureReasonClassifier.INSTANCE,
+                ActionListener.wrap(authResult -> {
+                    if (authResult.isAuthenticated()) {
+                        final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
+                        listener.onResponse(AuthenticationResult.success(authentication));
+                    } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                        Exception e = (authResult.getException() != null)
+                            ? authResult.getException()
+                            : Exceptions.authenticationError(authResult.getMessage());
+                        logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
+                        context.getRequest().exceptionProcessingRequest(e, authenticationToken);
+                        listener.onFailure(e);
+                    } else {
+                        if (authResult.getMessage() != null) {
+                            if (authResult.getException() != null) {
+                                logger.warn(
+                                    () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
+                                    authResult.getException()
+                                );
+                            } else {
+                                logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                            }
                         }
+                        listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
                     }
-                    listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
-                }
-            }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null))))
+                }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null)))
+            )
         );
     }
 }

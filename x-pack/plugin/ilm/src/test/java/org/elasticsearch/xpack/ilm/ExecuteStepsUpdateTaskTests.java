@@ -11,12 +11,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -53,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.when;
 
 public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
@@ -72,13 +75,14 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private MockClusterStateWaitStep allClusterSecondStep;
     private MockStep thirdStep;
     private Client client;
+    private DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private IndexLifecycleMetadata lifecycleMetadata;
     private String indexName;
 
     @Before
     public void prepareState() throws IOException {
         client = Mockito.mock(Client.class);
-        Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         firstStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         secondStep = new MockClusterStateWaitStep(secondStepKey, thirdStepKey);
         secondStep.setWillComplete(true);
@@ -88,6 +92,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         mixedPolicyName = randomAlphaOfLengthBetween(5, 10);
         allClusterPolicyName = randomAlphaOfLengthBetween(1, 4);
         invalidPolicyName = randomAlphaOfLength(11);
+        dataStreamLifecycleSettings = createDataStreamLifecycleSettings(randomBoolean());
         Phase mixedPhase = new Phase(
             "first_phase",
             TimeValue.ZERO,
@@ -167,7 +172,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         assertThat(task.execute(state), sameInstance(state.cluster()));
     }
@@ -184,7 +190,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -209,7 +216,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -247,7 +255,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             invalidStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         assertSame(newState, state.cluster());
@@ -265,7 +274,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -292,7 +302,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -316,7 +327,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         Exception expectedException = new RuntimeException();
         task.onFailure(expectedException);
@@ -335,7 +347,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -363,7 +376,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             startStep,
             policyStepsRegistry,
             null,
-            () -> now
+            () -> now,
+            dataStreamLifecycleSettings
         );
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = getLifecycleExecutionState(newState);
@@ -394,5 +408,11 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     private LifecycleExecutionState getLifecycleExecutionState(ClusterState newState) {
         return newState.metadata().getProject(state.projectId()).index(index).getLifecycleExecutionState();
+    }
+
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
+        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
+        return dataStreamLifecycleSettings;
     }
 }

@@ -63,7 +63,9 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
         final IndexModeStats counts = computeIndexModeStats(
             projectMetadata,
             clusterService.getClusterSettings(),
-            IndexMode.LOGSDB_COLUMNAR
+            IndexMode.LOGSDB_COLUMNAR,
+            // default DLM is not applied on logsdb_columnar (yet)
+            false
         );
 
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
@@ -86,7 +88,12 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
         }));
     }
 
-    static IndexModeStats computeIndexModeStats(ProjectMetadata projectMetadata, ClusterSettings clusterSettings, IndexMode indexMode) {
+    static IndexModeStats computeIndexModeStats(
+        ProjectMetadata projectMetadata,
+        ClusterSettings clusterSettings,
+        IndexMode indexMode,
+        boolean defaultLifecycleForTimeSeriesEnabled
+    ) {
         // cluster.columnar.enabled is a cluster setting that controls whether all columnar index modes are enabled. If this is disabled,
         // then creating any new indices with columnar index modes will fail.
         // The cluster.logsdb_columnar.enabled is a setting that controls whether data steams with logs-*-* use logsdb_columnar index mode,
@@ -112,10 +119,16 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
                 continue;
             }
             dataStreamsCount++;
-            if (projectMetadata.isIndexManagedByILM(writeIndexMetadata)) {
-                dataStreamsManagedByIlm++;
-            } else if (dataStream.isIndexManagedByDataStreamLifecycle(writeIndex, projectMetadata::index)) {
-                dataStreamsManagedByDlm++;
+            switch (DataStream.lifecycleManagedBy(
+                writeIndexMetadata.getLifecyclePolicyName(),
+                dataStream.getEffectiveLifecycleForIndex(writeIndex, defaultLifecycleForTimeSeriesEnabled),
+                writeIndexMetadata.getSettings(),
+                writeIndexMetadata.getIndexMode()
+            )) {
+                case DLM -> dataStreamsManagedByDlm++;
+                case ILM -> dataStreamsManagedByIlm++;
+                default -> {
+                }
             }
         }
         return new IndexModeStats(

@@ -829,10 +829,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the backing indices.
+     * Retrieves the lifecycle configuration meant for the backing indices as configured by the user.
+     * This may differ from the effective lifecycle that can be retrieved by
+     * {@link #getEffectiveDataLifecycle(boolean)}
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycle() {
+        return lifecycle;
+    }
+
+    /**
+     * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveDataLifecycle(boolean enableLifecycleByDefault) {
+        if (lifecycle == null && enableLifecycleByDefault && indexMode == IndexMode.TIME_SERIES) {
+            return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
+        }
         return lifecycle;
     }
 
@@ -869,8 +882,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycleForIndex(Index index) {
+        return getEffectiveLifecycleForIndex(index, false);
+    }
+
+    /**
+     * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveLifecycleForIndex(Index index, boolean enableLifecycleByDefault) {
         if (backingIndices.containsIndex(index.getName())) {
-            return getDataLifecycle();
+            return getEffectiveDataLifecycle(enableLifecycleByDefault);
         }
         if (failureIndices.containsIndex(index.getName())) {
             return getFailuresLifecycle();

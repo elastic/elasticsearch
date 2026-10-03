@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -110,6 +111,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
     private Client noopClient;
     private NoOpHistoryStore historyStore;
+    private DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     static {
         try (IndexLifecycle indexLifecycle = new IndexLifecycle(Settings.EMPTY)) {
@@ -127,6 +129,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING))
         );
         historyStore = new NoOpHistoryStore(noopClient, ClusterServiceUtils.createClusterService(threadPool, settings));
+        dataStreamLifecycleSettings = createDataStreamLifecycleSettings(randomBoolean());
     }
 
     @After
@@ -140,7 +143,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         TerminalPolicyStep step = TerminalPolicyStep.INSTANCE;
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, indexMetadata);
@@ -154,7 +164,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PhaseCompleteStep step = PhaseCompleteStep.finalStep(randomAlphaOfLength(4));
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
@@ -181,7 +198,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
         MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
@@ -204,7 +228,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
         newState.setFailedStep(stepKey.name());
         newState.setIsAutoRetryableError(false);
@@ -226,7 +257,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSkip_afterStateChange() {
         final var policyName = randomAlphaOfLength(10);
         ClusterService clusterService = mock(ClusterService.class);
-        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L, dataStreamLifecycleSettings);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
@@ -240,7 +271,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSkip_periodicRun() {
         final var policyName = randomAlphaOfLength(10);
         ClusterService clusterService = mock(ClusterService.class);
-        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L, dataStreamLifecycleSettings);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
@@ -254,7 +285,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSkip_asyncAction() {
         final var policyName = randomAlphaOfLength(10);
         ClusterService clusterService = mock(ClusterService.class);
-        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L, dataStreamLifecycleSettings);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
@@ -269,7 +300,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSkipLookupIndex_afterStateChange() {
         final var policyName = randomAlphaOfLength(10);
         ClusterService clusterService = mock(ClusterService.class);
-        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L, dataStreamLifecycleSettings);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
             .numberOfShards(1)
@@ -285,7 +316,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSkipLookupIndex_periodicRun() {
         final var policyName = randomAlphaOfLength(10);
         ClusterService clusterService = mock(ClusterService.class);
-        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L, dataStreamLifecycleSettings);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
             .numberOfShards(1)
@@ -301,7 +332,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSkipLookupIndex_asyncAction() {
         final var policyName = randomAlphaOfLength(10);
         ClusterService clusterService = mock(ClusterService.class);
-        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
+        final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L, dataStreamLifecycleSettings);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
             .numberOfShards(1)
@@ -327,7 +358,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
         newMockTaskQueue(clusterService); // ensure constructor call to createTaskQueue is satisfied
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -366,7 +404,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
         newState.setFailedStep(stepKey.name());
         newState.setIsAutoRetryableError(true);
@@ -406,7 +451,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
 
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
@@ -463,7 +515,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .build();
         ClusterServiceUtils.setState(clusterService, state);
         long stepTime = randomLong();
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> stepTime);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> stepTime,
+            dataStreamLifecycleSettings
+        );
 
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
@@ -556,7 +615,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .projectState(project.id());
         ClusterServiceUtils.setState(clusterService, state.cluster());
         long stepTime = randomLong();
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> stepTime);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> stepTime,
+            dataStreamLifecycleSettings
+        );
 
         if (asyncAction) {
             runner.maybeRunAsyncAction(state, indexMetadata, policyName, stepKey);
@@ -611,7 +677,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
 
         ClusterState before = clusterService.state();
         // State changes should not run AsyncAction steps
@@ -665,7 +738,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
 
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
@@ -747,7 +827,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .projectState(project.id());
         logger.info("--> state: {}", state);
         ClusterServiceUtils.setState(clusterService, state.cluster());
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
 
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
@@ -772,7 +859,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
         MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, indexMetadata);
@@ -797,7 +891,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
         MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, indexMetadata);
@@ -823,7 +924,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         step.setException(expectedException);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, indexMetadata);
@@ -841,7 +949,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         step.setException(expectedException);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            stepRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            () -> 0L,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, indexMetadata);
@@ -860,7 +975,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             historyStore,
             clusterService,
             threadPool,
-            () -> 0L
+            () -> 0L,
+            dataStreamLifecycleSettings
         );
         IndexMetadata indexMetadata = createIndex("my_index");
         // verify that no exception is thrown
@@ -964,7 +1080,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         );
         ClusterService clusterService = mock(ClusterService.class);
         final AtomicLong now = new AtomicLong(5);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyStepsRegistry, historyStore, clusterService, threadPool, now::get);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            policyStepsRegistry,
+            historyStore,
+            clusterService,
+            threadPool,
+            now::get,
+            dataStreamLifecycleSettings
+        );
         IndexMetadata indexMetadata = createIndex("my_index");
         // With no time, always transition
         assertTrue(
@@ -1356,5 +1479,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             logger.info("--> adding ILM history item: [{}]", item);
             items.add(item);
         }
+    }
+
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
+        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(enabled);
+        return dataStreamLifecycleSettings;
     }
 }

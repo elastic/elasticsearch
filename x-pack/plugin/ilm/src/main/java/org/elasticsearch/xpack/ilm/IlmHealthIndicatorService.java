@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -323,13 +324,20 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     static class StagnatingIndicesFinder {
         private final ClusterService clusterService;
         private final LongSupplier nowSupplier;
+        private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
         private final Collection<RuleCreator> rulesCreators;
         private volatile Collection<RuleConfig> rules;
 
-        StagnatingIndicesFinder(ClusterService clusterService, Collection<RuleCreator> rulesCreators, LongSupplier nowSupplier) {
+        StagnatingIndicesFinder(
+            ClusterService clusterService,
+            Collection<RuleCreator> rulesCreators,
+            LongSupplier nowSupplier,
+            DataStreamLifecycleSettings dataStreamLifecycleSettings
+        ) {
             this.clusterService = clusterService;
             this.rulesCreators = rulesCreators;
             this.nowSupplier = nowSupplier;
+            this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
 
             var clusterSettings = this.clusterService.getClusterSettings();
 
@@ -347,11 +355,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         public List<IndexMetadata> find() {
             final var project = getDefaultILMProject(clusterService.state());
             var now = nowSupplier.getAsLong();
+            boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
 
             return project.indices()
                 .values()
                 .stream()
-                .filter(project::isIndexManagedByILM)
+                .filter(indexMetadata -> project.isIndexManagedByILM(indexMetadata, defaultLifecycleForTimeSeriesEnabled))
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }

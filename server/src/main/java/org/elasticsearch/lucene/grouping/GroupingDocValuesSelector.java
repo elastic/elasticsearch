@@ -21,8 +21,10 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.grouping.GroupSelector;
 import org.apache.lucene.search.grouping.SearchGroup;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -133,38 +135,38 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
     }
 
     /**
-     * Implementation for {@link SortedDocValues} and {@link SortedSetDocValues}.
+     * Implementation for {@link SortedDocValues}, {@link SortedSetDocValues} and binary doc values.
      * Fails with an {@link IllegalStateException} if a document contains multiple values for the specified field.
+     *
+     * <p>How a field's binary doc values are framed, and so which decoder reads them, is settled by the mapping.
+     * {@code binaryValues} arrives already bound to that decision and is {@code null} for a field that writes no
+     * binary blob.
      */
     static class Keyword extends GroupingDocValuesSelector<BytesRef> {
-        private SortedDocValues values;
-        private int ord;
+        private final CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues;
+        private GroupValues values;
+        private boolean hasValue;
 
-        Keyword(MappedFieldType fieldType) {
+        Keyword(MappedFieldType fieldType, @Nullable CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues) {
             super(fieldType.name());
+            this.binaryValues = binaryValues;
         }
 
         @Override
         public org.apache.lucene.search.grouping.GroupSelector.State advanceTo(int doc) throws IOException {
-            if (values.advanceExact(doc)) {
-                ord = values.ordValue();
-                return State.ACCEPT;
-            } else {
-                ord = -1;
-                return State.SKIP;
-            }
+            hasValue = values.advanceExact(doc);
+            return hasValue ? State.ACCEPT : State.SKIP;
         }
 
         @Override
         public BytesRef currentValue() {
-            if (ord == -1) {
+            if (hasValue == false) {
                 return null;
-            } else {
-                try {
-                    return values.lookupOrd(ord);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+            }
+            try {
+                return values.currentValue();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         }
 
@@ -183,62 +185,110 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
             LeafReader reader = readerContext.reader();
             DocValuesType type = getDocValuesType(reader, field);
             if (type == null || type == DocValuesType.NONE) {
-                values = DocValues.emptySorted();
+                values = ordinalValues(DocValues.emptySorted());
                 return;
             }
             switch (type) {
-                case SORTED -> values = DocValues.getSorted(reader, field);
+                case SORTED -> values = ordinalValues(DocValues.getSorted(reader, field));
                 case SORTED_SET -> {
-                    final SortedSetDocValues sorted = DocValues.getSortedSet(reader, field);
-                    values = DocValues.unwrapSingleton(sorted);
-                    if (values == null) {
-                        values = new AbstractSortedDocValues() {
-
-                            private int ord;
-
-                            @Override
-                            public boolean advanceExact(int target) throws IOException {
-                                if (sorted.advanceExact(target)) {
-                                    if (sorted.docValueCount() > 1) {
-                                        throw new IllegalArgumentException(
-                                            "failed to extract doc:" + target + ", the grouping field must be single valued"
-                                        );
-                                    }
-                                    ord = (int) sorted.nextOrd();
-                                    return true;
-                                } else {
-                                    return false;
-                                }
-                            }
-
-                            @Override
-                            public int docID() {
-                                return sorted.docID();
-                            }
-
-                            @Override
-                            public int ordValue() {
-                                return ord;
-                            }
-
-                            @Override
-                            public BytesRef lookupOrd(int ord) throws IOException {
-                                return sorted.lookupOrd(ord);
-                            }
-
-                            @Override
-                            public int getValueCount() {
-                                return (int) sorted.getValueCount();
-                            }
-                        };
-                    }
+                    SortedSetDocValues sortedSet = DocValues.getSortedSet(reader, field);
+                    SortedDocValues singleton = DocValues.unwrapSingleton(sortedSet);
+                    values = singleton != null ? ordinalValues(singleton) : setOrdinalValues(sortedSet);
                 }
-                default -> throw new IllegalArgumentException("unexpected doc values type " + type + "` for field `" + field + "`");
+                case BINARY -> {
+                    if (binaryValues == null) {
+                        throw new IllegalArgumentException(
+                            "field `" + field + "` has binary doc values but its mapping does not name their format"
+                        );
+                    }
+                    values = binaryValues(binaryValues.apply(reader));
+                }
+                default -> throw new IllegalArgumentException("unexpected doc values type " + type + " for field `" + field + "`");
             }
         }
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {}
+
+        /**
+         * A single grouping value per document, whatever the field's doc values look like underneath.
+         *
+         * <p>{@link #currentValue()} is read more than once per document, so it must not consume a cursor.
+         */
+        private interface GroupValues {
+            boolean advanceExact(int doc) throws IOException;
+
+            BytesRef currentValue() throws IOException;
+        }
+
+        private static GroupValues ordinalValues(SortedDocValues sorted) {
+            return new GroupValues() {
+                private int ord = -1;
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    if (sorted.advanceExact(doc)) {
+                        ord = sorted.ordValue();
+                        return true;
+                    }
+                    ord = -1;
+                    return false;
+                }
+
+                @Override
+                public BytesRef currentValue() throws IOException {
+                    return ord == -1 ? null : sorted.lookupOrd(ord);
+                }
+            };
+        }
+
+        private static GroupValues binaryValues(SortableBinaryDocValues binary) {
+            return new GroupValues() {
+                private BytesRef value;
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    if (binary.advanceExact(doc) == false) {
+                        value = null;
+                        return false;
+                    }
+                    if (binary.docValueCount() > 1) {
+                        throw new IllegalArgumentException("failed to extract doc:" + doc + ", the grouping field must be single valued");
+                    }
+                    value = binary.nextValue();
+                    return true;
+                }
+
+                @Override
+                public BytesRef currentValue() {
+                    return value;
+                }
+            };
+        }
+
+        private static GroupValues setOrdinalValues(SortedSetDocValues sorted) {
+            return new GroupValues() {
+                private long ord = -1;
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    if (sorted.advanceExact(doc) == false) {
+                        ord = -1;
+                        return false;
+                    }
+                    if (sorted.docValueCount() > 1) {
+                        throw new IllegalArgumentException("failed to extract doc:" + doc + ", the grouping field must be single valued");
+                    }
+                    ord = sorted.nextOrd();
+                    return true;
+                }
+
+                @Override
+                public BytesRef currentValue() throws IOException {
+                    return ord == -1 ? null : sorted.lookupOrd(ord);
+                }
+            };
+        }
     }
 
     private static DocValuesType getDocValuesType(LeafReader in, String field) {

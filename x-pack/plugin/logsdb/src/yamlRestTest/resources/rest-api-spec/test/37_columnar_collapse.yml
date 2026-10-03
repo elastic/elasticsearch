@@ -1,0 +1,234 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index modes required to write binary keyword doc values"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test-collapse-*
+        ignore_unavailable: true
+
+---
+"collapse on a columnar keyword field":
+  - do:
+      indices.create:
+        index: test-collapse-payload
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-collapse-payload
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "host.name": "host-a" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "host.name": "host-b" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "host.name": "host-a" }
+
+  - do:
+      search:
+        index: test-collapse-payload
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.host\.name.0: "host-a" }
+  - match: { hits.hits.1.fields.host\.name.0: "host-b" }
+
+---
+"collapse on a single valued columnar keyword field":
+  - do:
+      indices.create:
+        index: test-collapse-single
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+            index.mapping.doc_values.multi_value: false
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-collapse-single
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "host.name": "host-a" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "host.name": "host-b" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "host.name": "host-a" }
+
+  - do:
+      search:
+        index: test-collapse-single
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.host\.name.0: "host-a" }
+  - match: { hits.hits.1.fields.host\.name.0: "host-b" }
+
+---
+"collapse on a columnar keyword field with the columnar codec disabled":
+  - do:
+      indices.create:
+        index: test-collapse-no-codec
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+            index.columnar_codec.enabled: false
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-collapse-no-codec
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "host.name": "host-a" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "host.name": [ null, "host-a" ] }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "host.name": [ "host-a", null ] }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-04T00:00:00Z", "host.name": "host-b" }
+
+  - do:
+      search:
+        index: test-collapse-no-codec
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.host\.name.0: "host-a" }
+  - match: { hits.hits.1.fields.host\.name.0: "host-b" }
+
+---
+"collapse rejects a multi valued columnar keyword field":
+  - do:
+      indices.create:
+        index: test-collapse-multi
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      index:
+        index: test-collapse-multi
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          host.name: [ "host-a", "host-b" ]
+
+  - do:
+      catch: /the grouping field must be single valued/
+      search:
+        index: test-collapse-multi
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+---
+"collapse on a single valued columnar keyword field with the columnar codec disabled":
+  - do:
+      indices.create:
+        index: test-collapse-single-no-codec
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+            index.columnar_codec.enabled: false
+            index.mapping.doc_values.multi_value: false
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-collapse-single-no-codec
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "host.name": "host-a" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "host.name": "host-b" }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "host.name": "host-a" }
+
+  - do:
+      search:
+        index: test-collapse-single-no-codec
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.host\.name.0: "host-a" }
+  - match: { hits.hits.1.fields.host\.name.0: "host-b" }

@@ -1,0 +1,248 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ allowed_warnings, capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index modes required to write binary keyword doc values"
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: columnar-collapse-logs
+        ignore: 404
+
+---
+"collapse across backing indices written with different binary framings":
+  - do:
+      allowed_warnings:
+        - "index template [columnar-collapse-template] has index patterns [columnar-collapse-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-collapse-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-collapse-template
+        body:
+          index_patterns: [ "columnar-collapse-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_shards: 1
+                number_of_replicas: 0
+                columnar_codec:
+                  enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+
+  - do:
+      bulk:
+        index: columnar-collapse-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b" }
+
+  - match: { errors: false }
+
+  - do:
+      allowed_warnings:
+        - "index template [columnar-collapse-template] has index patterns [columnar-collapse-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-collapse-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-collapse-template
+        body:
+          index_patterns: [ "columnar-collapse-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_shards: 1
+                number_of_replicas: 0
+                columnar_codec:
+                  enabled: false
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+
+  - do:
+      indices.rollover:
+        alias: columnar-collapse-logs
+
+  - do:
+      bulk:
+        index: columnar-collapse-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:02:00Z", "host.name": "host-a" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:03:00Z", "host.name": "host-c" }
+
+  - match: { errors: false }
+
+  - do:
+      indices.get_data_stream:
+        name: columnar-collapse-logs
+
+  - length: { data_streams.0.indices: 2 }
+  - set: { data_streams.0.indices.0.index_name: first_backing_index }
+  - set: { data_streams.0.indices.1.index_name: second_backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $first_backing_index
+        include_defaults: true
+        flat_settings: true
+
+  - match: { $body.$first_backing_index.settings.index\.columnar_codec\.enabled: "true" }
+
+  - do:
+      indices.get_settings:
+        index: $second_backing_index
+        include_defaults: true
+        flat_settings: true
+
+  - match: { $body.$second_backing_index.settings.index\.columnar_codec\.enabled: "false" }
+
+  - do:
+      search:
+        index: columnar-collapse-logs
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0.fields.host\.name.0: "host-a" }
+  - match: { hits.hits.1.fields.host\.name.0: "host-b" }
+  - match: { hits.hits.2.fields.host\.name.0: "host-c" }
+
+---
+"collapse across backing indices when the codec is enabled on rollover":
+  - do:
+      allowed_warnings:
+        - "index template [columnar-collapse-template] has index patterns [columnar-collapse-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-collapse-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-collapse-template
+        body:
+          index_patterns: [ "columnar-collapse-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_shards: 1
+                number_of_replicas: 0
+                columnar_codec:
+                  enabled: false
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+
+  - do:
+      bulk:
+        index: columnar-collapse-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b" }
+
+  - match: { errors: false }
+
+  - do:
+      allowed_warnings:
+        - "index template [columnar-collapse-template] has index patterns [columnar-collapse-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-collapse-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-collapse-template
+        body:
+          index_patterns: [ "columnar-collapse-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_shards: 1
+                number_of_replicas: 0
+                columnar_codec:
+                  enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+
+  - do:
+      indices.rollover:
+        alias: columnar-collapse-logs
+
+  - do:
+      bulk:
+        index: columnar-collapse-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:02:00Z", "host.name": "host-a" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:03:00Z", "host.name": "host-c" }
+
+  - match: { errors: false }
+
+  - do:
+      indices.get_data_stream:
+        name: columnar-collapse-logs
+
+  - length: { data_streams.0.indices: 2 }
+  - set: { data_streams.0.indices.0.index_name: first_backing_index }
+  - set: { data_streams.0.indices.1.index_name: second_backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $first_backing_index
+        include_defaults: true
+        flat_settings: true
+
+  - match: { $body.$first_backing_index.settings.index\.columnar_codec\.enabled: "false" }
+
+  - do:
+      indices.get_settings:
+        index: $second_backing_index
+        include_defaults: true
+        flat_settings: true
+
+  - match: { $body.$second_backing_index.settings.index\.columnar_codec\.enabled: "true" }
+
+  - do:
+      search:
+        index: columnar-collapse-logs
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": asc
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0.fields.host\.name.0: "host-a" }
+  - match: { hits.hits.1.fields.host\.name.0: "host-b" }
+  - match: { hits.hits.2.fields.host\.name.0: "host-c" }

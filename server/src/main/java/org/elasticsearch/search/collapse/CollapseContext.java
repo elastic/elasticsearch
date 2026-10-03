@@ -8,11 +8,17 @@
  */
 package org.elasticsearch.search.collapse;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
+
+import java.io.IOException;
 
 /**
  * Context used for field collapsing
@@ -20,10 +26,16 @@ import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
 public class CollapseContext {
     private final String fieldName;
     private final MappedFieldType fieldType;
+    private final CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues;
 
-    public CollapseContext(String fieldName, MappedFieldType fieldType) {
+    public CollapseContext(
+        String fieldName,
+        MappedFieldType fieldType,
+        @Nullable CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues
+    ) {
         this.fieldName = fieldName;
         this.fieldType = fieldType;
+        this.binaryValues = binaryValues;
     }
 
     /**
@@ -40,7 +52,7 @@ public class CollapseContext {
 
     public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, FieldDoc after) {
         if (fieldType.collapseType() == CollapseType.KEYWORD) {
-            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, topN, after);
+            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, binaryValues, sort, topN, after);
         } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
             return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, topN, after);
         } else {

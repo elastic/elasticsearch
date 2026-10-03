@@ -123,17 +123,19 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      */
     private List<Location> buildLocationList() throws IOException {
         List<Location> locations = new ArrayList<>();
+        List<File> directories = new ArrayList<>();
         for (File file : getCodeLocations().get().getFiles()) {
             if (file.exists()) {
                 if (file.getName().endsWith(JAR_DESCRIPTOR_SUFFIX)) {
                     extractLocationsFromJar(file, locations);
                 } else if (file.isDirectory()) {
-                    extractLocationsFromDirectory(file, locations);
+                    directories.add(file);
                 } else {
                     throw new IllegalArgumentException("unrecognized classpath entry: " + file);
                 }
             }
         }
+        extractLocationsFromDirectories(directories, locations);
         return List.copyOf(locations);
     }
 
@@ -276,50 +278,79 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * find the first class and module when the class path entry is a directory
+     * Emits a {@link Location} for each directory. All directories belong to the same module, but only the
+     * main classes directory carries a {@code module-info.class}; the module name is resolved once (falling
+     * back to {@link #getModuleName()}) and attributed to every directory.
      */
-    private void extractLocationsFromDirectory(File dir, List<Location> locations) throws IOException {
-        String className = extractClassNameFromDirectory(dir);
-        String moduleName = extractModuleNameFromDirectory(dir);
-
-        if (className != null && moduleName != null) {
-            locations.add(new Location(moduleName, className));
+    private void extractLocationsFromDirectories(List<File> directories, List<Location> locations) throws IOException {
+        String moduleName = getModuleName().getOrNull();
+        for (File dir : directories) {
+            String declared = extractDeclaredModuleName(dir);
+            if (declared != null) {
+                moduleName = declared;
+                break;
+            }
+        }
+        if (moduleName == null) {
+            return;
+        }
+        for (File dir : directories) {
+            String className = extractClassNameFromDirectory(dir);
+            if (className != null) {
+                locations.add(new Location(moduleName, className));
+            }
         }
     }
 
     /**
-     * look through the directory to find the first unique class that isn't
-     * module-info.class (which may not be unique) and avoid anonymous classes
+     * Returns a representative class name from the directory: prefers a top-level class, falls back to a
+     * named nested class (skipping anonymous/local classes), returns {@code null} if the directory has none.
      */
     private String extractClassNameFromDirectory(File dir) throws IOException {
         var visitor = new SimpleFileVisitor<Path>() {
             String result = null;
+            String nestedFallback = null;
 
             @Override
             public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
                 String name = candidate.getFileName().toString(); // Just the part after the last dir separator
-                if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
-                    result = candidate.toAbsolutePath()
-                        .toString()
-                        .substring(dir.getAbsolutePath().length() + 1)
-                        .replace(File.separatorChar, '/');
-                    return TERMINATE;
-                } else {
+                if (name.endsWith(".class") == false || name.equals("module-info.class")) {
                     return CONTINUE;
                 }
+                if (name.contains("$") == false) {
+                    result = relativize(candidate);
+                    return TERMINATE;
+                }
+                if (nestedFallback == null && isAnonymousOrLocal(name) == false) {
+                    nestedFallback = relativize(candidate);
+                }
+                return CONTINUE;
+            }
+
+            private String relativize(Path candidate) {
+                return candidate.toAbsolutePath().toString().substring(dir.getAbsolutePath().length() + 1).replace(File.separatorChar, '/');
             }
         };
         Files.walkFileTree(dir.toPath(), visitor);
-        return visitor.result;
+        return visitor.result != null ? visitor.result : visitor.nestedFallback;
     }
 
     /**
-     * look through the directory to find the module name in either module-info.class
-     * if it exists or the preset one derived from the jar task
+     * True if the class file name denotes an anonymous or local class (the segment after the last
+     * {@code $} begins with a digit, e.g. {@code Outer$1.class}).
      */
-    private String extractModuleNameFromDirectory(File dir) throws IOException {
+    private static boolean isAnonymousOrLocal(String fileName) {
+        int dollar = fileName.lastIndexOf('$');
+        return dollar >= 0 && dollar + 1 < fileName.length() && Character.isDigit(fileName.charAt(dollar + 1));
+    }
+
+    /**
+     * look through the directory for a {@code module-info.class} and return the module name it declares,
+     * or {@code null} if the directory has none.
+     */
+    private String extractDeclaredModuleName(File dir) throws IOException {
         var visitor = new SimpleFileVisitor<Path>() {
-            private String result = getModuleName().getOrNull();
+            private String result = null;
 
             @Override
             public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) throws IOException {

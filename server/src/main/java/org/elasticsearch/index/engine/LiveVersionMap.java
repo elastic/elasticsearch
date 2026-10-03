@@ -341,6 +341,11 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     boolean isUnsafe() {
+        // Archive is only relevant for realtime gets in stateless.
+        return maps.current.isUnsafe() || maps.old.isUnsafe();
+    }
+
+    boolean isUnsafeForGets() {
         return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 

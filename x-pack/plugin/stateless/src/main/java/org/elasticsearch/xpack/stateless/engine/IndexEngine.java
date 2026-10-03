@@ -707,6 +707,9 @@ public class IndexEngine extends InternalEngine {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+                /// Note that we don't wait for the durability of the commit produced by this flush
+                /// since we set `IS_FLUSH_BY_REFRESH`.
+                /// See [IndexEngine#waitForCommitDurability(long, ActionListener)].
                 flush(true, true);
             } finally {
                 IS_FLUSH_BY_REFRESH.set(false);

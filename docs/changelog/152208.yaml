@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152208
+summary: Push FIELD_EXTRACT predicates through EVAL
+type: enhancement

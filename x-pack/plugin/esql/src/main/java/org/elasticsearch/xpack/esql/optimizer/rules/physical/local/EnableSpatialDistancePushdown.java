@@ -14,8 +14,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -45,7 +43,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 
 /**
  * When a spatial distance predicate can be pushed down to lucene, this is done by capturing the distance within the same function.
@@ -148,13 +145,13 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
 
         // Process the EVAL to get all aliases that might be needed in the filter rewrite
-        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        AliasResolution aliasReplacedBy = AliasResolution.of(evalExec);
 
         // First we split the filter into multiple AND'd expressions, and then we evaluate each individually for distance rewrites
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
-            Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+            Expression resExp = exp.transformUp(ReferenceAttribute.class, aliasReplacedBy::resolveRename);
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = rewriteDistanceFilters(ctx, resExp, distances);
             // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination

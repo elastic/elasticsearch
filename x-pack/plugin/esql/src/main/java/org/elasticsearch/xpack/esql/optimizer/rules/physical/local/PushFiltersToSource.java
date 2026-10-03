@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -39,7 +37,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,30 +80,10 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LocalPhysicalOptimizerContext ctx
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        AliasResolution aliasReplacedBy = AliasResolution.of(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
-        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, aliasReplacedBy::resolveExpression));
         return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, evalExec.fields());
-    }
-
-    static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
-        evalExec.fields().forEach(alias -> {
-            if (alias.child() instanceof Attribute attr) {
-                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
-            }
-        });
-        return aliasReplacedByBuilder.build();
-    }
-
-    static AttributeMap<Attribute> getAliasReplacedBy(ProjectExec projectExec) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
-        for (NamedExpression ne : projectExec.projections()) {
-            if (ne instanceof Alias alias && alias.child() instanceof Attribute attr) {
-                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
-            }
-        }
-        return aliasReplacedByBuilder.build();
     }
 
     private static PhysicalPlan rewrite(
@@ -376,9 +353,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LocalPhysicalOptimizerContext ctx
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        AliasResolution aliasReplacedBy = AliasResolution.of(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
-        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, aliasReplacedBy::resolveExpression));
         return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, evalExec.fields());
     }
 
@@ -412,7 +389,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     private record PushdownClassification(List<Expression> pushable, List<Expression> nonPushable) {}
 
     private static PushdownClassification classifyFilters(Expression condition, LucenePushdownPredicates pushdownPredicates) {
-        return classifyFilters(condition, pushdownPredicates, AttributeMap.emptyAttributeMap());
+        return classifyFilters(condition, pushdownPredicates, AliasResolution.EMPTY);
     }
 
     /**
@@ -424,7 +401,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     private static PushdownClassification classifyFilters(
         Expression condition,
         LucenePushdownPredicates pushdownPredicates,
-        AttributeMap<Attribute> aliasReplacedBy
+        AliasResolution aliasReplacedBy
     ) {
         List<Expression> conjuncts = splitAnd(condition);
 
@@ -433,7 +410,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
-                : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                : exp.transformDown(ReferenceAttribute.class, aliasReplacedBy::resolveExpression);
             switch (translatable(resExp, pushdownPredicates).finish()) {
                 case NO -> nonPushable.add(exp);
                 case YES -> pushable.add(exp);

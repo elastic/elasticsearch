@@ -30,6 +30,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
@@ -104,6 +106,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.BufferedInputStream;
@@ -2746,9 +2756,17 @@ public class FileSplitProviderTests extends ESTestCase {
         long stride = 256 * 1024;
         byte[] payload = repeatingCsv(40L * stride);
         int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        ExternalRelation relation = demandRelation();
+        LogicalPlan where = new Limit(SRC, intLiteral(10), new Filter(SRC, relation, new Equals(SRC, fieldAttr("year"), intLiteral(2025))));
+        LogicalPlan stats = new Limit(
+            SRC,
+            intLiteral(10),
+            new Aggregate(SRC, relation, List.of(), List.of(new Alias(SRC, "c", new Count(SRC, intLiteral(1)))))
+        );
+        assertEquals("WHERE drops source demand", FormatReader.NO_LIMIT, demandFrom(where));
+        assertEquals("STATS above the source drops demand", FormatReader.NO_LIMIT, demandFrom(stats));
         StreamTracking tracking = new StreamTracking(1);
-        // Filter and STATS drop demand in SplitDiscoveryPhase; the provider then sees NO_LIMIT.
-        discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, FormatReader.NO_LIMIT);
+        discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, demandFrom(where));
         assertEquals("a query without source demand still probes the full grid", positions, tracking.opens.get());
     }
 
@@ -2756,10 +2774,17 @@ public class FileSplitProviderTests extends ESTestCase {
         long stride = 256 * 1024;
         byte[] payload = repeatingCsv(40L * stride);
         int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        ExternalRelation relation = demandRelation();
+        LogicalPlan eval = new Limit(SRC, intLiteral(10), new Eval(SRC, relation, List.of(new Alias(SRC, "x", fieldAttr("year")))));
+        LogicalPlan keep = new Limit(SRC, intLiteral(10), new Project(SRC, relation, List.of(fieldAttr("year"))));
+        assertTrue("EVAL is Streaming", eval.children().get(0) instanceof Streaming);
+        assertTrue("KEEP is Streaming", keep.children().get(0) instanceof Streaming);
+        assertEquals(10, demandFrom(eval));
+        assertEquals(10, demandFrom(keep));
         StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, 10);
+        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, demandFrom(eval));
         FileSplitProvider provider = new FileSplitProvider(stride);
-        int wave = provider.probeWaveSize(10, stride, positions);
+        int wave = provider.probeWaveSize(demandFrom(keep), stride, positions);
         assertThat("EVAL/KEEP are Streaming, so the demand still truncates", tracking.opens.get(), lessThanOrEqualTo(wave));
         assertLimitedSplitsCoverFile(result.splits(), payload.length);
     }
@@ -2852,6 +2877,44 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("true", last.config().get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
+    public void testMultiFileQuotedDemandSpendsTheWalkInListingOrder() throws Exception {
+        long stride = CSV_MIN_SEGMENT_BYTES;
+        String quotedLine = "1,\"embedded\nnewline\",ok\n";
+        byte[] payload = repeatingLines(quotedLine, 40L * stride);
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        files.put("z.csv", payload);
+        files.put("m.csv", payload);
+        files.put("a.csv", payload);
+        StreamTracking tracking = new StreamTracking(1);
+        SplitDiscoveryResult result = discoverCsvSplits(
+            files,
+            stride,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            tracking,
+            Settings.EMPTY,
+            () -> false,
+            Map.of(),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            true,
+            10
+        );
+        FileSplitProvider provider = new FileSplitProvider(stride);
+        int cap = provider.provenBoundaryCap(10, stride);
+        int waveCuts = cap == Integer.MAX_VALUE ? Integer.MAX_VALUE : cap - 1;
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals(3, byFile.size());
+        assertThat("the first listed quoted file is still cut", byFile.get("z.csv").size(), greaterThan(1));
+        assertThat(byFile.get("z.csv").size(), lessThanOrEqualTo(cap));
+        assertEquals("quoted files past the walk budget are one whole-file split", 1, byFile.get("m.csv").size());
+        assertEquals("quoted files past the walk budget are one whole-file split", 1, byFile.get("a.csv").size());
+        assertEquals(payload.length, byFile.get("a.csv").get(0).length());
+        assertThat("later quoted files must not walk", tracking.opens.get(), lessThanOrEqualTo(2 * Math.max(waveCuts, 1)));
+    }
+
     public void testProbeWaveSizeIsConcurrencyUnderSmallLimits() {
         FileSplitProvider provider = new FileSplitProvider();
         long stride = 64L << 20;
@@ -2860,7 +2923,7 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(concurrency, provider.probeWaveSize(1000, stride, 237));
         assertEquals(237, provider.probeWaveSize(FormatReader.NO_LIMIT, stride, 237));
         assertEquals(4, provider.probeWaveSize(10, stride, 4));
-        assertEquals(concurrency, provider.provenBoundaryCap(10, stride));
+        assertEquals(concurrency + 1, provider.provenBoundaryCap(10, stride));
         assertEquals(Integer.MAX_VALUE, provider.provenBoundaryCap(FormatReader.NO_LIMIT, stride));
     }
 
@@ -2928,6 +2991,22 @@ public class FileSplitProviderTests extends ESTestCase {
         return future.actionGet(30, TimeUnit.SECONDS);
     }
 
+    private static ExternalRelation demandRelation() {
+        List<Attribute> output = List.of(fieldAttr("year"));
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://b/*.csv", null, null, Map.of(), Map.of());
+        return new ExternalRelation(SRC, "s3://b/*.csv", metadata, output, FileList.UNRESOLVED, Map.of());
+    }
+
+    private static int demandFrom(LogicalPlan fragment) {
+        List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(fragment);
+        assertEquals(1, guarded.size());
+        return guarded.get(0).rowLimit();
+    }
+
+    /**
+     * Demand-truncated files still start at byte 0, so {@code FIRST_SPLIT_KEY} stays on the leading
+     * cut (AESOF stamps a CSV header only there) and {@code LAST_SPLIT_KEY} on the tail-to-EOF cut.
+     */
     private static void assertLimitedSplitsCoverFile(List<ExternalSplit> splits, long fileLength) {
         assertThat(splits.size(), greaterThan(0));
         long expected = 0;

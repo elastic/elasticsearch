@@ -121,8 +121,9 @@ public class Highlight extends UnaryPlan
      */
     private final @Nullable Attribute indexKey;
     /**
-     * The mapping of each ON column that FORK or UNION ALL merged from mapped text fields, by name: the merged column is a
-     * {@link ReferenceAttribute}, which does not carry it. Set by the analyzer, empty otherwise.
+     * The mapping of each ON column that RENAME renamed from a mapped text field, or that FORK or UNION ALL merged from
+     * mapped text fields, by name: such a column is a {@link ReferenceAttribute}, which does not carry it. Set by the
+     * analyzer, empty otherwise.
      */
     private final Map<String, TextEsField> fieldMappings;
 
@@ -310,6 +311,23 @@ public class Highlight extends UnaryPlan
             generatedFields,
             key,
             fieldMappings
+        );
+    }
+
+    /** Returns a copy with {@code newFieldMappings}, preserving the child and index key. */
+    public Highlight withFieldMappings(Map<String, TextEsField> newFieldMappings) {
+        return new Highlight(
+            source(),
+            child(),
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields,
+            indexKey,
+            newFieldMappings
         );
     }
 

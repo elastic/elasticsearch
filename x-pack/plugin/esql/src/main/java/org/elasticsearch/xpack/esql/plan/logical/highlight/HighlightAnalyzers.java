@@ -34,13 +34,13 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
 
 /**
  * Analyzer used to tokenize each HIGHLIGHT ON field.
- * WITH {@code analyzer} applies to every field. Otherwise a mapped text field, or a FORK or UNION ALL column merged
- * from mapped fields, uses {@link TextEsField#analyzerName}, a TO_TEXT column uses its declared analyzer, and anything
- * else uses {@code standard}. When the queried indices disagree on a field's analyzer and the row's {@code _index} is
- * available, each index uses its own analyzer.
+ * WITH {@code analyzer} applies to every field. Otherwise a mapped text field, a RENAME of one, or a FORK or UNION ALL
+ * column merged from mapped fields, uses {@link TextEsField#analyzerName}, a TO_TEXT column uses its declared analyzer,
+ * and anything else uses {@code standard}. When the queried indices disagree on a field's analyzer and the row's
+ * {@code _index} is available, each index uses its own analyzer.
  * <p>
- * A mapped field that RENAME or EVAL turned into a {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}
- * is "anything else": it uses {@code standard} without a warning, even when its mapping names another analyzer.
+ * A mapped field that EVAL copies is a new column, so it is "anything else": it uses {@code standard} without a warning,
+ * even when its mapping names another analyzer.
  */
 public final class HighlightAnalyzers {
 
@@ -140,7 +140,7 @@ public final class HighlightAnalyzers {
 
     /**
      * The text mapping {@code field} is analyzed with: a mapped field's own, or the one {@code fieldMappings} carries for
-     * a column FORK or UNION ALL merged from mapped fields. {@code null} for any other column.
+     * a RENAME of a mapped field or a column FORK or UNION ALL merged from mapped fields. {@code null} for any other column.
      */
     public static @Nullable TextEsField mappingOf(NamedExpression field, Map<String, TextEsField> fieldMappings) {
         EsField esField = field instanceof FieldAttribute fa ? fa.field() : fieldMappings.get(field.name());
@@ -157,8 +157,8 @@ public final class HighlightAnalyzers {
         @Nullable AnalysisRegistry analysisRegistry,
         Consumer<String> warnings
     ) {
-        // RENAME and EVAL produce a ReferenceAttribute, which keeps a TO_TEXT analyzer but not a mapping one, so a
-        // renamed mapped field falls back to standard.
+        // EVAL produces a ReferenceAttribute, which keeps a TO_TEXT analyzer but not a mapping one, so a copied mapped
+        // field falls back to standard.
         TextEsField text = mappingOf(field, fieldMappings);
         if (text != null) {
             String fallbackReason = switch (text.unknownAnalyzer()) {

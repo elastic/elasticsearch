@@ -239,9 +239,15 @@ applies:
   the analyzer set in its `analyzer` option.
 * The `standard` analyzer for all other columns, including `keyword` fields.
 
-Renaming an index `text` field with `RENAME` or copying it with `EVAL` drops its
-mapping metadata, falling back to `standard`. To preserve the mapped analyzer,
-highlight the field before `RENAME`, or set the `analyzer` option in `WITH`.
+An index `text` field keeps its mapped analyzer through `RENAME`, and when it
+passes unchanged through [`FORK`](/reference/query-languages/esql/commands/fork.md)
+or [subqueries in `FROM`](/reference/query-languages/esql/esql-from-subquery.md).
+Copying it with `EVAL` creates a new column, which falls back to `standard`. To
+preserve the mapped analyzer, highlight the original field, or set the
+`analyzer` option in `WITH`.
+
+If the queried indices map a field with different analyzers, each row uses the
+analyzer of the index it comes from.
 
 Query terms use the target field's analyzer. An `analyzer` specified on a
 full-text search function, such as
@@ -254,6 +260,9 @@ might not be highlighted.
 * Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
   determine which index supplied the value (for example, after `STATS`, `DEDUP`,
   or across a `LOOKUP JOIN`).
+* Branches of `FORK` or subqueries in `FROM` disagree on the column's analyzer
+  (for example, one branch reads the field from an index and another computes
+  the column with `EVAL`).
 * The analyzer is defined in index settings (such as a custom analyzer or
   index-level default) rather than globally on the node.
 * The analyzer is not registered on the coordinating node (for example, because

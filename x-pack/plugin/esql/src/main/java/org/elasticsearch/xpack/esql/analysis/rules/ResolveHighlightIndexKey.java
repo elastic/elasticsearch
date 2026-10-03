@@ -32,9 +32,12 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -80,8 +83,8 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     /**
-     * The relation that produces the rows of {@code plan}, or {@code null} when no single relation does.
-     * {@link #withIndexKey} reads their {@code _index} there.
+     * The relation, or nested FORK or UNION ALL, that produces the rows of {@code plan}. {@link #withIndexKey} reads their
+     * {@code _index} there.
      */
     private static @Nullable LogicalPlan rowSource(LogicalPlan plan) {
         return switch (plan) {
@@ -89,15 +92,37 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             case LeafPlan ignored -> null;
             case UnaryPlan unary -> rowSource(unary.child());
             case BinaryPlan binary -> rowSource(binary.left());
-            case MergePlan ignored -> null; // no single relation produces a merge's rows
+            case MergePlan merge -> merge;
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };
     }
 
     /** The {@link #rowSource} of {@code plan} when {@code column} is read off it, so the rows' {@code _index} names its index. */
-    private static @Nullable LogicalPlan rowSourceOf(LogicalPlan plan, Attribute column) {
+    static @Nullable LogicalPlan rowSourceOf(LogicalPlan plan, Attribute column) {
         LogicalPlan source = rowSource(plan);
-        return source != null && source.outputSet().contains(column) ? source : null;
+        return source != null && source.outputSet().contains(beforeRenames(plan, column)) ? source : null;
+    }
+
+    /** {@code column}, an output of {@code plan}, as the {@link #rowSource} of {@code plan} outputs it before any RENAME. */
+    static Attribute beforeRenames(LogicalPlan plan, Attribute column) {
+        return switch (plan) {
+            case Project project -> beforeRenames(project.child(), Objects.requireNonNullElse(renamedBy(project, column), column));
+            case UnaryPlan unary -> beforeRenames(unary.child(), column);
+            case BinaryPlan binary -> beforeRenames(binary.left(), column);
+            case LeafPlan ignored -> column;
+            case MergePlan ignored -> column;
+            default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
+        };
+    }
+
+    /** The attribute that {@code project} renames to {@code column}, or {@code null} when {@code project} does not rename it. */
+    static @Nullable Attribute renamedBy(Project project, Attribute column) {
+        for (NamedExpression projection : project.projections()) {
+            if (projection instanceof Alias alias && alias.id().equals(column.id())) {
+                return alias.child() instanceof Attribute renamed ? renamed : null;
+            }
+        }
+        return null;
     }
 
     /** Returns {@code plan} with the key in its output, or {@code null} when its rows have no single source index. */
@@ -144,6 +169,21 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 // Rows come from the left side; the right side is a lookup index or an inline aggregation.
                 LogicalPlan left = withIndexKey(binary.left());
                 yield left == null ? null : binary.replaceChildren(left, binary.right());
+            }
+            case MergePlan merge -> {
+                List<LogicalPlan> branches = new ArrayList<>(merge.children().size());
+                for (LogicalPlan branch : merge.children()) {
+                    LogicalPlan withKey = withIndexKey(branch);
+                    // Branches line up by position, so the key must come last in each, as it does in the merge output.
+                    if (withKey == null || withKey.output().getLast().equals(indexKey(withKey)) == false) {
+                        yield null;
+                    }
+                    branches.add(withKey);
+                }
+                // Not refreshOutput: it would take each column from the first branch that has it, even one that only fills
+                // it with nulls, and so drop the analyzer another branch declares.
+                List<Attribute> key = toReferenceAttributesPreservingIds(List.of(indexKey(branches.getFirst())), merge.output());
+                yield merge.replaceSubPlansAndOutput(branches, CollectionUtils.combine(merge.output(), key));
             }
             default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };

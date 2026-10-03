@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -7301,6 +7302,250 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings();
     }
 
+    /**
+     * After FORK, a LOOKUP JOIN field's merged mapping keeps the conflict but not its groups, which name lookup indices.
+     * HIGHLIGHT gets no key and warns that the indices disagree.
+     */
+    public void testHighlightAfterForkSkipsLookupJoinField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup()).query("""
+            FROM books*
+            | LOOKUP JOIN reviews_lookup ON book_no
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON review
+            """);
+        Highlight highlight = soleHighlight(plan);
+        TextEsField review = highlight.fieldMappings().get("review");
+        assertThat(review.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.CONFLICT));
+        assertNull(review.analyzerGroups());
+        assertNull(highlight.indexKey());
+        assertWarnings(analyzerConflictFallbackWarning("review"));
+    }
+
+    /**
+     * FORK outputs reference attributes, which carry no mapping, so a HIGHLIGHT after FORK gets the mapping the branches
+     * agree on, and every branch gets the key. UNION ALL branches get the key the same way.
+     */
+    public void testHighlightPerIndexAnalyzerAndFork() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(as(highlight.fields().getFirst(), ReferenceAttribute.class).name(), equalTo("title"));
+        assertThat(highlight.fieldMappings().get("title").analyzerGroups(), hasSize(2));
+        Attribute key = highlight.indexKey();
+        assertNotNull(key);
+        assertTrue(key.synthetic());
+        Fork fork = plan.collect(Fork.class).getFirst();
+        assertThat(fork.output(), hasItem(key));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        }
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM (FROM books* | WHERE book_no == "1"), (FROM books* | WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title
+            """);
+        highlight = soleHighlight(plan);
+        assertNotNull(highlight.indexKey());
+        assertThat(plan.collect(UnionAll.class).getFirst().output(), hasItem(highlight.indexKey()));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * When one branch computes the column and another maps it, no single mapping applies, so HIGHLIGHT falls back and warns
+     * that the branches disagree. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets
+     * no key.
+     */
+    public void testHighlightAfterForkFallsBack() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (EVAL title = title)
+            | HIGHLIGHT "ring" ON title
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(highlight.fieldMappings().get("title").unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
+        assertNull(highlight.indexKey());
+        assertWarnings(highlightFallbackWarning("title", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (STATS c = COUNT(*) BY title)
+            | HIGHLIGHT "ring" ON title
+            """);
+        highlight = soleHighlight(plan);
+        assertThat(highlight.fieldMappings().get("title").unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.CONFLICT));
+        assertNull(highlight.indexKey());
+        assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings(analyzerConflictFallbackWarning("title"));
+    }
+
+    /**
+     * FORK's merged column keeps the analyzer TO_TEXT declares, so HIGHLIGHT uses it instead of a mapping inferred from
+     * the branches, which compute the column. A mapped ON field next to it still gets the mapping its branches agree on.
+     */
+    public void testHighlightAfterForkKeepsDeclaredAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title, t
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(as(highlight.fields().getLast(), ReferenceAttribute.class).valuesAnalyzer(), equalTo("whitespace"));
+        assertThat(highlight.fieldMappings().keySet(), equalTo(Set.of("title")));
+        assertWarnings();
+    }
+
+    /**
+     * Threading the key through a merge keeps the merge's other columns. A branch that lacks {@code t} has it filled with
+     * nulls, so re-deriving the output would take {@code t} from that branch and drop the analyzer TO_TEXT declares in the
+     * other, which FORK then rejects as a conflict.
+     */
+    public void testHighlightIndexKeyKeepsMergedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String t = "EVAL t = TO_TEXT(CONCAT(title, \"\"), {\"analyzer\": \"whitespace\"})";
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | FORK (KEEP book_no, title) (" + t + ") | HIGHLIGHT \"ring\" ON title, t"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(mergedValuesAnalyzer(plan.collect(Fork.class).getFirst(), "t"), equalTo("whitespace"));
+        assertWarnings();
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM (FROM books* | KEEP book_no, title), (FROM books* | " + t + ") | HIGHLIGHT \"ring\" ON title, t"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(mergedValuesAnalyzer(plan.collect(UnionAll.class).getFirst(), "t"), equalTo("whitespace"));
+        assertWarnings();
+    }
+
+    private static String mergedValuesAnalyzer(LogicalPlan merge, String name) {
+        Attribute column = merge.output().stream().filter(a -> a.name().equals(name)).findFirst().orElseThrow();
+        return as(column, ReferenceAttribute.class).valuesAnalyzer();
+    }
+
+    /**
+     * A column every branch computes carries no mapping, so HIGHLIGHT analyzes it like any computed column, without a
+     * warning. Branches that declare different TO_TEXT analyzers do disagree. FORK rejects them, but UNION ALL does not, so
+     * HIGHLIGHT falls back and warns.
+     */
+    public void testHighlightAfterMergeOfComputedColumn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (EVAL t = title) (EVAL t = title)
+            | HIGHLIGHT "ring" ON t
+            """);
+        assertThat(soleHighlight(plan).fieldMappings(), equalTo(Map.of()));
+        assertWarnings();
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})),
+                 (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "stop"}))
+            | HIGHLIGHT "ring" ON t
+            """);
+        TextEsField mapping = soleHighlight(plan).fieldMappings().get("t");
+        assertThat(mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
+        assertWarnings(highlightFallbackWarning("t", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+    }
+
+    /**
+     * UNION ALL branches over differently analyzed indices disagree on the column's mapping, but each row still comes from
+     * one index, so HIGHLIGHT gets each index's analyzer and each row's index, and emits no warning. A nested UNION ALL whose
+     * own branches agree, or whose other branch has no values of the column, still names the indices its rows come from.
+     * So do branches that rename the field, also when the RENAME sits above a nested UNION ALL.
+     */
+    public void testHighlightPerIndexAnalyzerAcrossUnionAllBranches() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("requires nested subquery in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        for (String query : List.of(
+            "FROM (FROM books), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM (FROM books), (FROM books)), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM (FROM books | EVAL x = 1 | KEEP x), (FROM books)), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM books | RENAME title AS t), (FROM books_english | RENAME title AS t) | HIGHLIGHT \"ring\" ON t",
+            "FROM (FROM (FROM books), (FROM books) | RENAME title AS t), (FROM books_english | RENAME title AS t) | HIGHLIGHT \"ring\" ON t"
+        )) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
+                .addIndex(singleBooksIndex("books_english", "stop"))
+                .query(query);
+            Highlight highlight = soleHighlight(plan);
+            assertThat(
+                query,
+                highlight.fieldMappings().get(highlight.fields().getFirst().name()).analyzerGroups(),
+                containsInAnyOrder(
+                    new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                    new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+                )
+            );
+            assertNotNull(query, highlight.indexKey());
+            assertWarnings();
+        }
+    }
+
+    /**
+     * A RENAME of a mapped field is analyzed exactly as the field: it gets the field's mapping, and the index key when the
+     * indices disagree, through a chain of RENAMEs and across FORK. A renamed LOOKUP JOIN field keeps the field's fallback.
+     */
+    public void testHighlightRenamedFieldKeepsMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(
+            analyzer().addIndex("books_english", "mapping-books_english.json")
+                .minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                .query("FROM books_english | RENAME title AS t | HIGHLIGHT \"ring\" ON t")
+        );
+        assertThat(highlight.fieldMappings().get("t").analyzerName(), equalTo("english"));
+        assertWarnings(englishFallbackWarning("t"));
+
+        for (String query : List.of(
+            "FROM books* | RENAME title AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | RENAME title AS a | RENAME a AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | RENAME title AS t | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | RENAME title AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (RENAME title AS t) (RENAME title AS t) | HIGHLIGHT \"ring\" ON t"
+        )) {
+            highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            assertThat(query, highlight.fieldMappings().get("t").analyzerGroups(), hasSize(2));
+            assertNotNull(query, highlight.indexKey());
+        }
+        assertWarnings();
+
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
+            .query("FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS r | HIGHLIGHT \"ring\" ON r");
+        assertNull(soleHighlight(plan).indexKey());
+        assertWarnings(analyzerConflictFallbackWarning("r"));
+    }
+
+    /**
+     * EVAL makes a new column, so a copy of a mapped field gets no mapping and no index key, even once RENAME renames the
+     * copy. HIGHLIGHT analyzes it like any computed column, without a warning.
+     */
+    public void testHighlightEvalCopyOfFieldGetsNoMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM books* | EVAL t = title | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | EVAL u = title | RENAME u AS t | HIGHLIGHT \"ring\" ON t"
+        )) {
+            Highlight highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            assertThat(query, highlight.fieldMappings(), equalTo(Map.of()));
+            assertNull(query, highlight.indexKey());
+        }
+        assertWarnings();
+    }
+
     private static String analyzerConflictFallbackWarning(String field) {
         return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
     }
@@ -7334,6 +7579,22 @@ public class AnalyzerTests extends AnalyzerTestCase {
             Map.of()
         );
         return analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+    }
+
+    /** A single index named {@code name} that analyzes {@code title} with {@code analyzer}. */
+    private static EsIndex singleBooksIndex(String name, String analyzer) {
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            analyzer,
+            TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+            TextEsField.UnknownAnalyzer.NONE,
+            null
+        );
+        return new EsIndex(name, Map.of("title", title), Map.of(name, new IndexProperties(IndexMode.STANDARD, 1)), Map.of(), Map.of());
     }
 
     /** {@code reviews_lookup}, whose {@code review} field two remote clusters analyze differently, as CCS can resolve it. */

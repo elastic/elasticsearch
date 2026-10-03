@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -20,12 +21,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -49,11 +52,17 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME;
@@ -67,6 +76,12 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
 
     public static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(16);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(2);
+    // Bound for the whole test body. Bulk, refresh, flush and search requests are waited for without a deadline, so a hang in any of
+    // them would otherwise only surface as the 20-minute suite timeout, which reports no stack trace (see #160379). This is well above
+    // the usual duration of the test (a couple of minutes) and well below the suite timeout.
+    private static final TimeValue HANG_DETECTION_TIMEOUT = TimeValue.timeValueMinutes(10);
+    // how many queued tasks to list per executor when a drain assertion fails
+    private static final int MAX_QUEUED_TASKS_TO_DESCRIBE = 20;
 
     @Override
     protected boolean addMockFsRepository() {
@@ -100,6 +115,10 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
     }
 
     public void testShardPrewarming() throws Exception {
+        runWithHangDetection(this::doTestShardPrewarming);
+    }
+
+    private void doTestShardPrewarming() throws Exception {
         startMasterOnlyNode();
 
         var cacheSettings = Settings.builder()
@@ -280,24 +299,28 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         return stats.completed();
     }
 
-    private static void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName, long previouslyObservedCompletedTasks)
+    private void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName, long previouslyObservedCompletedTasks)
         throws Exception {
-        assertBusy(() -> {
+        assertBusyOrDescribeExecutors(threadPool, () -> {
             final ThreadPoolStats.Stats stats = executorStats(threadPool, executorName);
             assertThat(stats, is(notNullValue()));
-            assertThat(stats.completed(), greaterThan(previouslyObservedCompletedTasks));
-            assertThat(stats.active() + stats.queue(), is(0));
-        });
+            assertThat(
+                "[" + executorName + "] completed no task since baseline [" + previouslyObservedCompletedTasks + "]: " + stats,
+                stats.completed(),
+                greaterThan(previouslyObservedCompletedTasks)
+            );
+            assertThat("[" + executorName + "] still has active or queued tasks: " + stats, stats.active() + stats.queue(), is(0));
+        }, executorName);
     }
 
-    private static void assertNoRunningAndQueueTasks(
+    private void assertNoRunningAndQueueTasks(
         ThreadPool threadPool,
         String shardReadThreadPool,
         long shardReadCompletedBaseline,
         String fillVbccThreadPool,
         long fillVbccCompletedBaseline
     ) throws Exception {
-        assertBusy(() -> {
+        assertBusyOrDescribeExecutors(threadPool, () -> {
             final ThreadPoolStats.Stats shardReadStats = executorStats(threadPool, shardReadThreadPool);
             final ThreadPoolStats.Stats fillVbccStats = executorStats(threadPool, fillVbccThreadPool);
             assertThat(shardReadStats, is(notNullValue()));
@@ -305,15 +328,138 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
 
             long executorTasksCompleted = shardReadStats.completed() + fillVbccStats.completed();
             long executorTasksBaseline = shardReadCompletedBaseline + fillVbccCompletedBaseline;
-            assertThat(executorTasksCompleted, greaterThan(executorTasksBaseline));
+            assertThat(
+                "no task completed since baseline [" + executorTasksBaseline + "] on " + shardReadStats + " and " + fillVbccStats,
+                executorTasksCompleted,
+                greaterThan(executorTasksBaseline)
+            );
 
-            assertThat(shardReadStats.active() + shardReadStats.queue(), is(0));
-            assertThat(fillVbccStats.active() + fillVbccStats.queue(), is(0));
-        });
+            assertThat(
+                "[" + shardReadThreadPool + "] still has active or queued tasks: " + shardReadStats,
+                shardReadStats.active() + shardReadStats.queue(),
+                is(0)
+            );
+            assertThat(
+                "[" + fillVbccThreadPool + "] still has active or queued tasks: " + fillVbccStats,
+                fillVbccStats.active() + fillVbccStats.queue(),
+                is(0)
+            );
+        }, shardReadThreadPool, fillVbccThreadPool);
     }
 
     private static ThreadPoolStats.Stats executorStats(ThreadPool threadPool, String executorName) {
         return threadPool.stats().stats().stream().filter(s -> s.name().equals(executorName)).findFirst().orElse(null);
+    }
+
+    // Like assertBusy, but if the assertion never holds, logs the state of the given executors (including their first queued tasks)
+    // and a hot threads dump, and appends the executor state to the failure, so that a stuck executor can be diagnosed from the CI
+    // output alone.
+    private void assertBusyOrDescribeExecutors(ThreadPool threadPool, CheckedRunnable<Exception> assertion, String... executorNames)
+        throws Exception {
+        try {
+            assertBusy(assertion);
+        } catch (AssertionError e) {
+            final String executors = describeExecutors(threadPool, executorNames);
+            logger.warn("executors did not drain: {}\nhot threads:\n{}", executors, captureHotThreads());
+            throw new AssertionError(e.getMessage() + System.lineSeparator() + "executors: " + executors, e);
+        }
+    }
+
+    private static String describeExecutors(ThreadPool threadPool, String... executorNames) {
+        final StringBuilder description = new StringBuilder();
+        for (String executorName : executorNames) {
+            final ExecutorService executor = threadPool.executor(executorName);
+            description.append(System.lineSeparator()).append(executor);
+            if (executor instanceof ThreadPoolExecutor threadPoolExecutor) {
+                description.append(" first queued tasks: ")
+                    .append(
+                        threadPoolExecutor.getQueue()
+                            .stream()
+                            .limit(MAX_QUEUED_TASKS_TO_DESCRIBE)
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ", "[", "]"))
+                    );
+            }
+        }
+        return description.toString();
+    }
+
+    // Runs the test body under a watchdog. If the body has not completed after HANG_DETECTION_TIMEOUT, the watchdog logs where the
+    // test thread is blocked plus a hot threads dump of the test JVM (which hosts every node), then interrupts the test thread so that
+    // the failure points at the blocked call rather than at nothing, which is all the suite timeout reports.
+    private void runWithHangDetection(CheckedRunnable<Exception> testBody) throws Exception {
+        final Thread testThread = Thread.currentThread();
+        final CountDownLatch completed = new CountDownLatch(1);
+        // claimed by whichever comes first, the watchdog firing or the body completing, so that a body finishing just in time is never
+        // interrupted
+        final AtomicBoolean hangDetected = new AtomicBoolean();
+        final Thread watchdog = new Thread(() -> {
+            try {
+                if (completed.await(HANG_DETECTION_TIMEOUT.millis(), TimeUnit.MILLISECONDS) == false
+                    && hangDetected.compareAndSet(false, true)) {
+                    logger.warn(
+                        "test did not complete within [{}], test thread is blocked at:\n{}\nhot threads:\n{}",
+                        HANG_DETECTION_TIMEOUT,
+                        ExceptionsHelper.formatStackTrace(testThread.getStackTrace()),
+                        captureHotThreads()
+                    );
+                    testThread.interrupt();
+                }
+            } catch (InterruptedException e) {
+                throw new AssertionError("hang detector unexpectedly interrupted", e);
+            }
+        }, "hang-detector[" + getTestName() + "]");
+        watchdog.start();
+        try {
+            testBody.run();
+        } catch (Exception | Error e) {
+            if (stopHangDetection(completed, hangDetected, watchdog)) {
+                throw e;
+            }
+            throw new AssertionError(
+                "test did not complete within ["
+                    + HANG_DETECTION_TIMEOUT
+                    + "], see the hot threads logged by the hang detector; the cause shows where the test thread was blocked",
+                e
+            );
+        }
+        if (stopHangDetection(completed, hangDetected, watchdog) == false) {
+            throw new AssertionError(
+                "test did not complete within [" + HANG_DETECTION_TIMEOUT + "], see the hot threads logged by the hang detector"
+            );
+        }
+    }
+
+    // Stops the watchdog and returns whether the body completed before it fired. If the watchdog fired, waits for it to finish and
+    // clears the interrupt it set on the test thread, so that the test cluster can still be cleaned up.
+    private static boolean stopHangDetection(CountDownLatch completed, AtomicBoolean hangDetected, Thread watchdog)
+        throws InterruptedException {
+        final boolean completedInTime = hangDetected.compareAndSet(false, true);
+        completed.countDown();
+        if (completedInTime) {
+            watchdog.join();
+            return true;
+        }
+        boolean joined = false;
+        while (joined == false) {
+            try {
+                watchdog.join();
+                joined = true;
+            } catch (InterruptedException e) {
+                // the watchdog's interrupt arrived while waiting for it to finish, retry
+            }
+        }
+        Thread.interrupted();
+        return false;
+    }
+
+    private static String captureHotThreads() {
+        try (var writer = new StringWriter()) {
+            new HotThreads().busiestThreads(9999).ignoreIdleThreads(false).detect(writer);
+            return writer.toString();
+        } catch (Exception e) {
+            return "failed to capture hot threads: " + e;
+        }
     }
 
     private static void assertContainsMeasurement(

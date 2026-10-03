@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -176,14 +177,7 @@ public class NdJsonSchemaInferrer {
                     // yet turn out to be malformed. Only a well-formed line fails inference; a malformed one is
                     // skipped like any other, without its fields counting toward the cap.
                     if (restOfRecordParses(parser)) {
-                        throw new IllegalArgumentException(
-                            LoggerMessageFormat.format(
-                                "NDJSON schema inference found more than [{}] fields; raise [{}] in the dataset settings or the "
-                                    + "WITH clause to infer a wider schema",
-                                maxFields,
-                                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
-                            )
-                        );
+                        throw new IllegalArgumentException(fieldCapMessage(maxFields));
                     }
                     logger.debug("Malformed NDJSON at line {} past the field cap", lineCount);
                     discardFieldsFrom(lineStart);
@@ -243,6 +237,27 @@ public class NdJsonSchemaInferrer {
         } catch (JsonParseException | StreamConstraintsException e) {
             return false;
         }
+    }
+
+    /**
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap; at the ceiling
+     * raising it is rejected too, so say the file is wider than any schema inference supports instead.
+     */
+    static String fieldCapMessage(int maxFields) {
+        if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
+            return LoggerMessageFormat.format(
+                "NDJSON schema inference found more than [{}] fields, the most [{}] allows; declare the dataset's "
+                    + "columns with [dynamic: false] to skip inference",
+                maxFields,
+                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+            );
+        }
+        return LoggerMessageFormat.format(
+            "NDJSON schema inference found more than [{}] fields; raise [{}] in the dataset settings or the "
+                + "WITH clause to infer a wider schema",
+            maxFields,
+            NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+        );
     }
 
     private static long fieldBytes(String name) {

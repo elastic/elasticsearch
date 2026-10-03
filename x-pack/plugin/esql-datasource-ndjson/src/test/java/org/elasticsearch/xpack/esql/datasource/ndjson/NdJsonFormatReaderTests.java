@@ -37,6 +37,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Unit tests for {@link NdJsonFormatReader#openForSchemaInference(StorageObject, boolean)}.
  *
@@ -126,6 +129,38 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
         FormatReader overridden = reader.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
         assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
+    }
+
+    /** A value that is not a number at all is refused with a message naming the key, not the JDK's bare one. */
+    public void testSchemaMaxFieldsRejectsNonIntegerNamingTheKey() {
+        for (Object value : new Object[] { "abc", "", 500.0 }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, value))
+            );
+            assertEquals("[schema_max_fields] must be an integer between 1 and 100000, got [" + value + "]", e.getMessage());
+        }
+        assertEquals(500, ExternalSourceSettings.parseDatasetSchemaMaxFields("500", NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 1));
+    }
+
+    /** At the ceiling, the refusal does not tell the user to raise a cap that cannot go higher. */
+    public void testFieldCapAtCeilingDoesNotSuggestRaisingIt() throws IOException {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        FormatReader atCeiling = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ceiling)
+        ).value();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> atCeiling.metadata(new BytesObject(flatRecord(ceiling + 1)))
+        );
+        assertThat(e.getMessage(), containsString("the most [schema_max_fields] allows"));
+        assertThat(e.getMessage(), not(containsString("raise")));
+
+        FormatReader below = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
+        ).value();
+        e = expectThrows(IllegalArgumentException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
+        assertThat(e.getMessage(), containsString("raise [schema_max_fields]"));
     }
 
     /** The node setting is bounded like the dataset key, so neither can lift the cap past the ceiling. */

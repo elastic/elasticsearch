@@ -239,7 +239,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
-            return new TransientTypingInputStream(response, path);
+            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover.
+            long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
+            return new TransientTypingInputStream(response, path, expectedLength);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
@@ -573,7 +575,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (toEnd) {
                 requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             }
-            return new TransientTypingInputStream(response, path);
+            // contentLength of this response body (the range size), or -1 if unknown.
+            long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
+            return new TransientTypingInputStream(response, path, expectedLength);
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI

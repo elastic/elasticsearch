@@ -46,9 +46,13 @@ final class DecompressingStorageObject implements StorageObject {
     private static final Logger logger = LogManager.getLogger(DecompressingStorageObject.class);
 
     /**
-     * Upper bound on the raw bytes {@link DecompressedStream} reads past the decoder's end-of-stream so the
-     * provider sees the end of the body, plus one byte to tell a longer tail apart. Matches the gzip codec's raw
-     * read buffer: a well-formed object has nothing left, so this only bounds the tail of a malformed one.
+     * Upper bound on leftover GET bytes that a provider {@code close()} still drains so the HTTP
+     * connection returns to the pool, and on the raw bytes {@link DecompressedStream} reads past the
+     * decoder's end-of-stream so the provider sees the end of the body (plus one byte to tell a longer
+     * tail apart). A larger leftover is aborted instead. Matches Hadoop S3A readahead and the gzip
+     * codec's raw read buffer: a well-formed object has nothing left, so the decoder drain only
+     * bounds the tail of a malformed one. Keep in sync with {@code TransientTypingInputStream}
+     * (different package; that class cannot import this package-private field).
      */
     static final int MAX_TRAILING_DRAIN_BYTES = 64 * 1024;
 

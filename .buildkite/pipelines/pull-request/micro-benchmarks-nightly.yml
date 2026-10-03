@@ -7,7 +7,7 @@ config:
     - ^benchmarks/.*
 steps:
   - label: nightly-micro-benchmarks-smoke
-    command: .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly -foe true -f 1 -wi 1 -i 1 -w 100ms -r 100ms'
+    command: .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly'
     timeout_in_minutes: 300
     agents:
       provider: gcp

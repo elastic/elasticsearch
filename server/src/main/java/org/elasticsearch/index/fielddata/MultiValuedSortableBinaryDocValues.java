@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.IOException;
@@ -23,7 +24,9 @@ import java.io.IOException;
 /**
  * Wrapper around {@link BinaryDocValues} to decode the typical multivalued encoding
  */
-public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryDocValues {
+public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryDocValues
+    implements
+        BlockLoader.OptionalDecodeMemoryUsageEstimator {
 
     final ByteArrayStreamInput in = new ByteArrayStreamInput();
     final BytesRef scratch = new BytesRef();
@@ -115,6 +118,17 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
     @Override
     public int docValueCount() {
         return count;
+    }
+
+    /**
+     * The most heap, in bytes, that one decode of the underlying doc values can allocate, {@code 0} if they never buffer more than a
+     * value's own bytes, or {@code -1} if they cannot provide an estimate (see {@link BlockLoader.OptionalDecodeMemoryUsageEstimator}).
+     * Each instance owns its own decoder state, so a caller that holds many of these at once, for example one per field read by an
+     * ES|QL query, can use this to account for it in a circuit breaker. It can be read before the first {@link #advanceExact}.
+     */
+    @Override
+    public long maxDecodeBytes() {
+        return values instanceof BlockLoader.OptionalDecodeMemoryUsageEstimator estimator ? estimator.maxDecodeBytes() : -1L;
     }
 
     @Override

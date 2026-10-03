@@ -45,6 +45,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.escf.ColumnarOffsetsBuilder;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
@@ -2805,8 +2806,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
-        return (allowMultipleValues == false || docValuesParameters.multiValue() == false)
-            && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+        return isSingleValueEnforced() && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    private boolean isSingleValueEnforced() {
+        return allowMultipleValues == false || docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -2873,13 +2877,13 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean shouldEnforceSingleValueBatch() {
-        return docValuesParameters.multiValue() == false;
+        return isSingleValueEnforced();
     }
 
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
                 Strings.format(
@@ -2889,6 +2893,17 @@ public class NumberFieldMapper extends FieldMapper {
                 )
             );
         }
+        final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
+        // Outside strict-columnar modes, a non-default synthetic_source_keep makes the row path keep arrays as-is, either as
+        // positional offsets or in _ignored_source, neither of which this path writes. Strict-columnar modes reject the setting.
+        // TODO: lift into FieldMapper once the columnar path honors synthetic_source_keep for every mapper, scalars included.
+        if (source.kind() == EscfColumnKind.ARRAY
+            && indexSettings.getMode().isStrictColumnar() == false
+            && sourceKeepMode().orElse(indexSettings.sourceKeepMode()) != SourceKeepMode.NONE) {
+            throw new UnsupportedOperationException(
+                Strings.format("mapColumnBatch: field [%s] keeps array source outside a strict-columnar index mode", fullPath())
+            );
+        }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
         EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
             source,
@@ -2896,8 +2911,11 @@ public class NumberFieldMapper extends FieldMapper {
             coerce(),
             ctx.recycler(),
             nullSortableLong,
+            recordsOffsets,
             ctx::addResource
         );
+        assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
+            : "ARRAY source produced " + EscfColumnKind.name(outData.kind());
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
@@ -2929,6 +2947,7 @@ public class NumberFieldMapper extends FieldMapper {
                     coerce(),
                     ctx.recycler(),
                     nullValue != null ? NumberType.FLOAT.toSortableLong(nullValue) : null,
+                    false,
                     ctx::addResource
                 );
                 ctx.addColumn(
@@ -2936,6 +2955,17 @@ public class NumberFieldMapper extends FieldMapper {
                 );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
+            }
+        }
+        if (recordsOffsets && outData.kind() == EscfColumnKind.ARRAY) {
+            LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(
+                EscfColumn.from(outData),
+                offsetsFieldName,
+                ctx.recycler(),
+                ctx::addResource
+            );
+            if (offsets != null) {
+                ctx.addColumn(offsets);
             }
         }
     }

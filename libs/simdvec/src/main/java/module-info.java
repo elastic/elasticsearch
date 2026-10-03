@@ -23,6 +23,7 @@ module org.elasticsearch.simdvec {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.lucene.store;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.blas;
 
     exports org.elasticsearch.simdvec;
 }

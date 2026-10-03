@@ -41,10 +41,11 @@ configurations.consumable('nativeLibs') {
 var zstdVersion = "1.5.7-1"
 var vecVersion = "1.0.153"
 var libSimdjsonVersion = "0.3.0"
+var openblasVersion = "0.3.34-1"
 
-// vec and libsimdjson come either from published artifacts or from source builds in their
-// owning projects. The plugin chooses which based on "modes" (see libs/simdvec/build.gradle
-// and libs/simdjson/build.gradle).
+// vec, libsimdjson, and openblas come either from published artifacts or from source builds in
+// their owning projects. The plugin chooses which based on "modes" (see libs/simdvec/build.gradle,
+// libs/simdjson/build.gradle, and libs/blas/build.gradle).
 nativeLibraries {
   vec {
     modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
@@ -55,6 +56,11 @@ nativeLibraries {
     modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
     publishedModule = "org.elasticsearch:libsimdjson:${libSimdjsonVersion}@zip"
     builtBy = ':libs:simdjson'
+  }
+  openblas {
+    modeEnvironmentVariable = 'BLAS_NATIVE_BUILD'
+    publishedModule = "org.elasticsearch:openblas:${openblasVersion}@zip"
+    builtBy = ':libs:blas'
   }
 }
 
@@ -72,6 +78,7 @@ repositories {
       includeModule("org.elasticsearch", "libzstd")
       includeModule("org.elasticsearch", "vec")
       includeModule("org.elasticsearch", "libsimdjson")
+      includeModule("org.elasticsearch", "openblas")
     }
   }
 }

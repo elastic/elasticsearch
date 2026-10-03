@@ -1,0 +1,55 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.foreign-library'
+apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'elasticsearch.native-library-build'
+
+dependencies {
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:foreign-adapter')
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'blas'
+  }
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// Vendored OpenBLAS license notices (not tied to a jar dependency).
+tasks.named('dependencyLicenses').configure {
+  ignoreFile 'openblas-LICENSE.txt'
+  ignoreFile 'openblas-NOTICE.txt'
+}
+
+// --- Native library build (libopenblas) ---
+// Set BLAS_NATIVE_BUILD=docker to cross-compile every platform in the toolchain image, or
+// BLAS_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'BLAS_NATIVE_BUILD'
+  sourceDir = layout.projectDirectory.dir('native')
+  sources = ['Makefile', 'publish_blas_binaries.sh']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
+  forwardedEnvironment = ['CLANG_CXX', 'CLANG_CC']
+
+  dockerCommand = ['make', 'fetch', 'all']
+  collect = [
+    'build/libs/openblas/shared/aarch64/libopenblas.so'    : 'linux-aarch64/libopenblas.so',
+    'build/libs/openblas/shared/amd64/libopenblas.so'      : 'linux-x64/libopenblas.so',
+    'build/libs/openblas/shared/windows-x64/openblas.dll'  : 'windows-x64/openblas.dll',
+  ]
+
+  hostCommand { outputDir -> ['make', 'fetch', 'local-install', "DEST=${outputDir.asFile}"] }
+}

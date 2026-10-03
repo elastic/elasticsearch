@@ -46,7 +46,7 @@ public class MatrixMultiplyBenchmark {
         VectorizationInfo.printOnce();
     }
 
-    @Param({ "SCALAR", "PANAMA" })
+    @Param({ "SCALAR", "PANAMA", "NATIVE" })
     VectorImplementation implementation;
 
     // ASH defaults are 10240 x 1024 x 512
@@ -72,6 +72,7 @@ public class MatrixMultiplyBenchmark {
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
+            case NATIVE -> ESVectorizationProvider.lookup(true, true).getVectorUtilSupport();
             default -> throw new AssertionError(implementation);
         };
         Random random = new Random();

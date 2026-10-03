@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -45,12 +47,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -158,6 +164,78 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
             }
             operator.close();
         }
+    }
+
+    /**
+     * The deferred extractor's warning sink must deposit into the driver's {@link DriverContext}, which
+     * {@code DriverCompletionInfo} ships back from whatever node ran the scan, rather than into the emitting
+     * thread's {@code ThreadContext} — the latter only reaches the client when the scan runs on the coordinator
+     * (elastic/esql-planning#1837). The sink stays budget-gated, so a flood still collapses to the cap plus one
+     * overflow marker.
+     */
+    public void testDeferredExtractorWarningSinkFeedsTheDriverSinkUnderTheBudget() throws Exception {
+        AtomicInteger readCount = new AtomicInteger();
+        AtomicInteger extractorsCreated = new AtomicInteger();
+        List<Consumer<String>> capturedSinks = Collections.synchronizedList(new ArrayList<>());
+        FormatReader_RowPositionEmitting reader = new FormatReader_RowPositionEmitting(
+            readCount,
+            extractorsCreated,
+            /* rowsPerFile = */ 1,
+            capturedSinks
+        );
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://bucket/data/*.parquet");
+        List<Attribute> attributes = List.of(field("value", DataType.INTEGER), field(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG));
+
+        // A real context, since the sink under test writes into it; a mock would swallow every message.
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubStorageProvider(),
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).deferredExtraction(true).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertThat("the extractor handshake must hand out a sink", capturedSinks, hasSize(1));
+            Consumer<String> sink = capturedSinks.get(0);
+
+            // One distinct message per call, so the budget counts each rather than deduplicating them, and the
+            // count deliberately overshoots the cap.
+            int offered = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+            for (int i = 0; i < offered; i++) {
+                sink.accept("extractor notice " + i);
+            }
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+
+        driverContext.finish();
+        List<String> warnings = driverContext.warnings();
+        assertThat(
+            "the cap admits MAX_ADDED_WARNINGS payloads plus one overflow marker",
+            warnings,
+            hasSize(SkipWarnings.MAX_ADDED_WARNINGS + 1)
+        );
+        assertThat(warnings.get(0), equalTo("extractor notice 0"));
+        assertThat(warnings, hasItem(SkipWarnings.overflowMessage()));
+        Releasables.close(driverContext.getSnapshot());
     }
 
     public void testEmptyDataProjectionWithDeferredExtractionAndNonIdentityMapping() throws Exception {
@@ -826,11 +904,23 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         private final AtomicInteger readCount;
         private final AtomicInteger extractorsCreated;
         private final int rowsPerFile;
+        /** Sinks handed to {@link ColumnExtractorProducer#createColumnExtractor}; empty unless a test wants them. */
+        private final List<Consumer<String>> capturedSinks;
 
         FormatReader_RowPositionEmitting(AtomicInteger readCount, AtomicInteger extractorsCreated, int rowsPerFile) {
+            this(readCount, extractorsCreated, rowsPerFile, Collections.synchronizedList(new ArrayList<>()));
+        }
+
+        FormatReader_RowPositionEmitting(
+            AtomicInteger readCount,
+            AtomicInteger extractorsCreated,
+            int rowsPerFile,
+            List<Consumer<String>> capturedSinks
+        ) {
             this.readCount = readCount;
             this.extractorsCreated = extractorsCreated;
             this.rowsPerFile = rowsPerFile;
+            this.capturedSinks = capturedSinks;
         }
 
         @Override
@@ -841,7 +931,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             int idx = readCount.getAndIncrement();
-            return new ProducerIterator(idx, extractorsCreated, rowsPerFile);
+            return new ProducerIterator(idx, extractorsCreated, rowsPerFile, capturedSinks);
         }
 
         @Override
@@ -867,13 +957,15 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         private final int fileIndex;
         private final AtomicInteger extractorsCreated;
         private final int rowsPerFile;
+        private final List<Consumer<String>> capturedSinks;
         private boolean emitted = false;
         private long rowPositionEncodingHighBits = -1L;
 
-        ProducerIterator(int fileIndex, AtomicInteger extractorsCreated, int rowsPerFile) {
+        ProducerIterator(int fileIndex, AtomicInteger extractorsCreated, int rowsPerFile, List<Consumer<String>> capturedSinks) {
             this.fileIndex = fileIndex;
             this.extractorsCreated = extractorsCreated;
             this.rowsPerFile = rowsPerFile;
+            this.capturedSinks = capturedSinks;
         }
 
         @Override
@@ -906,6 +998,9 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         @Override
         public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) {
             extractorsCreated.incrementAndGet();
+            if (driverThreadWarningSink != null) {
+                capturedSinks.add(driverThreadWarningSink);
+            }
             return new InMemoryColumnExtractor(rowsPerFile);
         }
 

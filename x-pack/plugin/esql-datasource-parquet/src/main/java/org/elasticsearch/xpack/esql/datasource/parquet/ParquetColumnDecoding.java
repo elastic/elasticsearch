@@ -38,6 +38,7 @@ import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
@@ -240,20 +241,26 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Emits a response {@code Warning} header noting that a Parquet timestamp column carried instants
-     * outside the representable {@code date_nanos} range and those values were returned as null. The
-     * message is column-scoped and constant, so the response-header machinery deduplicates it to a
-     * single entry per affected column regardless of how many values or batches triggered it.
+     * Reports that a Parquet timestamp column carried instants outside the representable {@code date_nanos} range and
+     * those values were returned as null. When supplied, {@code warningSink} relays the message through the external
+     * driver's warning channel so it survives a scan on another node; the {@code null} fallback writes directly to
+     * the current thread's response headers for tests and synchronous callers.
+     *
+     * <p>The message is column-scoped and constant, so both the production informational-warning budget and response
+     * headers deduplicate it regardless of how many values or batches triggered it.
      */
-    static void warnTimestampOutOfRange(ColumnInfo info) {
+    static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
-        HeaderWarning.addWarning(
-            "Parquet timestamp column ["
-                + column
-                + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-                + "such values are returned as null"
-        );
+        String warning = "Parquet timestamp column ["
+            + column
+            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
+            + "such values are returned as null";
+        if (warningSink != null) {
+            warningSink.accept(warning);
+        } else {
+            HeaderWarning.addWarning(warning);
+        }
     }
 
     /** Converts a date32 value (days since epoch) to epoch milliseconds. */
@@ -563,7 +570,7 @@ final class ParquetColumnDecoding {
      * as a constant null block.
      */
     static Block readListColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
-        return readListColumn(cr, info, rows, blockFactory, null, null);
+        return readListColumn(cr, info, rows, blockFactory, null, null, null);
     }
 
     /**
@@ -578,7 +585,8 @@ final class ParquetColumnDecoding {
         int rows,
         BlockFactory blockFactory,
         @Nullable String columnName,
-        @Nullable SkipWarnings warnings
+        @Nullable SkipWarnings warnings,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         DataType declared = info.esqlType();
         DataType fileElementType = info.fileEsqlType();
@@ -586,7 +594,7 @@ final class ParquetColumnDecoding {
             && declared != fileElementType
             && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
             && DeclaredTypeCoercions.supports(fileElementType, declared)) {
-            Block physical = readListColumn(cr, info.fileTyped(), rows, blockFactory);
+            Block physical = readListColumn(cr, info.fileTyped(), rows, blockFactory, columnName, null, informationalWarningSink);
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -620,7 +628,7 @@ final class ParquetColumnDecoding {
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
             case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory, columnName, warnings);
-            case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
+            case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory, informationalWarningSink);
             default -> {
                 skipListValues(cr, rows);
                 yield blockFactory.newConstantNullBlock(rows);
@@ -850,7 +858,13 @@ final class ParquetColumnDecoding {
      * deduplicated warning header is emitted when any element was dropped. This uses a lazy {@code beginPositionEntry}
      * so an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
      */
-    private static Block readListDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+    private static Block readListDateNanosColumn(
+        ColumnReader cr,
+        ColumnInfo info,
+        int rows,
+        BlockFactory blockFactory,
+        @Nullable Consumer<String> informationalWarningSink
+    ) {
         int maxDef = info.maxDefLevel();
         LogicalTypeAnnotation logical = info.logicalType();
         boolean micros = isMicrosTimestamp(logical);
@@ -860,7 +874,7 @@ final class ParquetColumnDecoding {
                 readDateNanosListRow(cr, maxDef, micros, logical, builder, anyOverflow);
             }
             if (anyOverflow[0]) {
-                warnTimestampOutOfRange(info);
+                warnTimestampOutOfRange(info, informationalWarningSink);
             }
             return builder.build();
         }

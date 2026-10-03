@@ -58,7 +58,18 @@ interleaved. Use `SORT _fork` to group results by branch.
 
 ## Limitations
 
+::::{applies-switch}
+
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+- `FORK` supports at most 8 execution branches by default. The limit is the `esql.query.max_branch_count_per_merge` cluster setting. A `max_branch_count_per_merge` query pragma overrides it.
+:::
+
+:::{applies-item} stack: preview 9.1-9.3, ga 9.4-9.5
 - `FORK` supports at most 8 execution branches.
+:::
+
+::::
+
 - In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
 

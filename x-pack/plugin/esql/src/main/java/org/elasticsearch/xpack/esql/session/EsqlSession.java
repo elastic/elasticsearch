@@ -1644,6 +1644,8 @@ public class EsqlSession {
             parsed,
             projectMetadata,
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            configuration.pragmas(),
+            flags,
             logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
@@ -2799,7 +2801,8 @@ public class EsqlSession {
             r,
             timestampBounds,
             resolveIpLocations(parsed),
-            preserveViewBoundaries
+            preserveViewBoundaries,
+            flags
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

@@ -725,6 +725,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,

@@ -4011,12 +4011,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo* | FORK ()
             """, "line 1:19: mismatched input ')'");
 
-        expectError("""
+        var wideFork = query("""
             FROM foo*
             | FORK (where true) (where true) (where true) (where true)
                    (where true) (where true) (where true) (where true)
                    (where true)
-            """, "Fork supports up to 8 branches");
+            """);
+        assertThat(wideFork, instanceOf(Fork.class));
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");

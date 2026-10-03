@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -1320,9 +1319,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
-        }
 
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -40,6 +39,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -556,7 +556,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     private LogicalPlan planDataset(TestAnalyzer analyzer, String query, Settings pragmaSettings) {
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             analyzer.resolveViewsAndInSubqueries(TEST_PARSER.parseQuery(query)),
             heavyDatasetMetadata(),
             TestIndexNameExpressionResolver.newInstance(),

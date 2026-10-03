@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -251,12 +250,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
          */
         private LogicalPlan doTranslateUnion(List<IntermediateResult> intermediateResults) {
-            // Already validated against MergePlan.MAX_BRANCHES by PromqlCommand.verify
-            assert MergePlan.exceedsMaxBranches(intermediateResults.size()) == false
+            // Already validated against max_branch_count_per_merge by PromqlCommand.verify.
+            int maxBranches = analyzer.maxBranchCountPerMerge();
+            assert intermediateResults.size() <= maxBranches
                 : "invariant: merge branch count ["
                     + intermediateResults.size()
-                    + "] must be less of equal MergePlan.MAX_BRANCHES ["
-                    + MergePlan.MAX_BRANCHES
+                    + "] must be <= the max_branch_count_per_merge limit ["
+                    + maxBranches
                     + "]";
 
             var source = cmd.source();

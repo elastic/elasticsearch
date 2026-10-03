@@ -101,7 +101,6 @@ public class UnionAll extends MergePlan {
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
-        checkNonEmpty(plan, failures);
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
@@ -172,10 +171,8 @@ public class UnionAll extends MergePlan {
      * Rejects a query whose leaf branches exceed {@code maxBranches}, taken from the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma
      * when that pragma is set, otherwise from {@code esql.query.max_branch_count}.
      * <p>
-     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
-     * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
-     * the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one {@code FROM} but
-     * subqueries nest, so without a query-wide limit the leaf total grows as a power of the nesting depth.
+     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are bounded
+     * separately by the maximum nesting-level check.
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to

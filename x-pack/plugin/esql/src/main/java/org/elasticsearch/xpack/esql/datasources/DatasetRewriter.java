@@ -31,10 +31,11 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
@@ -177,12 +178,35 @@ public final class DatasetRewriter {
      * relation with the full authorized set and {@link #rewrite}s — the in-process equivalent of
      * {@link DatasetResolver}'s dispatch, minus the {@code EsqlResolveDatasetAction} round-trip. {@code null} or
      * dataset-free project is a no-op.
+     *
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public static LogicalPlan rewriteUnsecured(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
-        boolean wildcardsMatchDatasets
+        boolean wildcardsMatchDatasets,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return rewriteUnsecured(
+            parsed,
+            projectMetadata,
+            iner,
+            wildcardsMatchDatasets,
+            maxBranchCountPerMerge(pragmas, flags),
+            maxBranchCountPerMergeSource(pragmas)
+        );
+    }
+
+    static LogicalPlan rewriteUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -206,7 +230,7 @@ public final class DatasetRewriter {
             resolutions.put(r, resolve(raw, raw, projectMetadata, iner, wildcardsMatchDatasets));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
-        return rewrite(parsed, projectMetadata, resolutions, false);
+        return rewrite(parsed, projectMetadata, resolutions, false, maxBranchCountPerMerge, maxBranchCountPerMergeSource);
     }
 
     static boolean hasRemotePattern(List<String> patterns) {
@@ -236,12 +260,34 @@ public final class DatasetRewriter {
      * @param crossProjectEnabled whether cross-project search (CPS) is active; when {@code true}, a wildcard that
      *                    matched a dataset is kept alongside the dataset so the remote (linked-project) half still
      *                    resolves — see {@link #rewriteOne}.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public static LogicalPlan rewrite(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         Map<UnresolvedRelation, DatasetResolution> resolutions,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return rewrite(
+            parsed,
+            projectMetadata,
+            resolutions,
+            crossProjectEnabled,
+            maxBranchCountPerMerge(pragmas, flags),
+            maxBranchCountPerMergeSource(pragmas)
+        );
+    }
+
+    static LogicalPlan rewrite(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        Map<UnresolvedRelation, DatasetResolution> resolutions,
+        boolean crossProjectEnabled,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -256,8 +302,26 @@ public final class DatasetRewriter {
             if (resolution == null) {
                 return r;
             }
-            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
+            return rewriteOne(
+                r,
+                datasetMetadata,
+                dataSourceMetadata,
+                resolution,
+                crossProjectEnabled,
+                maxBranchCountPerMerge,
+                maxBranchCountPerMergeSource
+            );
         });
+    }
+
+    /** Resolved {@code max_branch_count_per_merge}: a set query pragma overrides {@link EsqlFlags#maxBranchCountPerMerge()}. */
+    private static int maxBranchCountPerMerge(QueryPragmas pragmas, EsqlFlags flags) {
+        return pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+    }
+
+    /** Label for whichever knob supplied {@link #maxBranchCountPerMerge(QueryPragmas, EsqlFlags)}. */
+    private static String maxBranchCountPerMergeSource(QueryPragmas pragmas) {
+        return pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
     }
 
     private static LogicalPlan rewriteOne(
@@ -265,7 +329,9 @@ public final class DatasetRewriter {
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
         DatasetResolution resolution,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (resolution.explicitUnauthorized().isEmpty() == false) {
             // An explicitly-named dataset the caller can't read — same error (and 400) a missing index gives, so an
@@ -328,16 +394,18 @@ public final class DatasetRewriter {
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
-        if (MergePlan.exceedsMaxBranches(children.size())) {
+        // shadow is a real read bounded by logical verifier.
+        if (children.size() > maxBranchCountPerMerge) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
                     + children.size()
-                    + " branches, exceeding the current limit of "
-                    + MergePlan.MAX_BRANCHES
-                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
+                    + " branches, exceeding the limit of "
+                    + maxBranchCountPerMerge
+                    + " set by the "
+                    + maxBranchCountPerMergeSource
+                    + ". Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }
 

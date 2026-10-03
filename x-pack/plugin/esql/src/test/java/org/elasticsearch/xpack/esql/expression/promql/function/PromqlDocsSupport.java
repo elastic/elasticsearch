@@ -59,9 +59,8 @@ public final class PromqlDocsSupport {
         + DOCS_ROOT
         + "/promql-limitations.md#promql-limitations-unsupported-constructs)";
 
-    private static final String OR_CAVEAT = "{{es}} evaluates `or` only at the top level of an expression, and a "
-        + "top-level `or` chain supports at most 8 operands. A nested `or`, or a chain of more than 8 operands, "
-        + "returns a client error (4xx). See "
+    private static final String OR_CAVEAT = "{{es}} evaluates `or` only at the top level of an expression. A nested `or`, "
+        + "or a chain that exceeds the operand limit, returns a client error (4xx). The limit depends on the version; see "
         + UNSUPPORTED_CONSTRUCTS_LINK
         + ".";
 

@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -74,11 +76,15 @@ public class DatasetResolver {
      *                         {@code Configuration} and applied to this coordinator's own dataset expansion. Only this
      *                         coordinator's registry is expanded here; what a remote cluster does with its own datasets
      *                         is decided by {@code EsqlResolveFieldsAction.clearDatasetResolution}, not by this setting.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public void replaceDatasets(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         boolean wildcardsMatchDatasets,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
         ActionListener<LogicalPlan> listener
     ) {
         // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
@@ -146,7 +152,7 @@ public class DatasetResolver {
         // dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true), which is how a remote INDEX of the same name
         // still federates in.
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
+        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, pragmas, flags))
             .addListener(listener);
     }
 }

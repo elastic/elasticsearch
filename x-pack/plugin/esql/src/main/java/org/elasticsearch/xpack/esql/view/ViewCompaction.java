@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
  * compact at the per-level boundary, so wide branching levels of compactable views (e.g.
  * {@code FROM v1, v2, ... v9}) collapse to a single {@link UnresolvedRelation} rather than
- * tripping {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
+ * one branch per view, which would count against {@code max_branch_count_per_merge}.
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -121,6 +122,14 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      *                               can find the boundary; every other branch kind still collapses.
      */
     public static LogicalPlan postIndexResolution(LogicalPlan plan, boolean preserveViewBoundaries) {
+        return postIndexResolution(plan, preserveViewBoundaries, EsqlFlags.DEFAULTS.maxBranchCountPerMerge());
+    }
+
+    /**
+     * As {@link #postIndexResolution(LogicalPlan, boolean)}, flattening a nested view union only when the flat width
+     * is within {@code maxBranchCountPerMerge}.
+     */
+    public static LogicalPlan postIndexResolution(LogicalPlan plan, boolean preserveViewBoundaries, int maxBranchCountPerMerge) {
         plan = stripViewShadowRelations(plan, preserveViewBoundaries);
         // Strip can collapse a {@code ViewUnionAll[NamedSubquery, ViewShadowRelation]} to its sole
         // {@link NamedSubquery} when the shadow is removed. That exposes a {@code Subquery[NamedSubquery]}
@@ -128,7 +137,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // {@link #rewriteUnionAllsWithNamedSubqueries} needs to see in order to unwrap and convert
         // to {@link ViewUnionAll}, so we re-run the rewrite after the strip.
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
-        plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries);
+        plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries, maxBranchCountPerMerge);
         plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
         return plan;
     }
@@ -256,12 +265,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * seeing it. Exclusion-bearing {@link UnresolvedRelation}s stay wrapped to preserve their
      * narrow scope (see exclusion-leak tests).
      */
-    static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan, boolean preserveViewBoundaries) {
+    static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan, boolean preserveViewBoundaries, int maxBranchCountPerMerge) {
         List<LogicalPlan> children = plan.children();
         List<LogicalPlan> newChildren = null;
         for (int i = 0; i < children.size(); i++) {
             LogicalPlan child = children.get(i);
-            LogicalPlan newChild = compactNestedViewUnionAlls(child, preserveViewBoundaries);
+            LogicalPlan newChild = compactNestedViewUnionAlls(child, preserveViewBoundaries, maxBranchCountPerMerge);
             if (newChild != child) {
                 if (newChildren == null) {
                     newChildren = new ArrayList<>(children);
@@ -275,12 +284,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             return ur;
         }
         if (current instanceof ViewUnionAll vua) {
-            return tryFlattenViewUnionAll(vua, preserveViewBoundaries);
+            return tryFlattenViewUnionAll(vua, preserveViewBoundaries, maxBranchCountPerMerge);
         }
         return current;
     }
 
-    private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua, boolean preserveViewBoundaries) {
+    private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua, boolean preserveViewBoundaries, int maxBranchCountPerMerge) {
         // Trial pass: collect all entries from full flattening and check for conflicts.
         // Inner ViewUnionAlls that only contain UnresolvedRelations are lifted into the parent,
         // eliminating nesting that the runtime doesn't yet support.
@@ -386,8 +395,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // Remove any view-branch keys that the merge step may have removed.
         flatViewBranchKeys.retainAll(flat.keySet());
 
-        if (flat.size() > MergePlan.MAX_BRANCHES) {
-            return vua; // flattening would exceed the branch limit, keep the nested structure
+        if (flat.size() > maxBranchCountPerMerge) {
+            return vua; // flattening would exceed max_branch_count_per_merge, keep the nested structure
         }
         if (flat.size() == 1) {
             String survivingKey = flat.keySet().iterator().next();

@@ -15,11 +15,14 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.List;
 import java.util.Map;
@@ -83,12 +86,10 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        checkNonEmpty(plan, failures);
         if (plan instanceof Fork == false) {
             return;
         }
         Fork fork = (Fork) plan;
-        checkMaxBranches(fork, failures);
 
         checkForUnseparatedFork(fork, false, failures);
 
@@ -130,15 +131,28 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * The {@code FORK} command's per-node branch cap. Lives at post-analysis verification rather than
-     * the constructor so that compaction passes get a chance to reduce the count first. {@link UnionAll}
-     * and {@link ViewUnionAll} are not subject to this cap; they are bounded by the query-wide
-     * {@code max_branch_count} / {@code max_branch_level} pragmas.
+     * Rejects a {@link Fork} whose direct children exceed {@code max_branch_count_per_merge} cluster setting or pragma.
      */
-    private static void checkMaxBranches(Fork fork, Failures failures) {
-        int branches = fork.children().size();
-        if (exceedsMaxBranches(branches)) {
-            failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, branches));
+    @Override
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        super.checkBranchCount(plan, failures, pragmas, flags);
+        int maxBranches = pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+        String limitSource = pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
+        if (plan.children().size() > maxBranches) {
+            String sourceText = plan.sourceText();
+            String errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
+                ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                : sourceText;
+            failures.add(
+                Failure.fail(
+                    plan,
+                    "{} resolved to {} branches, exceeding the limit of {} set by the {}",
+                    errorMessage,
+                    plan.children().size(),
+                    maxBranches,
+                    limitSource
+                )
+            );
         }
     }
 

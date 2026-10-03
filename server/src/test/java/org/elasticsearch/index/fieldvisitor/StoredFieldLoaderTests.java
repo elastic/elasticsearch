@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.fieldvisitor.StoredFieldLoader.SEQUENTIAL_READER_THRESHOLD;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,6 +50,15 @@ public class StoredFieldLoaderTests extends ESTestCase {
         IgnoredSourceFieldMapper.IgnoredSourceFormat format
     ) {
         return new StoredFieldsSpec(ignoredFields.isEmpty() == false, false, storedFields, format, ignoredFields);
+    }
+
+    public void testShouldUseSequentialReader() {
+        assertFalse(StoredFieldLoader.shouldUseSequentialReader(null));
+        assertFalse(StoredFieldLoader.shouldUseSequentialReader(IntStream.range(0, SEQUENTIAL_READER_THRESHOLD).toArray()));
+        assertTrue(StoredFieldLoader.shouldUseSequentialReader(IntStream.rangeClosed(0, SEQUENTIAL_READER_THRESHOLD).toArray()));
+        assertFalse(
+            StoredFieldLoader.shouldUseSequentialReader(IntStream.rangeClosed(0, SEQUENTIAL_READER_THRESHOLD).map(doc -> doc * 2).toArray())
+        );
     }
 
     public void testEmpty() throws IOException {

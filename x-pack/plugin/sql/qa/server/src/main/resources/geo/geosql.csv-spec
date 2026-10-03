@@ -7,7 +7,7 @@
 showTables
 SHOW TABLES "geo";
 
- catalog:s | name:s        | type:s| kind:s
+ catalog:s    | name:s        | type:s| kind:s
 javaRestTest  |geo            |TABLE  |INDEX
 ;
 

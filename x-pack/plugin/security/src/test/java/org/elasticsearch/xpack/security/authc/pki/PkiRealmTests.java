@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -23,6 +24,10 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -41,12 +46,17 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileTime;
 import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -82,6 +92,8 @@ public class PkiRealmTests extends ESTestCase {
     public static final String REALM_NAME = "my_pki";
     private Settings globalSettings;
     private MockLicenseState licenseState;
+    private ThreadPool threadPool;
+    private ResourceWatcherService watcherService;
 
     @Before
     public void setup() throws Exception {
@@ -92,6 +104,17 @@ public class PkiRealmTests extends ESTestCase {
             .build();
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
+        threadPool = new TestThreadPool(getTestName());
+        watcherService = new ResourceWatcherService(
+            Settings.builder().put(ResourceWatcherService.ENABLED.getKey(), false).build(),
+            threadPool
+        );
+    }
+
+    @After
+    public void stopWatcherService() throws Exception {
+        watcherService.close();
+        terminate(threadPool);
     }
 
     public void testTokenSupport() throws Exception {
@@ -280,6 +303,45 @@ public class PkiRealmTests extends ESTestCase {
         return roleMapper;
     }
 
+    private PkiRealm buildWatchedRealm(Settings settings) {
+        final RealmConfig config = new RealmConfig(
+            new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME),
+            settings,
+            TestEnvironment.newEnvironment(settings),
+            new ThreadContext(settings)
+        );
+        final PkiRealm realm = new PkiRealm(config, buildRoleMapper(), watcherService);
+        realm.initialize(List.of(realm), licenseState);
+        return realm;
+    }
+
+    private PkiRealm buildWatchedRealm(Path caCertPath) {
+        return buildWatchedRealm(
+            Settings.builder()
+                .put(globalSettings)
+                .putList("xpack.security.authc.realms.pki.my_pki.certificate_authorities", caCertPath.toString())
+                .build()
+        );
+    }
+
+    private PkiRealm buildWatchedRealmWithJksTruststore(Path jksPath, String password) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.authc.realms.pki.my_pki.truststore.secure_password", password);
+        return buildWatchedRealm(
+            Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.truststore.path", jksPath.toString())
+                .setSecureSettings(secureSettings)
+                .build()
+        );
+    }
+
+    private static void replaceFileAndBumpMtime(Path src, Path dst) throws IOException {
+        final FileTime originalModifiedTime = Files.getLastModifiedTime(dst);
+        Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
+        Files.setLastModifiedTime(dst, FileTime.fromMillis(originalModifiedTime.toMillis() + 5_000));
+    }
+
     private PkiRealm buildRealm(UserRoleMapper roleMapper, Settings settings, Realm... otherRealms) {
         final RealmConfig config = new RealmConfig(
             new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME),
@@ -461,6 +523,292 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.principal(), is("trusted"));
         assertThat(user.roles(), is(notNullValue()));
         assertThat(user.roles().length, is(0));
+    }
+
+    public void testTruststoreReloadUpdatesTrustDecisionsAndClearsCache() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path caCertPath = tempDir.resolve("ca.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"), caCertPath);
+        final PkiRealm realm = buildWatchedRealm(caCertPath);
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+
+        final X509Certificate restrictedTrustCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt")
+        );
+        final X509AuthenticationToken restrictedToken = new X509AuthenticationToken(new X509Certificate[] { restrictedTrustCert });
+        assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(false));
+
+        replaceFileAndBumpMtime(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt"),
+            caCertPath
+        );
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        // trusted.crt is no longer accepted; cache was cleared so the previous success entry is gone
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(false));
+        // restricted.trust.crt is now the trust anchor
+        assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testReloadKeepsPreviousContextOnFailureAndLogsWarning() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path caCertPath = tempDir.resolve("ca.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"), caCertPath);
+        final PkiRealm realm = buildWatchedRealm(caCertPath);
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+
+        final FileTime originalModifiedTime = Files.getLastModifiedTime(caCertPath);
+        Files.writeString(caCertPath, "this is not a PEM certificate\n");
+        Files.setLastModifiedTime(caCertPath, FileTime.fromMillis(originalModifiedTime.toMillis() + 5_000));
+        MockLog.assertThatLogger(
+            () -> watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH),
+            PkiRealm.class,
+            new MockLog.SeenEventExpectation(
+                "failed reload logs a warning and retains the previous trust manager",
+                PkiRealm.class.getCanonicalName(),
+                Level.WARN,
+                "*failed to reload truststore*"
+            )
+        );
+
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testDeletedTruststorePreservesPreviousTrustManagerAndLogsWarning() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path caCertPath = tempDir.resolve("ca.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"), caCertPath);
+        final PkiRealm realm = buildWatchedRealm(caCertPath);
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+
+        Files.delete(caCertPath);
+        MockLog.assertThatLogger(
+            () -> watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH),
+            PkiRealm.class,
+            new MockLog.SeenEventExpectation(
+                "deleted truststore logs a warning and retains the previous trust manager",
+                PkiRealm.class.getCanonicalName(),
+                Level.WARN,
+                "*failed to reload truststore*"
+            )
+        );
+
+        // expireAll() bypasses the cache so the assertion exercises the TM directly
+        realm.expireAll();
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testDeletedThenRecreatedTruststoreReloadsNewTrustMaterial() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path caCertPath = tempDir.resolve("ca.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"), caCertPath);
+        final PkiRealm realm = buildWatchedRealm(caCertPath);
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+        final X509Certificate restrictedTrustCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt")
+        );
+        final X509AuthenticationToken restrictedToken = new X509AuthenticationToken(new X509Certificate[] { restrictedTrustCert });
+
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+        assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(false));
+
+        // Step 1: delete the CA file — onFileDeleted fires, reload fails, old TM is preserved
+        Files.delete(caCertPath);
+        MockLog.assertThatLogger(
+            () -> watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH),
+            PkiRealm.class,
+            new MockLog.SeenEventExpectation(
+                "deletion logs a warning",
+                PkiRealm.class.getCanonicalName(),
+                Level.WARN,
+                "*failed to reload truststore*"
+            )
+        );
+        realm.expireAll();
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+
+        // Step 2: create a new file at the same path — onFileCreated fires, reload succeeds
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt"), caCertPath);
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(false));
+        assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testCloseStopsWatchers() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path caCertPath = tempDir.resolve("ca.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"), caCertPath);
+        final PkiRealm realm = buildWatchedRealm(caCertPath);
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+
+        realm.close();
+
+        // After close(): replace the CA — the deregistered watcher must not fire, so the old trust manager stays in place
+        replaceFileAndBumpMtime(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt"),
+            caCertPath
+        );
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        realm.expireAll();
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testSystemDefaultTrustBehavior() throws Exception {
+        // Realm with no certificate_authorities: trustManager is null — trust falls back to the TLS channel.
+        // No file watchers are registered so close() is a no-op beyond setting the closed flag.
+        final PkiRealm realm = buildWatchedRealm(globalSettings);
+
+        assertRealmUsageStats(realm, false, false, true, false);
+
+        final X509Certificate cert = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+
+        // Non-delegated: TLS channel is the trust anchor — any cert that passed the channel is accepted
+        final X509AuthenticationToken nonDelegatedToken = new X509AuthenticationToken(new X509Certificate[] { cert });
+        assertThat(authenticate(nonDelegatedToken, realm).isAuthenticated(), is(true));
+
+        realm.expireAll();
+
+        // Delegated: re-validation requires an explicit trust manager — rejected without one
+        final X509AuthenticationToken delegatedToken = X509AuthenticationToken.delegated(
+            new X509Certificate[] { cert },
+            AuthenticationTestHelper.builder().build()
+        );
+        assertThat(authenticate(delegatedToken, realm).isAuthenticated(), is(false));
+
+        // No watchers were registered: close() sets the closed flag but is otherwise a no-op
+        realm.close();
+        realm.close(); // idempotent
+    }
+
+    public void testMultiCertTruststoreReloadRemovesOneAnchor() throws Exception {
+        final Path cert1Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed/n1.c1.crt");
+        final Path cert2Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed/n2.c1.crt");
+
+        final Path tempDir = createTempDir();
+        final Path combinedTrustPath = tempDir.resolve("combined.crt");
+
+        // Write both self-signed certs into a single PEM file — each is its own trust anchor
+        Files.write(combinedTrustPath, Files.readAllBytes(cert1Path));
+        Files.write(combinedTrustPath, Files.readAllBytes(cert2Path), StandardOpenOption.APPEND);
+
+        final PkiRealm realm = buildWatchedRealm(combinedTrustPath);
+
+        final X509Certificate cert1 = readCert(cert1Path);
+        final X509Certificate cert2 = readCert(cert2Path);
+        final X509AuthenticationToken token1 = new X509AuthenticationToken(new X509Certificate[] { cert1 });
+        final X509AuthenticationToken token2 = new X509AuthenticationToken(new X509Certificate[] { cert2 });
+
+        assertThat(authenticate(token1, realm).isAuthenticated(), is(true));
+        assertThat(authenticate(token2, realm).isAuthenticated(), is(true));
+
+        // Overwrite the combined file with only cert1 — cert2 is no longer a trust anchor
+        final FileTime originalModifiedTime = Files.getLastModifiedTime(combinedTrustPath);
+        Files.write(combinedTrustPath, Files.readAllBytes(cert1Path));
+        Files.setLastModifiedTime(combinedTrustPath, FileTime.fromMillis(originalModifiedTime.toMillis() + 5_000));
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        assertThat(authenticate(token1, realm).isAuthenticated(), is(true));
+        assertThat(authenticate(token2, realm).isAuthenticated(), is(false));
+    }
+
+    public void testTruststorePathHotReloadPreservesPreviousTrustManagerOnFailure() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
+
+        final Path tempDir = createTempDir();
+        final Path jksPath = tempDir.resolve("truststore.jks");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), jksPath);
+        final PkiRealm realm = buildWatchedRealmWithJksTruststore(jksPath, "testnode");
+
+        final X509Certificate trustedCert = readCert(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
+        );
+        final X509AuthenticationToken trustedToken = new X509AuthenticationToken(new X509Certificate[] { trustedCert });
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+
+        // Overwrite the JKS file with garbage — StoreTrustConfig.createTrustManager throws; previous TM is preserved
+        final FileTime originalModifiedTime = Files.getLastModifiedTime(jksPath);
+        Files.writeString(jksPath, "this is not a JKS keystore\n");
+        Files.setLastModifiedTime(jksPath, FileTime.fromMillis(originalModifiedTime.toMillis() + 5_000));
+        MockLog.assertThatLogger(
+            () -> watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH),
+            PkiRealm.class,
+            new MockLog.SeenEventExpectation(
+                "failed JKS reload logs a warning and retains the previous trust manager",
+                PkiRealm.class.getCanonicalName(),
+                Level.WARN,
+                "*failed to reload truststore*"
+            )
+        );
+
+        realm.expireAll();
+        assertThat(authenticate(trustedToken, realm).isAuthenticated(), is(true));
+    }
+
+    public void testTwoCACertFilesOneChangeTriggersReload() throws Exception {
+        // Two separate certificate_authorities entries produce two FileWatcher registrations.
+        // Changing one file triggers a reload that re-reads both CA files.
+        final Path cert1Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed/n1.c1.crt");
+        final Path cert2Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed/n2.c1.crt");
+        final Path restrictedPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt");
+
+        final Path tempDir = createTempDir();
+        final Path ca1 = tempDir.resolve("ca1.crt");
+        final Path ca2 = tempDir.resolve("ca2.crt");
+        Files.copy(cert1Path, ca1);
+        Files.copy(cert2Path, ca2);
+
+        final PkiRealm realm = buildWatchedRealm(
+            Settings.builder()
+                .put(globalSettings)
+                .putList("xpack.security.authc.realms.pki.my_pki.certificate_authorities", ca1.toString(), ca2.toString())
+                .build()
+        );
+
+        final X509Certificate cert1 = readCert(cert1Path);
+        final X509Certificate cert2 = readCert(cert2Path);
+        final X509Certificate restrictedCert = readCert(restrictedPath);
+        final X509AuthenticationToken token1 = new X509AuthenticationToken(new X509Certificate[] { cert1 });
+        final X509AuthenticationToken token2 = new X509AuthenticationToken(new X509Certificate[] { cert2 });
+        final X509AuthenticationToken restrictedToken = new X509AuthenticationToken(new X509Certificate[] { restrictedCert });
+
+        assertThat(authenticate(token1, realm).isAuthenticated(), is(true));
+        assertThat(authenticate(token2, realm).isAuthenticated(), is(true));
+        assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(false));
+
+        // Replace only ca1 — triggers a reload of both CA files; ca2 remains unchanged
+        replaceFileAndBumpMtime(restrictedPath, ca1);
+        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        // ca1 now contains restrictedCert (now trusted), ca2 still contains cert2 (still trusted), cert1 removed
+        assertThat(authenticate(token1, realm).isAuthenticated(), is(false));
+        assertThat(authenticate(token2, realm).isAuthenticated(), is(true));
+        assertThat(authenticate(restrictedToken, realm).isAuthenticated(), is(true));
     }
 
     public void testAuthenticationDelegationFailsWithoutTokenServiceAndTruststore() throws Exception {

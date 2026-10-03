@@ -17,8 +17,12 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.WatcherHandle;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -30,12 +34,15 @@ import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
+import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
@@ -46,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -57,7 +65,7 @@ import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class PkiRealm extends Realm implements CachingRealm {
+public class PkiRealm extends Realm implements CachingRealm, Releasable {
 
     public static final String PKI_CERT_HEADER_NAME = "__SECURITY_CLIENT_CERTIFICATE";
     public static final String PKI_DN_METADATA_KEY = "pki_dn";
@@ -82,7 +90,9 @@ public class PkiRealm extends Realm implements CachingRealm {
         writeLock = new ReleasableLock(iterationLock.writeLock());
     }
 
-    private final X509TrustManager trustManager;
+    private volatile X509TrustManager trustManager;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final List<WatcherHandle<FileWatcher>> truststoreWatchers = new ArrayList<>();
     private final Pattern principalPattern;
     private final String principalRdnOid;
     private final UserRoleMapper roleMapper;
@@ -91,14 +101,25 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final boolean delegationEnabled;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, UserRoleMapper userRoleMapper) {
-        this(config, new CompositeRoleMapper(new DnRoleMapper(config, watcherService), userRoleMapper));
+        this(config, new CompositeRoleMapper(new DnRoleMapper(config, watcherService), userRoleMapper), watcherService);
     }
 
     // pkg private for testing
     PkiRealm(RealmConfig config, UserRoleMapper roleMapper) {
+        this(config, roleMapper, null);
+    }
+
+    // pkg private for testing
+    PkiRealm(RealmConfig config, UserRoleMapper roleMapper, ResourceWatcherService watcherService) {
         super(config);
         this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
-        this.trustManager = trustManagers(config);
+        final SslConfiguration sslConfiguration = SslSettingsLoader.load(
+            config.settings(),
+            RealmSettings.realmSettingPrefix(config.identifier()),
+            config.env()
+        );
+        final SslTrustConfig trustConfig = sslConfiguration.trustConfig();
+        this.trustManager = buildTrustManager(trustConfig);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
         String rdnOid = config.getSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING);
         String rdnOidFromName = config.getSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING);
@@ -120,6 +141,9 @@ public class PkiRealm extends Realm implements CachingRealm {
             .build();
         this.delegatedRealms = null;
         validateAuthenticationDelegationConfiguration(config);
+        if (watcherService != null && this.trustManager != null) {
+            watchTruststoreForChanges(watcherService, trustConfig, config);
+        }
     }
 
     @Override
@@ -294,14 +318,15 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     private boolean isCertificateChainTrusted(X509AuthenticationToken token) {
-        if (trustManager == null) {
+        final X509TrustManager tm = this.trustManager;
+        if (tm == null) {
             // No extra trust managers specified
             // If the token is NOT delegated then it is authenticated, because the certificate chain has been validated by the TLS channel.
             // Otherwise, if the token is delegated, then it cannot be authenticated without a trustManager
             return token.isDelegated() == false;
         } else {
             try {
-                trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);
+                tm.checkClientTrusted(token.credentials(), AUTH_TYPE);
                 return true;
             } catch (CertificateException e) {
                 if (logger.isTraceEnabled()) {
@@ -314,13 +339,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private X509TrustManager trustManagers(RealmConfig realmConfig) {
-        final SslConfiguration sslConfiguration = SslSettingsLoader.load(
-            realmConfig.settings(),
-            RealmSettings.realmSettingPrefix(realmConfig.identifier()),
-            realmConfig.env()
-        );
-        final SslTrustConfig trustConfig = sslConfiguration.trustConfig();
+    private X509TrustManager buildTrustManager(SslTrustConfig trustConfig) {
         if (trustConfig.isSystemDefault()) {
             return null;
         }
@@ -329,6 +348,59 @@ public class PkiRealm extends Realm implements CachingRealm {
             logger.warn("PKI Realm [{}] uses trust configuration [{}] which has no accepted certificate issuers", this, trustConfig);
         }
         return trustManager;
+    }
+
+    private void watchTruststoreForChanges(ResourceWatcherService watcherService, SslTrustConfig trustConfig, RealmConfig config) {
+        final FileChangesListener reloadListener = new FileChangesListener() {
+            @Override
+            public void onFileChanged(Path file) {
+                reload(file);
+            }
+
+            @Override
+            public void onFileDeleted(Path file) {
+                onFileChanged(file);
+            }
+
+            @Override
+            public void onFileCreated(Path file) {
+                onFileChanged(file);
+            }
+
+            private void reload(Path file) {
+                if (PkiRealm.this.closed.get()) {
+                    // race with in-flight check
+                    return;
+                }
+                logger.debug("PKI realm [{}] reloading truststore after change to [{}]", config.name(), file);
+                try {
+                    // Assign only on success; expire after swap so new misses never hit the stale TM.
+                    final X509TrustManager reloaded = buildTrustManager(trustConfig);
+                    PkiRealm.this.trustManager = reloaded;
+                    expireAll();
+                    logger.info("PKI realm [{}] reloaded truststore after change to [{}]", config.name(), file);
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "PKI realm [%s] failed to reload truststore after change to [%s];"
+                                + " continuing with the previous trust configuration",
+                            config.name(),
+                            file
+                        ),
+                        e
+                    );
+                }
+            }
+        };
+        for (Path dependentFile : trustConfig.getDependentFiles()) {
+            try {
+                final FileWatcher fileWatcher = new EntitledFileWatcher(dependentFile);
+                fileWatcher.addListener(reloadListener);
+                truststoreWatchers.add(watcherService.add(fileWatcher, ResourceWatcherService.Frequency.HIGH));
+            } catch (IOException e) {
+                logger.error(() -> format("PKI realm [%s] failed to watch truststore file [%s]", config.name(), dependentFile), e);
+            }
+        }
     }
 
     @Override
@@ -349,6 +421,15 @@ public class PkiRealm extends Realm implements CachingRealm {
         try (ReleasableLock ignored = readLock.acquire()) {
             cache.invalidateAll();
         }
+    }
+
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true) == false) {
+            return;
+        }
+        truststoreWatchers.forEach(WatcherHandle::stop);
+        truststoreWatchers.clear();
     }
 
     @Override

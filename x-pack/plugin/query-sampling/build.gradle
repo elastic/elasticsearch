@@ -1,0 +1,24 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+esplugin {
+  name = 'x-pack-query-sampling'
+  description = 'Elasticsearch Expanded Pack Plugin - Query sampling for kNN search'
+  classname = 'org.elasticsearch.xpack.querysampling.QuerySamplingPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+base {
+  archivesName = 'x-pack-query-sampling'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'search', 'query_sampling'
+  }
+}

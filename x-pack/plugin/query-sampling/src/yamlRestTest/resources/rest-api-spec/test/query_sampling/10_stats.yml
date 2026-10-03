@@ -1,0 +1,75 @@
+---
+"Stats are reported per node and kNN searches are counted once sampling is enabled":
+  # the counters only ever grow while a node runs, so everything is checked in a single test: others
+  # sharing the cluster would otherwise change the numbers depending on the order the tests run in
+  - do:
+      query_sampling.stats: {}
+
+  - match: { _nodes.total: 1 }
+  - match: { _nodes.successful: 1 }
+  - set: { nodes._arbitrary_key_: node_id }
+  - is_true: nodes.$node_id.name
+  - match: { nodes.$node_id.knn_searches: 0 }
+  - match: { nodes.$node_id.captured: 0 }
+  - match: { nodes.$node_id.dropped: 0 }
+  - match: { nodes.$node_id.distinct_queries: 0 }
+  - match: { nodes.$node_id.picked: 0 }
+  - match: { nodes.$node_id.buffered: 0 }
+
+  - do:
+      indices.create:
+        index: vectors
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              vec:
+                type: dense_vector
+                dims: 2
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: vectors
+        id: "1"
+        refresh: true
+        body: { vec: [1.0, 2.0] }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.query_sampling.enabled: true
+            xpack.query_sampling.capture_rate: 1.0
+
+  - do:
+      search:
+        index: vectors
+        body:
+          knn: { field: vec, query_vector: [1.0, 2.0], k: 1, num_candidates: 10 }
+
+  - match: { hits.total.value: 1 }
+
+  # a search that is not a kNN search is not counted
+  - do:
+      search:
+        index: vectors
+        body:
+          query: { match_all: {} }
+
+  - do:
+      query_sampling.stats:
+        node_id: $node_id
+
+  - match: { _nodes.total: 1 }
+  - match: { nodes.$node_id.knn_searches: 1 }
+  - match: { nodes.$node_id.captured: 1 }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.query_sampling.enabled: null
+            xpack.query_sampling.capture_rate: null

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -91,6 +92,16 @@ public class SplitSourceService {
         Setting.Property.NodeScope
     );
 
+    /// The maximum percentage of a split's target shards that may be in HANDOFF at the same time (always at least one shard)
+    public static final Setting<Double> RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE = Setting.doubleSetting(
+        "reshard.split.max_concurrent_handoff_percentage",
+        12.5,
+        0.0,
+        100.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /// We want to prevent the state machine from spinning in a hot loop.
     /// This setting defines how long to wait between the retries.
     /// This is not an actual registered setting and is only used in tests.
@@ -99,6 +110,19 @@ public class SplitSourceService {
         TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope
     );
+
+    /// When a HANDOFF slot frees, every source shard waiting for one is woken by the same cluster state. Each of them waits a random
+    /// time of up to this time before checking again, so that the ones that check later see the slot has been taken.
+    public static final Setting<TimeValue> HANDOFF_THROTTLE_MAX_JITTER = Setting.timeSetting(
+        "reshard.split.handoff_throttle_max_jitter",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    // visible for testing
+    static final TimeValue HANDOFF_SLOT_TIMEOUT = TimeValue.timeValueMinutes(10);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -109,6 +133,8 @@ public class SplitSourceService {
     private final TaskManager taskManager;
 
     private final TimeValue deleteUnownedDelay;
+    private volatile double maxConcurrentHandoffPercentage;
+    private volatile long handoffThrottleMaxJitterMillis;
 
     // Tracks active START_SPLIT requests received from target shards per source shard.
     // Target shard primary term is used to reject requests from stale shard instances or cancel ongoing request task.
@@ -149,6 +175,10 @@ public class SplitSourceService {
         this.taskManager = taskManager;
 
         this.deleteUnownedDelay = RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.get(settings);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE, value -> this.maxConcurrentHandoffPercentage = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(HANDOFF_THROTTLE_MAX_JITTER, value -> this.handoffThrottleMaxJitterMillis = value.millis());
     }
 
     /**
@@ -390,52 +420,150 @@ public class SplitSourceService {
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
-            afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-        ).<Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
-            logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
-            // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
-            // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
-            // Start cancelling completing merges at this point so that they don't delay flush during handoff.
-            shardsPreparingForHandoff.add(sourceShard.shardId());
-            engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
-            return null;
-        })).<Releasable>andThen(acquiredPermits -> {
-            // Mark task as uncancellable before acquiring permits. Cancellation is for relocation, and once we've
-            // reached this point it is better to proceed to the end, in particular because it would complicate
-            // HandoffConvergenceObserver's logic. In principal we could remain cancellable all the way until
-            // we're about to actually send the handoff message but once we're acquiring permits we expect to
-            // be fairly quick anyway and prefer not to waste the work.
-            if (currentSplit.setUncancellable()) {
-                stateMachine.split().withPermits(acquiredPermits);
-            } else {
-                throw new TaskCancelledException("Split request was cancelled");
-            }
-        }).andThen((afterSecondFlush, permits) -> {
-            // withEngine and flush can throw, and we don't want to leak permits if it does
-            try {
-                sourceShard.withEngine(engine -> {
-                    logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
-                    // Don't stop copying commits until anything outstanding has been flushed.
-                    engine.flush(/* force */ false, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
-                        // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
-                        // commits spontaneously even though indexing permits are held. These are harmless to copy.
-                        logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
-                        stopCopyingNewCommits(targetShardId);
-                        shardsPreparingForHandoff.remove(sourceShard.shardId());
-                        activeTargetRequests.remove(sourceShard);
-                        afterSecondFlush.onResponse(permits);
-                    }, e -> {
-                        permits.close();
-                        afterSecondFlush.onFailure(e);
-                    }));
+            beginHandoff -> awaitHandoffSlot(currentSplit.task, beginHandoff, targetShardId)
+        )
+            .<Void>andThen(afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)).<
+                Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
+                    logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
+                    // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by
+                    // the flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
+                    // Start cancelling completing merges at this point so that they don't delay flush during handoff.
+                    shardsPreparingForHandoff.add(sourceShard.shardId());
+                    engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
                     return null;
-                });
-            } catch (Exception e) {
-                permits.close();
-                afterSecondFlush.onFailure(e);
+                }))
+            .<Releasable>andThen(acquiredPermits -> {
+                // Mark task as uncancellable before acquiring permits. Cancellation is for relocation, and once we've
+                // reached this point it is better to proceed to the end, in particular because it would complicate
+                // HandoffConvergenceObserver's logic. In principal we could remain cancellable all the way until
+                // we're about to actually send the handoff message but once we're acquiring permits we expect to
+                // be fairly quick anyway and prefer not to waste the work.
+                if (currentSplit.setUncancellable()) {
+                    stateMachine.split().withPermits(acquiredPermits);
+                } else {
+                    throw new TaskCancelledException("Split request was cancelled");
+                }
+            })
+            .andThen((afterSecondFlush, permits) -> {
+                // withEngine and flush can throw, and we don't want to leak permits if it does
+                try {
+                    sourceShard.withEngine(engine -> {
+                        logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
+                        // Don't stop copying commits until anything outstanding has been flushed.
+                        engine.flush(/* force */ false, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
+                            // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
+                            // commits spontaneously even though indexing permits are held. These are harmless to copy.
+                            logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
+                            stopCopyingNewCommits(targetShardId);
+                            shardsPreparingForHandoff.remove(sourceShard.shardId());
+                            activeTargetRequests.remove(sourceShard);
+                            afterSecondFlush.onResponse(permits);
+                        }, e -> {
+                            permits.close();
+                            afterSecondFlush.onFailure(e);
+                        }));
+                        return null;
+                    });
+                } catch (Exception e) {
+                    permits.close();
+                    afterSecondFlush.onFailure(e);
+                }
+            });
+        withPermits.addListener(handoffListener);
+    }
+
+    /**
+     * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE}
+     * of the split's target shards to be in state HANDOFF.
+     * This is best-effort. When a cluster state frees a slot it wakes every shard waiting for one, so each of them waits a random time
+     * of up to {@link #HANDOFF_THROTTLE_MAX_JITTER} before checking again.
+     * <p>
+     * Proceeds anyway after {@link #HANDOFF_SLOT_TIMEOUT}, and fails if the task is cancelled.
+     */
+    void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId targetShardId) {
+        final var threadPool = clusterService.threadPool();
+        final var waitDurationHistogram = reshardIndexService.getReshardMetrics().targetHandoffThrottleWaitDurationHistogram();
+        final long startMillis = threadPool.relativeTimeInMillis();
+        // Task cancellation, the cluster state observer and the timeout can each complete this, and only the first one counts
+        final var beginHandoff = new SubscribableListener<Void>();
+        beginHandoff.addListener(ActionListener.wrap(ignored -> {
+            waitDurationHistogram.record((threadPool.relativeTimeInMillis() - startMillis) / 1000.0);
+            listener.onResponse(null);
+        }, listener::onFailure));
+
+        task.addListener(() -> threadPool.generic().execute(() -> beginHandoff.onFailure(task.getTaskCancelledException())));
+
+        threadPool.scheduleUnlessShuttingDown(HANDOFF_SLOT_TIMEOUT, threadPool.generic(), () -> {
+            if (beginHandoff.isDone() == false) {
+                logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
+                beginHandoff.onResponse(null);
             }
         });
-        withPermits.addListener(handoffListener);
+
+        waitForSlotToOpen(task, beginHandoff, targetShardId);
+    }
+
+    /**
+     * Waits for a cluster state in which a handoff slot looks free, then waits for a random delay up to
+     * {@link #HANDOFF_THROTTLE_MAX_JITTER} before rechecking
+     */
+    private void waitForSlotToOpen(CancellableTask task, SubscribableListener<Void> beginHandoff, ShardId targetShardId) {
+        final var threadPool = clusterService.threadPool();
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                final Runnable recheck = () -> {
+                    if (beginHandoff.isDone() || task.isCancelled()) {
+                        // Timed out, or cancelled, in which case the listener is already completed
+                        return;
+                    }
+                    // Recheck slot availability and wait again if slot is taken
+                    if (handoffSlotAvailable(clusterService.state(), targetShardId.getIndex())) {
+                        beginHandoff.onResponse(null);
+                    } else {
+                        waitForSlotToOpen(task, beginHandoff, targetShardId);
+                    }
+                };
+                final long maxJitterMillis = handoffThrottleMaxJitterMillis;
+                if (maxJitterMillis == 0) {
+                    threadPool.generic().execute(recheck);
+                } else {
+                    threadPool.scheduleUnlessShuttingDown(
+                        TimeValue.timeValueMillis(Randomness.get().nextLong(maxJitterMillis + 1)),
+                        threadPool.generic(),
+                        recheck
+                    );
+                }
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                // there is no timeout, the timer in awaitHandoffSlot bounds the wait
+                assert false;
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                beginHandoff.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+        }, state -> handoffSlotAvailable(state, targetShardId.getIndex()), null, logger);
+    }
+
+    private boolean handoffSlotAvailable(ClusterState state, Index index) {
+        var indexMetadataOpt = state.metadata().findIndex(index);
+        if (indexMetadataOpt.isEmpty()) {
+            return true;
+        }
+        var reshardingMetadata = indexMetadataOpt.get().getReshardingMetadata();
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            return true;
+        }
+        var split = reshardingMetadata.getSplit();
+        long totalTargetShards = split.targetStates().count();
+        long preHandoffCount = shardsPreparingForHandoff.stream().filter(shardId -> shardId.getIndex().equals(index)).count();
+        long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
+        long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
+        return preHandoffCount + handoffCount < maxConcurrentHandoffs;
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {
@@ -463,9 +591,9 @@ public class SplitSourceService {
             if (stateMachine == null) {
                 /// `stateMachine` is `null` in two cases:
                 /// 1. Source shard is STARTED and hasn't recovered since the beginning of the split.
-                ///    This is the first time a target shard contacts the source shard.
+                /// This is the first time a target shard contacts the source shard.
                 /// 2. Source shard did some work previously but now is closed and [#cancelSplits(IndexShard)] removed
-                ///    the entry already.
+                /// the entry already.
                 /// We should specifically handle the latter case to not create a state machine for an already closed shard.
                 /// To do that we perform the state check below.
                 /// If this function runs first and observes `CLOSED`, `cancelSplits` may or may not have been called.

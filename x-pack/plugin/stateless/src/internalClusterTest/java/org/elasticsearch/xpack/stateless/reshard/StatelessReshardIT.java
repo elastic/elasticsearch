@@ -100,6 +100,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -205,6 +206,7 @@ import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.po
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -4086,6 +4088,95 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertThat(stats.getMin(), greaterThanOrEqualTo(0L));
             assertThat(stats.getMax(), lessThanOrEqualTo(TimeValue.THIRTY_SECONDS.millis())); // timeout
         }
+
+        var throttleWaits = telemetryPlugin.getDoubleHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_HANDOFF_THROTTLE_WAIT_DURATION);
+        assertEquals(numShards, throttleWaits.size());
+        assertThat(throttleWaits.stream().mapToDouble(Measurement::getDouble).min().orElseThrow(), greaterThanOrEqualTo(0.0));
+    }
+
+    public void testHandoffIsThrottled() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(2, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(10, 100));
+        final Index index = resolveIndex(indexName);
+
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        var sourceShards = List.of(new ShardId(index, 0), new ShardId(index, 1));
+
+        // Ensure the first source shard has taken its slot before the second one asks for one
+        var arrivals = new AtomicInteger();
+        var secondPreHandoff = new CountDownLatch(1);
+        splitSourceService.setPreHandoffHook(() -> {
+            if (arrivals.incrementAndGet() == 2) {
+                safeAwait(secondPreHandoff, TimeValue.timeValueSeconds(30));
+            }
+        });
+
+        // Block transition of first target to SPLIT
+        var splitBlocked = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)
+                && MasterNodeRequestHelper.unwrapTermOverride(request) instanceof SplitStateRequest splitStateRequest
+                && splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                safeAwait(splitBlocked, TimeValue.timeValueSeconds(60));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Block the first handoff by taking a permit on each source shard
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        var permits = new ArrayList<Releasable>();
+        try {
+            for (var sourceShardId : sourceShards) {
+                var permitFuture = new PlainActionFuture<Releasable>();
+                findIndexShard(index, sourceShardId.id(), indexNode).acquirePrimaryOperationPermit(permitFuture, threadPool.generic());
+                permits.add(Releasables.releaseOnce(safeGet(permitFuture)));
+            }
+
+            client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+            assertBusy(() -> assertEquals(1, sourceShards.stream().filter(splitSourceService::isPreparingForHandoff).count()));
+
+            // First source shard is in pre-handoff
+            secondPreHandoff.countDown();
+            safeSleep(TimeValue.timeValueMillis(200));
+            assertEquals(1, sourceShards.stream().filter(splitSourceService::isPreparingForHandoff).count());
+            var splitBeforeHandoff = indexMetadata(internalCluster().clusterService(indexNode).state(), index).getReshardingMetadata()
+                .getSplit();
+            assertThat(splitBeforeHandoff.targetStates().toList(), everyItem(equalTo(IndexReshardingState.Split.TargetShardState.CLONE)));
+
+            // First source shard completes its handoff preparation and its target moves to HANDOFF
+            Releasables.close(permits);
+            awaitClusterState(state -> {
+                var reshardingMetadata = indexMetadata(state, index).getReshardingMetadata();
+                return reshardingMetadata != null
+                    && reshardingMetadata.getSplit()
+                        .targetStates()
+                        .anyMatch(targetState -> targetState == IndexReshardingState.Split.TargetShardState.HANDOFF);
+            });
+            safeSleep(TimeValue.timeValueMillis(200));
+            var splitAfterHandoff = indexMetadata(internalCluster().clusterService(indexNode).state(), index).getReshardingMetadata()
+                .getSplit();
+            assertThat(
+                splitAfterHandoff.targetStates().toList(),
+                containsInAnyOrder(IndexReshardingState.Split.TargetShardState.HANDOFF, IndexReshardingState.Split.TargetShardState.CLONE)
+            );
+        } finally {
+            Releasables.close(permits);
+            secondPreHandoff.countDown();
+            splitBlocked.countDown();
+        }
+
+        waitForReshardCompletion(indexName);
+
+        var waits = getTelemetryPlugin(indexNode).getDoubleHistogramMeasurement(
+            ReshardMetrics.RESHARD_TARGET_HANDOFF_THROTTLE_WAIT_DURATION
+        );
+        assertEquals(2, waits.size());
     }
 
     public void testReshardFailureMetrics() {
@@ -5247,6 +5338,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
             .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5))
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO)
             // Disable reshard-target warming wait by default; testReshardTargetSearchShardTriggersWarming starts its own nodes.
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getKey(), TimeValue.ZERO);
     }

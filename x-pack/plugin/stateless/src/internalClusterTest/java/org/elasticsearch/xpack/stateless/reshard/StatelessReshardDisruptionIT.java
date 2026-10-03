@@ -114,7 +114,9 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
     @Override
     protected Settings.Builder nodeSettings() {
         // These tests are not performing writes and do not need the grace period.
-        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // The random delay of a shard that is waiting for a handoff slot only slows these tests down.
+            .put(SplitSourceService.HANDOFF_THROTTLE_MAX_JITTER.getKey(), TimeValue.ZERO);
     }
 
     private static void checkNumberOfShardsSetting(String indexName, int expected_shards) {

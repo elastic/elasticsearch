@@ -76,15 +76,7 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
      * configuration-cache incompatibility. New entries must not be added here without
      * first filing a follow-up to fix the underlying incompatibility.
      */
-    private static final Set<String> KNOWN_CC_INCOMPATIBLE = [
-        "BuildPluginFuncTest",
-        "DraResolvePluginFuncTest",
-        "ElasticsearchDistributionPluginFuncTest",
-        "GlobalBuildInfoPluginFuncTest",
-        "InternalBwcGitPluginFuncTest",
-        "InternalDistributionBwcSetupPluginFuncTest",
-        "JdkDownloadPluginFuncTest",
-    ] as Set
+    private static final Set<String> KNOWN_CC_INCOMPATIBLE = [] as Set
 
     private static final Set<String> KNOWN_UNCOVERED = [
         // --- plugins lacking a *FuncTest ---

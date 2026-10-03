@@ -21,9 +21,8 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
 
-        def "offline mode falls back to workspace root branches.json for http(s) branches location"() {
+    def "offline mode falls back to workspace root branches.json for http(s) branches location"() {
         given:
-        disableConfigurationCache("test build script uses task actions that are not configuration-cache safe; behavior under test is offline mode fallback")
 
         propertiesFile << """
             org.elasticsearch.build.branches-file-location=https://example.invalid/branches.json
@@ -53,8 +52,9 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
         buildFile << """
             tasks.register("resolveBwcVersions") {
               def buildParamsExt = project.extensions.getByName("buildParams")
+              def bwcVersions = buildParamsExt.bwcVersions
               doLast {
-                println("UNRELEASED_COUNT=" + buildParamsExt.bwcVersions.unreleased.size())
+                println("UNRELEASED_COUNT=" + bwcVersions.unreleased.size())
               }
             }
         """.stripIndent()
@@ -74,7 +74,6 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
     def "retries branches.json download from flaky http endpoint"() {
         given:
-        disableConfigurationCache("test build script uses task actions that are not configuration-cache safe")
         writeBwcVersionSource()
         writeBuildThatResolvesBwcVersions()
 
@@ -116,7 +115,6 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
     def "exhausts retries when branches.json http endpoint keeps failing"() {
         given:
-        disableConfigurationCache("test build script uses task actions that are not configuration-cache safe")
         writeBwcVersionSource()
         writeBuildThatResolvesBwcVersions()
 
@@ -163,8 +161,9 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
 
             tasks.register("resolveBwcVersions") {
               def buildParamsExt = project.extensions.getByName("buildParams")
+              def bwcVersions = buildParamsExt.bwcVersions
               doLast {
-                println("UNRELEASED_COUNT=" + buildParamsExt.bwcVersions.unreleased.size())
+                println("UNRELEASED_COUNT=" + bwcVersions.unreleased.size())
               }
             }
         """.stripIndent()

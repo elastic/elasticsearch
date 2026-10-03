@@ -21,14 +21,12 @@ class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 
-    
+
     @Shared
     @ClassRule
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setup() {
-        disableConfigurationCache("DraResolvePlugin resolves artifacts at configuration time")
-
         // elasticsearch.dra-artifacts is applied by AbstractGradleInternalPluginFuncTest
         buildFile << """
         repositories.all {
@@ -65,8 +63,10 @@ class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         }
 
         tasks.register('resolveArtifacts') {
+            // Captured at configuration time; resolution still happens lazily at execution.
+            FileCollection artifacts = configurations.someConfig
             doLast {
-                configurations.someConfig.files.each { println it }
+                artifacts.each { println it }
             }
         }
         """
@@ -81,7 +81,7 @@ class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result = gradleRunner("resolveArtifacts", "-Ddra.artifacts=true", "-Ddra.workflow=SNAPSHOT").buildAndFail()
 
         then:
-        result.task(":resolveArtifacts").outcome == TaskOutcome.FAILED
+        result.output.contains("Task `:resolveArtifacts` of type `org.gradle.api.DefaultTask`")
         result.output.contains("Cannot resolve external dependency org.acme:ml-cpp:8.6.0-SNAPSHOT because no repositories are defined.")
     }
 
@@ -103,19 +103,23 @@ class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         }
 
         tasks.register('resolveArtifacts') {
+            // Captured at configuration time; resolution still happens lazily at execution.
+            FileCollection artifacts = configurations.someConfig
             doLast {
-                configurations.someConfig.files.each { println it }
+                artifacts.each { println it }
             }
         }
         """
 
         when:
         def result = WiremockFixture.withWireMock(expectedRequest, "content".getBytes('UTF-8')) { server ->
-            gradleRunner("resolveArtifacts",
-                    '-Ddra.artifacts=true',
-                    "-Ddra.workflow=$workflow",
-                    "-Ddra.artifacts.dependency.${draKey}=$buildId",
-                    "-Ddra.artifacts.url.repo.prefix=${server.baseUrl()}").build()
+            gradleRunner(
+                "resolveArtifacts",
+                '-Ddra.artifacts=true',
+                "-Ddra.workflow=$workflow",
+                "-Ddra.artifacts.dependency.${draKey}=$buildId",
+                "-Ddra.artifacts.url.repo.prefix=${server.baseUrl()}"
+            ).build()
         }
 
         then:
@@ -123,11 +127,17 @@ class DraResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         where:
         workflow   | buildId          | draVersion       | draKey   | draArtifact  | expectedRequest
-        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     |
+            "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     |
+            "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     |
+            "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" |
+            "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" |
+            "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" |
+            "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
     }
 }

@@ -555,6 +555,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         // returns "" immediately with no network activity.
         String bwcMode = project.getProviders().systemProperty("tests.bwc.mode").getOrElse("gradle");
         String buildId = draBuildId.get();
+        // Capture the CI flag as a plain boolean at configuration time. The doNotCacheIf specs
+        // below are serialized into the configuration cache; closing over buildParams instead would
+        // drag the whole extension (and its lazy runtimeJava toolchain provider) into the CC entry.
+        boolean isCi = buildParams.getCi();
         boolean useDra = buildId.isEmpty() == false && (isDistributionArchive || mavenModule.isEmpty() == false);
 
         if (useDra) {
@@ -570,7 +574,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 extension,
                 useNativeExpanded,
                 expectedOutputFile,
-                buildParams,
+                isCi,
                 bwcTaskProvider,
                 mavenGroup,
                 mavenModule
@@ -593,7 +597,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 } else {
                     c.getOutputs().files(expectedOutputFile);
                 }
-                c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+                c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> isCi == false);
                 c.getArgs().add("-p");
                 c.getArgs().add(projectPath);
                 c.getArgs().add(assembleTaskName);
@@ -629,7 +633,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String extension,
         boolean useNativeExpanded,
         File expectedOutputFile,
-        BuildParameterExtension buildParams,
+        boolean isCi,
         TaskProvider<Task> bwcTaskProvider,
         String mavenGroup,
         String mavenModule
@@ -702,7 +706,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 task.getDraJar().from(draConfig);
                 task.getDraBuildId().set(buildId);
                 task.getOutputJar().set(projectArtifact.distFile);
-                task.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", t -> buildParams.getCi() == false);
+                task.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", t -> isCi == false);
             });
         } else {
             // Distribution archives: use a Copy task which handles tar.gz/zip extraction
@@ -726,7 +730,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     t.into(projectArtifact.distFile.getParentFile());
                     t.getOutputs().files(projectArtifact.distFile);
                 }
-                t.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+                t.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> isCi == false);
                 t.doLast(task -> {
                     if (expectedOutputFile.exists() == false) {
                         Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());

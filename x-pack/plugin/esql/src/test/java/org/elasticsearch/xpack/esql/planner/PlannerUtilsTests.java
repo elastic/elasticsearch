@@ -7,21 +7,35 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.List;
 import java.util.Map;
@@ -258,12 +272,108 @@ public class PlannerUtilsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("expected a single topmost MergeExec"));
     }
 
+    public void testDetectSliceRoutingFromEquals() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertEquals("s1", PlannerUtils.detectSliceRouting(planWithFilter(sliceEquals("s1"))));
+    }
+
+    public void testDetectSliceRoutingFromEqualsWithLiteralOnLeft() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Expression condition = new Equals(Source.EMPTY, keyword("s1"), sliceField());
+        assertEquals("s1", PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingFromIn() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Expression condition = new In(Source.EMPTY, sliceField(), List.of(keyword("s1"), keyword("s2")));
+        assertEquals("s1,s2", PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingFromOr() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Expression condition = new Or(Source.EMPTY, sliceEquals("s1"), sliceEquals("s2"));
+        assertEquals("s1,s2", PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingUnionsAcrossConjunctions() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Expression condition = new And(Source.EMPTY, sliceEquals("s1"), sliceEquals("s2"));
+        // Over-approximating to both shards is safe: the _slice filter still discards non-matching docs.
+        assertEquals("s1,s2", PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingIgnoresNonSliceConjunctions() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Expression other = new Equals(Source.EMPTY, field("age"), new Literal(Source.EMPTY, 3, DataType.INTEGER));
+        Expression condition = new And(Source.EMPTY, sliceEquals("s1"), other);
+        assertEquals("s1", PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingSkipsOrWithNonSliceBranch() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // `_slice == "s1" OR age == 3` must not prune shards: other slices can still satisfy the age branch.
+        Expression other = new Equals(Source.EMPTY, field("age"), new Literal(Source.EMPTY, 3, DataType.INTEGER));
+        Expression condition = new Or(Source.EMPTY, sliceEquals("s1"), other);
+        assertNull(PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingSkipsNonEqualityPredicates() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // A negation cannot be reduced to a routing value.
+        Expression condition = new Not(Source.EMPTY, sliceEquals("s1"));
+        assertNull(PlannerUtils.detectSliceRouting(planWithFilter(condition)));
+    }
+
+    public void testDetectSliceRoutingSkipsSliceAll() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertNull(PlannerUtils.detectSliceRouting(planWithFilter(sliceEquals(SliceIndexing.SLICE_ALL))));
+    }
+
+    public void testDetectSliceRoutingNullWhenNoFilter() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertNull(PlannerUtils.detectSliceRouting(planWithFilter(sliceEquals("s1"), false)));
+    }
+
     private static FieldAttribute field(String name) {
         return new FieldAttribute(
             Source.EMPTY,
             name,
             new EsField(name, DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
+    }
+
+    private static FieldAttribute sliceField() {
+        return new FieldAttribute(
+            Source.EMPTY,
+            SliceIndexing.FIELD_NAME,
+            new EsField(SliceIndexing.FIELD_NAME, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+    }
+
+    private static Literal keyword(String value) {
+        return new Literal(Source.EMPTY, new BytesRef(value), DataType.KEYWORD);
+    }
+
+    private static Equals sliceEquals(String value) {
+        return new Equals(Source.EMPTY, sliceField(), keyword(value));
+    }
+
+    private static PhysicalPlan planWithFilter(Expression condition) {
+        return planWithFilter(condition, true);
+    }
+
+    /**
+     * Wraps {@code condition} in a {@link FragmentExec} containing a {@link Filter} over an {@link EsRelation}. When
+     * {@code directlyAboveRelation} is false, an intermediate {@link Filter} is inserted so the routing-carrying filter no
+     * longer sits directly on the relation, mirroring plans where a rename/eval breaks pushdown.
+     */
+    private static PhysicalPlan planWithFilter(Expression condition, boolean directlyAboveRelation) {
+        EsRelation relation = new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(sliceField()));
+        LogicalPlan child = directlyAboveRelation
+            ? relation
+            : new Filter(Source.EMPTY, relation, new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+        Filter filter = new Filter(Source.EMPTY, child, condition);
+        return new FragmentExec(Source.EMPTY, filter, null, 0);
     }
 
     private static LocalSourceExec localSource(List<Attribute> output) {

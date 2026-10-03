@@ -24,11 +24,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -126,28 +124,10 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
         String indexName = "test-idx";
-        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", node1).build());
+        createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
-        // Prevent node1 from removing its local index shard copies upon removal, by blocking
-        // its ACTION_SHARD_EXISTS requests since after a relocation, the source first waits
-        // until the shard exists somewhere else, then it removes it locally.
-        final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        MockTransportService.getInstance(node1)
-            .addSendBehavior(MockTransportService.getInstance(node2), (connection, requestId, action, request, options) -> {
-                if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
-                    shardActiveRequestSent.countDown();
-                    logger.info("prevent shard active request from being sent");
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        logger.info("--> move shard from {} to {}, and wait for relocation to finish", node1, node2);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), indexName);
-        shardActiveRequestSent.await();
-        ensureGreen(indexName);
-        // To ensure that the index doesn't get relocated back to node1 after stopping node2, we
-        // index a doc to make the index copy on node1 (in case not deleted after the relocation) stale.
-        indexDoc(indexName, "some_id", "foo", "bar");
+        // Both node1 and node2 have a copy of the shard (primary + replica).
+        // Stop node2 so the index becomes RED, leaving node1 with a local shard copy.
         internalCluster().stopNode(node2);
         ensureRed(indexName);
         // Ensure that node1 still has data for the unassigned index

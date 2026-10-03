@@ -33,6 +33,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -89,6 +90,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -98,6 +100,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
@@ -1252,6 +1255,108 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
+    /**
+     * Document-field bytes (covering {@code fields}, {@code stored_fields}, {@code docvalue_fields},
+     * and {@code script_fields}) must be charged to the request circuit breaker after all sub-phases
+     * have run, and released when the {@link FetchSearchResult} is closed.
+     * <p>
+     * The test wires a tracking breaker, runs a sub-phase that adds {@link DocumentField} values to
+     * the hit so {@link org.elasticsearch.search.SearchHitRamUsageEstimator#estimateDocumentFields}
+     * returns a positive count, and then verifies the charge → hold → release lifecycle directly.
+     */
+    public void testDocumentFieldsBytesChargedAndReleasedOnFetchSuccess() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", Field.Store.YES));
+        w.addDocument(doc);
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        LowLimitCircuitBreaker breaker = new LowLimitCircuitBreaker(Long.MAX_VALUE);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, false, breaker)) {
+            setTotalHits(searchContext, 1);
+            // The sub-phase adds 100 DocumentField values; estimateDocumentFields will return a
+            // positive count for that hit, causing fieldsChecker to accumulate and flush the bytes.
+            List<Object> tagValues = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                tagValues.add("tag-" + i);
+            }
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext ctx) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    hitContext.hit().setDocumentField(new DocumentField("tag", tagValues));
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
+            }));
+            fetchPhase.execute(searchContext, new int[] { 0 }, null);
+
+            // bytes must be held in the breaker until the fetch result is released
+            assertThat("document field bytes must be charged to the request circuit breaker", breaker.getUsed(), greaterThan(0L));
+        }
+        // closing the search context decRefs the FetchSearchResult, releasing all charged bytes
+        assertThat("document field bytes must be released when the fetch result is closed", breaker.getUsed(), equalTo(0L));
+
+        r.close();
+        dir.close();
+    }
+
+    /**
+     * When a non-null {@code memoryChecker} is supplied, document-field bytes must be forwarded
+     * to it.
+     */
+    public void testDocumentFieldsBytesForwardedToMemoryCheckerWhenNonNull() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", Field.Store.YES));
+        w.addDocument(doc);
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        List<Object> tagValues = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            tagValues.add("tag-" + i);
+        }
+
+        AtomicLong checkerTotal = new AtomicLong();
+        IntConsumer memoryChecker = bytes -> checkerTotal.addAndGet(bytes);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, false)) {
+            setTotalHits(searchContext, 1);
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext ctx) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    hitContext.hit().setDocumentField(new DocumentField("tag", tagValues));
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
+            }));
+            fetchPhase.execute(searchContext, new int[] { 0 }, null, memoryChecker);
+
+            assertThat("document-field bytes must be forwarded to the memoryChecker when non-null", checkerTotal.get(), greaterThan(0L));
+        } finally {
+            r.close();
+            dir.close();
+        }
+    }
+
     public void testStreamingFetchAccountsAndReleasesSourceBytes() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
@@ -1337,7 +1442,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {
-                    fetchContext.chargeScriptFieldsBytes(innerHitsLikeBytes);
+                    fetchContext.chargeInnerHitsBytes(innerHitsLikeBytes);
                     Source source = hitContext.source();
                     hitContext.hit().sourceRef(source.internalSourceRef());
                 }

@@ -28,14 +28,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that reindex reserves heap against the REQUEST circuit breaker for the {@link
- * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
- * CircuitBreakingException} to the client when that reservation can't fit — without sending the oversized
- * bulk request that would have pushed the node toward OOM.
+ * End-to-end check that reindex surfaces a {@link CircuitBreakingException} to the client when the
+ * REQUEST circuit breaker limit is too small to accommodate the fetched source data, without issuing
+ * any bulk request that would push the node toward OOM.
  *
- * <p>The reservation/release lifecycle of the hooks themselves is covered by unit tests in
- * {@code AsyncBulkByPaginatedSearchActionTests}; this class verifies the production wiring (CircuitBreakerService →
- * Reindexer → AsyncIndexBySearchAction) actually fires against a real breaker.
+ * <p>Since the fetch circuit breaker now charges {@code fetch[source]} bytes to the REQUEST breaker
+ * for each batch (added alongside the existing bulk-batch reservation), a low limit trips during the
+ * fetch phase rather than at bulk-batch reservation time. The reservation/release lifecycle of the
+ * bulk-batch hooks themselves is covered by unit tests in {@code AsyncBulkByPaginatedSearchActionTests};
+ * this class verifies the production wiring (CircuitBreakerService → Reindexer → AsyncIndexBySearchAction)
+ * actually fires against a real breaker.
  */
 public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
 
@@ -48,9 +50,9 @@ public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // Sized below the BulkRequest reservation the reindex will attempt (≈ 40 KiB) so the breaker
-            // trips when the action calls reserveBatchAllocation in prepareBulkRequest. Local search-side
-            // accounting for these 5 small-ish hits stays well under this limit.
+            // Sized below the fetch-source charge the reindex will accumulate for one batch (≈ 40–42 KiB
+            // for 5 docs × ~8 KiB source each) so the breaker trips during FetchPhase before the bulk
+            // batch reservation is ever reached.
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "30kb")
             .build();
     }
@@ -59,8 +61,8 @@ public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
         // Pre-create dest so we can search it after the failure even though no bulk write reaches it.
         assertAcked(indicesAdmin().prepareCreate("dest"));
 
-        // Five docs × ~8 000-byte source ⇒ BulkRequest.estimatedSizeInBytes() ≈ 5 × (8 000 + 50) ≈ 40 250
-        // bytes, which exceeds the 30 KiB breaker limit configured above.
+        // Five docs × ~8 000-byte source ⇒ FetchPhase accumulates ≈ 5 × (8 000 + metadata overhead) ≈ 42 KiB
+        // of fetch[source] charges, which exceeds the 30 KiB breaker limit configured above.
         int batchSize = 5;
         int docCount = batchSize;
         int sourceBytes = 8_000;
@@ -76,10 +78,11 @@ public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
         ExecutionException thrown = expectThrows(ExecutionException.class, () -> client().execute(ReindexAction.INSTANCE, request).get());
         Throwable circuitBreakingCause = ExceptionsHelper.unwrap(thrown, CircuitBreakingException.class);
         assertThat("expected CircuitBreakingException in cause chain, got: " + thrown, circuitBreakingCause, notNullValue());
-        // The label is set by Reindexer.AsyncIndexBySearchAction#reserveBatchAllocation and identifies the source.
-        assertThat(circuitBreakingCause.getMessage(), containsString("reindex_bulk_batch"));
+        // The fetch circuit breaker trips during FetchPhase before the bulk-batch reservation is reached;
+        // the label is set by FetchPhase's source accounting.
+        assertThat(circuitBreakingCause.getMessage(), containsString("fetch[source]"));
 
-        // No bulk request should have been issued — destination remains empty.
+        // The breaker trips before any bulk request is issued — destination remains empty.
         assertHitCount(client().prepareSearch("dest").setSize(0), 0);
     }
 }

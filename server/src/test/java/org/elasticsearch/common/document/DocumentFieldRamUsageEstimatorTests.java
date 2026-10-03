@@ -10,6 +10,7 @@
 package org.elasticsearch.common.document;
 
 import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayDeque;
@@ -178,6 +179,27 @@ public class DocumentFieldRamUsageEstimatorTests extends ESTestCase {
                 "estimate under-counts retained heap: estimate=" + estimate + " actual=" + actual + " for values=" + field.getValues(),
                 estimate,
                 greaterThanOrEqualTo(actual)
+            );
+        }
+    }
+
+    /**
+     * Verify that sizeOfLeaf returns an accurate, positive estimate for boxed primitives
+     * (Double, Float, Boolean, Short, Byte). These types have no reference fields so their
+     * shallow size equals their full retained size; the estimate should be at least that size.
+     */
+    public void testBoxedPrimitiveLeafEstimatesArePositive() {
+        List<Object> leafValues = List.of(3.14d, 3.14f, Boolean.TRUE, (short) 1, (byte) 1);
+        DocumentField emptyField = new DocumentField("f", List.of());
+        long overhead = DocumentFieldRamUsageEstimator.estimate(emptyField);
+        for (Object v : leafValues) {
+            long expected = RamUsageEstimator.shallowSizeOfInstance(v.getClass());
+            DocumentField field = new DocumentField("f", List.of(v));
+            long estimate = DocumentFieldRamUsageEstimator.estimate(field);
+            assertThat(
+                "sizeOfLeaf estimate for " + v.getClass().getSimpleName() + " should be at least shallowSizeOfInstance",
+                estimate - overhead,
+                greaterThanOrEqualTo(expected)
             );
         }
     }

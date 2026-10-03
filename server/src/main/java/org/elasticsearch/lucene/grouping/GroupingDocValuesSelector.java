@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -191,7 +190,11 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
             }
             switch (type) {
                 case SORTED -> values = ordinalValues(DocValues.getSorted(reader, field));
-                case SORTED_SET -> values = ordinalValues(singleValuedOrdinals(DocValues.getSortedSet(reader, field)));
+                case SORTED_SET -> {
+                    SortedSetDocValues sortedSet = DocValues.getSortedSet(reader, field);
+                    SortedDocValues singleton = DocValues.unwrapSingleton(sortedSet);
+                    values = singleton != null ? ordinalValues(singleton) : setOrdinalValues(sortedSet);
+                }
                 case BINARY -> {
                     if (binaryValues == null) {
                         throw new IllegalArgumentException(
@@ -263,48 +266,26 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
             };
         }
 
-        private static SortedDocValues singleValuedOrdinals(SortedSetDocValues sorted) {
-            SortedDocValues singleton = DocValues.unwrapSingleton(sorted);
-            if (singleton != null) {
-                return singleton;
-            }
-            return new AbstractSortedDocValues() {
-
-                private int ord;
+        private static GroupValues setOrdinalValues(SortedSetDocValues sorted) {
+            return new GroupValues() {
+                private long ord = -1;
 
                 @Override
-                public boolean advanceExact(int target) throws IOException {
-                    if (sorted.advanceExact(target)) {
-                        if (sorted.docValueCount() > 1) {
-                            throw new IllegalArgumentException(
-                                "failed to extract doc:" + target + ", the grouping field must be single valued"
-                            );
-                        }
-                        ord = (int) sorted.nextOrd();
-                        return true;
-                    } else {
+                public boolean advanceExact(int doc) throws IOException {
+                    if (sorted.advanceExact(doc) == false) {
+                        ord = -1;
                         return false;
                     }
+                    if (sorted.docValueCount() > 1) {
+                        throw new IllegalArgumentException("failed to extract doc:" + doc + ", the grouping field must be single valued");
+                    }
+                    ord = sorted.nextOrd();
+                    return true;
                 }
 
                 @Override
-                public int docID() {
-                    return sorted.docID();
-                }
-
-                @Override
-                public int ordValue() {
-                    return ord;
-                }
-
-                @Override
-                public BytesRef lookupOrd(int ord) throws IOException {
-                    return sorted.lookupOrd(ord);
-                }
-
-                @Override
-                public int getValueCount() {
-                    return (int) sorted.getValueCount();
+                public BytesRef currentValue() throws IOException {
+                    return ord == -1 ? null : sorted.lookupOrd(ord);
                 }
             };
         }

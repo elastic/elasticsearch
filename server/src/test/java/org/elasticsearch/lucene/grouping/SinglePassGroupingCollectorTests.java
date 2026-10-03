@@ -17,6 +17,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
@@ -57,6 +58,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
@@ -651,6 +654,66 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
     public void testCollapseAbsentFieldNeverAsksForABinaryDecoder() throws Exception {
         assertNoBinaryDecoderRequested(null);
+    }
+
+    public void testCollapseNonSingletonSortedSetRejectsMultiValuedDocuments() throws Exception {
+        try (Directory dir = newDirectory()) {
+            writeNonSingletonSortedSet(dir);
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertNull(DocValues.unwrapSingleton(DocValues.getSortedSet(reader.leaves().get(0).reader(), "group")));
+                final IndexSearcher searcher = newSearcher(reader);
+                final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searcher.search(Queries.ALL_DOCS_INSTANCE, sortedSetCollector())
+                );
+                assertThat(e.getMessage(), containsString("the grouping field must be single valued"));
+            }
+        }
+    }
+
+    public void testCollapseNonSingletonSortedSetGroupsSingleValuedDocuments() throws Exception {
+        try (Directory dir = newDirectory()) {
+            writeNonSingletonSortedSet(dir);
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newSearcher(reader);
+                final SinglePassGroupingCollector<?> collector = sortedSetCollector();
+                searcher.search(SortedNumericDocValuesField.newSlowRangeQuery("sort", 0, 1), collector);
+                final TopFieldGroups groups = collector.getTopGroups(0);
+                assertEquals(2, groups.groupValues.length);
+                assertEquals(new BytesRef("host-a"), groups.groupValues[0]);
+                assertEquals(new BytesRef("host-b"), groups.groupValues[1]);
+            }
+        }
+    }
+
+    private static void writeNonSingletonSortedSet(Directory dir) throws IOException {
+        try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            doc.add(new SortedSetDocValuesField("group", new BytesRef("host-a")));
+            doc.add(new SortedNumericDocValuesField("sort", 0));
+            w.addDocument(doc);
+            doc = new Document();
+            doc.add(new SortedSetDocValuesField("group", new BytesRef("host-b")));
+            doc.add(new SortedNumericDocValuesField("sort", 1));
+            w.addDocument(doc);
+            doc = new Document();
+            doc.add(new SortedSetDocValuesField("group", new BytesRef("host-a")));
+            doc.add(new SortedSetDocValuesField("group", new BytesRef("host-b")));
+            doc.add(new SortedNumericDocValuesField("sort", 2));
+            w.addDocument(doc);
+            w.forceMerge(1);
+        }
+    }
+
+    private static SinglePassGroupingCollector<?> sortedSetCollector() {
+        return SinglePassGroupingCollector.createKeyword(
+            "group",
+            new MockFieldMapper.FakeFieldType("group"),
+            null,
+            new Sort(new SortedNumericSortField("sort", SortField.Type.LONG)),
+            10,
+            null
+        );
     }
 
     private void assertNoBinaryDecoderRequested(Function<BytesRef, Field> groupField) throws Exception {

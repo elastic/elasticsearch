@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Allocation tracking for {@code def}-typed lambdas and method references (PR 8.5). When the functional-interface target is
@@ -189,6 +190,34 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "-1b"
         ).execute();
         assertEquals(0, result);
+    }
+
+    public void testDefReceiverReferenceToScriptAwareMethodCompletesUnderTracking() {
+        assertEquals(true, compile("def s = 'abc'; return Optional.of('b').map(s::contains).get();", "1mb").execute());
+        assertEquals(true, compile("def s = 'abc'; def o = Optional.of('b'); return o.map(s::contains).get();", "1mb").execute());
+        assertEquals(1, compile("def m = ['abc':'b']; m.replaceAll(String::indexOf); return m['abc'];", "1mb").execute());
+    }
+
+    public void testScriptAwareAndChargedReferenceCharged() {
+        // replace is @script_aware and @allocates: the one pushed script serves the charge and the delegate.
+        String setup = "def m = ['b':'X']; ";
+        long base = allocatedBytes(setup + "return 'x';");
+        long typed = allocatedBytes("String s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];");
+        long dynamic = allocatedBytes("def s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];");
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.replaceBytes(null, "abc", "b", "X");
+
+        assertEquals(expected, typed - base);
+        assertEquals(expected, dynamic - base);
+        assertEquals("aXc", compile("def s = 'abc'; " + setup + "m.replaceAll(s::replace); return m['b'];", "1mb").execute());
+    }
+
+    public void testDefReceiverReferenceToTargetWithInjectedConstantCharged() {
+        String functions = "String[] split(Function f) { f.apply('a,b,c') } ";
+        long base = allocatedBytes(functions + "def p = /,/; return 'x';");
+        long withSplit = allocatedBytes(functions + "def p = /,/; split(p::split); return 'x';");
+        long expected = AllocSizes.captureSize(2) + AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b,c");
+
+        assertEquals(expected, withSplit - base);
     }
 
     public void testNestedDefReceiverBoundReferenceInLambdaBodyTrips() {

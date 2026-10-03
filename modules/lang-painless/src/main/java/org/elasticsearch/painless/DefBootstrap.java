@@ -182,6 +182,8 @@ public final class DefBootstrap {
                     (String) args[0],
                     receiver,
                     nameValue,
+                    // the script, when pushed, follows the receiver
+                    type().parameterCount() == 2,
                     // optional trailing int charge flag; absent for ordinary references
                     args.length > 1 && ((int) args[1]) != 0
                 );

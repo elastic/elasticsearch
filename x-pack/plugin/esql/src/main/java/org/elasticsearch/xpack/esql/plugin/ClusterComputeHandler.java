@@ -79,6 +79,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
+        boolean accumulateShardStats,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -126,7 +127,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
                 try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
-                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
+                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get(), accumulateShardStats);
                     return completionInfo;
                 }))) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
@@ -157,16 +158,28 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
     }
 
-    private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
+    private void updateExecutionInfo(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        ComputeResponse resp,
+        boolean accumulateShardStats
+    ) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
             // Update shard counts from the main plan, or from an IN-subquery subplan for remote-only clusters.
             // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
+            // Merge branches (FORK / UNION ALL / FROM subquery) share one execInfo and must add, not replace,
+            // so failIfAllShardsFailed at the root merge sees every branch's targets.
             if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
-                builder.setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards());
+                ComputeService.applyShardCounts(
+                    builder,
+                    v,
+                    resp.getTotalShards(),
+                    resp.getSuccessfulShards(),
+                    resp.getSkippedShards(),
+                    resp.getFailedShards(),
+                    accumulateShardStats
+                );
             }
             if (v.getTook() != null && resp.getTook() != null) {
                 // This can happen when we had some subplan executions before the main plan - we need to accumulate the took time

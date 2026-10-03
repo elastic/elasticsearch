@@ -28,6 +28,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
@@ -302,6 +303,18 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             case 3 -> new Tuple<>(null, Boolean.FALSE);
             default -> throw new AssertionError("should not get here");
         };
+    }
+
+    /**
+     * Asserts local-cluster shard accounting. Callers that need these counts should set {@code include_execution_metadata} on the request
+     * so the local cluster is present.
+     */
+    protected static void assertLocalShardCounts(EsqlQueryResponse resp, int total, int successful, int failed) {
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+        assertNotNull(local);
+        assertThat("total shards", local.getTotalShards(), equalTo(total));
+        assertThat("successful shards", local.getSuccessfulShards(), equalTo(successful));
+        assertThat("failed shards", local.getFailedShards(), equalTo(failed));
     }
 
     public static void assertOk(EsqlQueryResponse response) {

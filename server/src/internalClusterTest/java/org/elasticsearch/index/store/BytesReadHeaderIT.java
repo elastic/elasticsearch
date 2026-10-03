@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -148,6 +149,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         }
         indexRandom(true, false, true, false, builders);
         flushAndRefresh(indexName);
+        // pin to a single segment so a background merge can't swap the reader between the two searches
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
 
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
             .size(0)
@@ -158,6 +161,14 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         assertThat(initialBytesRead, greaterThan(0L));
 
         long cachedBytesRead = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
+        RequestCacheStats requestCacheStats = indicesAdmin().prepareStats(indexName)
+            .setRequestCache(true)
+            .get()
+            .getTotal()
+            .getRequestCache();
+        // the cachedBytesRead search must be the hit, and the initialBytesRead search must be the miss
+        assertEquals(1L, requestCacheStats.getHitCount());
+        assertEquals(1L, requestCacheStats.getMissCount());
         assertThat(cachedBytesRead, equalTo(0L));
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.blobcache.common;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.core.Nullable;
@@ -30,7 +31,9 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     private static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0).order(ByteOrder.LITTLE_ENDIAN);
 
-    public static final int BUFFER_SIZE = 1024;
+    /** Default buffer size. */
+    // Temporarily restrict the 4K default to snapshot builds to enable a gradual rollout to non-snapshot builds
+    public static final int BUFFER_SIZE = Build.current().isSnapshot() ? 4096 : 1024;
 
     /** Minimum buffer size allowed */
     public static final int MIN_BUFFER_SIZE = 8;

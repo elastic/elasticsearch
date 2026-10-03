@@ -124,7 +124,6 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     public void testParseValidateQueryRequestWithSliceParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final RestRequest request = createRestRequest("{\"query\":{\"match_all\":{}}}", Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
 
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), client);
@@ -137,7 +136,6 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     public void testParseValidateQueryRequestWithSliceAllParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final RestRequest request = createRestRequest(
             "{\"query\":{\"match_all\":{}}}",
             Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL)
@@ -153,7 +151,6 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     public void testParseValidateQueryRequestRejectsRoutingAndSliceTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final RestRequest request = createRestRequest(
             "{\"query\":{\"match_all\":{}}}",
             Map.of("routing", "manual", SliceIndexing.PARAM_NAME, "s1")
@@ -161,14 +158,6 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
         assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
-    }
-
-    public void testParseValidateQueryRequestRejectsSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        final RestRequest request = createRestRequest("{\"query\":{\"match_all\":{}}}", Map.of(SliceIndexing.PARAM_NAME, "s1"));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
-        assertEquals("request does not support [slice]", e.getMessage());
     }
 
     public void testRestValidateQueryAction_emptyQuery() throws Exception {

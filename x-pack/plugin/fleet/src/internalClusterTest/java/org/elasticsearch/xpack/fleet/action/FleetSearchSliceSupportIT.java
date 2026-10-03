@@ -35,7 +35,6 @@ public class FleetSearchSliceSupportIT extends ESIntegTestCase {
     }
 
     public void testFleetSearchSupportsSliceParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/fleet-slice-support-it");
         create.setJsonEntity("""
             {

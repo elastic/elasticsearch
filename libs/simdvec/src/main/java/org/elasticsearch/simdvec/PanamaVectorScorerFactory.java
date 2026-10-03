@@ -25,10 +25,10 @@ import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScor
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ES960AshBBQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentESNextAshVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES960AshVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaBBQDotProduct;
@@ -96,30 +96,30 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
-    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+    public AshScorer<float[]> newES960AshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return MemorySegmentESNextAshVectorsScorer.createFloat(unwrappedInput, nDims, bitsPerDim);
+                return MemorySegmentES960AshVectorsScorer.createFloat(unwrappedInput, nDims, bitsPerDim);
             }
         }
-        return ESNextAshVectorsScorer.createFloat(input, nDims, bitsPerDim);
+        return ES960AshVectorsScorer.createFloat(input, nDims, bitsPerDim);
     }
 
     @Override
-    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+    public AshScorer<byte[]> newES960AshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return new ESNextAshBBQVectorsScorer(
+                return new ES960AshBBQVectorsScorer(
                     PanamaBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
                 );
             }
         }
-        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim)));
+        return new ES960AshBBQVectorsScorer(BBQDotProduct.create(input, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim)));
     }
 
     @Override

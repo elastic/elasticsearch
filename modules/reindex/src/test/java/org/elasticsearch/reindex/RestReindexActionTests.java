@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexFeatures;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -32,7 +31,6 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -48,7 +46,7 @@ public class RestReindexActionTests extends RestActionTestCase {
     public void setUpAction() {
         action = new RestReindexAction(
             nf -> (nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled)
-                || (nf.equals(IndexFeatures.SLICE_INDEXING) && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()),
+                || nf.equals(IndexFeatures.SLICE_INDEXING),
             CrossProjectModeDecider.NOOP
         );
         controller().registerHandler(action);
@@ -74,7 +72,6 @@ public class RestReindexActionTests extends RestActionTestCase {
     }
 
     public void testDestSliceParsedWhenFeatureFlagEnabled() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexRequest request = action.buildRequest(buildRequestWithBody("""
             {
               "source": {
@@ -88,24 +85,6 @@ public class RestReindexActionTests extends RestActionTestCase {
             """));
         assertEquals("s1", request.getDestination().routing());
         assertTrue(request.getDestination().isRoutingFromSlice());
-    }
-
-    public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(buildRequestWithBody("""
-            {
-              "source": {
-                "index": "source"
-              },
-              "dest": {
-                "index": "dest",
-                "slice": "s1"
-              }
-            }
-            """)));
-        assertThat(e.getMessage(), containsString("failed to parse field"));
-        assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
-        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
     }
 
     public void testFilterSource() throws IOException {

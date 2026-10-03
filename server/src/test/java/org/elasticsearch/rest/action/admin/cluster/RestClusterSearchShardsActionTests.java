@@ -37,7 +37,6 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchShardsRequestWithSliceParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             ClusterSearchShardsRequest clusterRequest = (ClusterSearchShardsRequest) request;
             assertEquals("s1,s2", clusterRequest.routing());
@@ -54,7 +53,6 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchShardsRequestWithSliceAllParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             ClusterSearchShardsRequest clusterRequest = (ClusterSearchShardsRequest) request;
             assertNull(clusterRequest.routing());
@@ -71,23 +69,12 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchShardsRequestRejectsRoutingAndSliceTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_search_shards")
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
         assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
-    }
-
-    public void testParseSearchShardsRequestRejectsSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
-            .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertEquals("request does not support [slice]", e.getMessage());
     }
 
     private static ClusterSearchShardsResponse emptyResponse() {

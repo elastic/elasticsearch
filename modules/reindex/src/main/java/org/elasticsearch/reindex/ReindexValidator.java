@@ -91,9 +91,7 @@ public class ReindexValidator {
 
         final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            validateDestinationSliceRouting(request, projectMetadata);
-        }
+        validateDestinationSliceRouting(request, projectMetadata);
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);

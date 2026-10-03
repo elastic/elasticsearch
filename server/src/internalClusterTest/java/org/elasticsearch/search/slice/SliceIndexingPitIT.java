@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class SliceIndexingPitIT extends ESIntegTestCase {
 
     public void testPitSearchOnSliceEnabledIndex() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         String index = "slice-pit-source";
         assertAcked(
@@ -82,7 +81,6 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
     }
 
     public void testOpenPitWithSliceScopesShards() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         String index = "slice-pit-open";
         assertAcked(
@@ -126,7 +124,6 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
      * that contains the slice routing, leaving documents on other shards inaccessible.
      */
     public void testOpenPitWithSliceOnlyAffectsMatchingShard() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         String index = "slice-pit-single-shard";
         assertAcked(

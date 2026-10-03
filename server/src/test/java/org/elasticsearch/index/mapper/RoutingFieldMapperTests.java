@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -224,7 +223,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSliceEnabledWritesRoutingOnNestedDocuments() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         Settings settings = Settings.builder()
             .put(getIndexSettings())
@@ -254,7 +252,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSliceEnabledIncludeInParentDoesNotDuplicateRootRouting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         Settings settings = Settings.builder()
             .put(getIndexSettings())

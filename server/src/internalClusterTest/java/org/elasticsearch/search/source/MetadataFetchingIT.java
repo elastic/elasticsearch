@@ -198,7 +198,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
     }
 
     public void testFetchSliceField() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.slice.enabled", true)));
         ensureGreen();

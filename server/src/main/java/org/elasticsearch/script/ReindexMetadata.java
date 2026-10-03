@@ -31,21 +31,7 @@ import java.util.Set;
  */
 public class ReindexMetadata extends Metadata {
     private static final String SLICE = SliceIndexing.FIELD_NAME;
-    private static final Map<String, FieldProperty<?>> PROPERTIES_WITHOUT_SLICE = Map.of(
-        INDEX,
-        ObjectField.withWritable(),
-        ID,
-        ObjectField.withWritable().withNullable(),
-        VERSION,
-        LongField.withWritable().withNullable(),
-        ROUTING,
-        StringField.withWritable().withNullable(),
-        OP,
-        StringField.withWritable().withValidation(stringSetValidator(Set.of("noop", "index", "delete"))),
-        NOW,
-        LongField
-    );
-    private static final Map<String, FieldProperty<?>> PROPERTIES_WITH_SLICE = Map.of(
+    static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
         ObjectField.withWritable(),
         ID,
@@ -61,10 +47,6 @@ public class ReindexMetadata extends Metadata {
         NOW,
         LongField
     );
-
-    static final Map<String, FieldProperty<?>> PROPERTIES = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
-        ? PROPERTIES_WITH_SLICE
-        : PROPERTIES_WITHOUT_SLICE;
 
     protected final String index;
     protected final String id;
@@ -89,9 +71,7 @@ public class ReindexMetadata extends Metadata {
         metadata.put(ID, id);
         metadata.put(VERSION, version);
         metadata.put(ROUTING, routing);
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            metadata.put(SLICE, routing);
-        }
+        metadata.put(SLICE, routing);
         metadata.put(OP, op);
         metadata.put(NOW, timestamp);
         return metadata;
@@ -99,7 +79,7 @@ public class ReindexMetadata extends Metadata {
 
     @Override
     public Object put(String key, Object value) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
+        if ((ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.put(ROUTING, value);
             super.put(SLICE, value);
             routingFromSlice = SLICE.equals(key);
@@ -110,7 +90,7 @@ public class ReindexMetadata extends Metadata {
 
     @Override
     public Object remove(String key) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
+        if ((ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.remove(ROUTING);
             super.remove(SLICE);
             routingFromSlice = false;
@@ -121,7 +101,7 @@ public class ReindexMetadata extends Metadata {
 
     @Override
     public Object get(String key) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && SLICE.equals(key)) {
+        if (SLICE.equals(key)) {
             return super.get(ROUTING);
         }
         return super.get(key);

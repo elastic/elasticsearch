@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -41,7 +40,6 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testSliceParamMappedToRouting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String sliceValue = randomAlphaOfLengthBetween(1, 8);
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetRequest.class));
@@ -58,7 +56,6 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testSliceAndRoutingParamsAreMutuallyExclusive() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest getRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_doc/1")
             .withParams(Map.of("index", "test", "id", "1", "slice", "s1", "routing", "r1"))
@@ -70,21 +67,7 @@ public class RestGetActionTests extends RestActionTestCase {
         assertThat(e.getMessage(), containsString("[routing] is not allowed together with [slice]"));
     }
 
-    public void testSliceParamRejectedWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest getRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/test/_doc/1")
-            .withParams(Map.of("index", "test", "id", "1", "slice", "s1"))
-            .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> action.prepareRequest(getRequest, mock(NodeClient.class))
-        );
-        assertThat(e.getMessage(), containsString("request does not support [slice]"));
-    }
-
     public void testSliceParamRejectedWhenInvalid() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest getRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_doc/1")
             .withParams(Map.of("index", "test", "id", "1", "slice", "_all"))
@@ -97,7 +80,6 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testSliceParamRejectedWhenCommaDelimited() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest getRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_doc/1")
             .withParams(Map.of("index", "test", "id", "1", "slice", "s1,s2"))

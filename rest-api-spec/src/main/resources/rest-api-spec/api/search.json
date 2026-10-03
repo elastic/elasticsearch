@@ -140,9 +140,7 @@
       },
       "slice": {
         "type": "string",
-        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the search to that slice, or `_all` to search across all slices",
-        "visibility": "feature_flag",
-        "feature_flag": "es.slice_indexing_feature_flag_enabled"
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the search to that slice, or `_all` to search across all slices"
       },
       "scroll": {
         "type": "time",

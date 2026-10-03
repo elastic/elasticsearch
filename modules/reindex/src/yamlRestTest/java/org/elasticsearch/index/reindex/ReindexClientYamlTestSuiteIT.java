@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -34,7 +33,6 @@ public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("lang-painless")
         .module("parent-join")
         .module("rest-root")
-        .feature(FeatureFlag.SLICE_INDEXING)
         .setting("reindex.remote.whitelist", "127.0.0.1:*,[::1]:*")
         .build();
 

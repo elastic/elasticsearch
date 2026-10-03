@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -68,7 +67,6 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
     }
 
     public void testTermVectorsRetrievesBySliceAndRequiresIt() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-tv-it", true);
         // Same id in distinct slices: with two shards the slice (routing) decides the shard, so the lookup must route by _slice.
         seedDoc("slice-tv-it", "1", "s1");
@@ -101,7 +99,6 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
     }
 
     public void testMtermvectorsRetrievesBySliceAndRequiresIt() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-mtv-it", true);
         seedDoc("slice-mtv-it", "1", "s1");
         seedDoc("slice-mtv-it", "2", "s2");
@@ -133,7 +130,6 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
     }
 
     public void testMtermvectorsTopLevelSliceDefaultAppliesToIds() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-mtv-default-it", true);
         seedDoc("slice-mtv-default-it", "1", "s1");
 
@@ -150,7 +146,6 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
     }
 
     public void testTermVectorsSliceValidationErrors() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-tv-invalid-it", true);
 
         // routing together with _slice on the same item is rejected while parsing the request body.
@@ -178,7 +173,6 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
     }
 
     public void testTermVectorsSliceRejectedWhenSettingDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-tv-disabled-it", false);
         seedDoc("slice-tv-disabled-it", "1", null);
 
@@ -201,14 +195,6 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
             objectPath.evaluate("docs.0.error.reason"),
             containsString("[slice] is not allowed when [index.slice.enabled] is false")
         );
-    }
-
-    public void testTermVectorsSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request single = new Request("GET", "/test_index/_termvectors/1");
-        single.addParameter("slice", "s1");
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(single));
-        assertThat(bodyOf(exception), containsString("request does not support [slice]"));
     }
 
     private static String bodyOf(ResponseException e) throws Exception {

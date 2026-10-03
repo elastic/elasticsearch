@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -62,7 +61,6 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
     }
 
     public void testMgetRetrievesBySliceAndRequiresIt() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-mget-it", true);
         // Distinct ids in distinct slices: with two shards, the slice (routing) decides the shard, so a correct mget must
         // route each item by its _slice to find the doc.
@@ -96,7 +94,6 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
     }
 
     public void testMgetTopLevelSliceDefaultAppliesToIds() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-mget-default-it", true);
         seedDoc("slice-mget-default-it", "1", "s1");
 
@@ -113,7 +110,6 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
     }
 
     public void testMgetSliceValidationErrors() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-mget-invalid-it", true);
 
         // routing together with _slice on the same item is rejected while parsing the request body.
@@ -145,7 +141,6 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
     }
 
     public void testMgetSliceRejectedWhenSettingDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createSliceIndex("slice-mget-disabled-it", false);
         seedDoc("slice-mget-disabled-it", "1", null);
 
@@ -161,20 +156,6 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
             objectPath.evaluate("docs.0.error.reason"),
             containsString("[slice] is not allowed when [index.slice.enabled] is false")
         );
-    }
-
-    public void testMgetSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request mget = new Request("POST", "/_mget");
-        mget.addParameter("slice", "s1");
-        mget.setJsonEntity("""
-            {
-              "docs": [
-                { "_index": "test_index", "_id": "1" }
-              ]
-            }""");
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(mget));
-        assertThat(bodyOf(exception), containsString("request does not support [slice]"));
     }
 
     private static String bodyOf(ResponseException e) throws Exception {

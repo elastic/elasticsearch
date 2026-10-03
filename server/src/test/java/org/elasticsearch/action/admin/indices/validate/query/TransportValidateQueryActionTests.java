@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -40,7 +39,6 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
     }
 
     public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         ValidateQueryResponse response = safeAwait(
@@ -50,7 +48,6 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
     }
 
     public void testRoutingRejectedWhenSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         ValidateQueryRequest request = new ValidateQueryRequest("slice-enabled").routing("manual");
@@ -63,7 +60,6 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
     }
 
     public void testSliceRejectedWhenSliceDisabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-disabled");
 
         ValidateQueryRequest request = new ValidateQueryRequest("slice-disabled").searchSlice("s1");
@@ -76,7 +72,6 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
     }
 
     public void testSliceAcceptedWhenSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         ValidateQueryRequest request = new ValidateQueryRequest("slice-enabled").searchSlice("s1");

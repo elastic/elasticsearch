@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -3875,7 +3874,7 @@ public class EsqlCapabilities {
          * Enables {@code FROM index METADATA _slice}, {@code KEEP _slice}, and pushable
          * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
          */
-        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
+        METADATA_SLICE,
 
         /**
          * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind

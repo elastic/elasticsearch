@@ -48,7 +48,7 @@ public class ValidateQueryRequestTests extends ESTestCase {
         if (randomBoolean()) {
             request.routing(randomAlphaOfLengthBetween(3, 10));
         }
-        if (randomBoolean() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+        if (randomBoolean()) {
             String searchSlice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(3, 10);
             request.searchSlice(searchSlice);
         }
@@ -78,7 +78,6 @@ public class ValidateQueryRequestTests extends ESTestCase {
     }
 
     public void testSearchSliceDerivesRoutingAndProvenance() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ValidateQueryRequest request = new ValidateQueryRequest();
         request.routing("manual");
         request.searchSlice("s1,s2");

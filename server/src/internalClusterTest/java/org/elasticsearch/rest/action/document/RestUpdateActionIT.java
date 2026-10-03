@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -56,7 +55,6 @@ public class RestUpdateActionIT extends ESIntegTestCase {
     }
 
     public void testUpdateSliceValidationAndRequirement() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-update-it");
         create.setJsonEntity("""
             {
@@ -132,7 +130,6 @@ public class RestUpdateActionIT extends ESIntegTestCase {
     }
 
     public void testUpdateSliceRejectedWhenSettingDisabled() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-update-disabled");
         create.setJsonEntity("""
             {
@@ -160,20 +157,5 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(response, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
-    }
-
-    public void testUpdateSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request request = new Request("POST", "/test_index/_update/1");
-        request.addParameter("slice", "s1");
-        request.setJsonEntity("""
-            {
-              "doc": {
-                "field": "updated"
-              }
-            }""");
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("request does not support [slice]"));
     }
 }

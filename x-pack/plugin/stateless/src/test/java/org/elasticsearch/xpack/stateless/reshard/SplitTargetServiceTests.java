@@ -110,6 +110,66 @@ public class SplitTargetServiceTests extends ESTestCase {
         assertThrows(IllegalStateException.class, () -> sts.acceptHandoff(indexShard, request5, ActionListener.noop()));
     }
 
+    /// Reproduces the race between beforeIndexShardClosed (which calls cancelSplits) and startSplitTargetShardRecovery
+    /// (which puts a new state machine into the map). When beforeIndexShardClosed fires first, cancelSplits is a no-op
+    /// because the map is still empty. The state machine is then added but would never be cleaned up unless
+    /// afterIndexShardClosed also calls cancelSplits.
+    public void testCancelSplitsAfterIndexShardClosedCleansUpStateMachineAddedAfterFirstCancel() {
+        var threadPool = mock(ThreadPool.class);
+        var clusterService = mock(ClusterService.class);
+        var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+        var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
+
+        var split = dummySplit();
+        var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(split.shardId());
+
+        // Simulate beforeIndexShardClosed firing before startSplitTargetShardRecovery adds the state machine.
+        sts.cancelSplits(indexShard); // no-op: map is empty
+
+        // Simulate startSplitTargetShardRecovery running in the race window.
+        sts.initializeSplitInCloneState(indexShard, split);
+
+        assertFalse("state machine should be present before afterIndexShardClosed cleanup", sts.getShardsWithOngoingSplits().isEmpty());
+
+        // Simulate afterIndexShardClosed — the fix.
+        sts.cancelSplits(indexShard);
+
+        assertTrue(
+            "state machine should be cleaned up by the afterIndexShardClosed cancelSplits call",
+            sts.getShardsWithOngoingSplits().isEmpty()
+        );
+    }
+
+    /// Tests the normal (non-race) path where the state machine is already in the map when beforeIndexShardClosed fires.
+    /// The first cancelSplits removes it and calls cancel(); the second call (from afterIndexShardClosed) finds an empty
+    /// map and must not call cancel() again — which would trip the isFirstCancellation assertion in StateMachine.cancel().
+    public void testCancelSplitsIsIdempotentWhenStateMachineAlreadyPresent() {
+        var threadPool = mock(ThreadPool.class);
+        var clusterService = mock(ClusterService.class);
+        var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
+        var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
+
+        var split = dummySplit();
+        var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(split.shardId());
+
+        // Simulate beforeIndexShardClosed firing with the state machine already in the map (no race).
+        sts.initializeSplitInCloneState(indexShard, split);
+        assertFalse(sts.getShardsWithOngoingSplits().isEmpty());
+
+        // First cancelSplits (from beforeIndexShardClosed): removes and calls cancel().
+        sts.cancelSplits(indexShard);
+        assertTrue(sts.getShardsWithOngoingSplits().isEmpty());
+
+        // Second cancelSplits (from afterIndexShardClosed): map is empty, remove returns null, cancel() is not called again.
+        // Must not throw an AssertionError from the isFirstCancellation check inside StateMachine.cancel().
+        sts.cancelSplits(indexShard);
+        assertTrue(sts.getShardsWithOngoingSplits().isEmpty());
+    }
+
     /// Closing a shard cancels its split. Nothing else answers the refreshes waiting on it, so the state machine's `cancel()` must
     /// fail them.
     public void testWaitingRefreshesAreAnsweredWhenSplitIsCancelled() {

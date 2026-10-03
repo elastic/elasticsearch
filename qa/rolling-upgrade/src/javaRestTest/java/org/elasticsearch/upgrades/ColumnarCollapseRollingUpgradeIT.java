@@ -13,22 +13,26 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * A strict-columnar keyword field writes its doc values as a binary blob whose framing the mapping settles when the
- * index is created. Every phase here adds documents, so the segments collapse finally reads were written by a mix of
- * node versions. Only the fully upgraded cluster asserts the collapse, since nodes still on the old version reject it.
+ * index is created. Every phase adds documents, so the final collapse reads documents written during each of them. Only
+ * the fully upgraded cluster asserts, since nodes still on the old version reject collapse.
  */
 public class ColumnarCollapseRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static final String INDEX = "test-columnar-collapse";
+    private static final String OLD_TIMESTAMP = "2024-01-01T00:00:00Z";
+    private static final String OLD_DATE = "2024-01-01T00:00:00";
 
     public ColumnarCollapseRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -62,7 +66,7 @@ public class ColumnarCollapseRollingUpgradeIT extends AbstractRollingUpgradeTest
             return;
         }
 
-        indexHosts();
+        indexHosts(phase());
 
         if (isUpgradedCluster()) {
             Request search = new Request("POST", "/" + INDEX + "/_search");
@@ -75,23 +79,45 @@ public class ColumnarCollapseRollingUpgradeIT extends AbstractRollingUpgradeTest
             Map<String, Object> response = entityAsMap(client().performRequest(search));
 
             List<?> hits = ObjectPath.evaluate(response, "hits.hits");
-            assertThat(hits, Matchers.hasSize(2));
-            assertThat(ObjectPath.<String>evaluate(hits.get(0), "fields.host\\.name.0"), Matchers.equalTo("host-a"));
-            assertThat(ObjectPath.<String>evaluate(hits.get(1), "fields.host\\.name.0"), Matchers.equalTo("host-b"));
+            List<String> groups = new ArrayList<>();
+            for (Object hit : hits) {
+                groups.add(ObjectPath.evaluate(hit, "fields.host\\.name.0"));
+            }
+            assertThat(groups, Matchers.containsInAnyOrder("shared", "old", "mixed-first", "mixed-rest", "upgraded"));
+            assertThat(ObjectPath.<Integer>evaluate(response, "hits.total.value"), Matchers.equalTo(8));
+            int shared = groups.indexOf("shared");
+            assertThat(ObjectPath.<String>evaluate(hits.get(shared), "_source.@timestamp"), Matchers.startsWith(OLD_DATE));
         }
     }
 
-    private void indexHosts() throws IOException {
+    private static String phase() {
+        if (isOldCluster()) {
+            return "old";
+        }
+        if (isUpgradedCluster()) {
+            return "upgraded";
+        }
+        return isFirstMixedCluster() ? "mixed-first" : "mixed-rest";
+    }
+
+    /**
+     * The shared key's winning document is the one the old cluster wrote, which carries the earliest timestamp.
+     */
+    private void indexHosts(String phase) throws IOException {
         Request bulk = new Request("POST", "/" + INDEX + "/_bulk");
         bulk.addParameter("refresh", "true");
-        StringBuilder body = new StringBuilder();
-        for (int i = 0; i < randomIntBetween(2, 5); i++) {
-            body.append("{\"index\": {}}\n");
-            body.append("{\"@timestamp\": \"2024-01-01T00:00:0").append(i % 10).append("Z\", \"host.name\": \"host-a\"}\n");
-            body.append("{\"index\": {}}\n");
-            body.append("{\"@timestamp\": \"2024-01-02T00:00:0").append(i % 10).append("Z\", \"host.name\": \"host-b\"}\n");
-        }
-        bulk.setJsonEntity(body.toString());
+        String sharedTimestamp = switch (phase) {
+            case "old" -> OLD_TIMESTAMP;
+            case "mixed-first" -> "2024-01-02T00:00:00Z";
+            case "mixed-rest" -> "2024-01-03T00:00:00Z";
+            default -> "2024-01-04T00:00:00Z";
+        };
+        bulk.setJsonEntity(Strings.format("""
+            {"index": {}}
+            {"@timestamp": "%s", "host.name": "shared"}
+            {"index": {}}
+            {"@timestamp": "%s", "host.name": "%s"}
+            """, sharedTimestamp, sharedTimestamp, phase));
         Response response = client().performRequest(bulk);
         assertOK(response);
         assertThat(entityAsMap(response).get("errors"), Matchers.is(false));

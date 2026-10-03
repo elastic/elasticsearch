@@ -875,7 +875,8 @@ public class LocalExecutionPlanner {
             deferredColumnNames,
             deferredColumnTypes,
             capable::sourceExtractorsFor,
-            capable.datasetLabel()
+            capable.datasetLabel(),
+            operatorFactoryRegistry.fileReadExecutor()
         );
         return source.with(factory, newLayout);
     }

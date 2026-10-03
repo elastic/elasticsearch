@@ -196,6 +196,18 @@ public class PreAnalyzerTests extends ESTestCase {
         assertRequiresAllDimensionFields("FROM k8s | STATS count(*) BY cluster", false);
     }
 
+    /** Only a HIGHLIGHT that analyzes with the mapping analyzers reads which indices use which one. */
+    public void testNeedsAnalyzerGroupsOnlyForHighlightWithoutAnalyzer() {
+        assertNeedsAnalyzerGroups("FROM books | HIGHLIGHT \"ring\" ON title", true);
+        assertNeedsAnalyzerGroups("FROM books | WHERE MATCH(title, \"ring\") | HIGHLIGHT", true);
+        assertNeedsAnalyzerGroups("FROM books | HIGHLIGHT \"ring\" ON title WITH {\"analyzer\": \"keyword\"}", false);
+        assertNeedsAnalyzerGroups("FROM books | WHERE MATCH(title, \"ring\")", false);
+    }
+
+    private static void assertNeedsAnalyzerGroups(String query, boolean expected) {
+        assertThat(new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(query)).needsAnalyzerGroups(), equalTo(expected));
+    }
+
     private static void assertRequiresAllDimensionFields(String query, boolean expected) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(query));
         assertThat(preAnalysis.requiresAllDimensionFields(), equalTo(expected));

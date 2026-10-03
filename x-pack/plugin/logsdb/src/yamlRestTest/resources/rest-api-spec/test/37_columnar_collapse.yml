@@ -130,9 +130,11 @@ teardown:
           - { "index": { } }
           - { "@timestamp": "2024-01-01T00:00:00Z", "host.name": "host-a" }
           - { "index": { } }
-          - { "@timestamp": "2024-01-02T00:00:00Z", "host.name": "host-b" }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "host.name": [ null, "host-a" ] }
           - { "index": { } }
-          - { "@timestamp": "2024-01-03T00:00:00Z", "host.name": "host-a" }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "host.name": [ "host-a", null ] }
+          - { "index": { } }
+          - { "@timestamp": "2024-01-04T00:00:00Z", "host.name": "host-b" }
 
   - do:
       search:
@@ -144,7 +146,7 @@ teardown:
             - "@timestamp": asc
           size: 10
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total.value: 4 }
   - length: { hits.hits: 2 }
   - match: { hits.hits.0.fields.host\.name.0: "host-a" }
   - match: { hits.hits.1.fields.host\.name.0: "host-b" }

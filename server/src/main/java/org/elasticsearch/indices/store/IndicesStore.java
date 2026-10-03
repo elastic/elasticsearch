@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -60,8 +62,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -91,6 +95,9 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
     // Cache successful shard deletion checks to prevent unnecessary file system lookups
     private final Set<ShardId> folderNotFoundCache = new HashSet<>();
+    // Both collections are confined to the cluster applier thread, including accesses from cleanup completion callbacks.
+    private final Map<Index, String> cleanedRestoreHistories = new HashMap<>();
+    private final Set<Index> restoreCleanupsInProgress = new HashSet<>();
 
     private final TimeValue deleteShardTimeout;
 
@@ -142,6 +149,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             return;
         }
 
+        cleanRemovedShardStores(event.state());
         for (var routingTableEntry : event.state().globalRoutingTable().routingTables().entrySet()) {
             RoutingTable routingTable = routingTableEntry.getValue();
             ProjectId projectId = routingTableEntry.getKey();
@@ -334,6 +342,52 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
             deleteShardStoreOnApplierThread(shardId, clusterStateVersion, IndexRemovalReason.NO_LONGER_ASSIGNED);
         }
+    }
+
+    private void cleanRemovedShardStores(ClusterState state) {
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+        cleanedRestoreHistories.keySet().removeIf(index -> state.metadata().lookupProject(index).isEmpty());
+        for (var project : state.metadata().projects().values()) {
+            for (IndexMetadata metadata : project) {
+                final String history = metadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
+                if (history == null
+                    || history.equals(cleanedRestoreHistories.get(metadata.getIndex()))
+                    || restoreCleanupsInProgress.add(metadata.getIndex()) == false) {
+                    continue;
+                }
+                indicesClusterStateService.onClusterStateShardsClosed(
+                    () -> indicesService.deleteShardsOutsideIndexRange(
+                        metadata,
+                        ActionListener.wrap(
+                            ignored -> restoreCleanupCompleted(metadata.getIndex(), history, null),
+                            e -> restoreCleanupCompleted(metadata.getIndex(), history, e)
+                        )
+                    )
+                );
+            }
+        }
+    }
+
+    private void restoreCleanupCompleted(Index index, String history, Exception failure) {
+        clusterService.getClusterApplierService()
+            .runOnApplierThread("complete removed shard cleanup [" + index + "]", Priority.NORMAL, state -> {
+                assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                restoreCleanupsInProgress.remove(index);
+                if (failure == null) {
+                    cleanedRestoreHistories.put(index, history);
+                } else {
+                    // Retry on the next routing update, or after a restart if a store is still locked.
+                    logger.debug(() -> format("failed to clean stores of shards removed from %s", index), failure);
+                }
+                // A second restore may have arrived while this cleanup was in flight. Its routing update could not schedule
+                // another scan, so arrange that scan now instead of waiting for an unrelated state update.
+                final var current = state.metadata().lookupProject(index).map(project -> project.index(index)).orElse(null);
+                if (state.blocks().disableStatePersistence() == false
+                    && current != null
+                    && history.equals(current.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID)) == false) {
+                    cleanRemovedShardStores(state);
+                }
+            }, ActionListener.noop());
     }
 
     private void deleteShardStoreOnApplierThread(ShardId shardId, long clusterStateVersion, IndexRemovalReason indexRemovalReason) {

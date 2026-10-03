@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ShardLimitValidator.LimitGroup;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -267,6 +268,43 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + ReferenceDocs.MAX_SHARDS_PER_NODE
                 + ";",
             exception.getMessage()
+        );
+    }
+
+    public void testRestoreShardLimitUsesNetIncreaseAndAllDestinations() {
+        final var validator = createTestShardLimitService(5);
+        final var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("data")).build();
+        final var projectId = randomProjectIdOrDefault();
+        final var current = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 3, 0)).build();
+        final var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(current, false)).build();
+        final var replacement = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 5, 0)).build();
+        validator.validateShardLimitOnRestore(nodes, metadata, projectId, List.of(replacement));
+        final var other = IndexMetadata.builder("other").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        // The single node can only handle 5 shards. It already has 3, and now we're trying to add 3 more (net 2 more from the replacement,
+        // 1 from other).
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateShardLimitOnRestore(nodes, metadata, projectId, List.of(replacement, other))
+        );
+        final var smaller = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        validator.validateShardLimitOnRestore(nodes, metadata, projectId, List.of(smaller, other));
+    }
+
+    public void testRestoreClosedIndexCountsAllRestoredShards() {
+        final var validator = createTestShardLimitService(5);
+        final var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("data")).build();
+        final var projectId = randomProjectIdOrDefault();
+        final var current = IndexMetadata.builder("target")
+            .settings(indexSettings(IndexVersion.current(), 3, 0))
+            .state(IndexMetadata.State.CLOSE)
+            .build();
+        final var other = IndexMetadata.builder("other").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(current, false).put(other, false)).build();
+        final var replacement = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 4, 0)).build();
+        // The single node can only handle 5 shards. It already has 2, and now we're trying to add 4 more.
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateShardLimitOnRestore(nodes, metadata, projectId, List.of(replacement))
         );
     }
 

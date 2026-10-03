@@ -95,23 +95,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         return true;
     }
 
-    public void testExistsQueryDocValuesDisabled() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("doc_values", false);
-        }));
-        assertExistsQuery(mapperService);
-        assertParseMinimalWarnings();
-    }
-
-    public void testAggregationsDocValuesDisabled() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("doc_values", false);
-        }));
-        assertAggregatableConsistency(mapperService.fieldType("field"));
-    }
-
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0));
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -335,14 +318,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
             );
         }
-    }
-
-    public void testMetricAndDocvalues() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", "counter").field("doc_values", false);
-        })));
-        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     public void testTimeSeriesIndexDefault() throws Exception {

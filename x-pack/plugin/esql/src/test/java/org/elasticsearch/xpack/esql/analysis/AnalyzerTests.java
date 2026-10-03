@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -103,6 +106,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -110,6 +114,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -181,6 +186,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBED
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.highlightFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.notReportedFallbackWarning;
@@ -7115,6 +7121,248 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(((TextEsField) title.field()).analyzerName(), equalTo("english"));
         assertNull(highlight.options());
         assertWarnings(englishFallbackWarning("title"));
+    }
+
+    /**
+     * When the indices disagree on an ON field's analyzer, HIGHLIGHT gets a synthetic alias of each row's {@code _index}
+     * through the projections below it, and emits no fallback warning. The alias stays out of the final output, and a
+     * renamed user {@code _index} appears only under its new name.
+     */
+    public void testHighlightPerIndexAnalyzerThreadsIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | WHERE MATCH(title, "ring")
+            | KEEP title, book_no
+            | SORT book_no
+            | HIGHLIGHT
+            """);
+        Highlight highlight = soleHighlight(plan);
+        ReferenceAttribute key = as(highlight.indexKey(), ReferenceAttribute.class);
+        assertThat(key.name(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        assertTrue(key.synthetic());
+        assertThat(highlight.child().outputSet(), hasItem(key));
+        assertThat(highlight.references(), hasItem(key));
+        assertThat(fieldNames(plan.output()), equalTo(List.of("title", "book_no", "highlight_title")));
+        // The KEEP below HIGHLIGHT projects the key. The alias is in an EVAL right above the relation, over a synthetic _index.
+        Project keep = highlight.child().collect(Project.class).getFirst();
+        assertThat(List.<NamedExpression>copyOf(keep.projections()), hasItem(key));
+        Eval alias = highlight.child().collect(Eval.class).getFirst();
+        MetadataAttribute index = as(as(alias.fields().getFirst(), Alias.class).child(), MetadataAttribute.class);
+        assertThat(index.name(), equalTo(MetadataAttribute.INDEX));
+        assertTrue(index.synthetic());
+        assertThat(as(alias.child(), EsRelation.class).output(), hasItem(index));
+
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books* METADATA _index
+            | RENAME _index AS idx
+            | HIGHLIGHT "ring" ON title
+            """);
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.output()), equalTo(List.of("book_no", "title", "idx", "highlight_title")));
+
+        // A second HIGHLIGHT reuses the first one's key.
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | HIGHLIGHT "ring" ON title
+            | KEEP title, highlight_title
+            | HIGHLIGHT prefix = "again_" "ring" ON title
+            """);
+        List<Highlight> highlights = plan.collect(Highlight.class);
+        assertThat(highlights, hasSize(2));
+        assertNotNull(highlights.getFirst().indexKey());
+        assertThat(highlights.getLast().indexKey(), equalTo(highlights.getFirst().indexKey()));
+        assertThat(fieldNames(plan.output()), equalTo(List.of("title", "highlight_title", "again_title")));
+        // HIGHLIGHT uses each row's own index analyzer, so it emits no warning.
+        assertWarnings();
+    }
+
+    /**
+     * HIGHLIGHT gets no index key when rows have no single source index, when WITH sets the analyzer, or when an older
+     * node is in the cluster.
+     */
+    public void testHighlightPerIndexAnalyzerFallsBackWithoutIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM books* | STATS c = COUNT(*) BY title | HIGHLIGHT \"ring\" ON title",
+            "ROW title = \"ring\" | HIGHLIGHT \"ring\" ON title"
+        )) {
+            assertNull(soleHighlight(booksWithConflictingTitleAnalyzer().query(query)).indexKey());
+        }
+        assertNull(
+            soleHighlight(
+                booksWithConflictingTitleAnalyzer().minimumTransportVersion(
+                    TransportVersionUtils.getPreviousVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                ).query("FROM books* | HIGHLIGHT \"ring\" ON title")
+            ).indexKey()
+        );
+        // Response headers keep one copy of a repeated warning.
+        assertWarnings(analyzerConflictFallbackWarning("title"));
+
+        assertNull(
+            soleHighlight(
+                booksWithConflictingTitleAnalyzer().query("FROM books* | HIGHLIGHT \"ring\" ON title WITH {\"analyzer\": \"keyword\"}")
+            ).indexKey()
+        );
+        assertWarnings();
+    }
+
+    /**
+     * HIGHLIGHT after DEDUP keeps the fallback, because DEDUP would group by the key. INLINE STATS keeps every row, so the
+     * key goes below it.
+     */
+    public void testHighlightPerIndexAnalyzerThroughDedupAndInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("FROM books* | KEEP title | DEDUP | HIGHLIGHT \"ring\" ON title");
+        assertNull(soleHighlight(plan).indexKey());
+        assertWarnings(analyzerConflictFallbackWarning("title"));
+
+        plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | INLINE STATS c = COUNT(*) BY book_no | HIGHLIGHT \"ring\" ON title"
+        );
+        Attribute key = soleHighlight(plan).indexKey();
+        assertNotNull(key);
+        InlineStats inlineStats = plan.collect(InlineStats.class).getFirst();
+        assertThat(inlineStats.aggregate().child().outputSet(), hasItem(key));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /** The key and the added {@code _index} must not become DEDUP grouping columns, or pass through DEDUP to a later HIGHLIGHT. */
+    public void testHighlightIndexKeyDoesNotAffectFollowingDedup() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        for (String metadata : List.of("", " METADATA _index")) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+                "FROM books*" + metadata + " | HIGHLIGHT \"ring\" ON title | DEDUP | HIGHLIGHT prefix = \"again_\" \"ring\" ON title"
+            );
+            Dedup dedup = plan.collect(Dedup.class).getFirst();
+            assertThat(fieldNames(dedup.child().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+            assertEquals(metadata.isEmpty() == false, fieldNames(dedup.child().output()).contains(MetadataAttribute.INDEX));
+            List<Highlight> highlights = plan.collect(Highlight.class);
+            assertNull(highlights.getFirst().indexKey());
+            assertNotNull(highlights.getLast().indexKey());
+            assertWarnings(analyzerConflictFallbackWarning("title"));
+        }
+    }
+
+    /** A join's rows come from its left side, and a lone FROM subquery is its inner plan, so both carry the key. */
+    public void testHighlightPerIndexAnalyzerThroughLookupJoinAndSubquery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLanguagesLookup().query("""
+            FROM books*
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | HIGHLIGHT "ring" ON title
+            """);
+        Attribute key = soleHighlight(plan).indexKey();
+        assertNotNull(key);
+        LookupJoin join = plan.collect(LookupJoin.class).getFirst();
+        assertThat(join.left().outputSet(), hasItem(key));
+        assertThat(join.right().outputSet(), not(hasItem(key)));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("FROM (FROM books* | WHERE MATCH(title, \"ring\")) | HIGHLIGHT \"ring\" ON title");
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * A LOOKUP JOIN field's analyzer groups name lookup indices, but the key only holds the indices the rows are read from.
+     * HIGHLIGHT gets no key and warns that the indices disagree, on its own and next to a field the key could route.
+     */
+    public void testHighlightPerIndexAnalyzerSkipsLookupJoinField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String on : List.of("review", "title, review")) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
+                .query("FROM books* | LOOKUP JOIN reviews_lookup ON book_no | HIGHLIGHT \"ring\" ON " + on);
+            assertNull(on, soleHighlight(plan).indexKey());
+            if (on.contains("title")) {
+                assertWarnings(analyzerConflictFallbackWarning("title"), analyzerConflictFallbackWarning("review"));
+            } else {
+                assertWarnings(analyzerConflictFallbackWarning("review"));
+            }
+        }
+    }
+
+    /** A HIGHLIGHT inside a FORK branch gets the key, and the branch's alignment projection keeps it out of FORK's output. */
+    public void testHighlightPerIndexAnalyzerInsideForkBranch() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | FORK (HIGHLIGHT \"ring\" ON title) (WHERE book_no == \"2\")"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    private static String analyzerConflictFallbackWarning(String field) {
+        return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
+    }
+
+    /**
+     * {@code books} analyzes {@code title} with {@code whitespace}, and {@code books_english} with {@code stop}. The minimum
+     * transport version is {@link TextEsField#TEXT_FIELD_ANALYZER}, the oldest that can read HIGHLIGHT's index key.
+     */
+    private TestAnalyzer booksWithConflictingTitleAnalyzer() {
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+            )
+        );
+        EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
+        EsIndex index = new EsIndex(
+            "books*",
+            Map.of("title", title, "book_no", bookNo),
+            Map.of("books", new IndexProperties(IndexMode.STANDARD, 1), "books_english", new IndexProperties(IndexMode.STANDARD, 1)),
+            Map.of(),
+            Map.of()
+        );
+        return analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+    }
+
+    /** {@code reviews_lookup}, whose {@code review} field two remote clusters analyze differently, as CCS can resolve it. */
+    private static IndexResolution reviewsLookup() {
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField review = new TextEsField(
+            "review",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("remote_a:reviews_lookup")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("remote_b:reviews_lookup"))
+            )
+        );
+        EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
+        return IndexResolution.valid(
+            new EsIndex(
+                "reviews_lookup",
+                Map.of("book_no", bookNo, "review", review),
+                Map.of("reviews_lookup", new IndexProperties(IndexMode.LOOKUP, 1)),
+                Map.of(),
+                Map.of()
+            )
+        );
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {

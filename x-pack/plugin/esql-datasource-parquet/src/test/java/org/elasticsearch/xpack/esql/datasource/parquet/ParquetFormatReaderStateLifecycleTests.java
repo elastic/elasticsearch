@@ -49,6 +49,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "parsedFooters",
         "footerBytes",
         "maxFooterReadBytes",
+        "schemaMaxFields",
         "ioWatermark",
         "blockFactory",
         "pushedFilter",

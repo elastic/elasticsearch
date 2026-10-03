@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -52,6 +53,80 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     @Before
     public void setUpBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    /**
+     * A declared schema names the columns it reads, so a file wider than the schema-inference cap is still readable:
+     * the cap bounds what inference materialises, not what a declaration selects. The file spans several chunks, so
+     * chunk 0 binds from its own header and every later chunk from the width and names the coordinator captured through
+     * {@code metadata()}, which is the path that would otherwise run inference over the whole header.
+     */
+    public void testDeclaredSchemaOverFileWiderThanTheCapReadsAcrossChunks() throws Exception {
+        int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS + 201;
+        StringBuilder csv = new StringBuilder();
+        for (int c = 0; c < columns; c++) {
+            csv.append(c == 0 ? "c" : ",c").append(c);
+        }
+        csv.append('\n');
+        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        int rows = 0;
+        while (csv.length() < chunkSize * 2) {
+            String value = Integer.toString(rows);
+            for (int c = 0; c < columns; c++) {
+                csv.append(c == 0 ? "" : ",").append(value);
+            }
+            csv.append('\n');
+            rows++;
+        }
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "c1100", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "c5", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        long sum = 0;
+        try (
+            CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                (SegmentableFormatReader) reader,
+                new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of("c1100", "c5"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                declared,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock wide = (LongBlock) page.getBlock(0);
+                    LongBlock narrow = (LongBlock) page.getBlock(1);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        assertEquals("both declared columns hold the row number", wide.getLong(i), narrow.getLong(i));
+                        sum += wide.getLong(i) + narrow.getLong(i);
+                    }
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(rows, seenRows);
+        assertEquals((long) (rows - 1) * rows, sum);
     }
 
     public void testDeclaredHeaderedCsvReadsAcrossChunkBoundaries() throws Exception {

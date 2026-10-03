@@ -107,6 +107,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -126,6 +127,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -242,6 +244,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -1759,13 +1762,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return;
         }
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        // labels of the cluster state requests which have not yet completed, so that a timeout can report which ones are stuck
+        final Set<String> outstanding = ConcurrentCollections.newConcurrentSet();
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
         final var masterName = internalCluster().getMasterName();
-        for (Client client : cluster().getClients()) {
-            localStates.add(SubscribableListener.newForked(l -> prepareClusterStateRequest(client).execute(l)));
+        final var masterLabel = masterName + " (master)";
+        for (String nodeName : internalCluster().getNodeNames()) {
+            localStates.add(SubscribableListener.newForked(l -> sendClusterStateRequest(nodeName, nodeName, outstanding, l)));
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
-            SubscribableListener.<ClusterStateResponse>newForked(l -> prepareClusterStateRequest(client(masterName)).execute(l))
+            SubscribableListener.<ClusterStateResponse>newForked(l -> sendClusterStateRequest(masterName, masterLabel, outstanding, l))
                 .andThenAccept(masterStateResponse -> {
                     byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
                     // remove local node reference
@@ -1820,7 +1826,110 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 })
                 .addListener(refCountingListener.acquire());
         }
-        safeGet(future);
+        try {
+            safeGet(future);
+        } catch (AssertionError e) {
+            if (e.getCause() instanceof TimeoutException timeoutException) {
+                throw clusterStateConsistencyTimeoutError(masterName, outstanding, timeoutException);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Sends a cluster state request via the given node, recording {@code label} in {@code outstanding} until it completes.
+     */
+    private void sendClusterStateRequest(
+        String nodeName,
+        String label,
+        Set<String> outstanding,
+        ActionListener<ClusterStateResponse> listener
+    ) {
+        outstanding.add(label);
+        prepareClusterStateRequest(client(nodeName)).execute(ActionListener.runBefore(listener, () -> outstanding.remove(label)));
+    }
+
+    /**
+     * Builds the failure for a cluster state consistency check that timed out, and logs diagnostics to help identify the cause: on its own
+     * a {@link TimeoutException} says nothing about which node's cluster state request is stuck or why.
+     */
+    private AssertionError clusterStateConsistencyTimeoutError(
+        String masterName,
+        Set<String> outstanding,
+        TimeoutException timeoutException
+    ) {
+        final var outstandingSorted = new TreeSet<>(outstanding);
+        final var nodeStates = new StringBuilder();
+        for (String nodeName : internalCluster().getNodeNames()) {
+            nodeStates.append("\n  [").append(nodeName).append("]: ");
+            try {
+                final ClusterState state = internalCluster().clusterService(nodeName).state();
+                final DiscoveryNode stateMaster = state.nodes().getMasterNode();
+                nodeStates.append("master [")
+                    .append(stateMaster == null ? null : stateMaster.getName())
+                    .append("], term [")
+                    .append(state.term())
+                    .append("], version [")
+                    .append(state.version())
+                    .append("]");
+            } catch (Exception e) {
+                nodeStates.append("unavailable: ").append(e);
+            }
+        }
+
+        final var message = Strings.format(
+            "timed out after [%s] waiting for cluster state consistency check, initial master [%s], "
+                + "outstanding cluster state responses from %s, last applied cluster state per node:%s",
+            SAFE_AWAIT_TIMEOUT,
+            masterName,
+            outstandingSorted,
+            nodeStates
+        );
+
+        // Collect pending tasks from every node rather than just from master. These timeouts are often caused by a master failover,
+        // after which the original master may no longer be the currently elected master (or may have been stopped), and the tasks that
+        // explain the delay are queued on whichever node took over. Queues on nodes other than the elected master are normally empty,
+        // so only non-empty ones are listed.
+        final var pendingTasks = new StringBuilder();
+        for (String nodeName : internalCluster().getNodeNames()) {
+            try {
+                final var tasks = internalCluster().clusterService(nodeName).getMasterService().pendingTasks();
+                if (tasks.isEmpty()) {
+                    continue;
+                }
+                pendingTasks.append("[").append(nodeName).append("] tasks: (").append(tasks.size()).append("):\n");
+                for (PendingClusterTask task : tasks) {
+                    pendingTasks.append(task.getInsertOrder())
+                        .append("/")
+                        .append(task.getPriority())
+                        .append("/")
+                        .append(task.getSource())
+                        .append("/")
+                        .append(task.getTimeInQueue())
+                        .append(task.executing() ? "[executing]" : "")
+                        .append("\n");
+                }
+            } catch (Exception e) {
+                logger.error("exception capturing pending tasks on [{}]", nodeName, e);
+                pendingTasks.append("[").append(nodeName).append("] exception capturing pending tasks: ").append(e).append("\n");
+            }
+        }
+        if (pendingTasks.isEmpty()) {
+            pendingTasks.append("none on any node\n");
+        }
+
+        String hotThreads;
+        try (var writer = new StringWriter()) {
+            // Captures all internal nodes
+            new HotThreads().busiestThreads(9999).ignoreIdleThreads(false).detect(writer);
+            hotThreads = writer.toString();
+        } catch (Exception e) {
+            logger.error("exception capturing hot threads", e);
+            hotThreads = "exception capturing hot threads: " + e;
+        }
+
+        logger.warn("{}\npending tasks:\n{}\nhot threads:\n{}\n", message, pendingTasks, hotThreads);
+        return new AssertionError(message, timeoutException);
     }
 
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {

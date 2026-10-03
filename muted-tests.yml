@@ -654,9 +654,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testCancelOnExpiry
   issue: https://github.com/elastic/elasticsearch/issues/160823
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationContinuesAfterMasterFailover
-  issue: https://github.com/elastic/elasticsearch/issues/160824
 - class: org.elasticsearch.columnar.string.StringMatchTests
   method: testWindowedCollectionOnAMultiValuedDictionary
   issue: https://github.com/elastic/elasticsearch/issues/160837

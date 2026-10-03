@@ -17,6 +17,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -74,6 +75,20 @@ public interface RepositoryPlugin {
      */
     default BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
         return null;
+    }
+
+    /**
+     * Returns the listener this plugin installs on restore initialization and completion, or {@link RestoreLifecycleListener#NOOP} to
+     * install none. At most one plugin may install a listener.
+     * <p>
+     * This is pulled from the plugin rather than handed to it because {@link org.elasticsearch.snapshots.RestoreService} is constructed
+     * after {@link Plugin#createComponents}, so a plugin cannot be given the service to register with. A plugin whose listener needs
+     * components of its own should build the listener in {@code createComponents} and return it here.
+     * <p>
+     * The returned listener runs inside master-service cluster-state updates and so must not block or perform I/O.
+     */
+    default RestoreLifecycleListener getRestoreLifecycleListener() {
+        return RestoreLifecycleListener.NOOP;
     }
 
 }

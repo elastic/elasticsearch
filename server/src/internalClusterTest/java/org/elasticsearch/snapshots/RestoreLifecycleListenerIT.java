@@ -14,11 +14,18 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.snapshots.RestoreService.RestoreCompletionResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,6 +43,58 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
     private static final String REPO = "test-repo";
     private static final String SNAP = "test-snap";
     private static final String IDX = "test-idx";
+
+    /**
+     * Whether {@link ListenerProvidingPlugin} contributes a listener.
+     * <p>
+     * Off by default so that the tests which register a listener directly on {@link RestoreService} still can: core installs a
+     * plugin-provided listener at startup, and {@link RestoreService#setLifecycleListener} refuses to replace one.
+     */
+    private static final AtomicBoolean PLUGIN_PROVIDES_LISTENER = new AtomicBoolean(false);
+
+    /** Counts the callbacks the plugin-provided listener received, so a test can tell whether core installed it. */
+    private static final AtomicInteger PLUGIN_LISTENER_INIT_COUNT = new AtomicInteger(0);
+    private static final AtomicInteger PLUGIN_LISTENER_COMPLETED_COUNT = new AtomicInteger(0);
+
+    @Before
+    public void resetPluginListenerState() {
+        PLUGIN_PROVIDES_LISTENER.set(false);
+        PLUGIN_LISTENER_INIT_COUNT.set(0);
+        PLUGIN_LISTENER_COMPLETED_COUNT.set(0);
+    }
+
+    /**
+     * A plugin that contributes a {@link RestoreLifecycleListener} through {@link RepositoryPlugin}, which is how a plugin installs one:
+     * {@link RestoreService} is built after {@code createComponents}, so it cannot be handed to the plugin to register with directly.
+     */
+    public static class ListenerProvidingPlugin extends Plugin implements RepositoryPlugin {
+        @Override
+        public RestoreLifecycleListener getRestoreLifecycleListener() {
+            if (PLUGIN_PROVIDES_LISTENER.get() == false) {
+                return RestoreLifecycleListener.NOOP;
+            }
+            return new RestoreLifecycleListener() {
+                @Override
+                public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                    PLUGIN_LISTENER_INIT_COUNT.incrementAndGet();
+                    return state;
+                }
+
+                @Override
+                public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+                    PLUGIN_LISTENER_COMPLETED_COUNT.incrementAndGet();
+                    return state;
+                }
+            };
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ListenerProvidingPlugin.class);
+        return plugins;
+    }
 
     /**
      * Verifies that {@code onRestoreInitialized} fires exactly once when the cluster-state update
@@ -147,5 +206,30 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
                 RestoreInProgress.get(internalCluster().getInstance(ClusterService.class, masterName).state()).isEmpty()
             )
         );
+    }
+
+    /**
+     * Verifies the plugin-provided path end to end: a plugin returns a listener from
+     * {@link RepositoryPlugin#getRestoreLifecycleListener()}, and core installs it on {@link RestoreService} without the plugin ever
+     * touching the service. Without this, a plugin has no way to observe restores at all — the service does not exist yet when
+     * {@code createComponents} runs.
+     */
+    public void testListenerProvidedByAPluginIsInstalled() throws Exception {
+        PLUGIN_PROVIDES_LISTENER.set(true);
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepository(REPO, "mock");
+        createIndex(IDX, 1, 0);
+        indexRandomDocs(IDX, between(1, 50));
+        ensureGreen(IDX);
+        createFullSnapshot(REPO, SNAP);
+        cluster().wipeIndices(IDX);
+
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAP).setIndices(IDX).setWaitForCompletion(true).get();
+
+        assertThat("the plugin's listener should have seen the restore start", PLUGIN_LISTENER_INIT_COUNT.get(), equalTo(1));
+        assertThat("the plugin's listener should have seen the restore finish", PLUGIN_LISTENER_COMPLETED_COUNT.get(), equalTo(1));
     }
 }

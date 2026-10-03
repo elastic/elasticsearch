@@ -2456,7 +2456,7 @@ public class LocalExecutionPlanner {
      * today means a runtime full-text search.
      */
     private static boolean scoresWithoutShards(Expression condition) {
-        return condition.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
+        return FullTextFunction.containsRuntimeScorer(condition);
     }
 
     private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {

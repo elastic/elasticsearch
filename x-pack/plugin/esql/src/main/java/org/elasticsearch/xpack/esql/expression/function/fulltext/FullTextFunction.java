@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -281,6 +283,34 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextFunctionsInFilter(Filter filter, Failures failures, boolean checkFullTextFunctionsAboveSubqueries) {
         Expression condition = filter.condition();
         checkFullTextQueryFunctionForCondition(filter, failures, condition, false, checkFullTextFunctionsAboveSubqueries);
+    }
+
+    /**
+     * A {@code _score} predicate can only be evaluated after a runtime scorer in the same filter when the two are separate
+     * conjuncts (see {@code PushDownAndCombineFilters}); anywhere else it would see the score from before the search ran.
+     * Only run after optimization: a search on an alias or RENAME of an indexed field looks like a runtime search when
+     * analyzed, but push-down turns it back into one that scores at the source.
+     */
+    private static void checkScoreOutsideConjunctionWithRuntimeScorer(Expression condition, Failures failures) {
+        for (Expression conjunct : Predicates.splitAnd(condition)) {
+            if (conjunct.anyMatch(MetadataAttribute::isScoreAttribute) == false) {
+                continue;
+            }
+            conjunct.forEachDown(FullTextFunction.class, ftf -> {
+                if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
+                    failures.add(
+                        fail(
+                            conjunct,
+                            "[{}] can't be used with runtime search [{}] inside OR or NOT, as it would see the score from before "
+                                + "the search; filter on [{}] with a top-level AND or a separate WHERE instead",
+                            MetadataAttribute.SCORE,
+                            ftf.functionName(),
+                            MetadataAttribute.SCORE
+                        )
+                    );
+                }
+            });
+        }
     }
 
     private static void checkFullTextQueryFunctionForCondition(
@@ -705,6 +735,15 @@ public abstract class FullTextFunction extends Function
         return isRuntimeSearch() == false;
     }
 
+    /**
+     * Whether {@code condition} contains a runtime search that adds to {@code _score}. Unlike a pushed-down search,
+     * which scores at the source, it scores only after the filter holding it has run, so a {@code _score} predicate
+     * must neither share that filter nor move below it.
+     */
+    public static boolean containsRuntimeScorer(Expression condition) {
+        return condition.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
+    }
+
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
         return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
@@ -780,6 +819,7 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
+                checkScoreOutsideConjunctionWithRuntimeScorer(f.condition(), failures);
                 // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
                 // (not just as a direct child), the push-down optimizer could not move the filter to the data
                 // nodes. An index-backed search requires a Lucene shard context that the coordinator does not have;

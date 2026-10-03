@@ -150,3 +150,83 @@ book_no:keyword | _score:double
 2675            | 2.0
 2714            | 3.0
 ;
+
+matchOnExternalRuntimeTextThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnExternalRuntimeTextAfterScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+// in pipe order the _score filter runs before the match, so it sees the 0.0 baseline and keeps every match
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE _score < 0.5
+| WHERE match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+16     | 1.0              | 2.0
+;
+
+matchOrMatchPhraseOnExternalRuntimeTextThenScoreFilter
+required_capability: match_function
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fn_match_phrase_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien", {"boost": 1.0}) OR match_phrase(content, "Lord of the Rings", {"boost": 2.0})
+| WHERE _score >= 2.0
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 3.0
+2675            | 2.0
+2714            | 3.0
+4023            | 3.0
+5335            | 3.0
+7140            | 3.0
+7350            | 3.0
+8875            | 2.0
+;

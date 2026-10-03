@@ -219,6 +219,26 @@ id:integer | _score:double
 4          | 1.122334395865555E-3
 ;
 
+// Same scores as knnRuntimeWithScore; the _score filter keeps only ids 0 and 4.
+knnRuntimeThenScoreFilter
+required_capability: knn_runtime_field
+required_capability: runtime_score_fix
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0])
+| WHERE _score > 0.9
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.0
+4          | 0.9456390142440796
+;
+
 // dot_product requires unit-length vectors. A field vector with squared magnitude != 1.0 triggers
 // a per-row warning and is excluded; the result is empty.
 knnRuntimeWithDotProductSimilarityRejectsNonUnitVectors

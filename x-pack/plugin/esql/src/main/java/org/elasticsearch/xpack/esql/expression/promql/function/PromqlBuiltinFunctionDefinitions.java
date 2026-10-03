@@ -44,7 +44,7 @@ public class PromqlBuiltinFunctionDefinitions {
      * {@code topk(k, v)} selects the {@code k} series with the highest values rather than reducing the input
      * vector to a single value, so - unlike {@code sum}/{@code avg}/{@code max}/{@code min} - it has no ES|QL
      * aggregate function to build: the ctor reference passes the input field through unchanged, and the PromQL
-     * translator (see {@code TranslatePromqlToEsqlPlan#wrapWithTopNBy}) appends the ranking/limiting step itself.
+     * translator (see {@code AcrossSeriesReduction#translate}) appends the ranking/limiting step itself.
      */
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryReduceSortDesc(PromqlFunctionDefinition.K)
@@ -104,7 +104,7 @@ public class PromqlBuiltinFunctionDefinitions {
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
      * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
      * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and
-     * is translated directly (see {@code ResolvePromqlFunctions} / {@code TranslatePromqlToEsqlPlan}).
+     * is translated directly (see {@code ResolvePromqlFunctions} / {@code MetadataManipulationFunction#translate}).
      */
     public static final PromqlFunctionDefinition LABEL_REPLACE = PromqlFunctionDefinition.def()
         .metadataManipulation(

@@ -5,20 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
+package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.EXACT;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PREFIX;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PROPER_PREFIX;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PROPER_SUFFIX;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.REGEX;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.SUFFIX;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.extractFragments;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment.Type.EXACT;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment.Type.PREFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment.Type.PROPER_PREFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment.Type.PROPER_SUFFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment.Type.REGEX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.PatternFragment.Type.SUFFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.AutomatonUtils.extractFragments;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;

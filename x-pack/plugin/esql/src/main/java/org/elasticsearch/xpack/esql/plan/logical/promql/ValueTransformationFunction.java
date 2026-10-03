@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 
@@ -64,5 +65,10 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
     @Override
     public boolean isIdentityTransparent() {
         return true;
+    }
+
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        return translateValueFunction(context);
     }
 }

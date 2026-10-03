@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
+package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.UnicodeUtil;

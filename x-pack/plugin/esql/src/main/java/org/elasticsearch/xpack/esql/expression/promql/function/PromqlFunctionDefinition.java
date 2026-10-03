@@ -797,9 +797,9 @@ public final class PromqlFunctionDefinition {
          * <p>
          * Unlike the other function families, these are not lowered through the generic {@link FunctionBuilder}: they resolve
          * into a dedicated logical node and are translated directly (see {@code ResolvePromqlFunctions} and
-         * {@code TranslatePromqlToEsqlPlan}). This method therefore only records the metadata - arity, parameters, and whether
-         * the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path is ever
-         * invoked for one of these functions.
+         * {@code MetadataManipulationFunction#translate}). This method therefore only records the metadata - arity, parameters,
+         * and whether the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path
+         * is ever invoked for one of these functions.
          *
          * @param arity    accepted argument-count range ({@code label_replace} is fixed at 5; {@code label_join} is 3..N)
          * @param variadic whether the trailing parameter repeats an unbounded number of times ({@code label_join} sources)

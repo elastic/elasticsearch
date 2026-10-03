@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
+package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -13,13 +13,16 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
 
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.finite;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.finite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.intersect;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.project;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.subtract;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,48 +31,49 @@ import static org.hamcrest.Matchers.sameInstance;
 public class TranslationContextTests extends ESTestCase {
 
     public void testUnionMergesLabelsAndSkipSets() {
-        Header header = finite(List.of("cluster")).union(TranslationContext.open(Set.of("pod")))
-            .union(TranslationContext.open(Set.of("pod")))
-            .union(finite(List.of("cluster", "region")));
+        TranslationConstraint header = union(
+            union(union(finite(List.of("cluster")), open(Set.of("pod"))), open(Set.of("pod"))),
+            finite(List.of("cluster", "region"))
+        );
 
         assertThat(header.labels(), contains("cluster", "region"));
         assertThat(header.skips(), contains(Set.of("pod")));
-        assertThat(header.union(Header.EMPTY), equalTo(header));
+        assertThat(union(header, TranslationConstraint.EMPTY), equalTo(header));
     }
 
     public void testSubtractDropsLabelsAndWidensSkipSets() {
-        Header above = finite(List.of("cluster", "pod")).union(TranslationContext.open(Set.of("region")));
+        TranslationConstraint above = union(finite(List.of("cluster", "pod")), open(Set.of("region")));
 
-        Header below = above.subtract(List.of("pod"));
+        TranslationConstraint below = subtract(above, List.of("pod"));
         assertThat(below.labels(), contains("cluster"));
         assertThat(below.skips(), contains(Set.of("region", "pod")));
 
         // the regroup's own column composes as a second, finer skip set
-        Header child = below.union(TranslationContext.open(Set.of("pod")));
+        TranslationConstraint child = union(below, open(Set.of("pod")));
         assertThat(child.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
         assertThat(child.finestSkip(), equalTo(Set.of("pod")));
     }
 
     public void testIntersectIsTheUpwardCounterpartOfSubtract() {
-        Header required = finite(List.of("cluster", "pod")).union(TranslationContext.open(Set.of("region")));
-        Header child = required.subtract(List.of("pod")).union(TranslationContext.open(Set.of("pod")));
+        TranslationConstraint required = union(finite(List.of("cluster", "pod")), open(Set.of("region")));
+        TranslationConstraint child = union(subtract(required, List.of("pod")), open(Set.of("pod")));
 
-        Header lifted = child.intersect(List.of("pod"));
+        TranslationConstraint lifted = intersect(child, List.of("pod"));
 
         // every column the parent required, apart from the dropped label, comes back; so does the regroup's own
         // packing, which already excludes the dropped label and fixes the grain of the result
         assertThat(lifted.labels(), contains("cluster"));
         assertThat(lifted.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
         // the regroup's own full label space does not survive dropping a label it still carries
-        assertFalse(open().intersect(List.of("pod")).isOpen());
+        assertFalse(intersect(open(), List.of("pod")).isOpen());
         // without () keeps everything
-        assertThat(child.intersect(List.of()), equalTo(child));
+        assertThat(intersect(child, List.of()), equalTo(child));
     }
 
     public void testProjectKeepsSkipSets() {
-        Header header = finite(List.of("cluster", "pod", "region")).union(TranslationContext.open(Set.of("pod")));
+        TranslationConstraint header = union(finite(List.of("cluster", "pod", "region")), open(Set.of("pod")));
 
-        Header retained = header.project(List.of("cluster", "missing"));
+        TranslationConstraint retained = project(header, List.of("cluster", "missing"));
 
         assertThat(retained.labels(), contains("cluster"));
         assertThat(retained.skips(), contains(Set.of("pod")));

@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -100,5 +102,14 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
         } catch (Exception e) {
             throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());
         }
+    }
+
+    /** Translates a scalar function (time(), etc.): an expression over the unchanged source. */
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        var function = buildEsqlFunction(
+            new PromqlContext(context.cmd().timestamp(), null, context.cmd().stepAttribute(), context.configuration())
+        );
+        return new IntermediateResult(context.cmd().child(), TranslationConstraint.EMPTY, function, context.stepAttr());
     }
 }

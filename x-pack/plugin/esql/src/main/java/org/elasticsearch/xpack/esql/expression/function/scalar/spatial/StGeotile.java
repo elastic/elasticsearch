@@ -21,13 +21,17 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
+import org.elasticsearch.xpack.esql.common.spatial.GridCells;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -44,10 +48,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
@@ -74,7 +77,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         private final int precision;
         private final GeoTileBoundedPredicate bounds;
 
-        private GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
+        GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
             this.bounds = new GeoTileBoundedPredicate(precision, bbox);
         }
@@ -120,6 +123,34 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         point.getY(),
         checkPrecisionRange(precision)
     );
+
+    @Override
+    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision, @Nullable GeoBoundingBox bounds) {
+        if (precision < 0 || precision > GeoTileUtils.MAX_ZOOM) {
+            return null;
+        }
+        Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders;
+        if (bounds == null) {
+            encoders = () -> (lon, lat) -> GeoTileUtils.longEncode(lon, lat, precision);
+        } else {
+            // The bounded grid keeps scratch state, so build one per encoder; it returns -1 for a point outside the bounds
+            encoders = () -> {
+                GeoTileBoundedGrid grid = new GeoTileBoundedGrid(precision, bounds);
+                return (lon, lat) -> grid.calculateGridId(new Point(lon, lat));
+            };
+        }
+        BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(
+            encoders,
+            () -> (shape, onTruncation) -> computeGeotileCells(shape, precision, bounds, onTruncation)
+        );
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOTILE,
+            precision,
+            bounds,
+            encoders,
+            shapeTilers
+        );
+    }
 
     @FunctionInfo(
         returnType = "geotile",
@@ -271,7 +302,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 if (geometry instanceof Point point) {
                     GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
                     long gridId = bounds.calculateGridId(point);
-                    return gridId < 0 ? null : gridId;
+                    return gridId == -1L ? null : gridId;
                 }
                 return foldMultiValue(computeGeotileCells(wkb, precision, bbox, foldWarningConsumer()));
             }
@@ -343,14 +374,21 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
      * The fold path emits warnings via HTTP response headers using {@link SpatialGridFunction#foldWarningConsumer()};
      * the evaluator path passes {@code warnings::registerWarning} so the user sees a driver-context warning.
      */
-    static List<Long> computeGeotileCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+    static long[] computeGeotileCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation) throws IOException {
+        return computeGeotileCells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), precision, bbox, onTruncation);
+    }
+
+    /**
+     * Same as {@link #computeGeotileCells(BytesRef, int, GeoBoundingBox, Consumer)} but on a triangle tree that is already
+     * available, such as the doc value of a {@code geo_shape} field when the function is fused into field loading.
+     */
+    static long[] computeGeotileCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
         GeoTileBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoTileBoundedPredicate(precision, bbox);
-        List<Long> cells = new ArrayList<>();
+        GridCells cells = new GridCells("ST_GEOTILE", SpatialGridFunction.MAX_GRID_CELLS, onTruncation);
         // geo tiles are not defined at the extreme latitudes
-        if (shape.minLat > GeoTileUtils.NORMALIZED_LATITUDE_MASK || shape.maxLat < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
-            return cells;
+        if (shape.minLat() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || shape.maxLat() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
+            return cells.toArray();
         }
         if (precision == 0) {
             // Single tile at z=0 covers the whole world
@@ -366,20 +404,20 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                     cells.add(GeoTileUtils.longEncodeTiles(0, 0, 0));
                 }
             }
-            return cells;
+            return cells.toArray();
         }
         final int tiles = 1 << precision;
-        final int minXTile = GeoTileUtils.getXTile(shape.minLon, tiles);
-        final int minYTile = GeoTileUtils.getYTile(shape.maxLat, tiles);
-        final int maxXTile = GeoTileUtils.getXTile(shape.maxLon, tiles);
-        final int maxYTile = GeoTileUtils.getYTile(shape.minLat, tiles);
+        final int minXTile = GeoTileUtils.getXTile(shape.minLon(), tiles);
+        final int minYTile = GeoTileUtils.getYTile(shape.maxLat(), tiles);
+        final int maxXTile = GeoTileUtils.getXTile(shape.maxLon(), tiles);
+        final int maxYTile = GeoTileUtils.getYTile(shape.minLat(), tiles);
         final long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
         if (count <= 8L * precision) {
-            geotileBruteForceScan(shape, precision, minXTile, minYTile, maxXTile, maxYTile, predicate, cells, onTruncation);
+            geotileBruteForceScan(shape, precision, minXTile, minYTile, maxXTile, maxYTile, predicate, cells);
         } else {
-            rasterizeGeotile(shape, 0, 0, 0, precision, predicate, cells, onTruncation);
+            rasterizeGeotile(shape, 0, 0, 0, precision, predicate, cells);
         }
-        return cells;
+        return cells.toArray();
     }
 
     /**
@@ -395,21 +433,15 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         int maxXTile,
         int maxYTile,
         GeoTileBoundedPredicate predicate,
-        List<Long> cells,
-        Consumer<String> onTruncation
+        GridCells cells
     ) throws IOException {
         outer: for (int x = minXTile; x <= maxXTile; x++) {
             for (int y = minYTile; y <= maxYTile; y++) {
                 if (geotileCellIntersectsShape(shape, x, y, precision, predicate)) {
-                    if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                        String msg = "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
-                        if (onTruncation != null) {
-                            onTruncation.accept(msg);
-                            break outer;
-                        }
-                        throw new IllegalArgumentException(msg);
-                    }
                     cells.add(GeoTileUtils.longEncodeTiles(precision, x, y));
+                    if (cells.full()) {
+                        break outer;
+                    }
                 }
             }
         }
@@ -426,8 +458,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         int zTile,
         int precision,
         GeoTileBoundedPredicate predicate,
-        List<Long> cells,
-        Consumer<String> onTruncation
+        GridCells cells
     ) throws IOException {
         zTile++;
         for (int i = 0; i < 2; i++) {
@@ -436,20 +467,12 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 final int nextY = 2 * yTile + j;
                 if (geotileCellIntersectsShape(shape, nextX, nextY, zTile, predicate)) {
                     if (zTile == precision) {
-                        if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                            String msg = "ST_GEOTILE generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
-                            if (onTruncation != null) {
-                                onTruncation.accept(msg);
-                                return;
-                            }
-                            throw new IllegalArgumentException(msg);
-                        }
                         cells.add(GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        rasterizeGeotile(shape, nextX, nextY, zTile, precision, predicate, cells, onTruncation);
-                        if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                            return;
-                        }
+                        rasterizeGeotile(shape, nextX, nextY, zTile, precision, predicate, cells);
+                    }
+                    if (cells.full()) {
+                        return;
                     }
                 }
             }

@@ -664,8 +664,7 @@ public class SnapshotResiliencyTestHelper {
                     emptyMap(),
                     threadPool,
                     client,
-                    List.of(),
-                    SnapshotMetrics.NOOP
+                    List.of()
                 );
                 snapshotsService = new SnapshotsService(
                     settings,

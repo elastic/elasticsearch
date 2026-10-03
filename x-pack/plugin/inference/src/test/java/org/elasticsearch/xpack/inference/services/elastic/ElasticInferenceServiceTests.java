@@ -2159,11 +2159,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
-    }
-
-    @Override
     public EnumSet<TaskType> expectedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }

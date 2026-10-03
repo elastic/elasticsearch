@@ -89,7 +89,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
         NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
         assertEquals(limit, reader.metadata(new BytesObject(flatRecord(limit))).schema().size());
-        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
+        expectThrows(CircuitBreakingException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
     }
 
     /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses one outside 1 to the ceiling. */
@@ -103,7 +103,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         FormatReader lowered = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
         ).value();
-        expectThrows(IllegalArgumentException.class, () -> lowered.metadata(new BytesObject(flatRecord(3))));
+        expectThrows(CircuitBreakingException.class, () -> lowered.metadata(new BytesObject(flatRecord(3))));
 
         expectThrows(
             IllegalArgumentException.class,
@@ -125,10 +125,19 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), 2).build();
         NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
         assertEquals(2, reader.metadata(new BytesObject(flatRecord(2))).schema().size());
-        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));
+        expectThrows(CircuitBreakingException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));
 
         FormatReader overridden = reader.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
         assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
+    }
+
+    /** A declared schema names the columns it reads, so a file past the field cap is still inferred (breaker-bounded). */
+    public void testDeclaredProvenanceExemptsTheFieldCap() throws IOException {
+        NdJsonFormatReader capped = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        FormatReader lowered = capped.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
+        expectThrows(CircuitBreakingException.class, () -> lowered.metadata(new BytesObject(flatRecord(4))));
+        FormatReader declared = lowered.withDeclaredProvenanceBinding(true);
+        assertEquals(4, declared.metadata(new BytesObject(flatRecord(4))).schema().size());
     }
 
     /** A value that is not a number at all is refused with a message naming the key, not the JDK's bare one. */
@@ -149,8 +158,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         FormatReader atCeiling = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ceiling)
         ).value();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
             () -> atCeiling.metadata(new BytesObject(flatRecord(ceiling + 1)))
         );
         assertThat(e.getMessage(), containsString("the most [schema_max_fields] allows"));
@@ -159,7 +168,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         FormatReader below = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
         ).value();
-        e = expectThrows(IllegalArgumentException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
+        e = expectThrows(CircuitBreakingException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
         assertThat(e.getMessage(), containsString("raise [schema_max_fields]"));
     }
 

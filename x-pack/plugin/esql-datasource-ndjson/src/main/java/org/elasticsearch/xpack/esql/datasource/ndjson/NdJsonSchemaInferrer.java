@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
@@ -177,7 +178,9 @@ public class NdJsonSchemaInferrer {
                     // yet turn out to be malformed. Only a well-formed line fails inference; a malformed one is
                     // skipped like any other, without its fields counting toward the cap.
                     if (restOfRecordParses(parser)) {
-                        throw new IllegalArgumentException(fieldCapMessage(maxFields));
+                        // Not a client error: a deterministic limit, but the same refusal CSV, TSV and Parquet give, so the four
+                        // formats answer a too-wide file alike.
+                        throw new CircuitBreakingException(fieldCapMessage(maxFields), CircuitBreaker.Durability.PERMANENT);
                     }
                     logger.debug("Malformed NDJSON at line {} past the field cap", lineCount);
                     discardFieldsFrom(lineStart);

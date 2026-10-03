@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -73,6 +75,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -267,6 +271,94 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
+    }
+
+    public void testSchemaWiderThanCapIsRefusedWithCircuitBreakingException() {
+        int cap = 5;
+        for (String csv : new String[] { header(cap + 1) + "\n", header(cap + 1) + "\n" + "1,".repeat(cap) + "1\n" }) {
+            CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaMaxFields(cap);
+            CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> reader.schema(createStorageObject(csv)));
+            assertThat(e.getMessage(), containsString("more than [" + cap + "] columns"));
+            assertThat(e.getMessage(), containsString("schema_max_fields"));
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        }
+    }
+
+    public void testSchemaAtCapIsAccepted() throws IOException {
+        int cap = 5;
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaMaxFields(cap);
+        assertEquals(cap, reader.schema(createStorageObject(header(cap) + "\n" + "1,".repeat(cap - 1) + "1\n")).size());
+        // A trailing delimiter adds an empty column that is dropped, so it does not count against the cap.
+        assertEquals(cap, reader.schema(createStorageObject(header(cap) + ",\n" + "1,".repeat(cap - 1) + "1\n")).size());
+    }
+
+    public void testHeaderlessSchemaWiderThanCapIsRefused() {
+        int cap = 3;
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
+        expectThrows(CircuitBreakingException.class, () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n")));
+    }
+
+    public void testDatasetSchemaMaxFieldsOverridesNodeCap() throws IOException {
+        CsvFormatReader nodeCapped = new CsvFormatReader(blockFactory).withSchemaMaxFields(2);
+        CsvFormatReader raised = (CsvFormatReader) nodeCapped.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 4)).value();
+        assertEquals(4, raised.schema(createStorageObject(header(4) + "\n1,2,3,4\n")).size());
+        CsvFormatReader lowered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfigTrackingConsumedKeys(
+            Map.of("schema_max_fields", 2)
+        ).value();
+        expectThrows(CircuitBreakingException.class, () -> lowered.schema(createStorageObject(header(3) + "\n1,2,3\n")));
+    }
+
+    /** A declared schema is not capped by the file's width, but the names split from a wide header are charged. */
+    public void testDeclaredBindingChargesWideHeaderToTheBreakerAndReleasesIt() throws Exception {
+        int columns = 5_000;
+        String csv = header(columns) + "\n" + "1,".repeat(columns - 1) + "1\n";
+        List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "c7", DataType.LONG));
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).readSchema(declared).projectedColumns(List.of("c7")).build();
+
+        // Roomy breaker: the declared column binds although the file is far past the schema cap, and nothing stays charged.
+        CircuitBreaker[] roomy = new CircuitBreaker[1];
+        CsvFormatReader reader = new CsvFormatReader(trackingBlockFactory(roomy)).withSchemaMaxFields(10)
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+        int rows = 0;
+        try (CloseableIterator<Page> it = reader.read(createStorageObject(csv), context)) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(1, rows);
+        assertEquals(0, roomy[0].getUsed());
+
+        // Tight breaker: the same header trips it part-way through the split, as a 429, with nothing left reserved.
+        BigArrays tight = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(256)).withCircuitBreaking();
+        CircuitBreaker tightBreaker = tight.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build())
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> tightReader.read(createStorageObject(csv), context).close()
+        );
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(0, tightBreaker.getUsed());
+    }
+
+    public void testSchemaMaxFieldsConfigIsBounded() {
+        for (Object bad : new Object[] { 0, -1, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS + 1, "many" }) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> CsvFormatReader.validateConfig(Map.of("schema_max_fields", bad), CsvFormatOptions.DEFAULT)
+            );
+        }
+        CsvFormatReader.validateConfig(Map.of("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS), CsvFormatOptions.DEFAULT);
+    }
+
+    private static String header(int columns) {
+        return IntStream.range(0, columns).mapToObj(i -> "c" + i).collect(Collectors.joining(","));
     }
 
     public void testSchema() throws IOException {

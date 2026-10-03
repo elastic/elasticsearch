@@ -45,12 +45,19 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
      * Must list every extension {@code ParquetFormatReader#fileExtensions()} accepts. Spec extensions register
      * eagerly at module construction; reader-declared ones register lazily, inside the supplier that instantiates
      * the reader. An extension declared only there is therefore unclaimable until something forces that reader
-     * into existence, and invisible to {@code DataSourceCapabilities} throughout. Parquet claims no per-dataset
-     * configuration keys.
+     * into existence, and invisible to {@code DataSourceCapabilities} throughout. Parquet claims one per-dataset
+     * configuration key, {@code schema_max_fields}.
      */
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), Set.of(), null));
+        return Set.of(
+            new FormatSpec(
+                FormatNameResolver.FORMAT_PARQUET,
+                Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS),
+                ParquetFormatReader.RECOGNIZED_KEYS,
+                ParquetFormatReader::validateConfig
+            )
+        );
     }
 
     @Override

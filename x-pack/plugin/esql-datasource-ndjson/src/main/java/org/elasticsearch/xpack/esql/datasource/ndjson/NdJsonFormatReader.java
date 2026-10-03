@@ -194,6 +194,30 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         );
     }
 
+    /**
+     * A declared schema names the columns it reads, so the file's own width is not the field cap's concern: the cap
+     * bounds what inference materialises when nothing declares the schema. Inference over a declared dataset (the
+     * COUNT(*) and chunk-0 binds) is bounded by the circuit breaker the inferrer charges field by field instead.
+     */
+    @Override
+    public NdJsonFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        if (declaredProvenanceBinding == false || schemaMaxFields == Integer.MAX_VALUE) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            Integer.MAX_VALUE,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
     @Override
     public NdJsonFormatReader withReadConfig(String newReadConfig) {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {

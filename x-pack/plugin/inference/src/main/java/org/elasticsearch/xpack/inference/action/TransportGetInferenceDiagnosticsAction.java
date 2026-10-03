@@ -85,10 +85,22 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
 
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse nodeOperation(GetInferenceDiagnosticsAction.NodeRequest request, Task task) {
+        var externalStats = managers.externalHttpClientManager().getPoolStats();
+        var eisStats = managers.eisMtlsHttpClientManager().getPoolStats();
         return new GetInferenceDiagnosticsAction.NodeResponse(
             transportService.getLocalNode(),
-            managers.externalHttpClientManager().getPoolStats(),
-            managers.eisMtlsHttpClientManager().getPoolStats(),
+            GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(
+                externalStats.getLeased(),
+                externalStats.getPending(),
+                externalStats.getAvailable(),
+                externalStats.getMax()
+            ),
+            GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(
+                eisStats.getLeased(),
+                eisStats.getPending(),
+                eisStats.getAvailable(),
+                eisStats.getMax()
+            ),
             toCacheStats(inferenceEndpointRegistry),
             toCacheStats(oauth2TokenCache)
         );

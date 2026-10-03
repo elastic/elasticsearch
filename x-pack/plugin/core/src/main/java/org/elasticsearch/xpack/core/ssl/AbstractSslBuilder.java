@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 
@@ -26,7 +26,7 @@ public abstract class AbstractSslBuilder<T> {
         HostnameVerifier verifier;
 
         if (config.verificationMode().isHostnameVerificationEnabled()) {
-            verifier = SSLIOSessionStrategy.getDefaultHostnameVerifier();
+            verifier = new DefaultHostnameVerifier();
         } else {
             verifier = NoopHostnameVerifier.INSTANCE;
         }

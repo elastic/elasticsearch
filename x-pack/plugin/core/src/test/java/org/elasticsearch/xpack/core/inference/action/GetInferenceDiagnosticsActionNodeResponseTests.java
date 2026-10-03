@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.apache.http.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -29,8 +28,8 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         return new GetInferenceDiagnosticsAction.NodeResponse(
             node,
-            randomPoolStats(),
-            randomPoolStats(),
+            randomConnectionPoolStats(),
+            randomConnectionPoolStats(),
             randomNullableCacheStats(),
             randomNullableCacheStats()
         );
@@ -57,11 +56,11 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         switch (randomInt(3)) {
             case 0 -> externalPoolStats = randomValueOtherThan(
                 externalPoolStats,
-                () -> GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(randomPoolStats())
+                GetInferenceDiagnosticsActionNodeResponseTests::randomConnectionPoolStats
             );
             case 1 -> eisPoolStats = randomValueOtherThan(
                 eisPoolStats,
-                () -> GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(randomPoolStats())
+                GetInferenceDiagnosticsActionNodeResponseTests::randomConnectionPoolStats
             );
             case 2 -> registryStats = randomValueOtherThan(
                 registryStats,
@@ -76,24 +75,15 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
 
         return new GetInferenceDiagnosticsAction.NodeResponse(
             instance.getNode(),
-            toPoolStats(externalPoolStats),
-            toPoolStats(eisPoolStats),
+            externalPoolStats,
+            eisPoolStats,
             registryStats,
             oAuth2Stats
         );
     }
 
-    private static PoolStats randomPoolStats() {
-        return new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
-    }
-
-    private static PoolStats toPoolStats(GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats stats) {
-        return new PoolStats(
-            stats.getLeasedConnections(),
-            stats.getPendingConnections(),
-            stats.getAvailableConnections(),
-            stats.getMaxConnections()
-        );
+    private static GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats randomConnectionPoolStats() {
+        return GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(randomInt(), randomInt(), randomInt(), randomInt());
     }
 
     private static GetInferenceDiagnosticsAction.NodeResponse.Stats randomNullableCacheStats() {
@@ -125,26 +115,28 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
             return instance;
         }
 
+        var eis = instance.getEisMtlsConnectionPoolStats();
         var eisMtlsConnectionPoolStats = version.supports(INFERENCE_API_EIS_DIAGNOSTICS)
-            ? new PoolStats(
-                instance.getEisMtlsConnectionPoolStats().getLeasedConnections(),
-                instance.getEisMtlsConnectionPoolStats().getPendingConnections(),
-                instance.getEisMtlsConnectionPoolStats().getAvailableConnections(),
-                instance.getEisMtlsConnectionPoolStats().getMaxConnections()
+            ? GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(
+                eis.getLeasedConnections(),
+                eis.getPendingConnections(),
+                eis.getAvailableConnections(),
+                eis.getMaxConnections()
             )
-            : new PoolStats(0, 0, 0, 0);
+            : GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(0, 0, 0, 0);
 
         var inferenceEndpointRegistryStats = version.supports(ML_INFERENCE_ENDPOINT_CACHE)
             ? instance.getInferenceEndpointRegistryStats()
             : null;
 
+        var ext = instance.getExternalConnectionPoolStats();
         return new GetInferenceDiagnosticsAction.NodeResponse(
             instance.getNode(),
-            new PoolStats(
-                instance.getExternalConnectionPoolStats().getLeasedConnections(),
-                instance.getExternalConnectionPoolStats().getPendingConnections(),
-                instance.getExternalConnectionPoolStats().getAvailableConnections(),
-                instance.getExternalConnectionPoolStats().getMaxConnections()
+            GetInferenceDiagnosticsAction.NodeResponse.ConnectionPoolStats.of(
+                ext.getLeasedConnections(),
+                ext.getPendingConnections(),
+                ext.getAvailableConnections(),
+                ext.getMaxConnections()
             ),
             eisMtlsConnectionPoolStats,
             inferenceEndpointRegistryStats,

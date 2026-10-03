@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.Request;
@@ -299,9 +298,6 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
-        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
-
         final List<String> blacklist = new ArrayList<>();
         blacklist.add("does_not_exist");
 
@@ -341,9 +337,6 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testExporterWithHostOnly() throws Exception {
-        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
-
         final Settings.Builder builder = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", "http")
             .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
@@ -389,9 +382,6 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testCreateRestClient() throws IOException {
-        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
         List<String> expectedWarnings = new ArrayList<>();
 
         final Settings.Builder builder = Settings.builder()

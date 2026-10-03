@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.apache.http.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -138,14 +137,14 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
         public NodeResponse(
             DiscoveryNode node,
-            PoolStats poolStats,
-            PoolStats eisPoolStats,
+            ConnectionPoolStats externalConnectionPoolStats,
+            ConnectionPoolStats eisMtlsConnectionPoolStats,
             @Nullable Stats inferenceEndpointRegistryStats,
             @Nullable Stats oauth2TokenCacheStats
         ) {
             super(node);
-            externalConnectionPoolStats = ConnectionPoolStats.of(poolStats);
-            eisMtlsConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
+            this.externalConnectionPoolStats = externalConnectionPoolStats;
+            this.eisMtlsConnectionPoolStats = eisMtlsConnectionPoolStats;
             this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
             this.oauth2TokenCacheStats = oauth2TokenCacheStats;
         }
@@ -242,15 +241,15 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             return oauth2TokenCacheStats;
         }
 
-        static class ConnectionPoolStats implements ToXContentObject, Writeable {
+        public static class ConnectionPoolStats implements ToXContentObject, Writeable {
             private static final String LEASED_CONNECTIONS = "leased_connections";
             private static final String PENDING_CONNECTIONS = "pending_connections";
             private static final String AVAILABLE_CONNECTIONS = "available_connections";
             private static final String MAX_CONNECTIONS = "max_connections";
             private static final ConnectionPoolStats EMPTY = new ConnectionPoolStats(0, 0, 0, 0);
 
-            static ConnectionPoolStats of(PoolStats poolStats) {
-                return new ConnectionPoolStats(poolStats.getLeased(), poolStats.getPending(), poolStats.getAvailable(), poolStats.getMax());
+            public static ConnectionPoolStats of(int leased, int pending, int available, int max) {
+                return new ConnectionPoolStats(leased, pending, available, max);
             }
 
             private final int leasedConnections;
@@ -258,7 +257,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             private final int availableConnections;
             private final int maxConnections;
 
-            ConnectionPoolStats(int leasedConnections, int pendingConnections, int availableConnections, int maxConnections) {
+            public ConnectionPoolStats(int leasedConnections, int pendingConnections, int availableConnections, int maxConnections) {
                 this.leasedConnections = leasedConnections;
                 this.pendingConnections = pendingConnections;
                 this.availableConnections = availableConnections;
@@ -308,19 +307,19 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
                 return Objects.hash(leasedConnections, pendingConnections, availableConnections, maxConnections);
             }
 
-            int getLeasedConnections() {
+            public int getLeasedConnections() {
                 return leasedConnections;
             }
 
-            int getPendingConnections() {
+            public int getPendingConnections() {
                 return pendingConnections;
             }
 
-            int getAvailableConnections() {
+            public int getAvailableConnections() {
                 return availableConnections;
             }
 
-            int getMaxConnections() {
+            public int getMaxConnections() {
                 return maxConnections;
             }
         }

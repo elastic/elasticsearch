@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.test.ESTestCase;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
 
 import static org.mockito.Mockito.mock;
 
@@ -19,23 +21,38 @@ import static org.mockito.Mockito.mock;
 public class SecurityHttpClientConfigCallbackTests extends ESTestCase {
 
     private final CredentialsProvider credentialsProvider = mock(CredentialsProvider.class);
-    private final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
+    private final SSLContext sslContext = mock(SSLContext.class);
+    private final HostnameVerifier hostnameVerifier = mock(HostnameVerifier.class);
     /**
      * HttpAsyncClientBuilder's methods are {@code final} and therefore not verifiable.
      */
     private final HttpAsyncClientBuilder builder = mock(HttpAsyncClientBuilder.class);
 
-    public void testSSLIOSessionStrategyNullThrowsException() {
+    public void testSSLContextNullThrowsException() {
         final CredentialsProvider optionalCredentialsProvider = randomFrom(credentialsProvider, null);
 
-        expectThrows(NullPointerException.class, () -> new SecurityHttpClientConfigCallback(null, optionalCredentialsProvider));
+        expectThrows(
+            NullPointerException.class,
+            () -> new SecurityHttpClientConfigCallback(null, hostnameVerifier, optionalCredentialsProvider)
+        );
+    }
+
+    public void testHostnameVerifierNullThrowsException() {
+        final CredentialsProvider optionalCredentialsProvider = randomFrom(credentialsProvider, null);
+
+        expectThrows(NullPointerException.class, () -> new SecurityHttpClientConfigCallback(sslContext, null, optionalCredentialsProvider));
     }
 
     public void testCustomizeHttpClient() {
-        final SecurityHttpClientConfigCallback callback = new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider);
+        final SecurityHttpClientConfigCallback callback = new SecurityHttpClientConfigCallback(
+            sslContext,
+            hostnameVerifier,
+            credentialsProvider
+        );
 
         assertSame(credentialsProvider, callback.getCredentialsProvider());
-        assertSame(sslStrategy, callback.getSSLStrategy());
+        assertSame(sslContext, callback.getSSLContext());
+        assertSame(hostnameVerifier, callback.getHostnameVerifier());
 
         assertSame(builder, callback.customizeHttpClient(builder));
     }
@@ -43,11 +60,16 @@ public class SecurityHttpClientConfigCallbackTests extends ESTestCase {
     public void testCustomizeHttpClientWithOptionalParameters() {
         final CredentialsProvider optionalCredentialsProvider = randomFrom(credentialsProvider, null);
 
-        final SecurityHttpClientConfigCallback callback = new SecurityHttpClientConfigCallback(sslStrategy, optionalCredentialsProvider);
+        final SecurityHttpClientConfigCallback callback = new SecurityHttpClientConfigCallback(
+            sslContext,
+            hostnameVerifier,
+            optionalCredentialsProvider
+        );
 
         assertSame(builder, callback.customizeHttpClient(builder));
         assertSame(optionalCredentialsProvider, callback.getCredentialsProvider());
-        assertSame(sslStrategy, callback.getSSLStrategy());
+        assertSame(sslContext, callback.getSSLContext());
+        assertSame(hostnameVerifier, callback.getHostnameVerifier());
     }
 
 }

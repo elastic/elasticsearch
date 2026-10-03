@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.core.Nullable;
@@ -29,19 +28,29 @@ class SecurityHttpClientConfigCallback implements RestClientBuilder.HttpClientCo
     @Nullable
     private final CredentialsProvider credentialsProvider;
     /**
-     * The {@link SSLIOSessionStrategy} for all requests to enable SSL / TLS encryption.
+     * The {@link SSLContext} for all requests to enable SSL / TLS encryption.
      */
-    private final SSLIOSessionStrategy sslStrategy;
+    private final SSLContext sslContext;
+    /**
+     * The {@link HostnameVerifier} for all requests to enable SSL / TLS hostname verification.
+     */
+    private final HostnameVerifier hostnameVerifier;
 
     /**
      * Create a new {@link SecurityHttpClientConfigCallback}.
      *
      * @param credentialsProvider The credential provider, if a username/password have been supplied
-     * @param sslStrategy The SSL strategy, if SSL / TLS have been supplied
-     * @throws NullPointerException if {@code sslStrategy} is {@code null}
+     * @param sslContext The SSL context for SSL / TLS encryption
+     * @param hostnameVerifier The hostname verifier for SSL / TLS
+     * @throws NullPointerException if {@code sslContext} is {@code null}
      */
-    SecurityHttpClientConfigCallback(final SSLIOSessionStrategy sslStrategy, @Nullable final CredentialsProvider credentialsProvider) {
-        this.sslStrategy = Objects.requireNonNull(sslStrategy);
+    SecurityHttpClientConfigCallback(
+        final SSLContext sslContext,
+        final HostnameVerifier hostnameVerifier,
+        @Nullable final CredentialsProvider credentialsProvider
+    ) {
+        this.sslContext = Objects.requireNonNull(sslContext);
+        this.hostnameVerifier = Objects.requireNonNull(hostnameVerifier);
         this.credentialsProvider = credentialsProvider;
     }
 
@@ -56,12 +65,21 @@ class SecurityHttpClientConfigCallback implements RestClientBuilder.HttpClientCo
     }
 
     /**
-     * Get the {@link SSLIOSessionStrategy} that will be added to the HTTP client.
+     * Get the {@link SSLContext} that will be added to the HTTP client.
      *
      * @return Never {@code null}.
      */
-    SSLIOSessionStrategy getSSLStrategy() {
-        return sslStrategy;
+    SSLContext getSSLContext() {
+        return sslContext;
+    }
+
+    /**
+     * Get the {@link HostnameVerifier} that will be added to the HTTP client.
+     *
+     * @return Never {@code null}.
+     */
+    HostnameVerifier getHostnameVerifier() {
+        return hostnameVerifier;
     }
 
     /**
@@ -75,7 +93,8 @@ class SecurityHttpClientConfigCallback implements RestClientBuilder.HttpClientCo
     @Override
     public HttpAsyncClientBuilder customizeHttpClient(final HttpAsyncClientBuilder httpClientBuilder) {
         // enable SSL / TLS
-        httpClientBuilder.setSSLStrategy(sslStrategy);
+        httpClientBuilder.setSSLContext(sslContext);
+        httpClientBuilder.setSSLHostnameVerifier(hostnameVerifier);
 
         // enable user authentication
         if (credentialsProvider != null) {

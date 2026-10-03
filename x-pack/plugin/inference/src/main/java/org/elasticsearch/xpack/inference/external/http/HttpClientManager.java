@@ -132,8 +132,13 @@ public class HttpClientManager implements Closeable {
         CircuitBreaker circuitBreaker
     ) {
         // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
-        final SSLIOSessionStrategy sslioSessionStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
-            .ioSessionStrategy();
+        final var sslProfile = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX);
+        final SSLIOSessionStrategy sslioSessionStrategy = new SSLIOSessionStrategy(
+            sslProfile.sslContext(),
+            null,
+            null,
+            sslProfile.hostnameVerifier()
+        );
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }

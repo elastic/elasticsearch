@@ -56,6 +56,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import java.io.ByteArrayOutputStream;
@@ -113,7 +114,8 @@ public class HttpClient implements Closeable {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
-        SSLConnectionSocketFactory factory = sslService.profile(SETTINGS_SSL_PREFIX).connectionSocketFactory();
+        SslProfile sslProfile = sslService.profile(SETTINGS_SSL_PREFIX);
+        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslProfile.socketFactory(), sslProfile.hostnameVerifier());
         clientBuilder.setSSLSocketFactory(factory);
 
         final SocketConfig.Builder socketConfigBuilder = SocketConfig.custom();

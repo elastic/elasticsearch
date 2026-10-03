@@ -42,7 +42,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             randomBoolean() ? randomDslHealthInfo() : null,
             repositoriesInfoByNode,
             randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE),
-            randomBoolean() ? randomDlmFrozenTransitionsHealthInfo() : null
+            randomBoolean() ? randomDlmFrozenTransitionsHealthInfo() : null,
+            randomBoolean() ? randomDataRecoveryHealthInfo() : null
         );
     }
 
@@ -57,7 +58,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var repoHealth = originalHealthInfo.repositoriesInfoByNode();
         var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
         var dlmFrozenTransitionsHealth = originalHealthInfo.dlmFrozenTransitionsHealthInfo();
-        switch (randomInt(4)) {
+        var dataRecoveryHealth = originalHealthInfo.dataRecoveryHealthInfo();
+        switch (randomInt(5)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),
@@ -74,9 +76,28 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 dlmFrozenTransitionsHealth,
                 HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
             );
+            case 5 -> dataRecoveryHealth = randomValueOtherThan(dataRecoveryHealth, HealthInfoTests::randomDataRecoveryHealthInfo);
             default -> throw new IllegalStateException("unexpected random value");
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth, dlmFrozenTransitionsHealth);
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth, dlmFrozenTransitionsHealth, dataRecoveryHealth);
+    }
+
+    public void testOlderTransportVersionOmitsDataRecoveryHealthInfo() throws IOException {
+        DlmFrozenTransitionsHealthInfo dlmFrozen = randomDlmFrozenTransitionsHealthInfo();
+        HealthInfo original = new HealthInfo(
+            Map.of(),
+            null,
+            Map.of(),
+            FileSettingsHealthInfo.INDETERMINATE,
+            dlmFrozen,
+            randomDataRecoveryHealthInfo()
+        );
+        // Use a version that supports the DLM frozen field but not data_recovery_health_info, verifying only the data recovery field is
+        // dropped and the earlier field is still round-tripped.
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_recovery_health_info"));
+        HealthInfo copy = copyInstance(original, oldVersion);
+        assertThat(copy.dataRecoveryHealthInfo(), nullValue());
+        assertThat(copy.dlmFrozenTransitionsHealthInfo(), equalTo(dlmFrozen));
     }
 
     public void testOlderTransportVersionOmitsDlmFrozenTransitionsHealthInfo() throws IOException {
@@ -162,6 +183,33 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     public static RepositoriesHealthInfo randomRepoHealthInfo() {
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
+    }
+
+    public static DataRecoveryHealthInfo randomDataRecoveryHealthInfo() {
+        return new DataRecoveryHealthInfo(
+            randomMap(0, 3, () -> tuple(randomProjectIdOrDefault(), randomDataRecoveryProjectSummary())),
+            randomNonNegativeLong()
+        );
+    }
+
+    public static DataRecoveryHealthInfo.ProjectSummary randomDataRecoveryProjectSummary() {
+        if (randomBoolean()) {
+            return new DataRecoveryHealthInfo.ProjectSummary(
+                DataRecoveryHealthInfo.ProjectSummary.NONE,
+                DataRecoveryHealthInfo.ProjectSummary.NONE,
+                0,
+                0,
+                0
+            );
+        }
+        int recoveryPointCount = randomIntBetween(1, 200);
+        return new DataRecoveryHealthInfo.ProjectSummary(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            recoveryPointCount,
+            randomIntBetween(0, recoveryPointCount),
+            randomIntBetween(0, 50)
+        );
     }
 
     public static DlmFrozenTransitionsHealthInfo randomDlmFrozenTransitionsHealthInfo() {

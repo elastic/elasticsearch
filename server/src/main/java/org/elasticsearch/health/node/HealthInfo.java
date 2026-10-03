@@ -30,13 +30,15 @@ import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE
  * @param repositoriesInfoByNode            A Map of node id to RepositoriesHealthInfo for that node
  * @param fileSettingsHealthInfo            The file-based settings health information
  * @param dlmFrozenTransitionsHealthInfo    The DLM frozen-tier transition health information
+ * @param dataRecoveryHealthInfo            The data recovery protection health information
  */
 public record HealthInfo(
     Map<String, DiskHealthInfo> diskInfoByNode,
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
     Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
     FileSettingsHealthInfo fileSettingsHealthInfo,
-    @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo
+    @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo,
+    @Nullable DataRecoveryHealthInfo dataRecoveryHealthInfo
 ) implements Writeable {
 
     public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
@@ -45,6 +47,7 @@ public record HealthInfo(
     private static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName(
         "dlm_frozen_transitions_health_info"
     );
+    private static final TransportVersion DATA_RECOVERY_HEALTH_INFO = TransportVersion.fromName("data_recovery_health_info");
 
     public HealthInfo {
         requireNonNull(fileSettingsHealthInfo);
@@ -54,9 +57,19 @@ public record HealthInfo(
         Map<String, DiskHealthInfo> diskInfoByNode,
         @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
         Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
+        FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo
+    ) {
+        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, dlmFrozenTransitionsHealthInfo, null);
+    }
+
+    public HealthInfo(
+        Map<String, DiskHealthInfo> diskInfoByNode,
+        @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
+        Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
         FileSettingsHealthInfo fileSettingsHealthInfo
     ) {
-        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, null);
+        this(diskInfoByNode, dslHealthInfo, repositoriesInfoByNode, fileSettingsHealthInfo, null, null);
     }
 
     public HealthInfo(StreamInput input) throws IOException {
@@ -69,6 +82,9 @@ public record HealthInfo(
                 : INDETERMINATE,
             input.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)
                 ? input.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::readFrom)
+                : null,
+            input.getTransportVersion().supports(DATA_RECOVERY_HEALTH_INFO)
+                ? input.readOptionalWriteable(DataRecoveryHealthInfo::new)
                 : null
         );
     }
@@ -83,6 +99,9 @@ public record HealthInfo(
         }
         if (output.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)) {
             output.writeOptionalWriteable(dlmFrozenTransitionsHealthInfo);
+        }
+        if (output.getTransportVersion().supports(DATA_RECOVERY_HEALTH_INFO)) {
+            output.writeOptionalWriteable(dataRecoveryHealthInfo);
         }
     }
 }

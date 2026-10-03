@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.core.security.support;
 
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -24,12 +26,16 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
 import static org.elasticsearch.xpack.core.security.support.Automatons.wildcard;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -103,6 +109,23 @@ public class AutomatonsTests extends ESTestCase {
         assertThat(predicate("a.*z").toString(), equalTo("a.*z"));
         assertThat(predicate("a.*z", "A.*Z").toString(), equalTo("a.*z|A.*Z"));
         assertThat(predicate("a.*z", "A.*Z", "Α.*Ω").toString(), equalTo("a.*z|A.*Z|Α.*Ω"));
+    }
+
+    public void testPredicateRamBytesUsed() {
+        final Automaton automaton = patterns("indices:data/read/*", "indices:admin/*", "cluster:monitor/*");
+        final Predicate<String> predicate = predicate(automaton);
+        // the predicate is evaluated by a run automaton built from the (already deterministic) automaton, which it accounts for
+        assertThat(predicate, instanceOf(Accountable.class));
+        assertThat(RamUsageEstimator.sizeOfObject(predicate), equalTo(new CharacterRunAutomaton(automaton).ramBytesUsed()));
+        assertThat(RamUsageEstimator.sizeOfObject(predicate), greaterThan(automaton.ramBytesUsed()));
+
+        // the predicates for the match-all and empty automata are shared constants that retain nothing
+        final Predicate<String> matchAll = predicate(Automatons.MATCH_ALL);
+        assertThat(matchAll.test(randomAlphaOfLengthBetween(0, 10)), is(true));
+        assertThat(RamUsageEstimator.sizeOfObject(matchAll), equalTo(0L));
+        final Predicate<String> matchNone = predicate(Automatons.EMPTY);
+        assertThat(matchNone.test(randomAlphaOfLengthBetween(0, 10)), is(false));
+        assertThat(RamUsageEstimator.sizeOfObject(matchNone), equalTo(0L));
     }
 
     public void testPatternComplexity() {

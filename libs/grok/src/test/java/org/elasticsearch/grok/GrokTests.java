@@ -362,6 +362,32 @@ public class GrokTests extends ESTestCase {
         assertThat(matches.get("tags"), nullValue());
     }
 
+    public void testMatchAgreesWithCapturesOnMultiByteText() {
+        testMatchAgreesWithCapturesOnMultiByteText(false);
+        testMatchAgreesWithCapturesOnMultiByteText(true);
+    }
+
+    /**
+     * The search range joni is given counts utf-8 bytes, so a range derived from the character count used to hide any
+     * match whose start offset was past that count: {@link Grok#match(String)} answered false while
+     * {@link Grok#captures(String)} extracted the fields. Both accessors must agree.
+     */
+    private void testMatchAgreesWithCapturesOnMultiByteText(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{LOGLEVEL:level}", logger::warn);
+        assertCaptureConfig(grok, Map.of("level", STRING));
+
+        // 20 characters but 48 utf-8 bytes, and the match starts at byte offset 43 - past the character count
+        String multiByte = "가나다라마바사아자차카타파하 ERROR";
+        assertThat(multiByte.getBytes(StandardCharsets.UTF_8).length, equalTo(48));
+        assertThat(grok.match(multiByte), is(true));
+        assertThat(grok.captures(multiByte).get("level"), equalTo("ERROR"));
+
+        // ascii control: character count and byte count are the same, so the outcome is unchanged
+        String ascii = "aaaaaaaaaaaaaa ERROR";
+        assertThat(grok.match(ascii), is(true));
+        assertThat(grok.captures(ascii).get("level"), equalTo("ERROR"));
+    }
+
     public void testNamedFieldsWithWholeTextMatch() {
         testNamedFieldsWithWholeTextMatch(false);
         testNamedFieldsWithWholeTextMatch(true);

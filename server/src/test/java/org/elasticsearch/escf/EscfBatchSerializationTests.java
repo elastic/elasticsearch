@@ -11,7 +11,9 @@ package org.elasticsearch.escf;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +25,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Serialization round-trip tests for {@link EscfBatch}: an in-memory batch's bytes, when parsed back
@@ -70,6 +74,100 @@ public class EscfBatchSerializationTests extends ESTestCase {
         }
     }
 
+    public void testSerializesOnItsRecyclerAndReleasesOnClose() throws IOException {
+        MockBytesRefRecycler recycler = new MockBytesRefRecycler();
+        List<String> docs = randomDocs();
+        int partitions = randomIntBetween(1, 4);
+        List<List<String>> docsByPartition = new ArrayList<>(partitions);
+        for (int p = 0; p < partitions; p++) {
+            docsByPartition.add(new ArrayList<>());
+        }
+        EscfBatch[] batches = new EscfBatch[partitions];
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (String doc : docs) {
+                int partition = randomIntBetween(0, partitions - 1);
+                encoder.parseToScratch(new BytesArray(doc), XContentType.JSON);
+                encoder.commitScratchTo(partition);
+                docsByPartition.get(partition).add(doc);
+            }
+            for (int p = 0; p < partitions; p++) {
+                if (encoder.hasPartition(p)) {
+                    batches[p] = encoder.buildPartition(p);
+                }
+            }
+        }
+        try {
+            for (int p = 0; p < partitions; p++) {
+                EscfBatch batch = batches[p];
+                if (batch == null) {
+                    continue;
+                }
+                List<String> partitionDocs = docsByPartition.get(p);
+                int pagesBeforeSerialize = recycler.activePageCount();
+                BytesReference bytes = batch.data();
+                assertThat(
+                    "serialize draws pages from the batch's recycler",
+                    recycler.activePageCount(),
+                    greaterThan(pagesBeforeSerialize)
+                );
+                assertSame(bytes, batch.data());
+                assertSame(bytes, batch.slice(0, batch.docCount()).data());
+                try (EscfBatch parsed = EscfBatch.parse(bytes, () -> {})) {
+                    for (int i = 0; i < batch.docCount(); i++) {
+                        assertEquals("row " + i + " of " + partitionDocs, reconstruct(batch, i), reconstruct(parsed, i));
+                    }
+                }
+
+                int from = randomIntBetween(0, batch.docCount() - 1);
+                int to = randomIntBetween(from + 1, batch.docCount());
+                int pagesBeforeSlice = recycler.activePageCount();
+                try (EscfBatch reparsed = EscfBatch.parse(batch.slice(from, to).data(), () -> {})) {
+                    assertEquals("slices take no pages of their own", pagesBeforeSlice, recycler.activePageCount());
+                    for (int i = 0; i < to - from; i++) {
+                        assertEquals(
+                            "row " + (from + i) + " of slice [" + from + ", " + to + ") of " + partitionDocs,
+                            reconstruct(batch, from + i),
+                            reconstruct(reparsed, i)
+                        );
+                    }
+                }
+            }
+        } finally {
+            Releasables.close(batches);
+        }
+        assertEquals("closing the batches releases every page they took", 0, recycler.activePageCount());
+    }
+
+    private static List<String> randomDocs() {
+        String[] optionalFields = { "d", "s", "b", "n", "arr_l", "arr_s", "arr_m", "obj", "u" };
+        List<String> docs = new ArrayList<>();
+        for (int i = randomIntBetween(1, 200); i > 0; i--) {
+            StringBuilder doc = new StringBuilder("{\"l\":").append(randomLong());
+            for (String field : optionalFields) {
+                if (randomBoolean()) {
+                    doc.append(",\"").append(field).append("\":").append(randomValue(field));
+                }
+            }
+            docs.add(doc.append('}').toString());
+        }
+        return docs;
+    }
+
+    private static String randomValue(String field) {
+        return switch (field) {
+            case "d" -> Double.toString(randomDouble());
+            case "s" -> "\"" + randomAlphaOfLengthBetween(0, 12) + "\"";
+            case "b" -> Boolean.toString(randomBoolean());
+            case "n" -> "null";
+            case "arr_l" -> randomList(1, 4, () -> Long.toString(randomLong())).toString();
+            case "arr_s" -> randomList(1, 4, () -> "\"" + randomAlphaOfLength(3) + "\"").toString();
+            case "arr_m" -> "[" + randomLong() + ",\"" + randomAlphaOfLength(3) + "\"]";
+            case "obj" -> "{\"k\":" + randomInt() + "}";
+            case "u" -> randomBoolean() ? Long.toString(randomLong()) : "\"" + randomAlphaOfLength(4) + "\"";
+            default -> throw new AssertionError("unknown field [" + field + "]");
+        };
+    }
+
     private static EscfBatch encode(String[] docs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(docs.length);
         for (String doc : docs) {
@@ -88,4 +186,5 @@ public class EscfBatchSerializationTests extends ESTestCase {
     private static Map<String, Object> asMap(String json) {
         return XContentHelper.convertToMap(new BytesArray(json), false, XContentType.JSON).v2();
     }
+
 }

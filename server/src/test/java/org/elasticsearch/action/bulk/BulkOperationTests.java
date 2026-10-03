@@ -9,7 +9,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -46,15 +48,21 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -71,12 +79,14 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,6 +94,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -93,6 +106,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -228,6 +242,15 @@ public class BulkOperationTests extends ESTestCase {
         )
         .build();
 
+    private final AtomicInteger obtainedBatchPages = new AtomicInteger();
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler() {
+        @Override
+        public V<BytesRef> obtain() {
+            obtainedBatchPages.incrementAndGet();
+            return super.obtain();
+        }
+    };
+
     private TestThreadPool threadPool;
 
     @Before
@@ -239,6 +262,11 @@ public class BulkOperationTests extends ESTestCase {
     @After
     public void tearDownThreadpool() {
         terminate(threadPool);
+    }
+
+    @After
+    public void assertBatchPagesReleased() {
+        recycler.close();
     }
 
     /**
@@ -337,6 +365,7 @@ public class BulkOperationTests extends ESTestCase {
             .build();
 
         ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
                     .indices(
@@ -382,6 +411,80 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
         assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+    }
+
+    public void testBatchBulkReleasesItsPages() {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = new BatchScenario(
+            BatchRegime.MIXED,
+            false,
+            indexName,
+            3,
+            Map.of(
+                new ShardId(indexMetadata.getIndex(), 0),
+                ShardOutcome.ACCEPT,
+                new ShardId(indexMetadata.getIndex(), 1),
+                ShardOutcome.ACCEPT
+            )
+        );
+        AtomicBoolean dispatchedBatch = new AtomicBoolean();
+        NodeClient client = getNodeClient((request, listener) -> {
+            if (request.getBulkShardBatch() != null) {
+                dispatchedBatch.set(true);
+            }
+            acceptAllShardWrites().accept(request, listener);
+        });
+
+        BulkResponse response = safeAwait(l -> newBatchBulkOperation(clusterState, client, xContentBatchRequest(scenario), l).run());
+
+        assertThat(response.hasFailures(), is(false));
+        assertTrue("the bulk ran in batch mode", dispatchedBatch.get());
+        assertThat(obtainedBatchPages.get(), greaterThan(0));
+        assertThat(recycler.activePageCount(), equalTo(0));
+    }
+
+    public void testBatchBulkReleasesItsPagesOnEveryPath() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = randomBatchScenario();
+        BulkRequest bulkRequest = scenario.providedBatch() ? providedBatchRequest(scenario) : xContentBatchRequest(scenario);
+        Map<ShardId, Exception> shortCircuited = new HashMap<>();
+        scenario.outcomes().forEach((shardId, outcome) -> {
+            if (outcome == ShardOutcome.SHORT_CIRCUIT) {
+                shortCircuited.put(shardId, new MapperException("short-circuited " + shardId));
+            }
+        });
+        bulkRequest.incrementalState(new BulkRequest.IncrementalState(shortCircuited, false));
+        NodeClient client = getNodeClient((request, listener) -> {
+            if (scenario.outcomes().get(request.shardId()) == ShardOutcome.FAIL) {
+                listener.onFailure(new MapperException("failed " + request.shardId()));
+            } else {
+                acceptAllShardWrites().accept(request, listener);
+            }
+        });
+        ClusterState state = scenario.regime() == BatchRegime.BLOCKED
+            ? ClusterState.builder(clusterState).blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)).build()
+            : clusterState;
+
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<BulkResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        newBatchBulkOperation(state, client, bulkRequest, ActionListener.wrap(r -> {
+            completions.incrementAndGet();
+            response.set(r);
+        }, e -> {
+            completions.incrementAndGet();
+            failure.set(e);
+        })).run();
+
+        assertThat(scenario.toString(), completions.get(), equalTo(1));
+        assertThat(scenario + " took no batch pages", obtainedBatchPages.get(), greaterThan(0));
+        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
+        if (scenario.regime() == BatchRegime.BLOCKED) {
+            assertThat(scenario.toString(), failure.get(), instanceOf(ClusterBlockException.class));
+        } else {
+            assertNull(scenario.toString(), failure.get());
+            assertExpectedBatchItems(scenario, response.get());
+        }
     }
 
     /**
@@ -1243,6 +1346,130 @@ public class BulkOperationTests extends ESTestCase {
     /**
      * Accepts all write operations from the given request object when it is encountered in the mock shard bulk action
      */
+    private enum BatchRegime {
+        MIXED,
+        ALL_SHORT_CIRCUIT,
+        BLOCKED
+    }
+
+    private enum ShardOutcome {
+        ACCEPT,
+        FAIL,
+        SHORT_CIRCUIT
+    }
+
+    private record BatchScenario(
+        BatchRegime regime,
+        boolean providedBatch,
+        String target,
+        int docCount,
+        Map<ShardId, ShardOutcome> outcomes
+    ) {}
+
+    private BatchScenario randomBatchScenario() {
+        BatchRegime regime = randomFrom(BatchRegime.values());
+        boolean providedBatch = regime == BatchRegime.BLOCKED || randomBoolean();
+        String target = regime == BatchRegime.ALL_SHORT_CIRCUIT ? fsDataStreamName : randomFrom(indexName, fsDataStreamName);
+        Index writeIndex = batchWriteIndex(target).getIndex();
+        Map<ShardId, ShardOutcome> outcomes = new HashMap<>();
+        for (int shard = 0; shard < 2; shard++) {
+            ShardOutcome outcome = regime == BatchRegime.ALL_SHORT_CIRCUIT ? ShardOutcome.SHORT_CIRCUIT : randomFrom(ShardOutcome.values());
+            outcomes.put(new ShardId(writeIndex, shard), outcome);
+        }
+        return new BatchScenario(regime, providedBatch, target, randomIntBetween(1, 40), outcomes);
+    }
+
+    private IndexMetadata batchWriteIndex(String target) {
+        return target.equals(indexName) ? indexMetadata : ds2BackingIndex1;
+    }
+
+    private static String batchDoc(int i) {
+        return "{\"key\":\"val" + i + "\",\"n\":" + i + "}";
+    }
+
+    private static BulkRequest xContentBatchRequest(BatchScenario scenario) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < scenario.docCount(); i++) {
+            bulkRequest.add(
+                new IndexRequest(scenario.target()).id(Integer.toString(i))
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(batchDoc(i), XContentType.JSON)
+            );
+        }
+        return bulkRequest;
+    }
+
+    private BulkRequest providedBatchRequest(BatchScenario scenario) throws IOException {
+        EscfBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (int i = 0; i < scenario.docCount(); i++) {
+                encoder.parseToScratch(new BytesArray(batchDoc(i)), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < scenario.docCount(); i++) {
+            IndexRequest request = new IndexRequest(scenario.target()).id(Integer.toString(i)).opType(DocWriteRequest.OpType.CREATE);
+            request.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(request);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(scenario.target(), batch));
+        return bulkRequest;
+    }
+
+    private void assertExpectedBatchItems(BatchScenario scenario, BulkResponse response) {
+        IndexMetadata writeIndex = batchWriteIndex(scenario.target());
+        IndexRouting routing = IndexRouting.fromIndexMetadata(writeIndex);
+        assertThat(scenario.toString(), response.getItems().length, equalTo(scenario.docCount()));
+        for (int i = 0; i < scenario.docCount(); i++) {
+            BulkItemResponse item = response.getItems()[i];
+            ShardId shardId = new ShardId(
+                writeIndex.getIndex(),
+                routing.indexShard(new IndexRequest(scenario.target()).id(Integer.toString(i)))
+            );
+            ShardOutcome outcome = scenario.outcomes().get(shardId);
+            String message = scenario + " item " + i + " on " + shardId + " (" + outcome + ")";
+            if (outcome == ShardOutcome.ACCEPT) {
+                assertFalse(message, item.isFailed());
+                assertThat(message, item.getIndex(), equalTo(writeIndex.getIndex().getName()));
+            } else if (scenario.target().equals(fsDataStreamName)) {
+                assertFalse(message, item.isFailed());
+                assertThat(message, item.getIndex(), equalTo(ds2FailureStore1.getIndex().getName()));
+                assertThat(message, item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+            } else {
+                assertTrue(message, item.isFailed());
+            }
+        }
+    }
+
+    private BulkOperation newBatchBulkOperation(
+        ClusterState state,
+        NodeClient client,
+        BulkRequest request,
+        ActionListener<BulkResponse> listener
+    ) {
+        ClusterState batchCapableState = ClusterState.builder(state)
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
+            .build();
+        return newBulkOperation(
+            batchCapableState,
+            client,
+            request,
+            new AtomicArray<>(request.numberOfActions()),
+            mockObserver(batchCapableState),
+            listener,
+            new FailureStoreDocumentConverter(),
+            DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            true,
+            new BatchIndexingEnabled(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build()
+                )
+            )
+        );
+    }
+
     private static BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> acceptAllShardWrites() {
         return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> listener.onResponse(
             new BulkShardResponse(
@@ -1547,7 +1774,8 @@ public class BulkOperationTests extends ESTestCase {
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            recycler
         );
     }
 

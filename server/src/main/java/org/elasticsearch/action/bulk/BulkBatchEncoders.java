@@ -11,11 +11,14 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,9 +81,14 @@ final class BulkBatchEncoders implements Releasable {
 
     private record PendingAttachment(IndexRequest indexRequest, int rowIndex) {}
 
+    private final Recycler<BytesRef> recycler;
     private final Map<Index, IndexState> indexStates = new HashMap<>();
     private boolean disabled;
     private boolean closed;
+
+    BulkBatchEncoders(Recycler<BytesRef> recycler) {
+        this.recycler = recycler;
+    }
 
     /**
      * Returns true if every item in {@code bulkRequest} is structurally eligible to be batch-encoded:
@@ -138,7 +146,7 @@ final class BulkBatchEncoders implements Releasable {
         }
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
-            idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
+            idx -> new IndexState(new EscfEncoder(recycler), indexRouting.newRoutingExtractor())
         );
         if (state.extractor != null) {
             state.extractor.reset();
@@ -177,24 +185,33 @@ final class BulkBatchEncoders implements Releasable {
      * Build the batch for every shard that received committed rows, set the batch row reference
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
+     * The caller owns every returned batch.
      */
     Map<ShardId, SourceBatch> finalizeBatches() {
         if (disabled) {
             return Collections.emptyMap();
         }
         Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
-        for (IndexState state : indexStates.values()) {
-            for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
-                List<PendingAttachment> pending = entry.getValue();
-                if (pending.isEmpty()) {
-                    continue;
+        boolean success = false;
+        try {
+            for (IndexState state : indexStates.values()) {
+                for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
+                    List<PendingAttachment> pending = entry.getValue();
+                    if (pending.isEmpty()) {
+                        continue;
+                    }
+                    ShardId shardId = entry.getKey();
+                    SourceBatch batch = state.encoder.buildPartition(shardId.getId());
+                    batchesByShard.put(shardId, batch);
+                    for (PendingAttachment attachment : pending) {
+                        attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
+                    }
                 }
-                ShardId shardId = entry.getKey();
-                SourceBatch batch = state.encoder.buildPartition(shardId.getId());
-                batchesByShard.put(shardId, batch);
-                for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
-                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(batchesByShard.values());
             }
         }
         return batchesByShard;

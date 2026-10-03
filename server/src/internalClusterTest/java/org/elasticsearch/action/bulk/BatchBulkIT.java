@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -63,8 +64,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -100,6 +103,13 @@ public class BatchBulkIT extends ESIntegTestCase {
             CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
             MapperExtrasPlugin.class
         );
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> mocks = new LinkedHashSet<>(super.getMockPlugins());
+        mocks.add(NodeMocksPlugin.class);
+        return mocks;
     }
 
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {

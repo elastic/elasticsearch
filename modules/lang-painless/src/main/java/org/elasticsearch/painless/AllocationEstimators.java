@@ -11,7 +11,12 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.ScriptTermStats;
+import org.elasticsearch.script.field.HalfFloatDocValuesField;
+import org.elasticsearch.script.field.IPAddress;
+import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.script.field.vectors.RankVectors;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -654,6 +659,96 @@ public final class AllocationEstimators {
      */
     public static long geoPointsDoublesBytes(ScriptDocValues.GeoPoints receiver) {
         return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), 8);
+    }
+
+    // ---- Doc-value reads. A keyword, binary or ip read copies the stored bytes out of the field's buffer and decodes them,
+    // ---- so it costs in proportion to the value. The keyword, BytesRef and binary reads are charged after the call by the
+    // ---- Augmentation wrappers, which see the real result; the sizing helpers below are public for them.
+
+    /** A {@link BytesRef} without its array: header, one reference, offset and length. */
+    private static final long BYTES_REF_SHELL_BYTES = AllocSizes.pad8(
+        AllocSizes.OBJECT_HEADER + AllocSizes.REFERENCE_SIZE + 2L * Integer.BYTES
+    );
+
+    /** The {@code HeapByteBuffer} from {@code ByteBuffer.wrap}. It shares the array it is given. */
+    private static final long BYTE_BUFFER_SHELL_BYTES = 48;
+
+    /** Decoding one ip value: the copied bytes, the {@code InetAddress} and the {@code IPAddress} wrapper. */
+    private static final long IP_DECODE_BYTES = 160;
+
+    /** Longest text form of an ip address: IPv6 with an IPv4 suffix and a scope id. */
+    private static final long IP_STRING_CHARS = 45;
+
+    /** {@code BytesRefBuilder.toBytesRef()}: a copy of the bytes plus the {@link BytesRef}. */
+    public static long termCopyBytes(long length) {
+        return AllocSizes.addSat(AllocSizes.arrayBytes(length, 1), BYTES_REF_SHELL_BYTES);
+    }
+
+    /** {@code toBytesRef().utf8ToString()}: the byte copy plus a String of at most one char per byte. */
+    public static long termStringBytes(long length) {
+        return AllocSizes.addSat(termCopyBytes(length), newStringBytes(length));
+    }
+
+    /** A binary read: the byte copy plus the buffer that wraps it. */
+    public static long byteBufferBytes(long length) {
+        return AllocSizes.addSat(termCopyBytes(length), BYTE_BUFFER_SHELL_BYTES);
+    }
+
+    /** An {@code ArrayList} of {@code size} elements. */
+    private static long listBytes(long size) {
+        return AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(size, AllocSizes.REFERENCE_SIZE));
+    }
+
+    /** {@code IpDocValuesField.get(index, defaultValue)}: a decoded address in an {@code IPAddress}. */
+    public static long ipAddressReadBytes(IpDocValuesField receiver, int index, IPAddress defaultValue) {
+        return IP_DECODE_BYTES;
+    }
+
+    /** {@code IpDocValuesField.get(defaultValue)}, which reads index 0. */
+    public static long ipAddressReadBytes(IpDocValuesField receiver, IPAddress defaultValue) {
+        return IP_DECODE_BYTES;
+    }
+
+    /** {@code IpDocValuesField.asString(index, defaultValue)}: a decoded address plus its text. */
+    public static long ipStringBytes(IpDocValuesField receiver, int index, String defaultValue) {
+        return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
+    }
+
+    /** {@code IpDocValuesField.asString(defaultValue)}, which reads index 0. */
+    public static long ipStringBytes(IpDocValuesField receiver, String defaultValue) {
+        return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
+    }
+
+    /** {@code IpDocValuesField.asStrings()}: a list with one decoded address string per value. */
+    public static long ipStringsBytes(IpDocValuesField receiver) {
+        long size = receiver == null ? 0 : receiver.size();
+        long perValue = AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
+        return AllocSizes.addSat(listBytes(size), AllocSizes.mulSat(size, perValue));
+    }
+
+    /** {@code HalfFloatDocValuesField.asDoubles()}: a list with one boxed {@link Double} per value. */
+    public static long halfFloatDoublesBytes(HalfFloatDocValuesField receiver) {
+        long size = receiver == null ? 0 : receiver.size();
+        return AllocSizes.addSat(listBytes(size), AllocSizes.mulSat(size, AllocSizes.boxSize(Double.class)));
+    }
+
+    /** {@code RankVectorsScriptDocValues.getVectorValues()}: two iterators and one {@code float[]} of the field's dimensions. */
+    public static long rankVectorsIteratorBytes(RankVectorsScriptDocValues receiver) {
+        return rankVectorsIteratorBytes(receiver == null ? 0 : receiver.dims());
+    }
+
+    /** {@code RankVectors.getVectors()}. An empty value would throw from {@code getDims()}, so it gets the iterator alone. */
+    public static long rankVectorsIteratorBytes(RankVectors receiver) {
+        if (receiver == null || receiver.isEmpty()) {
+            return AllocSizes.ITERATOR_BYTES;
+        }
+
+        return rankVectorsIteratorBytes(receiver.getDims());
+    }
+
+    private static long rankVectorsIteratorBytes(long dims) {
+        // The copied source iterator, the wrapper a byte-encoded field adds, and the float buffer.
+        return AllocSizes.addSat(AllocSizes.mulSat(2, AllocSizes.ITERATOR_BYTES), AllocSizes.arrayBytes(dims, 4));
     }
 
     /** Cost of {@code Collection.toArray()}: a new {@code Object[]} sized to the collection. */

@@ -9,13 +9,19 @@
 
 package org.elasticsearch.painless.api;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.text.ReadLimitedCharSequence;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.painless.AllocationEstimators;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.PainlessScript;
+import org.elasticsearch.script.field.BaseKeywordDocValuesField;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -2102,5 +2108,64 @@ public class Augmentation {
 
     public static int getYearOfEra(ZonedDateTime receiver) {
         throw new UnsupportedOperationException("[getYearOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA)] instead");
+    }
+
+    // ---- Doc-value reads. The size of a read is only known once it has happened, so these wrap the read and charge the
+    // ---- script afterwards from the real result. A miss returns the default and charges nothing.
+
+    /** {@code ScriptDocValues.Strings.getValue()}, charged its byte copy and String. */
+    public static String getValue(PainlessScript script, ScriptDocValues.Strings receiver) {
+        String value = receiver.getValue();
+        script.$checkAllocBytes(AllocationEstimators.termStringBytes(value.length()));
+        return value;
+    }
+
+    /** {@code ScriptDocValues.Strings.get(index)}, charged its byte copy and String. */
+    public static String get(PainlessScript script, ScriptDocValues.Strings receiver, int index) {
+        String value = receiver.get(index);
+        script.$checkAllocBytes(AllocationEstimators.termStringBytes(value.length()));
+        return value;
+    }
+
+    /** {@code ScriptDocValues.BytesRefs.getValue()}, charged its byte copy. */
+    public static BytesRef getValue(PainlessScript script, ScriptDocValues.BytesRefs receiver) {
+        BytesRef value = receiver.getValue();
+        script.$checkAllocBytes(AllocationEstimators.termCopyBytes(value.length));
+        return value;
+    }
+
+    /** {@code ScriptDocValues.BytesRefs.get(index)}, charged its byte copy. */
+    public static BytesRef get(PainlessScript script, ScriptDocValues.BytesRefs receiver, int index) {
+        BytesRef value = receiver.get(index);
+        script.$checkAllocBytes(AllocationEstimators.termCopyBytes(value.length));
+        return value;
+    }
+
+    /** {@code BaseKeywordDocValuesField.get(defaultValue)}. */
+    public static String get(PainlessScript script, BaseKeywordDocValuesField receiver, String defaultValue) {
+        return get(script, receiver, 0, defaultValue);
+    }
+
+    /** {@code BaseKeywordDocValuesField.get(index, defaultValue)}, charged its byte copy and String unless it is the default. */
+    public static String get(PainlessScript script, BaseKeywordDocValuesField receiver, int index, String defaultValue) {
+        String value = receiver.get(index, defaultValue);
+        if (value != defaultValue) {
+            script.$checkAllocBytes(AllocationEstimators.termStringBytes(value.length()));
+        }
+        return value;
+    }
+
+    /** {@code BinaryDocValuesField.get(defaultValue)}. */
+    public static ByteBuffer get(PainlessScript script, BinaryDocValuesField receiver, ByteBuffer defaultValue) {
+        return get(script, receiver, 0, defaultValue);
+    }
+
+    /** {@code BinaryDocValuesField.get(index, defaultValue)}, charged its byte copy and buffer unless it is the default. */
+    public static ByteBuffer get(PainlessScript script, BinaryDocValuesField receiver, int index, ByteBuffer defaultValue) {
+        ByteBuffer value = receiver.get(index, defaultValue);
+        if (value != defaultValue) {
+            script.$checkAllocBytes(AllocationEstimators.byteBufferBytes(value.remaining()));
+        }
+        return value;
     }
 }

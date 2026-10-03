@@ -639,6 +639,32 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
+        return lookupGetter(painlessLookup, receiverClass, name, false);
+    }
+
+    /**
+     * Looks up a getter for a def load. When {@code scriptPushed} the call site passes the script instance after the receiver:
+     * a {@code @script_aware} getter takes it first, any other getter drops it.
+     */
+    static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name, boolean scriptPushed) {
+        MethodHandle getter = lookupGetterInternal(painlessLookup, receiverClass, name);
+        MethodType type = getter.type();
+        boolean takesScript = type.parameterCount() == 2 && type.parameterType(0) == PainlessScript.class;
+
+        if (takesScript) {
+            if (scriptPushed == false) {
+                throw new IllegalArgumentException(
+                    "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] needs the script instance"
+                );
+            }
+            MethodType swapped = MethodType.methodType(type.returnType(), type.parameterType(1), PainlessScript.class);
+            return MethodHandles.permuteArguments(getter, swapped, 1, 0);
+        }
+
+        return scriptPushed ? MethodHandles.dropArguments(getter, 1, PainlessScript.class) : getter;
+    }
+
+    private static MethodHandle lookupGetterInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         MethodHandle getter = painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
 

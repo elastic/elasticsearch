@@ -1,0 +1,16 @@
+# Runs every nightly micro-benchmark once, quickly, so a change that breaks the periodic-micro-benchmarks job is caught
+# in the PR. Results are never indexed.
+
+config:
+  auto-retry: false
+  any-included-regions:
+    - ^benchmarks/.*
+steps:
+  - label: nightly-micro-benchmarks-smoke
+    command: .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly'
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

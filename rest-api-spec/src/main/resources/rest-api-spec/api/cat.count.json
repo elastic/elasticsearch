@@ -17,13 +17,15 @@
         {
           "path": "/_cat/count",
           "methods": [
-            "GET"
+            "GET",
+            "POST"
           ]
         },
         {
           "path": "/_cat/count/{index}",
           "methods": [
-            "GET"
+            "GET",
+            "POST"
           ],
           "parts": {
             "index": {
@@ -88,6 +90,10 @@
           "nanos"
         ]
       }
+    },
+    "body": {
+      "description": "project_routing can also be set as part of the body",
+      "required": false
     }
   }
 }

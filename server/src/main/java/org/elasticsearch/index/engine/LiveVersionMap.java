@@ -282,7 +282,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // map. While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = maps.buildTransitionMap();
+        synchronized (this) {
+            maps = maps.buildTransitionMap();
+        }
         assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
@@ -345,7 +347,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     void enforceSafeAccess() {
-        maps.needsSafeAccess = true;
+        synchronized (this) {
+            maps.needsSafeAccess = true;
+        }
     }
 
     boolean isSafeAccessRequired() {

@@ -32,6 +32,7 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
@@ -221,6 +222,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         requiredBytes += 2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // extra pages for the object array
         requiredBytes += 10 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // full allocations for the first few groups
         requiredBytes += Math.max(PageCacheRecycler.PAGE_SIZE_IN_BYTES, numGroups * 8L);
+        requiredBytes += 8L * (1 << 14) + 16; // shared filter of recently seen values, allocated on the first compaction
+        requiredBytes += 4L * 4096 + 16; // shared scratch array used to merge a buffer's unsorted tail into its sorted prefix
         CircuitBreakerService breakerService = LimitedBreaker.service("test", ByteSizeValue.ofBytes(requiredBytes));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
         int precision = 14;
@@ -253,6 +256,51 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
                     );
                 } else {
                     assertThat("group=" + g + " values=" + values, values, hasSize((int) cardinality));
+                }
+            }
+        }
+    }
+
+    /**
+     * Linear counting defers deduplication, so insert many duplicates, across buckets and past a buffer's capacity, and check the
+     * stored values against a model.
+     */
+    public void testLinearCountingWithDuplicates() {
+        final int precision = randomIntBetween(8, 14);
+        final int threshold = (int) ((1 << precision) / 4 * 0.75);
+        final int numBuckets = between(1, 30);
+        try (HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1)) {
+            Map<Integer, Set<Integer>> expected = new HashMap<>();
+            for (int b = 0; b < numBuckets; b++) {
+                expected.put(b, new HashSet<>());
+            }
+            final int universe = between(1, threshold);
+            final long[] universeHashes = new long[universe];
+            for (int i = 0; i < universe; i++) {
+                universeHashes[i] = BitMixer.mix64(randomLong());
+            }
+            final int inserts = between(1, 5 * threshold);
+            for (int i = 0; i < inserts; i++) {
+                int bucket = randomBoolean() ? randomIntBetween(0, numBuckets - 1) : 0;
+                long hash = universeHashes[randomBoolean() ? 0 : between(0, universe - 1)];
+                hll.collect(bucket, hash);
+                expected.get(bucket).add(AbstractLinearCounting.encodeHash(hash, precision));
+            }
+            for (int b = 0; b < numBuckets; b++) {
+                Set<Integer> values = expected.get(b);
+                if (hll.getAlgorithm(b) == AbstractHyperLogLogPlusPlus.LINEAR_COUNTING) {
+                    Set<Integer> actual = new HashSet<>();
+                    AbstractLinearCounting.HashesIterator it = hll.getLinearCounting(b);
+                    assertThat(it.size(), equalTo(values.size()));
+                    int previous = Integer.MIN_VALUE;
+                    while (it.next()) {
+                        assertTrue("sorted and distinct", it.value() > previous || actual.isEmpty());
+                        previous = it.value();
+                        actual.add(it.value());
+                    }
+                    assertThat(actual, equalTo(values));
+                } else {
+                    assertThat(values.size(), greaterThan(0));
                 }
             }
         }

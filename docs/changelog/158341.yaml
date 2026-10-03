@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158341
+summary: Fix backwards read of `shape` doc values in block loaders
+type: bug

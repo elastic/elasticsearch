@@ -27,6 +27,7 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -55,6 +56,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -63,9 +65,11 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -486,7 +490,8 @@ public final class TextFieldMapper extends FieldMapper {
                     arrayOrderBinaryDocValues,
                     // Gated as a keyword field is: the codec stores the column, so the column is written in the
                     // payload it reads.
-                    usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings)
+                    usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings),
+                    indexSettings.getMode().isStrictColumnar()
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -789,6 +794,8 @@ public final class TextFieldMapper extends FieldMapper {
         private final boolean useArrayOrderBinaryDocValues;
         // Whether the binary doc values are written as the ColumNAR codec's payload rather than either other framing.
         private final boolean useColumnarPayload;
+        // Whether the index is strictly columnar, where every field keeps its values in a column of its own.
+        private final boolean strictColumnar;
 
         /**
          * In some configurations text fields use a sub-keyword field to provide
@@ -814,7 +821,8 @@ public final class TextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValues,
             DocValuesParameter.Values docValuesParams,
             boolean useArrayOrderBinaryDocValues,
-            boolean useColumnarPayload
+            boolean useColumnarPayload,
+            boolean strictColumnar
         ) {
             super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             this.fielddata = false;
@@ -828,6 +836,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.docValuesParams = docValuesParams;
             this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
             this.useColumnarPayload = useColumnarPayload;
+            this.strictColumnar = strictColumnar;
         }
 
         public TextFieldType(
@@ -859,6 +868,7 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 null,
                 false,
+                false,
                 false
             );
         }
@@ -883,6 +893,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.docValuesParams = null;
             this.useArrayOrderBinaryDocValues = false;
             this.useColumnarPayload = false;
+            this.strictColumnar = false;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -1157,21 +1168,20 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.term(term);
+            return reanalyzeIntervals(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
         }
 
         @Override
         public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            if (prefixFieldType != null) {
+            // Answered by the prefix subfield, which indexes its own positions.
+            if (prefixFieldType != null && prefixFieldType.getTextSearchInfo().hasPositions()) {
                 return prefixFieldType.intervals(term);
             }
-            return Intervals.prefix(term, IndexSearcher.getMaxClauseCount());
+            return reanalyzeIntervals(
+                Intervals.prefix(term, IndexSearcher.getMaxClauseCount()),
+                new PrefixQuery(new Term(name(), term)),
+                context
+            );
         }
 
         @Override
@@ -1182,9 +1192,6 @@ public final class TextFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
             FuzzyQuery fq = FuzzyQueries.create(
                 new Term(name(), term),
                 maxDistance,
@@ -1195,23 +1202,17 @@ public final class TextFieldMapper extends FieldMapper {
                 context,
                 name()
             );
-            return Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
+            return reanalyzeIntervals(Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term), fq, context);
         }
 
         @Override
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount());
+            return reanalyzeIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
         }
 
         @Override
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount());
+            return reanalyzeIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
         }
 
         @Override
@@ -1222,10 +1223,11 @@ public final class TextFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
-            }
-            return Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount());
+            return reanalyzeIntervals(
+                Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
+                Queries.ALL_DOCS_INSTANCE,
+                context
+            );
         }
 
         private void checkForPositions(boolean multi) {
@@ -1236,11 +1238,75 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
+        /**
+         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
+         * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
+         * none of its own, in its parent's.
+         */
+        private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
+            // The values are read for the documents the field's own terms match, so it needs those terms.
+            if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {
+                return false;
+            }
+            return hasDocValues() || readsParentValues(context);
+        }
+
+        /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
+        private boolean readsParentValues(SearchExecutionContext context) {
+            final String parentName = isWithinMultiField() ? context.parentPath(name()) : null;
+            if (parentName == null) {
+                return false;
+            }
+            final MappedFieldType parent = context.lookup().fieldType(parentName);
+            // A normalizer rewrites the values the parent keeps, which are then not the text this field was built from.
+            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.hasNormalizer()) {
+                return false;
+            }
+            return parent.hasDocValues() || parent.isStored();
+        }
+
+        /** Reads this field's values back, for the queries that analyze them again. */
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
+            SearchExecutionContext context
+        ) {
+            if (hasDocValues()) {
+                assert usesBinaryDocValues() : "a strictly columnar text field keeps its values in a binary column";
+                return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat());
+            }
+            return FieldValueFetchers.fromParent(context, name());
+        }
+
+        /** {@code query} as it stands where the field indexed positions, over its values again where it did not. */
+        private Query reanalyzePositions(Query query, SearchExecutionContext context) {
+            if (verifiesPositionsFromDocValues(context) == false) {
+                return query;
+            }
+            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+        }
+
+        /** The same for an interval, which also needs the query that finds the documents worth reading. */
+        private IntervalsSource reanalyzeIntervals(IntervalsSource source, Query approximation, SearchExecutionContext context) {
+            if (getTextSearchInfo().hasPositions()) {
+                return source;
+            }
+            if (verifiesPositionsFromDocValues(context) == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            return new ReanalyzingIntervalsSource(
+                source,
+                approximation,
+                valueFetcherProvider(context),
+                context.getIndexAnalyzer(f -> null)
+            );
+        }
+
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            checkForPositions(false);
+            if (verifiesPositionsFromDocValues(context) == false) {
+                checkForPositions(false);
+            }
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
@@ -1268,19 +1334,24 @@ public final class TextFieldMapper extends FieldMapper {
                 builder.add(new Term(field, termAtt.getBytesRef()), position);
             }
 
-            return builder.build();
+            // Answered by the shingle subfield, which indexes its own positions.
+            return field.equals(name()) ? reanalyzePositions(builder.build(), context) : builder.build();
         }
 
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            checkForPositions(true);
+            if (verifiesPositionsFromDocValues(context) == false) {
+                checkForPositions(true);
+            }
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
-            return createPhraseQuery(stream, field, slop, enablePositionIncrements);
+            final Query query = createPhraseQuery(stream, field, slop, enablePositionIncrements);
+            // Answered by the shingle subfield, which indexes its own positions.
+            return field.equals(name()) ? reanalyzePositions(query, context) : query;
         }
 
         private static int countTokens(TokenStream ts) throws IOException {
@@ -1295,14 +1366,17 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            if (countTokens(stream) > 1) {
+            final boolean reanalyzes = verifiesPositionsFromDocValues(context);
+            if (countTokens(stream) > 1 && reanalyzes == false) {
                 checkForPositions(false);
             }
-            return analyzePhrasePrefix(stream, slop, maxExpansions);
+            return reanalyzePositions(analyzePhrasePrefix(stream, slop, maxExpansions, reanalyzes), context);
         }
 
-        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
+        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions, boolean reanalyzesValues) throws IOException {
+            // The prefix subfield indexes no positions either, and this field's own values are what is read, so the
+            // query it wraps has to ask about this field's terms.
+            String prefixField = prefixFieldType == null || slop > 0 || reanalyzesValues ? null : prefixFieldType.name();
             IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
             return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }
@@ -1667,6 +1741,7 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 false,
                 null,
+                false,
                 false,
                 false
             );

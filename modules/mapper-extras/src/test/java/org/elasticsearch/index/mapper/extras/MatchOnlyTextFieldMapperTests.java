@@ -990,7 +990,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     /**
      * Phrase query on a multi-value document in columnar mode. Before the fix this crashed with an invalid-vInt error because
-     * {@code SourceConfirmedTextQuery}'s position-confirming phase read {@code ArrayOrderInlineNull} bytes through the
+     * {@code ReanalyzingTextQuery}'s position-confirming phase read {@code ArrayOrderInlineNull} bytes through the
      * {@code SeparateCount} decoder. Tests the regression fix in
      * {@link MatchOnlyTextFieldMapper.MatchOnlyTextFieldType#getValueFetcherProvider}.
      */

@@ -16,6 +16,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.VarHandle;
+import java.lang.ref.Cleaner;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
@@ -62,6 +63,11 @@ public final class Zstd {
      */
     static final LongAdder NATIVE_BYTES_IN_USE = new LongAdder();
 
+    // Backs DCtx's GC-driven release safety net (see the class's javadoc for why it needs one). A single
+    // shared Cleaner is standard usage per the JDK's own Cleaner docs; it runs registered actions on its
+    // own background thread(s), independent of the object graphs being cleaned.
+    private static final Cleaner CLEANER = Cleaner.create();
+
     private static final Zstd INSTANCE = load();
 
     /**
@@ -100,6 +106,110 @@ public final class Zstd {
             throw new IllegalStateException("Integer overflow? ret=" + ret);
         }
         return (int) ret;
+    }
+
+    /**
+     * Allocate a reusable one-shot decompression context wrapping {@code ZSTD_DCtx}. Prefer
+     * {@link DCtx#close()} (or try-with-resources) for deterministic, prompt release. A caller whose own
+     * lifetime has no natural close hook may skip it: the context also carries a GC-driven safety net
+     * (see {@link DCtx} for why) that frees the native memory once the {@link DCtx} becomes unreachable,
+     * so an un-closed instance cannot leak forever — just less promptly than an explicit close. Single-
+     * threaded by contract — do not share a single {@link DCtx} across threads.
+     */
+    public DCtx newDCtx() {
+        MemorySegment handle = zstdLib.createDCtx();
+        if (handle == null || handle.equals(MemorySegment.NULL)) {
+            throw new IllegalStateException("ZSTD_createDCtx returned NULL");
+        }
+        return new DCtx(handle);
+    }
+
+    /**
+     * One-shot decompression bound to an explicit, reusable {@code ZSTD_DCtx}.
+     *
+     * <p>{@link Zstd#decompress(MemorySegment, MemorySegment)} is a thin wrapper over libzstd's
+     * {@code ZSTD_decompress}, which — per its own implementation — allocates a fresh {@code ZSTD_DCtx}
+     * internally and frees it before returning, on every single call. That is wasted work for a caller
+     * that decompresses many independent frames back-to-back on one thread (e.g. one zstd frame per
+     * chunk of a columnar file): the same context, once allocated, can be reused across every call.
+     * {@link DCtx#decompress} does exactly that, by binding to {@code ZSTD_decompressDCtx} with an
+     * explicit, caller-owned context instead of the parameterless {@code ZSTD_decompress}.
+     *
+     * <p>Both segments may be native or heap-backed, exactly as {@link Zstd#decompress(MemorySegment, MemorySegment)}.
+     *
+     * <p>Not thread-safe: a single {@link DCtx} is owned by one caller for its whole lifetime — the same
+     * contract libzstd itself places on a {@code ZSTD_DCtx}.
+     *
+     * <p><b>Release strategy: GC-driven safety net, not just explicit close.</b> Unlike {@link DStream},
+     * which is always paired with a concrete owner that has its own {@code close()} (a
+     * {@code PanamaZstdInputStream}), {@link DCtx} is also meant for call sites with no such owner — e.g.
+     * {@code ZstdChunkCodec.Decompressor}, which is created fresh on every Lucene {@code getBinary()} call
+     * with nothing further up that chain (not even the enclosing {@code BinaryDocValues}) ever explicitly
+     * closed. Requiring an explicit close there would either leak forever (nothing would call it) or, if
+     * tracked and closed only when the whole segment closes, hold one native context per historical
+     * {@code getBinary()} call for the segment's entire lifetime — worse than the per-call malloc/free this
+     * type exists to avoid. So the native handle here is registered with a {@link Cleaner}: the
+     * {@code ZSTD_DCtx} is freed once this {@link DCtx} becomes unreachable even if {@link #close()} is
+     * never called, mirroring the plain-Java-object, no-explicit-lifetime style the rest of that call chain
+     * already uses. Callers that do have a natural close point should still call {@link #close()} for
+     * prompt, deterministic release rather than waiting on GC; the two are mutually exclusive — {@link
+     * Cleaner.Cleanable#clean()} guarantees the underlying action runs at most once regardless of which
+     * of {@link #close()} or the GC-triggered path reaches it first.
+     */
+    public final class DCtx implements AutoCloseable {
+
+        private final MemorySegment handle;
+        private final Cleaner.Cleanable cleanable;
+        // Only ever set by close() on the owning thread — the class is single-threaded by contract, same
+        // as DStream's `closed` field. The Cleaner-triggered path never touches this: by the time it can
+        // run, this DCtx is already unreachable, so nothing remains that could call decompress() on it.
+        private boolean closed = false;
+
+        private DCtx(MemorySegment rawHandle) {
+            this.handle = rawHandle;
+            // The registered action must not capture `this` (this DCtx instance) or any of its instance
+            // fields (e.g. `handle` via `this.handle`) — doing so would keep this DCtx permanently
+            // reachable through the Cleaner's own bookkeeping and the action would never fire. Capturing
+            // only the constructor-local `rawHandle` and the outer Zstd's `zstdLib` (a static-lifetime
+            // singleton) keeps this DCtx's own reachability the only thing that matters.
+            ZstdLibrary lib = zstdLib;
+            this.cleanable = CLEANER.register(this, () -> {
+                long ret = lib.freeDCtx(rawHandle);
+                assert ret == 0 : "ZSTD_freeDCtx returned " + ret;
+            });
+        }
+
+        /**
+         * Decompress the content of {@code src} into {@code dst} using this context, and return the
+         * number of decompressed bytes. Equivalent to {@link Zstd#decompress(MemorySegment, MemorySegment)}
+         * except that this context is reused rather than allocated fresh for the call.
+         */
+        public int decompress(MemorySegment dst, MemorySegment src) {
+            if (closed) {
+                throw new IllegalStateException("DCtx is closed");
+            }
+            Objects.requireNonNull(dst, "Null dst segment");
+            Objects.requireNonNull(src, "Null src segment");
+            long ret = zstdLib.decompressDCtxHeap(handle, dst, dst.byteSize(), src, src.byteSize());
+            if (zstdLib.isError(ret)) {
+                throw new IllegalArgumentException(zstdLib.getErrorName(ret));
+            } else if (ret < 0 || ret > Integer.MAX_VALUE) {
+                throw new IllegalStateException("Integer overflow? ret=" + ret);
+            }
+            return (int) ret;
+        }
+
+        /**
+         * Idempotent — frees the native {@code ZSTD_DCtx} immediately rather than waiting for the
+         * GC-driven safety net described on {@link DCtx}. Safe to call even if the {@link Cleaner} races
+         * to run the same action concurrently: {@link Cleaner.Cleanable#clean()} runs the action at most
+         * once no matter how many times, or from where, it is invoked.
+         */
+        @Override
+        public void close() {
+            closed = true;
+            cleanable.clean();
+        }
     }
 
     /**

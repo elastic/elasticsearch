@@ -677,6 +677,151 @@ public class ZstdTests extends ESTestCase {
         assertThat(dstPos, equalTo(decompressed.length));
     }
 
+    // ---- Reusable one-shot decompression context (DCtx) tests ------------------------------------
+
+    public void testDCtxRoundTripSmall() {
+        doTestDCtxRoundTrip(new byte[] { 'z' });
+        byte[] one = new byte[1024];
+        for (int i = 0; i < one.length; i++) {
+            one[i] = (byte) (i & 0x1F);
+        }
+        doTestDCtxRoundTrip(one);
+    }
+
+    public void testDCtxRoundTripEmpty() {
+        doTestDCtxRoundTrip(new byte[0]);
+    }
+
+    public void testDCtxRoundTripMedium() {
+        byte[] data = new byte[randomIntBetween(1_000, 100_000)];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        doTestDCtxRoundTrip(data);
+    }
+
+    /**
+     * The scenario the context reuse is for: many independent frames, of different sizes and
+     * content, decoded one after another through the same {@link Zstd.DCtx}. Nothing from one
+     * call may leak into or corrupt the next.
+     */
+    public void testDCtxReusedAcrossManyIndependentFrames() {
+        int numFrames = between(50, 200);
+        byte[][] originals = new byte[numFrames][];
+        byte[][] compressed = new byte[numFrames][];
+        for (int i = 0; i < numFrames; i++) {
+            byte[] data = new byte[between(0, 8 * 1024)];
+            for (int j = 0; j < data.length; j++) {
+                data[j] = (byte) randomInt();
+            }
+            originals[i] = data;
+            compressed[i] = compressBytes(data);
+        }
+        try (Zstd.DCtx dctx = zstd.newDCtx()) {
+            for (int i = 0; i < numFrames; i++) {
+                byte[] restored = new byte[originals[i].length];
+                MemorySegment dst = MemorySegment.ofArray(restored);
+                MemorySegment src = MemorySegment.ofArray(compressed[i]);
+                int written = dctx.decompress(dst, src);
+                assertThat("frame " + i, written, equalTo(originals[i].length));
+                assertArrayEquals("frame " + i, originals[i], restored);
+            }
+        }
+    }
+
+    /**
+     * {@link Zstd.DCtx#decompress} must be behaviourally identical to the one-shot
+     * {@link Zstd#decompress(MemorySegment, MemorySegment)} it replaces — same bytes out for the
+     * same bytes in — the whole point being to change only how the native context is managed.
+     */
+    public void testDCtxProducesSameResultAsOneShotDecompress() {
+        byte[] data = new byte[randomIntBetween(1, 64 * 1024)];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        byte[] compressed = compressBytes(data);
+
+        byte[] viaOneShot = new byte[data.length];
+        int oneShotWritten = zstd.decompress(MemorySegment.ofArray(viaOneShot), MemorySegment.ofArray(compressed));
+
+        byte[] viaDCtx = new byte[data.length];
+        int dctxWritten;
+        try (Zstd.DCtx dctx = zstd.newDCtx()) {
+            dctxWritten = dctx.decompress(MemorySegment.ofArray(viaDCtx), MemorySegment.ofArray(compressed));
+        }
+
+        assertThat(dctxWritten, equalTo(oneShotWritten));
+        assertArrayEquals(viaOneShot, viaDCtx);
+        assertArrayEquals(data, viaDCtx);
+    }
+
+    public void testDCtxValidation() {
+        try (Zstd.DCtx dctx = zstd.newDCtx()) {
+            var npe1 = expectThrows(NullPointerException.class, () -> dctx.decompress(null, MemorySegment.ofArray(new byte[1])));
+            assertThat(npe1.getMessage(), equalTo("Null dst segment"));
+            var npe2 = expectThrows(NullPointerException.class, () -> dctx.decompress(MemorySegment.ofArray(new byte[1]), null));
+            assertThat(npe2.getMessage(), equalTo("Null src segment"));
+        }
+    }
+
+    public void testDCtxDecompressRejectsCorruption() {
+        byte[] junk = new byte[64];
+        for (int i = 0; i < junk.length; i++) {
+            junk[i] = (byte) randomInt(255);
+        }
+        byte[] dst = new byte[256];
+        try (Zstd.DCtx dctx = zstd.newDCtx()) {
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> dctx.decompress(MemorySegment.ofArray(dst), MemorySegment.ofArray(junk))
+            );
+            assertNotNull(e.getMessage());
+        }
+    }
+
+    /**
+     * A context that fails on one frame (corrupted input) must still decode a subsequent, valid
+     * frame correctly — an error return must not leave the reused context in a bad state.
+     */
+    public void testDCtxSurvivesErrorThenDecodesNextFrame() {
+        byte[] junk = new byte[64];
+        for (int i = 0; i < junk.length; i++) {
+            junk[i] = (byte) randomInt(255);
+        }
+        byte[] data = new byte[4096];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) (i & 0x3F);
+        }
+        byte[] compressed = compressBytes(data);
+
+        try (Zstd.DCtx dctx = zstd.newDCtx()) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> dctx.decompress(MemorySegment.ofArray(new byte[256]), MemorySegment.ofArray(junk))
+            );
+            byte[] restored = new byte[data.length];
+            int written = dctx.decompress(MemorySegment.ofArray(restored), MemorySegment.ofArray(compressed));
+            assertThat(written, equalTo(data.length));
+            assertArrayEquals(data, restored);
+        }
+    }
+
+    public void testDCtxCloseIsIdempotent() {
+        Zstd.DCtx dctx = zstd.newDCtx();
+        dctx.close();
+        // The second close must be a no-op — double-free would either crash the JVM (best case) or
+        // silently corrupt unrelated native memory.
+        dctx.close();
+    }
+
+    public void testDCtxRejectsUseAfterClose() {
+        Zstd.DCtx dctx = zstd.newDCtx();
+        dctx.close();
+        MemorySegment dst = MemorySegment.ofArray(new byte[1]);
+        MemorySegment src = MemorySegment.ofArray(new byte[1]);
+        expectThrows(IllegalStateException.class, () -> dctx.decompress(dst, src));
+    }
+
     // ---------- One-shot heap byte[] overloads (Phase 2) ----------
     // The block API critical(true) downcalls used by PanamaZstd.decompressHeap / compressHeap.
     // Coverage here pins the contract that JdkZstdLibrary's heap overloads accept heap segments
@@ -782,6 +927,21 @@ public class ZstdTests extends ESTestCase {
             assertThat(dstPos, equalTo(data.length));
         }
         assertArrayEquals(data, decompressed);
+    }
+
+    /**
+     * Round-trip a single frame through a freshly opened, then closed, {@link Zstd.DCtx} —
+     * the same shape as {@link #doTestHeapRoundTrip} but via the reusable-context API.
+     */
+    private void doTestDCtxRoundTrip(byte[] data) {
+        byte[] compressed = compressBytes(data);
+        byte[] restored = new byte[data.length];
+        int written;
+        try (Zstd.DCtx dctx = zstd.newDCtx()) {
+            written = dctx.decompress(MemorySegment.ofArray(restored), MemorySegment.ofArray(compressed));
+        }
+        assertThat(written, equalTo(data.length));
+        assertArrayEquals(data, restored);
     }
 
     /**

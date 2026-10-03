@@ -53,6 +53,23 @@ final class ZstdHeapFallback {
         }
     }
 
+    public static long decompressDCtxHeap(
+        MethodHandle mh,
+        MemorySegment dctx,
+        MemorySegment dst,
+        long dstCap,
+        MemorySegment src,
+        long srcSize
+    ) throws Throwable {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment stagedSrc = stageInput(arena, src, srcSize);
+            MemorySegment stagedDst = stageOutput(arena, dst, dstCap);
+            long ret = (long) mh.invokeExact(dctx, stagedDst, dstCap, stagedSrc, srcSize);
+            copyBack(stagedDst, dst, dstCap, ret);
+            return ret;
+        }
+    }
+
     private static MemorySegment stageInput(Arena arena, MemorySegment src, long srcSize) {
         if (src.isNative()) {
             return src;

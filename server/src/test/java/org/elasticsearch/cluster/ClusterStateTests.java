@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -138,6 +139,57 @@ public class ClusterStateTests extends ESTestCase {
         final Map<String, ClusterState.Custom> customs = new HashMap<>();
         customs.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(customs)).getMessage(), containsString(key));
+    }
+
+    /**
+     * Adding a project to metadata without touching the routing table makes {@link GlobalRoutingTable#initializeProjects} rebuild the
+     * project map, which can change the iteration order of the existing projects. The cached {@link RoutingNodes} must not be reused
+     * across that rebuild: unassigned-shard order is an input to allocation tie-breaking.
+     */
+    public void testRoutingNodesRemainConsistentWhenAddingProjectWithUnassignedShards() {
+        boolean observedReorderedProjects = false;
+        for (int i = 0; i < 100; i++) {
+            final Metadata.Builder metadataBuilder = Metadata.builder();
+            final int projectCount = randomIntBetween(2, 5);
+            for (int p = 0; p < projectCount; p++) {
+                metadataBuilder.put(
+                    ProjectMetadata.builder(randomUniqueProjectId())
+                        .put(
+                            IndexMetadata.builder("idx")
+                                .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                        )
+                );
+            }
+            final Metadata metadata = metadataBuilder.build();
+            final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(metadata)
+                .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+                .build();
+            // A published state already has RoutingNodes built; the reuse decision only matters then.
+            final RoutingNodes previousRoutingNodes = state.getRoutingNodes();
+
+            final ProjectId newProjectId = randomValueOtherThanMany(metadata::hasProject, ESTestCase::randomUniqueProjectId);
+            final ClusterState newState = ClusterState.builder(state).putProjectMetadata(ProjectMetadata.builder(newProjectId)).build();
+
+            assertThat(newState.getRoutingNodes(), equalTo(RoutingNodes.immutable(newState.globalRoutingTable(), newState.nodes())));
+            if (preExistingProjectOrderChanged(state.globalRoutingTable(), newState.globalRoutingTable())) {
+                observedReorderedProjects = true;
+                assertThat(newState.getRoutingNodes(), not(sameInstance(previousRoutingNodes)));
+            }
+        }
+        assertTrue("expected adding a project to change the iteration order of the existing projects", observedReorderedProjects);
+    }
+
+    private static boolean preExistingProjectOrderChanged(GlobalRoutingTable before, GlobalRoutingTable after) {
+        final List<ProjectId> beforeIds = new ArrayList<>();
+        before.routingTables().keySet().forEach(beforeIds::add);
+        final List<ProjectId> afterIds = new ArrayList<>();
+        for (ProjectId id : after.routingTables().keySet()) {
+            if (before.routingTables().containsKey(id)) {
+                afterIds.add(id);
+            }
+        }
+        return beforeIds.equals(afterIds) == false;
     }
 
     public void testCopyAndUpdate() throws IOException {

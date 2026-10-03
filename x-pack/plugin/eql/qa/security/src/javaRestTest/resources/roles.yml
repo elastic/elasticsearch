@@ -31,3 +31,16 @@ user2:
         - write
         - create_index
         - indices:admin/refresh
+
+eql_constant_reader:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: eql-constant-visible
+      privileges: [read]
+      field_security:
+        grant: ["@timestamp", event_type, marker, constant_value]
+    - names: eql-constant-hidden
+      privileges: [read]
+      field_security:
+        grant: ["@timestamp", event_type, marker]

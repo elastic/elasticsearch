@@ -170,7 +170,7 @@ public abstract class IgnoreMalformedStoredValues {
     /**
      * How many values has this field loaded for this document?
      */
-    public abstract int count();
+    public abstract int count() throws IOException;
 
     /**
      * Write values for this document.
@@ -191,7 +191,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
 
         @Override
-        public int count() {
+        public int count() throws IOException {
             return 0;
         }
 
@@ -217,7 +217,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
 
         @Override
-        public int count() {
+        public int count() throws IOException {
             return values.size();
         }
 
@@ -263,7 +263,7 @@ public abstract class IgnoreMalformedStoredValues {
         }
 
         @Override
-        public int count() {
+        public int count() throws IOException {
             return (int) delegate.valueCount();
         }
 

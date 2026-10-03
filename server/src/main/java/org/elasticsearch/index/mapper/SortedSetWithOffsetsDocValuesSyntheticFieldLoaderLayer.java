@@ -79,7 +79,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     }
 
     @Override
-    public long valueCount() {
+    public long valueCount() throws IOException {
         if (docValues != null) {
             return docValues.count();
         } else {

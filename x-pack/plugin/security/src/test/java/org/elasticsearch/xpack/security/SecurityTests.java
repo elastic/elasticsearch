@@ -20,7 +20,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -54,6 +60,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -108,6 +115,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -917,6 +925,90 @@ public class SecurityTests extends ESTestCase {
     public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
         assertThatLogger(() -> Security.validateForFips(settings), Security.class);
+    }
+
+    public void testSystemDataStreamsNotManageableByDataStreamLifecycle() {
+        final DataStreamLifecycle.Builder enabledDataLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(1));
+        final Template.Builder enabledFailureStore = Template.builder()
+            .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)));
+
+        final String coveredDataLifecycle = ".fleet-actions-results";
+        final String uncoveredDataLifecycle = ".uncovered-data-lifecycle";
+        final String uncoveredComponentTemplateLifecycle = ".uncovered-component-template-lifecycle";
+        final String uncoveredFailureStoreOnly = ".uncovered-failure-store-only";
+        final String uncoveredDisabledDataLifecycle = ".uncovered-disabled-data-lifecycle";
+        final String uncoveredDisabledFailuresLifecycle = ".uncovered-disabled-failures-lifecycle";
+        final String uncoveredNoLifecycle = ".uncovered-no-lifecycle";
+        final SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-feature",
+                    "feature with system data streams for the data stream lifecycle user check",
+                    List.of(),
+                    List.of(
+                        systemDataStreamDescriptor(coveredDataLifecycle, Template.builder().lifecycle(enabledDataLifecycle), Map.of()),
+                        systemDataStreamDescriptor(uncoveredDataLifecycle, Template.builder().lifecycle(enabledDataLifecycle), Map.of()),
+                        systemDataStreamDescriptor(
+                            uncoveredComponentTemplateLifecycle,
+                            Template.builder(),
+                            Map.of(
+                                "with-lifecycle",
+                                new ComponentTemplate(Template.builder().lifecycle(enabledDataLifecycle).build(), null, null)
+                            )
+                        ),
+                        systemDataStreamDescriptor(uncoveredFailureStoreOnly, enabledFailureStore, Map.of()),
+                        systemDataStreamDescriptor(
+                            uncoveredDisabledDataLifecycle,
+                            Template.builder().lifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(false)),
+                            Map.of()
+                        ),
+                        systemDataStreamDescriptor(
+                            uncoveredDisabledFailuresLifecycle,
+                            Template.builder()
+                                .dataStreamOptions(
+                                    new DataStreamOptions.Template(
+                                        new DataStreamFailureStore.Template(
+                                            true,
+                                            DataStreamLifecycle.failuresLifecycleBuilder().enabled(false).buildTemplate()
+                                        )
+                                    )
+                                ),
+                            Map.of()
+                        ),
+                        systemDataStreamDescriptor(uncoveredNoLifecycle, Template.builder(), Map.of())
+                    )
+                )
+            )
+        );
+        final RestrictedIndices restrictedIndices = new RestrictedIndices(systemIndices.getSystemNameAutomaton());
+
+        assertThat(
+            Security.systemDataStreamsNotManageableByDataStreamLifecycle(systemIndices, restrictedIndices),
+            containsInAnyOrder(uncoveredDataLifecycle, uncoveredComponentTemplateLifecycle, uncoveredFailureStoreOnly)
+        );
+    }
+
+    private static SystemDataStreamDescriptor systemDataStreamDescriptor(
+        String name,
+        Template.Builder template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        return new SystemDataStreamDescriptor(
+            name,
+            "system data stream for testing",
+            SystemDataStreamDescriptor.Type.EXTERNAL,
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(name))
+                .template(template)
+                .componentTemplates(List.copyOf(componentTemplates.keySet()))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build(),
+            componentTemplates,
+            List.of("test"),
+            "test",
+            null
+        );
     }
 
     public void testSecurityProvider() {

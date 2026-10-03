@@ -87,7 +87,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * directly via {@code TransportSingleShardAction}, hit the read-allowed-states check, and return
  * HTTP 404 ({@link IllegalIndexShardStateException}) wrapped in an
  * {@code ElasticsearchException}. Search paths ({@code _search}, {@code _msearch}) are different
- * again: {@code SearchReadyGate} parks the request rather than failing immediately.
+ * again: {@code SearchReadyGate} parks the request rather than failing immediately.str
  *
  * <p>Setup: a single-shard, no-replica index is deleted before restore so that chunk-blob reads
  * are required, which is what {@code blockAllDataNodes} actually blocks.
@@ -506,6 +506,11 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
     /**
      * {@code POST /{index}/_refresh} silently swallows the shard-unavailable exception via
      * {@code isShardNotAvailableException} — {@code _shards.failed} stays 0.
+     *
+     * <p>Takes ~60s: refresh is a replication action, so the per-shard request waits for the
+     * primary to become active until the default {@code ReplicationRequest} timeout (1m) expires,
+     * then fails with {@code UnavailableShardsException}, which is what gets swallowed. The
+     * timeout is not settable on refresh requests.
      */
     public void testRefreshWhileRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
@@ -519,6 +524,11 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
     /**
      * {@code POST /{index}/_flush} silently swallows the shard-unavailable exception —
      * {@code _shards.failed} stays 0.
+     *
+     * <p>Takes ~60s: flush is a replication action, so the per-shard request waits for the
+     * primary to become active until the default {@code ReplicationRequest} timeout (1m) expires,
+     * then fails with {@code UnavailableShardsException}, which is what gets swallowed. The
+     * timeout is not settable on flush requests.
      */
     public void testFlushWhileRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);

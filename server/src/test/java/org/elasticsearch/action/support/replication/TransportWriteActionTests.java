@@ -38,9 +38,12 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -278,6 +281,61 @@ public class TransportWriteActionTests extends ESTestCase {
         refreshListener.getValue().accept(forcedRefresh);
         assertNotNull(listener.response);
         assertNull(listener.failure);
+    }
+
+    /**
+     * A primary request received over the network materializes its own request context (headers and, with security, the decoded
+     * authentication) and retains it while in flight, so that context counts toward the primary limit. A locally rerouted request
+     * shares the coordinating request's context, which the coordinating operation has already accounted for.
+     */
+    public void testRequestContextBytesCountedForNetworkReceivedPrimaryRequests() {
+        final TestAction action = new TestAction();
+        final TestRequest request = new TestRequest();
+        // the request's index must resolve in the cluster state, since the network-received path checks whether it is a system shard
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(projectId, "test", true, 1 + randomInt(3), randomInt(2)));
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final long primaryLimit = IndexingPressure.MAX_PRIMARY_BYTES.get(Settings.EMPTY).getBytes();
+        final long headroom = ByteSizeValue.ofKb(1).getBytes();
+        // fill the shared coordinating/primary budget up to a small headroom, so that only the request context can exceed it
+        try (Releasable ignored = action.indexingPressure.markCoordinatingOperationStarted(1, primaryLimit - headroom, true)) {
+            try (ThreadContext.StoredContext ignored2 = threadContext.stashContext()) {
+                threadContext.putHeader("large-header", randomAlphaOfLength(Math.toIntExact(headroom * 2)));
+                expectThrows(EsRejectedExecutionException.class, () -> action.checkPrimaryLimits(request, false, false));
+                expectThrows(EsRejectedExecutionException.class, () -> action.checkOperationLimits(request));
+                action.checkPrimaryLimits(request, true, true).close();
+                action.checkPrimaryLimits(request, true, false).close();
+            }
+            // without the large header the same network-received request is admitted
+            action.checkPrimaryLimits(request, false, false).close();
+            action.checkOperationLimits(request).close();
+        }
+        assertThat(action.indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L));
+        assertThat(action.indexingPressure.stats().getPrimaryRejections(), equalTo(2L));
+    }
+
+    /**
+     * A replica request always arrives over the network, so it materializes and retains its own request context, which counts
+     * toward the replica limit.
+     */
+    public void testRequestContextBytesCountedForReplicaRequests() {
+        final TestAction action = new TestAction();
+        final TestRequest request = new TestRequest();
+        // the request's index must resolve in the cluster state, since the replica path checks whether it is a system shard
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(projectId, "test", true, 1 + randomInt(3), randomInt(2)));
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final long replicaLimit = IndexingPressure.MAX_REPLICA_BYTES.get(Settings.EMPTY).getBytes();
+        final long headroom = ByteSizeValue.ofKb(1).getBytes();
+        // fill the replica budget up to a small headroom, so that only the request context can exceed it
+        try (Releasable ignored = action.indexingPressure.markReplicaOperationStarted(1, replicaLimit - headroom, true)) {
+            try (ThreadContext.StoredContext ignored2 = threadContext.stashContext()) {
+                threadContext.putHeader("large-header", randomAlphaOfLength(Math.toIntExact(headroom * 2)));
+                expectThrows(EsRejectedExecutionException.class, () -> action.checkReplicaLimits(request));
+            }
+            // without the large header the same replica request is admitted
+            action.checkReplicaLimits(request).close();
+        }
+        assertThat(action.indexingPressure.stats().getCurrentReplicaBytes(), equalTo(0L));
+        assertThat(action.indexingPressure.stats().getReplicaRejections(), equalTo(1L));
     }
 
     public void testDocumentFailureInShardOperationOnPrimary() {

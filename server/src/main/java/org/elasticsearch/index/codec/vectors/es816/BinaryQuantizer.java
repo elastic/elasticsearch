@@ -168,39 +168,25 @@ public class BinaryQuantizer {
         assert similarityFunction != COSINE || isUnitVector(vector);
         assert similarityFunction != COSINE || isUnitVector(centroid);
         assert this.discretizedDimensions == BQVectorUtils.discretize(vector.length, 64);
-
-        if (this.discretizedDimensions != indexDestination.length * 8) {
-            throw new IllegalArgumentException(
-                "vector and quantized vector destination must be compatible dimensions: "
-                    + BQVectorUtils.discretize(vector.length, 64)
-                    + " [ "
-                    + this.discretizedDimensions
-                    + " ]"
-                    + "!= "
-                    + indexDestination.length
-                    + " * 8"
-            );
-        }
-
-        if (this.discretizedDimensions != (queryDestination.length * 8) / B_QUERY) {
-            throw new IllegalArgumentException(
-                "vector and quantized vector destination must be compatible dimensions: "
-                    + vector.length
-                    + " [ "
-                    + this.discretizedDimensions
-                    + " ]"
-                    + "!= ("
-                    + queryDestination.length
-                    + " * 8) / "
-                    + B_QUERY
-            );
-        }
-
-        if (vector.length != centroid.length) {
-            throw new IllegalArgumentException(
-                "vector and centroid dimensions must be the same: " + vector.length + "!= " + centroid.length
-            );
-        }
+        assert this.discretizedDimensions == indexDestination.length * 8
+            : "vector and quantized vector destination must be compatible dimensions: "
+                + BQVectorUtils.discretize(vector.length, 64)
+                + " ["
+                + this.discretizedDimensions
+                + "] != "
+                + indexDestination.length
+                + " * 8";
+        assert this.discretizedDimensions == (queryDestination.length * 8) / B_QUERY
+            : "vector and quantized vector destination must be compatible dimensions: "
+                + vector.length
+                + " ["
+                + this.discretizedDimensions
+                + "] != ("
+                + queryDestination.length
+                + " * 8) / "
+                + B_QUERY;
+        assert vector.length == centroid.length
+            : "vector and centroid dimensions must be the same: " + vector.length + "!= " + centroid.length;
         vector = ArrayUtil.copyArray(vector);
         float distToC = ESVectorUtil.squareDistance(vector, centroid);
         // only need vdotc for dot-products similarity, but not for euclidean
@@ -247,25 +233,16 @@ public class BinaryQuantizer {
         assert similarityFunction != COSINE || isUnitVector(vector);
         assert similarityFunction != COSINE || isUnitVector(centroid);
         assert this.discretizedDimensions == BQVectorUtils.discretize(vector.length, 64);
-
-        if (this.discretizedDimensions != destination.length * 8) {
-            throw new IllegalArgumentException(
-                "vector and quantized vector destination must be compatible dimensions: "
-                    + BQVectorUtils.discretize(vector.length, 64)
-                    + " [ "
-                    + this.discretizedDimensions
-                    + " ]"
-                    + "!= "
-                    + destination.length
-                    + " * 8"
-            );
-        }
-
-        if (vector.length != centroid.length) {
-            throw new IllegalArgumentException(
-                "vector and centroid dimensions must be the same: " + vector.length + "!= " + centroid.length
-            );
-        }
+        assert this.discretizedDimensions == destination.length * 8
+            : "vector and quantized vector destination must be compatible dimensions: "
+                + BQVectorUtils.discretize(vector.length, 64)
+                + " ["
+                + this.discretizedDimensions
+                + "] != "
+                + destination.length
+                + " * 8";
+        assert vector.length == centroid.length
+            : "vector and centroid dimensions must be the same: " + vector.length + "!= " + centroid.length;
 
         float[] corrections;
 
@@ -323,26 +300,17 @@ public class BinaryQuantizer {
         assert similarityFunction != COSINE || isUnitVector(vector);
         assert similarityFunction != COSINE || isUnitVector(centroid);
         assert this.discretizedDimensions == BQVectorUtils.discretize(vector.length, 64);
-
-        if (this.discretizedDimensions != (destination.length * 8) / B_QUERY) {
-            throw new IllegalArgumentException(
-                "vector and quantized vector destination must be compatible dimensions: "
-                    + vector.length
-                    + " [ "
-                    + this.discretizedDimensions
-                    + " ]"
-                    + "!= ("
-                    + destination.length
-                    + " * 8) / "
-                    + B_QUERY
-            );
-        }
-
-        if (vector.length != centroid.length) {
-            throw new IllegalArgumentException(
-                "vector and centroid dimensions must be the same: " + vector.length + "!= " + centroid.length
-            );
-        }
+        assert this.discretizedDimensions == (destination.length * 8) / B_QUERY
+            : "vector and quantized vector destination must be compatible dimensions: "
+                + vector.length
+                + " ["
+                + this.discretizedDimensions
+                + "] != ("
+                + destination.length
+                + " * 8) / "
+                + B_QUERY;
+        assert vector.length == centroid.length
+            : "vector and centroid dimensions must be the same: " + vector.length + "!= " + centroid.length;
 
         float distToC = ESVectorUtil.squareDistance(vector, centroid);
 

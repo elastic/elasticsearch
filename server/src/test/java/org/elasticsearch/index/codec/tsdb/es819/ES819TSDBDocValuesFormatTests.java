@@ -133,6 +133,19 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         return codecWithOptimizedMerge;
     }
 
+    public void testEncodeOrdinalRange() throws IOException {
+        doTestEncodeOrdinalRange(
+            minDocsPerOrdinalForRangeEncoding -> new ES819TSDBDocValuesFormat(
+                random().nextInt(16, 128),
+                minDocsPerOrdinalForRangeEncoding,
+                random().nextBoolean(),
+                TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
+                randomBoolean(),
+                TSDBDocValuesTestUtil.randomNumericBlockSize()
+            )
+        );
+    }
+
     public void testBinaryCompressionEnabled() {
         ES819TSDBDocValuesFormat docValueFormat = new ES819Version3TSDBDocValuesFormat();
         assertThat(docValueFormat.formatConfig.binaryCompressionMode(), equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));

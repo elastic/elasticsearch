@@ -73,24 +73,24 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
         assertNull(context.getIndices());
     }
 
-    public void testBuildWithExceptionProducesFailureContext() {
+    public void testBuildWithExceptionProducesStreamingFailureContext() {
+        EsqlExecutionInfo executionInfo = makeExecutionInfoWithTook();
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM test | LIMIT 1");
         PageStreamPublisher publisher = new PageStreamPublisher(10);
 
-        EsqlStreamLogContextBuilder builder = new EsqlStreamLogContextBuilder(
-            task(),
-            request,
-            makeExecutionInfoWithTook(),
-            publisher,
-            () -> null
-        );
+        EsqlStreamLogContextBuilder builder = new EsqlStreamLogContextBuilder(task(), request, executionInfo, publisher, () -> null);
         RuntimeException ex = new RuntimeException("query failed");
 
         EsqlLogContext context = builder.build(ex);
 
-        assertFalse(context instanceof EsqlStreamLogContext);
+        assertThat("failure context must be streaming-specific", context, instanceOf(EsqlStreamLogContext.class));
         assertFalse("failure context must report isSuccess() == false", context.isSuccess());
         assertThat(context.getTookInNanos(), greaterThanOrEqualTo(0L));
+        assertThat(context.getResultCount(), equalTo(0));
+        assertFalse(
+            "failure context must not expose rollup counters (no completion info on failure)",
+            ((EsqlStreamLogContext) context).getRollupCounters().isPresent()
+        );
     }
 
     public void testBuildSuccessProducesStreamingContext() {

@@ -684,6 +684,16 @@ Elasticsearch tries to have sensible defaults so this is something that generall
 
 `map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution mode is significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don’t have ordinals.
 
+::::{note}
+The `global_ordinals` execution mode is only available for fields that use bytes-based values with ordinals,
+such as `keyword` and `ip` fields. Numeric, date, and boolean fields use a collection strategy that is similar
+to the string `map` execution mode because they collect field values directly instead of using global ordinals.
+
+When many documents match a query and the aggregation is on a numeric field, consider benchmarking a `keyword`
+representation of the same value. This can make the aggregation eligible for the global ordinals execution mode,
+at the cost of additional index storage.
+::::
+
 $$$terms-aggregation-execution-hint-example$$$
 
 ```console

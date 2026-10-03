@@ -113,7 +113,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map.of()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -159,7 +160,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map.of()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -199,7 +201,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map.of()
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -257,7 +260,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map.of()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -321,7 +325,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map.of()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -383,7 +388,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map.of()
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);

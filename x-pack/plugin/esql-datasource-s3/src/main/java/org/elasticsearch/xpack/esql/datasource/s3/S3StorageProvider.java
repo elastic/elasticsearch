@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -849,10 +850,7 @@ public class S3StorageProvider implements StorageProvider {
             if (unavailable != null) {
                 throw unavailable;
             }
-            throw new IOException(
-                "Failed to list children in bucket [" + bucket + "] with prefix [" + keyPrefix + "]: " + S3FailureDetail.of(e),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path: " + S3FailureDetail.of(e), e);
         }
         return new StorageChildren(files, directories);
     }
@@ -887,7 +885,7 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
             }
@@ -905,7 +903,7 @@ public class S3StorageProvider implements StorageProvider {
                 throw unavailable;
             }
             throw new IOException(
-                "Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
+                "Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
                 e
             );
         }
@@ -920,7 +918,7 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
             }
@@ -929,9 +927,7 @@ public class S3StorageProvider implements StorageProvider {
                 throw unavailable;
             }
             throw new IOException(
-                "Failed to check existence of "
-                    + path
-                    + " (HEAD denied, range GET also failed): "
+                "Failed to check existence of external object (HEAD denied, range GET also failed): "
                     + S3FailureDetail.of(e)
                     + credentialHint()
                     + regionHint(),
@@ -954,23 +950,11 @@ public class S3StorageProvider implements StorageProvider {
                     s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
                 );
             }
-            return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "S3 store unavailable resolving [{}] (HTTP {})",
-                path,
-                s3.statusCode()
-            );
+            Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+            return new ExternalUnavailableException(condition, path, "HTTP " + s3.statusCode(), "", throttling, retryAfterMs, cause);
         }
         if (S3StorageObject.isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(
-                false,
-                cause,
-                "S3 store unavailable resolving [{}]: {}",
-                path,
-                S3FailureDetail.of(cause)
-            );
+            return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, S3FailureDetail.of(cause), "", false, 0L, cause);
         }
         return null;
     }
@@ -1183,10 +1167,7 @@ public class S3StorageProvider implements StorageProvider {
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
                 ExternalPlanningIo.addMetadataGet(0);
-                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
-                    e,
-                    "listing objects in bucket [" + bucket + "] with prefix [" + prefix + "]"
-                );
+                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
                 if (expired != null) {
                     throw expired;
                 }
@@ -1206,14 +1187,10 @@ public class S3StorageProvider implements StorageProvider {
                     throw unavailable;
                 }
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects in the configured path. "
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
         }

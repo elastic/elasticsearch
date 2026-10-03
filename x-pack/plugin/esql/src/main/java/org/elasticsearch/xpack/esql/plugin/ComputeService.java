@@ -70,7 +70,10 @@ import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.Phase2Reservation;
@@ -349,7 +352,11 @@ public class ComputeService {
                 return;
             }
             chargeResolvedExternalSources(plan, run);
-            Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+            Executor ioExecutor = ExternalIoExecutors.restoring(
+                threadPool.executor(EsqlPlugin.externalBlobStorePool()),
+                threadPool.getThreadContext().newRestorableContext(true),
+                null
+            );
             try (var ignored = activatePlanningIo(execInfo)) {
                 SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
                     plan,
@@ -859,7 +866,11 @@ public class ComputeService {
             return;
         }
         Map<FragmentExec, List<SettledListing>> settled = new IdentityHashMap<>();
-        Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+        Executor ioExecutor = ExternalIoExecutors.restoring(
+            threadPool.executor(EsqlPlugin.externalBlobStorePool()),
+            threadPool.getThreadContext().newRestorableContext(true),
+            null
+        );
         discoverFragmentWork(
             workItems,
             0,
@@ -1992,7 +2003,7 @@ public class ComputeService {
          * be quite large, and it isn't tracked.
          */
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
-        String planString = needPlanString ? localPlan.toString() : null;
+        String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(

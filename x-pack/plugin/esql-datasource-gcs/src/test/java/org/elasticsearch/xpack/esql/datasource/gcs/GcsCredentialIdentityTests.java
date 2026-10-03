@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentityCoverage;
 
 import java.util.Map;
 
@@ -86,4 +87,20 @@ public class GcsCredentialIdentityTests extends ESTestCase {
     private static GcsConfiguration federated(String jwtAudience, String stsAudience, String impersonationUrl) {
         return GcsConfiguration.fromFields(null, "project", "http://gcs:1", null, null, jwtAudience, stsAudience, impersonationUrl);
     }
+
+    /**
+     * The census, derived rather than listed. Every per-field test above names its field, so none of them can fail
+     * when this provider GAINS a setting that never reaches the identity — and two data sources differing only in
+     * that setting would then share cached bytes. This asks the configuration which settings it declares.
+     */
+    public void testEverySettingReachesTheIdentity() {
+        GcsConfiguration config = GcsConfiguration.fromFields("{\"key\":\"one\"}", "project", "http://gcs:1");
+        StorageIdentityCoverage.assertEverySettingReachesTheIdentity(
+            config,
+            GcsCredentialIdentity.of(config),
+            Map.of("auth", "authMode"),
+            Map.of()
+        );
+    }
+
 }

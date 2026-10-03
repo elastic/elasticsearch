@@ -40,8 +40,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String ANALYSIS = "analysis";
     public static final String SPLIT_DISCOVERY = "split_discovery_nanos";
     public static final String SPLIT_DISCOVERY_CPU = "split_discovery_cpu_nanos";
-    public static final String EXTERNAL_PLANNING_BYTES_READ = "external_planning_bytes_read";
-    public static final String EXTERNAL_PLANNING_REQUESTS = "external_planning_requests";
+    public static final String PLANNING_BYTES_READ = "planning_bytes_read";
+    public static final String PLANNING_REQUESTS = "planning_requests";
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -681,11 +681,11 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         }
         long planningBytes = externalPlanningBytesRead.get();
         if (planningBytes > 0) {
-            builder.field(EXTERNAL_PLANNING_BYTES_READ, planningBytes);
+            builder.field(PLANNING_BYTES_READ, planningBytes);
         }
         long planningRequests = externalPlanningRequests.get();
         if (planningRequests > 0) {
-            builder.field(EXTERNAL_PLANNING_REQUESTS, planningRequests);
+            builder.field(PLANNING_REQUESTS, planningRequests);
         }
         return builder;
     }

@@ -119,7 +119,7 @@ public class S3StorageObjectBreakerTripStatusTests extends ESTestCase {
         );
         // ... and still name the object that tripped it, like every other mapped read failure.
         assertThat(error.get(), instanceOf(CircuitBreakingException.class));
-        assertThat(error.get().getMessage(), containsString(PATH.toString()));
+        assertThat(error.get().getMessage(), containsString(PATH.objectName()));
     }
 
     /**

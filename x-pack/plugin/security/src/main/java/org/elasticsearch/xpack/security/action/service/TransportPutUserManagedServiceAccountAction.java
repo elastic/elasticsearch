@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountResponse;
@@ -22,19 +23,22 @@ import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountS
 
 /**
  * Creates a user-managed service account, or replaces one of the same name. The account's name is validated by the
- * request and the reserved namespace is refused by the account store, so nothing is checked again here.
+ * request and the reserved namespace is refused by the account store, so nothing is checked again here. The caller's
+ * authentication is passed along so that the account records who wrote it.
  */
 public class TransportPutUserManagedServiceAccountAction extends HandledTransportAction<
     PutUserManagedServiceAccountRequest,
     PutUserManagedServiceAccountResponse> {
 
     private final ServiceAccountService serviceAccountService;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutUserManagedServiceAccountAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        ServiceAccountService serviceAccountService
+        ServiceAccountService serviceAccountService,
+        SecurityContext securityContext
     ) {
         super(
             PutUserManagedServiceAccountAction.NAME,
@@ -44,6 +48,7 @@ public class TransportPutUserManagedServiceAccountAction extends HandledTranspor
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.serviceAccountService = serviceAccountService;
+        this.securityContext = securityContext;
     }
 
     @Override
@@ -57,6 +62,7 @@ public class TransportPutUserManagedServiceAccountAction extends HandledTranspor
             request.getRoles(),
             request.isEnabled(),
             request.getDescription(),
+            securityContext.getAuthentication(),
             request.getRefreshPolicy(),
             listener.map(result -> new PutUserManagedServiceAccountResponse(result == PutResult.CREATED))
         );

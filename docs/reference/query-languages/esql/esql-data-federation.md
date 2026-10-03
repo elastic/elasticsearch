@@ -115,7 +115,9 @@ For details on type-specific settings and format options, refer to [](esql-data-
 
 Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
-The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata. Relevance scoring returns `_score` as null, and `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+
+{applies_to}`stack: preview 9.6` Relevance scoring works differently for datasets: `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25. (In 9.5, dataset rows do not contribute to `_score`).
 
 {{esql}} Data Federation is not currently supported on Windows.
 

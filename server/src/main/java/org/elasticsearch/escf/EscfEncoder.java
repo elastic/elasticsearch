@@ -108,7 +108,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
      * Whether the simdjson ESCF encode path may be used at all: the native library is loaded, the
      * vector API is available, and {@link #SIMDJSON_ESCF_FEATURE_FLAG} is enabled.
      */
-    static boolean isSimdEnabled() {
+    public static boolean isSimdEnabled() {
         return SimdJsonSupport.isSupported() && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
     }
 

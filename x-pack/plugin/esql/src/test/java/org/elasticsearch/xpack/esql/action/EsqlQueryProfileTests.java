@@ -179,14 +179,14 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
 
     public void testExternalPlanningIoOmittedWhenZero() throws IOException {
         EsqlQueryProfile empty = new EsqlQueryProfile();
-        assertThat(toJson(empty), not(containsString("external_planning_bytes_read")));
-        assertThat(toJson(empty), not(containsString("external_planning_requests")));
+        assertThat(toJson(empty), not(containsString("planning_bytes_read")));
+        assertThat(toJson(empty), not(containsString("planning_requests")));
 
         EsqlQueryProfile withIo = new EsqlQueryProfile();
         withIo.addExternalPlanningIo(128L, 3L);
         String json = toJson(withIo);
-        assertThat(json, containsString("\"external_planning_bytes_read\":128"));
-        assertThat(json, containsString("\"external_planning_requests\":3"));
+        assertThat(json, containsString("\"planning_bytes_read\":128"));
+        assertThat(json, containsString("\"planning_requests\":3"));
     }
 
     public void testWarmAggregatesOnlyEmittedWhenServedWarm() throws IOException {

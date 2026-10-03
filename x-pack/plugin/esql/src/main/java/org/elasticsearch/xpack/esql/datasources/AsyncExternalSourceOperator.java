@@ -20,9 +20,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -70,6 +72,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      */
     private final Releasable onOperatorClose;
     /**
+     * Dataset label injected by the factory at construction time, e.g.
+     * {@code "in dataset [tmax] from data source [noaa] (s3)"}. {@code null} when the source is
+     * not a registered dataset (inline {@code EXTERNAL}, connector path, or tests that do not wire it).
+     * Annotated onto classified {@link ExternalException}s via {@link ExternalException#setDatasetContext}.
+     */
+    @Nullable
+    private final String datasetLabel;
+    /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
      * proxy: a query with several external-source scans records one observation per scan.
@@ -81,7 +91,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
-        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null);
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, null, null);
     }
 
     public AsyncExternalSourceOperator(
@@ -91,7 +101,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         String scheme,
         String format
     ) {
-        this(buffer, driverContext, externalSourceMetrics, scheme, format, () -> {});
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, null, null);
     }
 
     public AsyncExternalSourceOperator(
@@ -102,12 +112,25 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         String format,
         Releasable onOperatorClose
     ) {
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, onOperatorClose, null);
+    }
+
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        String format,
+        Releasable onOperatorClose,
+        @Nullable String datasetLabel
+    ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
         this.format = format;
         this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
+        this.datasetLabel = datasetLabel;
     }
 
     @Override
@@ -133,15 +156,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         }
     }
 
-    private static RuntimeException propagateFailure(Throwable t) {
-        // Classify the read failure so it surfaces with the right HTTP status (client/server/retryable)
-        // instead of the previous blanket wrap into a bare RuntimeException, which always became a 500.
-        // Classification must run co-located with the throw, before any serialization (see ExternalException
-        // and ExternalFailures): a NotSerializableExceptionWrapper arriving here would mean the failure has
-        // already crossed a node boundary, so the concrete type — and the chance to classify it — is lost.
+    private RuntimeException propagateFailure(Throwable t) {
+        // t is pre-classified by AsyncExternalSourceBuffer.onFailure: Errors are stored as-is,
+        // everything else is a typed RuntimeException (ExternalException or EsRejectedExecutionException).
         assert t instanceof NotSerializableExceptionWrapper == false
-            : "external read failure reached classification already serialized: " + t.getClass().getName();
-        return ExternalFailures.classify(t);
+            : "external read failure reached propagation already serialized: " + t.getClass().getName();
+        if (t instanceof Error error) {
+            throw error;
+        }
+        RuntimeException classified = (RuntimeException) t;
+        if (datasetLabel != null && classified instanceof ExternalException ee) {
+            ee.setDatasetLabel(datasetLabel);
+        }
+        return classified;
     }
 
     @Override
@@ -243,12 +270,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
+        // Failure is already classified by AsyncExternalSourceBuffer.onFailure; use it directly.
+        Throwable statusFailure = buffer.failure();
         return new Status(
             buffer.size(),
             pagesEmitted,
             rowsEmitted,
             buffer.bytesInBuffer(),
-            buffer.failure(),
+            statusFailure,
             processNanos,
             buffer.splitsProcessed(),
             buffer.splitsTotal(),

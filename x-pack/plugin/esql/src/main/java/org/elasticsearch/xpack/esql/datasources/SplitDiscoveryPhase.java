@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -67,6 +72,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
  * this side binds by {@code NameId}.
  */
 public final class SplitDiscoveryPhase {
+
+    private static final Logger LOGGER = LogManager.getLogger(SplitDiscoveryPhase.class);
 
     private SplitDiscoveryPhase() {}
 
@@ -376,7 +383,7 @@ public final class SplitDiscoveryPhase {
         if (planningIo == null) {
             return executor;
         }
-        return command -> executor.execute(() -> {
+        return ExternalIoExecutors.preserving(executor, command -> {
             try (var ignored = ExternalPlanningIo.activate(planningIo)) {
                 command.run();
             }
@@ -627,29 +634,37 @@ public final class SplitDiscoveryPhase {
         }, e -> listener.onFailure(wrapDiscoveryFailure(exec, e))));
     }
 
+    /**
+     * No {@link ExternalFailures#classify} runs between split discovery and the REST response, so this is where a
+     * discovery failure is detached from storage-client causes, whose messages name the bucket and key.
+     */
     private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
+        if (e instanceof ExternalException ee) {
+            return ExternalFailures.detach(ee);
+        }
         if (e instanceof ElasticsearchException ee) {
             return ee;
         }
+        String context = "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]";
         if (e instanceof IllegalArgumentException) {
+            LOGGER.debug("Split discovery failed (cause logged, not forwarded)", e);
+            String message = e.getMessage();
             return new IllegalArgumentException(
-                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]",
-                e
+                message != null && ExternalFailures.safeForUserMessage(message) ? context + ": " + message : context
             );
         }
-        RuntimeException surfaced = ExternalFailures.surface(
-            e,
-            "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
-        );
+        RuntimeException surfaced = ExternalFailures.surface(e, context);
         if (surfaced != e) {
             return surfaced;
         }
-        return new ElasticsearchException(
-            "failed to discover splits for external source [{}] of type [{}]",
-            e,
-            exec.sourcePath(),
-            exec.sourceType()
-        );
+        LOGGER.warn("Split discovery failed (cause logged, not forwarded)", e);
+        String message = e.getMessage();
+        String detail = message != null && ExternalFailures.safeForUserMessage(message) ? message : e.getClass().getSimpleName();
+        return new ElasticsearchException("{}: {}", context, detail);
+    }
+
+    private static String sourceLabel(ExternalSourceExec exec) {
+        return StoragePath.objectName(exec.sourcePath());
     }
 
     private static PhysicalPlan applyDiscoveryResult(

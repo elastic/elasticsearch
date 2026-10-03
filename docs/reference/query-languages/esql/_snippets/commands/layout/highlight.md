@@ -92,10 +92,11 @@ resolve to a literal are accepted; column references are not.
     but `HTML` is rejected. `boundary_scanner` and `order` are case-insensitive.
 
 `analyzer`
-:   (Optional) Analyzer used on both the query and field text. Defaults to the
-    `standard` analyzer. Only built-in and node-level plugin analyzers are
-    supported. If a full-text search function specifies its own `analyzer`, it
-    must match the analyzer specified here.
+:   (Optional) Analyzer to use across all highlighted fields, overriding each
+    field's own analyzer. Also analyzes query terms, unless a full-text search
+    function specifies its own `analyzer`. When omitted, `HIGHLIGHT` uses each
+    field's analyzer (see [Choose an analyzer](#esql-highlight-analyzer)).
+    Only built-in and node-level plugin analyzers are supported.
 
 `number_of_fragments`
 :   (Optional) Maximum number of snippets (fragments) to return per field. Set to `0` to return the entire
@@ -150,6 +151,9 @@ field contains no matching terms, the result is `null` unless you specify
 Because `HIGHLIGHT` re-analyzes text values at query time, you can highlight
 source fields from an index as well as computed columns created by earlier
 commands like `EVAL`, `DISSECT`, `GROK`, `STATS`, `ENRICH`, or `LOOKUP JOIN`.
+Index `text` fields use their mapped analyzer, while computed and other columns
+default to `standard` unless overridden. Refer to
+[Choose an analyzer](#esql-highlight-analyzer).
 
 For multivalued fields, each value is highlighted independently:
 * Phrase queries and fragment boundaries do not cross values.
@@ -221,16 +225,56 @@ If a highlighted field does not match any query terms, its output is `null`
 eligible `text` or `keyword` columns to highlight, you must provide an explicit
 `ON` clause.
 
+### Choose an analyzer [esql-highlight-analyzer]
+
+`HIGHLIGHT` analyzes each field with its own analyzer, using the first rule that
+applies:
+
+* The `analyzer` option in the `WITH` clause (overrides all `ON` fields).
+* For an index `text` field, its mapped
+  [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md) or the
+  index default analyzer.
+* For a column created with
+  [`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md),
+  the analyzer set in its `analyzer` option.
+* The `standard` analyzer for all other columns, including `keyword` fields.
+
+Renaming an index `text` field with `RENAME` or copying it with `EVAL` drops its
+mapping metadata, falling back to `standard`. To preserve the mapped analyzer,
+highlight the field before `RENAME`, or set the `analyzer` option in `WITH`.
+
+Query terms use the target field's analyzer. An `analyzer` specified on a
+full-text search function, such as
+`MATCH(title, "rings", {"analyzer": "whitespace"})`, applies only to the query
+text. If the query and field analyzers produce different tokens, some matches
+might not be highlighted.
+
+`HIGHLIGHT` falls back to `standard` and returns a warning when:
+
+* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
+  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
+  or across a `LOOKUP JOIN`).
+* The analyzer is defined in index settings (such as a custom analyzer or
+  index-level default) rather than globally on the node.
+* The analyzer is not registered on the coordinating node (for example, because
+  a required plugin is missing).
+* The field type does not report an analyzer, such as `semantic_text` or
+  `pattern_text`.
+
+When falling back to `standard`, highlights might not match the terms that
+matched your search. To avoid the warning, set the `analyzer` option in the
+`WITH` clause.
+
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
 :::
 
 ## Limitations
 
-* `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause.
-* The `analyzer` option only supports built-in and node-level plugin analyzers. Analyzers configured in index settings are not supported.
-* On `keyword` fields, `HIGHLIGHT` tokenizes text and breaks it into snippets like a text field, rather than treating the value as a single term.
-* On `semantic_text` fields, `HIGHLIGHT` performs lexical matching against the underlying text. Semantic vector matches without literal keyword overlap are not highlighted.
+* `HIGHLIGHT` supports only built-in and node-level plugin analyzers. Specifying an analyzer defined in index settings in `WITH` or in a full-text search function returns an error. If an implicitly reused `WHERE` query references an unsupported analyzer, write the query explicitly in `HIGHLIGHT` without that `analyzer` option.
+* `HIGHLIGHT` ignores [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md) and [`search_quote_analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md#search-quote-analyzer) settings. Because query terms are analyzed with the field's index analyzer, fields configured with separate search analyzers might produce unexpected highlights. To analyze query terms with a different analyzer, specify the `analyzer` option on the full-text search function.
+* On `keyword` fields, `HIGHLIGHT` tokenizes text using the `standard` analyzer and breaks it into snippets like a `text` field, rather than treating the value as a single atomic term.
+* On `semantic_text` fields, `HIGHLIGHT` only performs lexical matching against the underlying text. Pure semantic vector matches that lack literal term overlap are not highlighted.
 * Fields are analyzed up to a maximum of 1 million characters. Text beyond this limit is not analyzed or highlighted.
 * `HIGHLIGHT` cannot automatically reuse a `WHERE` query across commands that aggregate, summarize, or join rows, such as `STATS`, `LOOKUP JOIN`, or `FORK`. In those queries, specify the query directly on `HIGHLIGHT`.
 * If you drop a field targeted by the reused `WHERE` query before `HIGHLIGHT`, the implicit query can no longer highlight that field. If no other reusable fields remain, provide an explicit query and `ON` clause using columns that are still in scope.
@@ -312,9 +356,16 @@ Use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions
 :::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/highlightKqlWildcardOrGroupedMatchForDocs.md
 :::
 
+### Highlight with a field's mapped analyzer
+
+`HIGHLIGHT` automatically uses each field's mapped analyzer. In this example, the `title` field in the `books_english` index uses the `english` analyzer, which stems `Rings` to `ring`. Even without extra options, `HIGHLIGHT` highlights `Rings` for the query term `ring`:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/highlightMappingAnalyzerStemsWithoutWithForDocs.md
+:::
+
 ### Highlight with a language analyzer
 
-Use the `analyzer` option to apply language-specific stemming rules. In this example, the `english` analyzer stems `Rings` to `ring`:
+Use the `analyzer` option to override the analyzer across all `ON` fields. This is especially useful for computed columns, which default to the `standard` analyzer. In this example, specifying the `english` analyzer stems `Rings` to match the query term `ring`:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/highlightAnalyzerEnglishStemsMatchForDocs.md
 :::

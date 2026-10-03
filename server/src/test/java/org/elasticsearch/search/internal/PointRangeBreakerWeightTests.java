@@ -126,7 +126,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the term query must match documents so the search actually runs", hits, greaterThan(0));
         assertFalse(
             "a search whose query tree contains no PointRangeQuery must not allocate accounting",
-            searcher.hasPointRangeAccounting()
+            searcher.hasLeafExecutionAccounting()
         );
     }
 
@@ -134,9 +134,9 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
-        assertFalse("accounting must not be allocated before any query has run", searcher.hasPointRangeAccounting());
+        assertFalse("accounting must not be allocated before any query has run", searcher.hasLeafExecutionAccounting());
         searcher.search(denseRangeQuery(), new CountingCollectorManager());
-        assertTrue("wrapping a PointRangeQuery must lazily allocate accounting", searcher.hasPointRangeAccounting());
+        assertTrue("wrapping a PointRangeQuery must lazily allocate accounting", searcher.hasLeafExecutionAccounting());
     }
 
     public void testPlainRangeInConjunctionChargesViaScorerGetPath() throws IOException {

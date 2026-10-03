@@ -111,6 +111,10 @@ tasks.named('javaRestTest') {
 
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+  filter {
+    // Runs on a schedule instead, via the generativeTests task below.
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT'
+  }
 }
 
 // Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.

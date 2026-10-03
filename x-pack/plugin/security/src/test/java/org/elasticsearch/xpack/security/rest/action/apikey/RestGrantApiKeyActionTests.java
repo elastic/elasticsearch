@@ -22,6 +22,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
         final String username = randomAlphaOfLength(8);
         final String password = randomAlphaOfLength(8);
         final String accessToken = randomAlphaOfLength(8);
+        final String serviceAccountToken = randomAlphaOfLength(8);
         final String clientAuthenticationScheme = randomAlphaOfLength(8);
         final String clientAuthenticationValue = randomAlphaOfLength(8);
         final String apiKeyName = randomAlphaOfLength(8);
@@ -35,6 +36,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
                     .field("username", username)
                     .field("password", password)
                     .field("access_token", accessToken)
+                    .field("service_account_token", serviceAccountToken)
                     .startObject("client_authentication")
                     .field("scheme", clientAuthenticationScheme)
                     .field("value", clientAuthenticationValue)
@@ -52,6 +54,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
             assertThat(grantApiKeyRequest.getGrant().getUsername(), is(username));
             assertThat(grantApiKeyRequest.getGrant().getPassword(), is(new SecureString(password.toCharArray())));
             assertThat(grantApiKeyRequest.getGrant().getAccessToken(), is(new SecureString(accessToken.toCharArray())));
+            assertThat(grantApiKeyRequest.getGrant().getServiceAccountToken(), is(new SecureString(serviceAccountToken.toCharArray())));
             assertThat(grantApiKeyRequest.getGrant().getClientAuthentication().scheme(), is(clientAuthenticationScheme));
             assertThat(
                 grantApiKeyRequest.getGrant().getClientAuthentication().value(),

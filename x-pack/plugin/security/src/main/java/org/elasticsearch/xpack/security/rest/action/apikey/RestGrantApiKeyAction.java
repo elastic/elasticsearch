@@ -76,6 +76,12 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
                     new ParseField("access_token"),
                     ObjectParser.ValueType.STRING
                 );
+                parser.declareField(
+                    (req, secStr) -> req.getGrant().setServiceAccountToken(secStr),
+                    SecurityBaseRestHandler::getSecureString,
+                    new ParseField("service_account_token"),
+                    ObjectParser.ValueType.STRING
+                );
                 parser.declareString((req, str) -> req.getGrant().setRunAsUsername(str), new ParseField("run_as"));
                 parser.declareObject(
                     (req, clientAuthentication) -> req.getGrant().setClientAuthentication(clientAuthentication),
@@ -147,6 +153,6 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
 
     @Override
     public Set<String> getFilteredFields() {
-        return Set.of("password", "access_token", "client_authentication.value");
+        return Set.of("password", "access_token", "service_account_token", "client_authentication.value");
     }
 }

@@ -1,0 +1,455 @@
+---
+setup:
+  - skip:
+      features: [headers, transform_and_set]
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "umsa_grant_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "umsa_grant_reader"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": ["umsa-grant-*"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "umsa_grant_granter"
+        body: >
+          {
+            "cluster": ["grant_api_key"]
+          }
+
+  - do:
+      security.put_user:
+        username: "umsa_grant_granter"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["umsa_grant_granter"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: kibana_grant_worker
+        name: kibana-grant-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: kibana_grant_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: kibana
+        name: umsa-grant-kibana-token
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: umsa-grant-index
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: grant_worker
+        name: grant-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: grant_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: grant_disabled_worker
+        name: grant-disabled-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: grant_disabled_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: grant-builtin-token
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "umsa_grant_granter"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_grant_granter"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_grant_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_grant_reader"
+        ignore: 404
+
+---
+"Test grant api key with a user-managed service account token":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: grant_worker
+        body: >
+          {
+            "roles": ["umsa_grant_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: grant_worker
+        name: grant-token
+  - is_true: created
+  - set: { "token.value": service_account_token }
+
+  # The account holds no API key privileges of its own, so it cannot grant with its own credential
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${service_account_token}
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "self-granted-key"
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "${service_account_token}"
+          }
+  - match: { error.type: "security_exception" }
+
+  # An independently authenticated granter can
+  - do:
+      headers:
+        Authorization: "Basic dW1zYV9ncmFudF9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_grant_granter
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "umsa-granted-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role": {
+                  "cluster": ["all"]
+                }
+              }
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "${service_account_token}"
+          }
+  - match: { name: "umsa-granted-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  # The key is owned by the service account
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+  - match: { username: "apps/grant_worker" }
+  - length: { roles: 0 }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { authentication_realm.type: "_es_api_key" }
+  - match: { api_key.id: "${api_key_id}" }
+  - match: { api_key.name: "umsa-granted-key" }
+  - match: { metadata._user_managed_service_account: true }
+
+  # The key's own role descriptor asks for everything, but it is limited by the roles assigned to the account
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_security"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_security": false }
+
+  - do:
+      security.get_api_key:
+        id: "${api_key_id}"
+  - length: { api_keys: 1 }
+  - match: { api_keys.0.username: "apps/grant_worker" }
+  - match: { api_keys.0.realm: "_service_account" }
+  - match: { api_keys.0.realm_type: "_service_account" }
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "${api_key_id}"
+  - match: { _nodes.failed: 0 }
+
+---
+"Test grant api key rejects a built-in service account token":
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: grant-builtin-token
+  - is_true: created
+  - set: { "token.value": builtin_service_account_token }
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic dW1zYV9ncmFudF9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_grant_granter
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "builtin-granted-key"
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "${builtin_service_account_token}"
+          }
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "[service_account_token] must belong to a user-managed service account" }
+
+---
+"Test grant api key rejects a malformed service account token":
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic dW1zYV9ncmFudF9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_grant_granter
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "malformed-granted-key"
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "obviously-not-a-service-account-token"
+          }
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "[service_account_token] is not a valid service account token" }
+
+---
+"Test grant api key with a service account token does not support run_as":
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic dW1zYV9ncmFudF9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_grant_granter
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "run-as-granted-key"
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "obviously-not-a-service-account-token",
+            "run_as": "umsa_grant_granter"
+          }
+  - match: { error.type: "action_request_validation_exception" }
+  - match: { error.reason: "Validation Failed: 1: [run_as] is not supported for grant_type [_user_managed_service_account];" }
+
+---
+"Test grant api key fails for a disabled user-managed service account":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: grant_disabled_worker
+        body: >
+          {
+            "roles": ["umsa_grant_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: grant_disabled_worker
+        name: grant-disabled-token
+  - is_true: created
+  - set: { "token.value": disabled_service_account_token }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: grant_disabled_worker
+        body: >
+          {
+            "roles": ["umsa_grant_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  # The grant credential is re-authenticated on every call, so the disabled account is refused. Like every failure to
+  # authenticate the grant credential, the grant API reports it as forbidden rather than unauthorized.
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic dW1zYV9ncmFudF9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_grant_granter
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "disabled-granted-key"
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "${disabled_service_account_token}"
+          }
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "Failed to authenticate api key grant" }
+
+---
+"Test the elastic/kibana service account can grant an api key with a user-managed service account token":
+  # (1) An administrator creates the user-managed account and assigns it a role
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: kibana_grant_worker
+        body: >
+          {
+            "roles": ["umsa_grant_reader"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  # (2) The administrator issues the account a service account token, the long-lived credential the application holds
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: kibana_grant_worker
+        name: kibana-grant-token
+  - is_true: created
+  - set: { "token.value": worker_token }
+
+  # Kibana authenticates as the built-in elastic/kibana service account
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: kibana
+        name: umsa-grant-kibana-token
+  - is_true: created
+  - set: { "token.value": kibana_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${kibana_token}
+      security.authenticate: {}
+  - match: { username: "elastic/kibana" }
+
+  # (3) elastic/kibana grants an API key on behalf of the user-managed account by presenting the account's token
+  - do:
+      headers:
+        Authorization: Bearer ${kibana_token}
+      security.grant_api_key:
+        body: >
+          {
+            "api_key": {
+              "name": "kibana-granted-worker-key",
+              "expiration": "1d"
+            },
+            "grant_type": "_user_managed_service_account",
+            "service_account_token": "${worker_token}"
+          }
+  - match: { name: "kibana-granted-worker-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  # The key belongs to the user-managed account, not to elastic/kibana
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+  - match: { username: "apps/kibana_grant_worker" }
+  - match: { api_key.id: "${api_key_id}" }
+  - match: { api_key.name: "kibana-granted-worker-key" }
+  - match: { metadata._user_managed_service_account: true }
+
+  # (4) The key is used for ordinary calls, with the privileges of the account's assigned role
+  - do:
+      index:
+        index: umsa-grant-index
+        id: "1"
+        refresh: true
+        body: { "message": "visible to the worker" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      search:
+        rest_total_hits_as_int: true
+        index: umsa-grant-index
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.message: "visible to the worker" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      cluster.health: {}
+  - is_true: cluster_name
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: ApiKey ${login_creds}
+      index:
+        index: umsa-grant-index
+        id: "2"
+        body: { "message": "the worker may not write" }
+  - match: { error.type: "security_exception" }

@@ -10,6 +10,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -25,16 +26,31 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -45,8 +61,11 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +73,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,10 +101,21 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
     private static final String SNAPSHOT = "test-snapshot";
     private static final String DOC_ID = "some_id";
     private static final String KNN_INDEX = "test-restore-knn-index";
+    private static final String MULTI_SHARD_INDEX = "test-restore-multi-shard-index";
+    /** Deliberately above the default {@code node_initial_primaries_recoveries} limit (4) so some primaries are throttled. */
+    private static final int MULTI_SHARD_COUNT = 6;
+    private static final int INITIAL_PRIMARIES_RECOVERIES_LIMIT = 4;
+    private static final String CLOSED_INDEX = "test-closed-before-restore-index";
+    private static final String CLOSED_INDEX_PATTERN = "test-closed-before-restore-*";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(MockRepository.Plugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // real HTTP, for testSearchClosedIndexBeforeRestoreStarts
     }
 
     /**
@@ -117,10 +149,28 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        // Multi-shard index for the throttled-restore search test. Every shard must hold at least one
+        // document: an empty shard's restore reads no data blobs, so it would never hit the
+        // blockAllDataNodes block and would finish immediately, freeing a throttle slot.
+        createIndex(MULTI_SHARD_INDEX, indexSettingsNoReplicas(MULTI_SHARD_COUNT).build());
+        ensureGreen(MULTI_SHARD_INDEX);
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 200; i++) {
+            bulk.add(client().prepareIndex(MULTI_SHARD_INDEX).setId("doc-" + i).setSource("foo", "bar"));
+        }
+        assertNoFailures(bulk.get());
+        for (ShardStats shardStats : indicesAdmin().prepareStats(MULTI_SHARD_INDEX).clear().setDocs(true).get().getShards()) {
+            assertThat(
+                "every shard needs data so its restore blocks on a data-blob read",
+                shardStats.getStats().getDocs().getCount(),
+                greaterThan(0L)
+            );
+        }
+
         ensureGreen(INDEX, KNN_INDEX);
         createRepository(REPO, "mock");
         createFullSnapshot(REPO, SNAPSHOT);
-        assertAcked(indicesAdmin().prepareDelete(INDEX, KNN_INDEX));
+        assertAcked(indicesAdmin().prepareDelete(INDEX, KNN_INDEX, MULTI_SHARD_INDEX));
     }
 
     // -------------------------------------------------------------------------
@@ -848,5 +898,185 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-shard restore exceeding node_initial_primaries_recoveries — a mix of
+    // INITIALIZING and throttled UNASSIGNED primaries on one node
+    // -------------------------------------------------------------------------
+
+    /**
+     * Restoring an index with more primaries than
+     * {@code cluster.routing.allocation.node_initial_primaries_recoveries} (default 4) onto a single
+     * node leaves its primaries in two different states, and a search behaves differently against
+     * each.
+     *
+     * <p>{@code ThrottlingAllocationDecider} lets at most that many primaries start an initial
+     * (non-peer) recovery on a node at once. With the repository blocked none of those recoveries
+     * finish, so the slots never free up: with {@value #MULTI_SHARD_COUNT} primaries the cluster
+     * settles into {@value #INITIAL_PRIMARIES_RECOVERIES_LIMIT} INITIALIZING primaries and the rest
+     * UNASSIGNED with a last allocation status of {@code DECIDERS_THROTTLED}. Which shards end up in
+     * which state is not deterministic, so the test reads it from the routing table.
+     *
+     * <ul>
+     *   <li>An INITIALIZING primary is a routable copy, so a search targeting it parks in
+     *       {@code SearchReadyGate}, exactly as in the single-shard tests above.</li>
+     *   <li>A throttled UNASSIGNED primary has no copy at all. With
+     *       {@code allow_partial_search_results=false}, {@code SearchPhase#doCheckNoMissingShards}
+     *       rejects the search up front ("Search rejected due to missing shards") with a
+     *       {@code SearchPhaseExecutionException} that has no shard failures and no cause, so it
+     *       reports HTTP 503.</li>
+     * </ul>
+     */
+    public void testSearchAcrossThrottledMultiShardRestore() throws Exception {
+        final String limitKey = ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(limitKey, INITIAL_PRIMARIES_RECOVERIES_LIMIT));
+        final List<ActionFuture<SearchResponse>> parked = new ArrayList<>();
+        try {
+            blockAllDataNodes(REPO);
+            try {
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+                    .setIndices(MULTI_SHARD_INDEX)
+                    .setWaitForCompletion(false)
+                    .execute();
+                waitForBlockOnAnyDataNode(REPO);
+                // Wait on every node, not just the master: a search's coordinating node routes using its
+                // own applied cluster state, and a stale one could see an INITIALIZING shard as UNASSIGNED.
+                for (String node : internalCluster().getNodeNames()) {
+                    awaitClusterState(node, RestoringShardIT::hasSettledIntoDesiredRoutingState);
+                }
+
+                final IndexRoutingTable routing = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .routingTable()
+                    .index(MULTI_SHARD_INDEX);
+                for (int shard = 0; shard < MULTI_SHARD_COUNT; shard++) {
+                    final var perShardSearch = client().prepareSearch(MULTI_SHARD_INDEX)
+                        .setPreference("_shards:" + shard)
+                        .setAllowPartialSearchResults(false);
+                    if (routing.shard(shard).primaryShard().initializing()) {
+                        final var future = perShardSearch.execute();
+                        parked.add(future);
+                        expectThrows(TimeoutException.class, () -> future.get(200, TimeUnit.MILLISECONDS));
+                    } else {
+                        assertRejectedForMissingShards(expectThrows(SearchPhaseExecutionException.class, perShardSearch));
+                    }
+                }
+
+                // Whole index, allow_partial_search_results=false: the throttled shards make it fail fast.
+                assertRejectedForMissingShards(
+                    expectThrows(
+                        SearchPhaseExecutionException.class,
+                        client().prepareSearch(MULTI_SHARD_INDEX).setAllowPartialSearchResults(false)
+                    )
+                );
+
+                // Whole index, allow_partial_search_results=true: parks on the INITIALIZING shards.
+                final var partialSearch = client().prepareSearch(MULTI_SHARD_INDEX).setAllowPartialSearchResults(true).execute();
+                parked.add(partialSearch);
+                expectThrows(TimeoutException.class, () -> partialSearch.get(200, TimeUnit.MILLISECONDS));
+            } finally {
+                unblockAndDeleteRestoringIndex(REPO, MULTI_SHARD_INDEX);
+                // Drain: deleting the index fails the parked searches; we only need them consumed.
+                for (var future : parked) {
+                    try {
+                        future.get(30, TimeUnit.SECONDS).decRef();
+                    } catch (Exception ignored) {}
+                }
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(limitKey));
+        }
+    }
+
+    private static boolean hasSettledIntoDesiredRoutingState(ClusterState state) {
+        final IndexRoutingTable routing = state.routingTable().index(MULTI_SHARD_INDEX);
+        if (routing == null) {
+            return false;
+        }
+        int initializing = 0;
+        int throttled = 0;
+        for (int shard = 0; shard < routing.size(); shard++) {
+            final ShardRouting primary = routing.shard(shard).primaryShard();
+            if (primary.initializing()) {
+                initializing++;
+            } else if (primary.unassigned()
+                && primary.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+                    throttled++;
+                }
+        }
+        return initializing == INITIAL_PRIMARIES_RECOVERIES_LIMIT && throttled == MULTI_SHARD_COUNT - INITIAL_PRIMARIES_RECOVERIES_LIMIT;
+    }
+
+    /**
+     * {@code doCheckNoMissingShards} throws from inside the first phase's {@code run()}, and
+     * {@code AbstractSearchAsyncAction#executePhase} catches that and rewraps it via
+     * {@code onPhaseFailure(phaseName, "", e)}. So the exception the caller sees has an empty message
+     * and carries the "missing shards" rejection as its cause; its 503 is derived from that cause.
+     */
+    private static void assertRejectedForMissingShards(SearchPhaseExecutionException e) {
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getCause(), instanceOf(SearchPhaseExecutionException.class));
+        assertThat(e.getCause().getMessage(), containsString("Search rejected due to missing shards"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Closed index before a restore starts — the close -> restore window
+    // -------------------------------------------------------------------------
+
+    /**
+     * Documents what a REST caller sees when searching in the window between closing an index and
+     * starting a restore over it. Restoring over an existing index requires closing it first, so this
+     * window is part of the normal restore workflow — but nothing yet indicates a restore: there is no
+     * {@code RestoreInProgress} entry and the index is simply closed. Asserted over real HTTP, since
+     * the status a client receives is what matters here.
+     *
+     * <ul>
+     *   <li>{@code GET /{index}/_search} fails with HTTP 400 {@code index_closed_exception}, because
+     *       search's default {@code IndicesOptions} forbid closed concrete targets.</li>
+     *   <li>{@code GET /{index}/_search?ignore_unavailable=true} silently skips the closed index:
+     *       HTTP 200 with zero shards and zero hits.</li>
+     *   <li>A wildcard that would match the index silently excludes it too, because
+     *       {@code expand_wildcards} defaults to {@code open}. A caller searching e.g. {@code logs-*}
+     *       gets an empty result, with no error and no sign that a restore is pending.</li>
+     * </ul>
+     */
+    public void testSearchClosedIndexBeforeRestoreStarts() throws Exception {
+        createIndexWithContent(CLOSED_INDEX);
+        // A dedicated client rather than getRestClient(): ESIntegTestCase only closes the shared static
+        // client for TEST-scoped suites, so in this SUITE-scoped class its I/O threads would leak.
+        try (RestClient restClient = createRestClient()) {
+            assertAcked(indicesAdmin().prepareClose(CLOSED_INDEX));
+            assertTrue(
+                "no restore has started",
+                RestoreInProgress.get(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()).isEmpty()
+            );
+
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> restClient.performRequest(new Request("GET", "/" + CLOSED_INDEX + "/_search"))
+            );
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            ObjectPath error = ObjectPath.createFromResponse(e.getResponse());
+            assertThat(error.evaluate("status"), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(error.evaluate("error.type"), equalTo("index_closed_exception"));
+            assertThat(error.evaluate("error.index"), equalTo(CLOSED_INDEX));
+
+            Request ignoreUnavailable = new Request("GET", "/" + CLOSED_INDEX + "/_search");
+            ignoreUnavailable.addParameter("ignore_unavailable", "true");
+            assertSilentlyEmpty(restClient.performRequest(ignoreUnavailable));
+            assertSilentlyEmpty(restClient.performRequest(new Request("GET", "/" + CLOSED_INDEX_PATTERN + "/_search")));
+        } finally {
+            assertAcked(indicesAdmin().prepareDelete(CLOSED_INDEX));
+        }
+    }
+
+    private static void assertSilentlyEmpty(Response response) throws IOException {
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        ObjectPath body = ObjectPath.createFromResponse(response);
+        assertThat(body.evaluate("_shards.total"), equalTo(0));
+        assertThat(body.evaluate("_shards.failed"), equalTo(0));
+        assertThat(body.evaluate("hits.total.value"), equalTo(0));
     }
 }

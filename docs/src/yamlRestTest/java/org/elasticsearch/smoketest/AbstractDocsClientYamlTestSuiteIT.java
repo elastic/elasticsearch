@@ -10,7 +10,6 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
@@ -66,8 +65,13 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Abstract class that will be extended by generated classes so the tests are spread across
+ * them, see {@code generateDocsTestSuites} task in {@code docs/build.gradle}.
+ * Adjust {@code docsTestParts} there to change how many.
+ */
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
-public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public abstract class AbstractDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
@@ -179,19 +183,31 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
-    public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    AbstractDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
+    /**
+     * Candidates whose test path hashes into {@code part} of {@code partCount}, both 1-based.
+     * Hashing the path depends on nothing but the test's own identity, so a snippet keeps its
+     * part as other docs change, and a run scoped with {@code tests.rest.suite} routes exactly
+     * as CI does.
+     */
+    static Iterable<Object[]> parametersForPart(int part, int partCount) throws Exception {
         NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(
             CollectionUtils.appendToCopy(
                 ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS,
                 new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("compare_analyzers"), CompareAnalyzers::parse)
             )
         );
-        return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
+        List<Object[]> selected = new ArrayList<>();
+        for (Object[] candidate : ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry)) {
+            String testPath = ((ClientYamlTestCandidate) candidate[0]).getTestPath();
+            if (Math.floorMod(testPath.hashCode(), partCount) + 1 == part) {
+                selected.add(candidate);
+            }
+        }
+        return selected;
     }
 
     @ClassRule

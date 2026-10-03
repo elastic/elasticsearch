@@ -109,6 +109,13 @@ public final class LimitedRole implements Role {
     }
 
     @Override
+    public boolean canEnumerateApplicationPrivileges() {
+        // A limited role is an intersection of two roles; its effective application permission cannot be
+        // materialized as a single ApplicationPermission (application() throws above).
+        return false;
+    }
+
+    @Override
     public RunAsPermission runAs() {
         throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
     }

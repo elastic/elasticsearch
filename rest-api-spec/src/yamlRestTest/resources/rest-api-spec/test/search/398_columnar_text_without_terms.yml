@@ -1,0 +1,130 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.text.search_without_terms"]
+      reason: "a columnar text field that indexes no terms is searched over its values"
+
+  - do:
+      indices.create:
+        index: no_terms
+        body:
+          settings:
+            number_of_shards: 1
+            index.mode: columnar
+          mappings:
+            properties:
+              body:
+                type: text
+                index: false
+
+  - do:
+      bulk:
+        index: no_terms
+        refresh: true
+        body:
+          - { "index": { "_id": "1" } }
+          - { "body": "the quick brown fox jumps" }
+          - { "index": { "_id": "2" } }
+          - { "body": "a brown quick fox" }
+          - { "index": { "_id": "3" } }
+          - { "body": "nothing here at all" }
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: null
+
+---
+"match reads the values":
+  - do:
+      search:
+        index: no_terms
+        body: { query: { match: { body: "quick" } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { match: { body: { query: "quick missing", operator: "and" } } } }
+  - match: { hits.total.value: 0 }
+
+---
+"match_phrase keeps the order of the tokens":
+  - do:
+      search:
+        index: no_terms
+        body: { query: { match_phrase: { body: "quick brown" } } }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { match_phrase: { body: "brown quick" } } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"the term family looks for tokens":
+  - do:
+      search:
+        index: no_terms
+        body: { query: { term: { body: "quick" } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { prefix: { body: "qui" } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { wildcard: { body: "qu*ck" } } }
+  - match: { hits.total.value: 2 }
+
+---
+"a document scores one point for every query term it holds":
+  - do:
+      search:
+        index: no_terms
+        body: { query: { match: { body: "quick brown" } } }
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._score: 2.0 }
+
+  - do:
+      search:
+        index: no_terms
+        body: { query: { match: { body: "quick nothing" } } }
+  - match: { hits.hits.0._score: 1.0 }
+
+---
+"reading the values is an expensive query":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: "false"
+
+  # Nothing narrows the documents a query reads here, which is what the setting is about.
+  - do:
+      catch: /Cannot search on field \[body\] since it is not indexed and \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: no_terms
+        body: { query: { match: { body: "quick" } } }
+
+  - do:
+      catch: /Cannot search on field \[body\] since it is not indexed and \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: no_terms
+        body: { query: { prefix: { body: "qui" } } }

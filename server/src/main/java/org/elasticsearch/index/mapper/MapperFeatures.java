@@ -169,6 +169,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
+    public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
         "mapper.dynamic_template.warn_on_duplicate_names"
@@ -185,6 +186,7 @@ public class MapperFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
+            TEXT_SEARCH_WITHOUT_TERMS,
             DATE_RANGE_INDEXING_FIX,
             DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,

@@ -124,7 +124,16 @@ public class SpanMultiTermQueryBuilder extends LeafQueryBuilder<SpanMultiTermQue
         QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
         if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
-        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
+        }
+        // A span reads the positions of the terms it matches, as the terms this one expands to have to carry.
+        final String fieldName = this.multiTermQueryBuilder.fieldName();
+        final MappedFieldType spanField = context.getFieldType(fieldName);
+        if (spanField != null && spanField.getTextSearchInfo().hasPositions() == false) {
+            throw new IllegalArgumentException(
+                "Span multi term query requires position data, but field " + fieldName + " was indexed without position data"
+            );
+        }
+        if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
             MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
             if (fieldType == null) {
                 throw new IllegalStateException("Rewrite first");

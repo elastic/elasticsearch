@@ -209,6 +209,9 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/160920
+- class: org.elasticsearch.xpack.ml.integration.InferenceIT
+  method: testInferRegressionModel
+  issue: https://github.com/elastic/elasticsearch/issues/160936
 
 # Examples:
 #

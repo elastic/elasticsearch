@@ -10,11 +10,9 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 
@@ -29,23 +27,21 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
         StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         String pattern,
-        boolean caseInsensitive
+        boolean caseInsensitive,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
             script,
             leafFactory,
             fieldName,
-            new ByteRunAutomaton(buildAutomaton(new Term(fieldName, Objects.requireNonNull(pattern)), caseInsensitive))
+            AutomatonQueries.toWildcardByteRunAutomaton(
+                new Term(fieldName, Objects.requireNonNull(pattern)),
+                caseInsensitive,
+                circuitBreaker
+            )
         );
         this.pattern = pattern;
         this.caseInsensitive = caseInsensitive;
-    }
-
-    private static Automaton buildAutomaton(Term term, boolean caseInsensitive) {
-        if (caseInsensitive) {
-            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
-        }
-        return WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

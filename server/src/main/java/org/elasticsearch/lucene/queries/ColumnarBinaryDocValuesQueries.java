@@ -19,6 +19,7 @@ import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
 import org.elasticsearch.columnar.ColumnarStringMatchQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.ScanBudget;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -124,17 +125,38 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
     }
 
     @Override
-    public Query wildcard(String field, String pattern, boolean caseInsensitive) {
+    public Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
         if (caseInsensitive == false) {
-            // Rewrites a pattern naming a term, a prefix or a contained run into the query that answers it directly.
-            return ColumnarStringAutomatonQuery.forWildcard(field, pattern, BUDGET);
+            // Mirror the optimizations in ColumnarStringAutomatonQuery.forWildcard: route a literal, prefix or
+            // *contains* pattern to the column query that answers it without building an automaton at all. Only
+            // the general case needs the automaton — and the breaker.
+            if (pattern.isEmpty() == false && isPlainPattern(pattern)) {
+                return ColumnarStringTermQuery.term(field, new BytesRef(pattern), BUDGET);
+            }
+            if (pattern.endsWith("*")) {
+                final String start = pattern.substring(0, pattern.length() - 1);
+                if (isPlainPattern(start)) {
+                    return ColumnarStringTermQuery.prefix(field, new BytesRef(start), BUDGET);
+                }
+            }
+            if (pattern.length() >= 3 && pattern.charAt(0) == '*' && pattern.endsWith("*")) {
+                final String inside = pattern.substring(1, pattern.length() - 1);
+                if (isPlainPattern(inside)) {
+                    return ColumnarStringTermQuery.contains(field, new BytesRef(inside), BUDGET);
+                }
+            }
         }
         return new ColumnarStringAutomatonQuery(
             field,
-            AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, pattern)),
-            "pattern=" + pattern + ",caseInsensitive=true",
+            AutomatonQueries.toWildcardByteRunAutomaton(new Term(field, pattern), caseInsensitive, breaker),
+            "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive,
             BUDGET
         );
+    }
+
+    /** True when {@code s} contains no wildcard or escape characters and can be matched as plain bytes. */
+    private static boolean isPlainPattern(String s) {
+        return Strings.indexOfAny(s, '*', '?', '\\') < 0;
     }
 
     @Override

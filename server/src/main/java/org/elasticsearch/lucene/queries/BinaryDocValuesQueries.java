@@ -59,7 +59,7 @@ public interface BinaryDocValuesQueries {
     Query caseInsensitiveTerm(String field, String value);
 
     /** Documents holding a value the wildcard pattern accepts. */
-    Query wildcard(String field, String pattern, boolean caseInsensitive);
+    Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker);
 
     /**
      * Documents holding a value {@code automaton} accepts, for a caller that has already decided what its pattern means.

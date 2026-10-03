@@ -27,8 +27,10 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -103,6 +105,42 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                     assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
                     assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
                     return e;
+                }
+            }
+        }
+    }
+
+    // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
+    private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
+
+    public void testCircuitBreakerConsultedForWildcardDuringCreateWeight() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document doc = new Document();
+                doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
+                writer.addDocument(doc);
+                try (IndexReader reader = writer.getReader()) {
+                    TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                    ContextIndexSearcher searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
+                        true
+                    );
+                    searcher.setCircuitBreaker(breaker);
+                    Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
+                        Queries.ALL_DOCS_INSTANCE,
+                        "field",
+                        COMPLEX_WILDCARD,
+                        randomBoolean(),
+                        false
+                    );
+                    query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    assertTrue(
+                        "circuit breaker should be consulted during wildcard automaton construction in createWeight",
+                        breaker.wasCalled()
+                    );
                 }
             }
         }

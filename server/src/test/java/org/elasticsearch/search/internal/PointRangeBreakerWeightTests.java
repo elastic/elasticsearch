@@ -40,7 +40,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +53,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -536,46 +535,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         searcher.setCircuitBreaker(breaker);
         Weight weight = searcher.createWeight(searcher.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         return new DenseSearch(searcher, weight);
-    }
-
-    private static final class TrackingCircuitBreaker extends NoopCircuitBreaker {
-        private final long limit;
-        private final AtomicLong used = new AtomicLong();
-        private final AtomicLong peak = new AtomicLong();
-
-        TrackingCircuitBreaker(long limit) {
-            super("request");
-            this.limit = limit;
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            long current = used.addAndGet(bytes);
-            if (limit >= 0 && current > limit) {
-                used.addAndGet(-bytes);
-                throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
-            }
-            peak.accumulateAndGet(current, Math::max);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
-        }
-
-        @Override
-        public long getUsed() {
-            return used.get();
-        }
-
-        @Override
-        public long getLimit() {
-            return limit;
-        }
-
-        long peak() {
-            return peak.get();
-        }
     }
 
     private static final class CountingCollectorManager implements CollectorManager<CountingCollector, Integer> {

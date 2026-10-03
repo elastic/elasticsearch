@@ -6,6 +6,10 @@
     <option name="HOST" value="localhost" />
     <option name="PORT" value="5008" />
     <option name="AUTO_RESTART" value="true" />
+    <RunnerSettings RunnerId="Debug">
+      <option name="DEBUG_PORT" value="5008" />
+      <option name="LOCAL" value="false" />
+    </RunnerSettings>
     <method v="2" />
   </configuration>
 </component>

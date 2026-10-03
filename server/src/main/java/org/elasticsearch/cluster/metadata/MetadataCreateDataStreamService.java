@@ -288,7 +288,10 @@ public class MetadataCreateDataStreamService {
         }
 
         final boolean isSystem = systemDataStreamDescriptor != null;
-        final ComposableIndexTemplate template = isSystem
+        // When the descriptor owns its template, use it directly. When the descriptor was registered without a template
+        // (ownsTemplate() == false), fall back to the matching template in cluster state — typically one applied by the
+        // owning plugin (e.g. Kibana) at its own startup. Non-system streams always use the cluster-state lookup.
+        final ComposableIndexTemplate template = (isSystem && systemDataStreamDescriptor.ownsTemplate())
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
             : lookupTemplateForDataStream(dataStreamName, currentProject);
         // The initial backing index and the initial failure store index will have the same initial generation.
@@ -573,7 +576,10 @@ public class MetadataCreateDataStreamService {
         ComposableIndexTemplate template,
         boolean isSystem
     ) {
-        DataStreamOptions.Builder builder = isSystem
+        // Use the descriptor's embedded component templates only when it also owns the composable template.
+        // When the template comes from cluster state, use the project-level component templates instead.
+        final boolean useDescriptorComponents = isSystem && systemDataStreamDescriptor.ownsTemplate();
+        DataStreamOptions.Builder builder = useDescriptorComponents
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveDataStreamOptions(template, project.componentTemplates());
         return builder == null ? null : builder.build();
@@ -585,7 +591,10 @@ public class MetadataCreateDataStreamService {
         ComposableIndexTemplate template,
         boolean isSystem
     ) {
-        DataStreamLifecycle.Builder builder = isSystem
+        // Use the descriptor's embedded component templates only when it also owns the composable template.
+        // When the template comes from cluster state, use the project-level component templates instead.
+        final boolean useDescriptorComponents = isSystem && systemDataStreamDescriptor.ownsTemplate();
+        DataStreamLifecycle.Builder builder = useDescriptorComponents
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, project.componentTemplates());
         return builder == null ? null : builder.build();

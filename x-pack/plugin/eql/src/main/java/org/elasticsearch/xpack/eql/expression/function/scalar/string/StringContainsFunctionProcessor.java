@@ -52,6 +52,11 @@ public class StringContainsFunctionProcessor implements Processor {
         }
 
         throwIfNotString(string);
+
+        if (substring == null) {
+            return null;
+        }
+
         throwIfNotString(substring);
 
         String strString = string.toString();

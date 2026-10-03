@@ -12,9 +12,14 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -30,22 +35,33 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
@@ -207,6 +223,383 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         assertEquals(second.getEstimatedBytes(), first.getEstimatedBytes());
         assertEquals(new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate(), first.getEstimatedBytes());
+    }
+
+    public void testChargesScanningBinaryDocValuesTermQueryByDecodeCostEstimate() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+        query.visit(visitor);
+
+        long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+        assertEquals(expected, visitor.getEstimatedBytes());
+        assertEquals(1, visitor.getNumClauses());
+    }
+
+    public void testBooleanOfScanningBinaryDocValuesTermQueriesSumsPerClauseEstimates() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int clauses = randomIntBetween(2, 20);
+
+        BooleanQuery.Builder bool = new BooleanQuery.Builder();
+        long expected = 0L;
+        for (int i = 0; i < clauses; i++) {
+            Query fq = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT);
+            bool.add(fq, BooleanClause.Occur.SHOULD);
+            expected += RamUsageEstimator.shallowSizeOf(fq) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+        }
+        bool.build().visit(visitor);
+
+        assertEquals(
+            "each binary DV scan clause must be charged and summed, not floored once for the whole tree",
+            expected,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(clauses, visitor.getNumClauses());
+    }
+
+    public void testScanningBinaryDocValuesTermInSetQueryIsChargedOncePerClauseNotPerTerm() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int termCount = randomIntBetween(2, 500);
+        List<BytesRef> terms = new ArrayList<>(termCount);
+        for (int i = 0; i < termCount; i++) {
+            terms.add(new BytesRef("value" + i));
+        }
+        Query query = new ScanningBinaryDocValuesTermInSetQuery("field", terms, BinaryDocValuesFormat.SEPARATE_COUNT);
+
+        query.visit(visitor);
+
+        long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+        assertEquals(
+            "a TermInSet query opens a single decoder regardless of how many terms it holds, so it must be charged once",
+            expected,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(1, visitor.getNumClauses());
+    }
+
+    public void testLargeDisjunctionOfBinaryDocValuesScanClausesTripsBreakerBeforeSearch() {
+        long limit = 10_000L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
+
+        BooleanQuery.Builder bool = new BooleanQuery.Builder();
+        // One clause (~3 KB) fits under the limit, but ten clauses comfortably exceed it.
+        int clauses = 10;
+        for (int i = 0; i < clauses; i++) {
+            bool.add(
+                new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT),
+                BooleanClause.Occur.SHOULD
+            );
+        }
+
+        expectThrows(CircuitBreakingException.class, () -> bool.build().visit(visitor));
+        assertTrue("a disjunction of binary DV scan clauses sized off real decode cost must trip the breaker", breaker.tripped);
+    }
+
+    public void testUsesRealPerFieldDecodeBytesWhenReaderConfirmsHint() throws IOException {
+        long realDecodeBytes = 12_345L;
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (
+                DirectoryReader reader = wrapBinaryDocValues(
+                    DirectoryReader.open(directory),
+                    "field",
+                    i -> new FakeHintBinaryDocValues(realDecodeBytes)
+                )
+            ) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                long expected = RamUsageEstimator.shallowSizeOf(query) + realDecodeBytes;
+                assertEquals(
+                    "a confirmed real per-field decode size must be used instead of a fallback estimate",
+                    expected,
+                    visitor.getEstimatedBytes()
+                );
+            }
+        }
+    }
+
+    public void testLeafWithoutHintUsesGenericTrackingEstimate() throws IOException {
+        long realDecodeBytes = 1_000L;
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE))) {
+                writer.addDocument(new Document());
+                writer.flush();
+                writer.addDocument(new Document());
+                writer.commit();
+            }
+            try (
+                DirectoryReader reader = wrapBinaryDocValues(
+                    DirectoryReader.open(directory),
+                    "field",
+                    i -> i == 0 ? new FakeHintBinaryDocValues(realDecodeBytes) : new PlainBinaryDocValues()
+                )
+            ) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                // The hint-less leaf's generic estimate wins the max over the hint-supporting leaf's smaller real value.
+                long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+                assertThat(realDecodeBytes, lessThan(TrackingBinaryDocValues.ESTIMATED_SIZE));
+                assertEquals(expected, visitor.getEstimatedBytes());
+            }
+        }
+    }
+
+    public void testLeafReturningUnsupportedSentinelUsesGenericTrackingEstimate() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (
+                DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> new FakeHintBinaryDocValues(-1))
+            ) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
+                assertEquals(expected, visitor.getEstimatedBytes());
+            }
+        }
+    }
+
+    public void testIOExceptionWhileProbingThrowsUnchecked() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> {
+                throw new IOException("simulated failure");
+            })) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                expectThrows(UncheckedIOException.class, () -> query.visit(visitor));
+            }
+        }
+    }
+
+    public void testChargesNothingExtraWhenFieldAbsentFromReader() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> null)) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
+
+                query.visit(visitor);
+
+                // No leaf has the field, so no decoder will ever open for it against this reader — only the
+                // query object's own shallow size is charged, not the conservative fallback.
+                long expected = RamUsageEstimator.shallowSizeOf(query);
+                assertEquals(expected, visitor.getEstimatedBytes());
+            }
+        }
+    }
+
+    public void testRealPerFieldDecodeBytesLookupIsCachedNotPerClause() throws IOException {
+        AtomicInteger lookups = new AtomicInteger();
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            try (DirectoryReader reader = wrapBinaryDocValues(DirectoryReader.open(directory), "field", i -> {
+                lookups.incrementAndGet();
+                return new FakeHintBinaryDocValues(1_000L);
+            })) {
+                MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+                    IndexSearcher.getMaxClauseCount(),
+                    null,
+                    null,
+                    MaxClauseCountQueryVisitor.segmentCountOrDefault(reader),
+                    reader
+                );
+                BooleanQuery.Builder bool = new BooleanQuery.Builder();
+                int clauses = randomIntBetween(3, 10);
+                for (int i = 0; i < clauses; i++) {
+                    bool.add(
+                        new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value" + i), BinaryDocValuesFormat.SEPARATE_COUNT),
+                        BooleanClause.Occur.SHOULD
+                    );
+                }
+
+                bool.build().visit(visitor);
+
+                assertEquals(
+                    "many clauses on the same field must probe the reader once per leaf, not once per clause",
+                    reader.leaves().size(),
+                    lookups.get()
+                );
+            }
+        }
+    }
+
+    private static DirectoryReader wrapBinaryDocValues(
+        DirectoryReader reader,
+        String field,
+        IOFunction<Integer, BinaryDocValues> perLeafValues
+    ) throws IOException {
+        AtomicInteger nextLeafIndex = new AtomicInteger();
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                int leafIndex = nextLeafIndex.getAndIncrement();
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String f) throws IOException {
+                        return f.equals(field) ? perLeafValues.apply(leafIndex) : super.getBinaryDocValues(f);
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                return in;
+            }
+
+            @Override
+            public IndexReader.CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
+    }
+
+    /**
+     * Test double for a binary-DV reader that supports {@link BlockLoader.OptionalDecodeMemoryUsageEstimator}, as the TSDB
+     * codec's compressed binary DV readers do.
+     */
+    private static final class FakeHintBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalDecodeMemoryUsageEstimator {
+        private final long maxDecodeBytes;
+        private int doc = -1;
+
+        FakeHintBinaryDocValues(long maxDecodeBytes) {
+            this.maxDecodeBytes = maxDecodeBytes;
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            return maxDecodeBytes;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef();
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            doc = target;
+            return true;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return 0;
+        }
+    }
+
+    /**
+     * Test double for a binary-DV reader that does not support {@link BlockLoader.OptionalDecodeMemoryUsageEstimator}, standing
+     * in for a non-TSDB codec.
+     */
+    private static final class PlainBinaryDocValues extends BinaryDocValues {
+        private int doc = -1;
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef();
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            doc = target;
+            return true;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return 0;
+        }
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

@@ -28,6 +28,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,6 +38,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
+
+    public void testIsChargedAsABinaryDocValuesScanCost() {
+        Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
+
+        assertThat(
+            "every matches() call opens a decoder over the field's full binary doc values, same as the Scanning* queries",
+            query,
+            instanceOf(BinaryDocValuesScanCost.class)
+        );
+        assertEquals("field", ((BinaryDocValuesScanCost) query).field());
+    }
 
     public void testNoBinaryDocValuesOpenedDuringPlanning() throws IOException {
         try (Directory dir = newDirectory()) {

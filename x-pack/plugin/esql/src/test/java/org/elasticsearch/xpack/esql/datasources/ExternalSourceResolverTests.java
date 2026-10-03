@@ -6439,7 +6439,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         Map<String, List<StorageEntry>> listings = Map.of("s3://bucket/data/", List.of(entry(file1, 100), entry(file2, 200)));
         Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
-        long oneList = SchemaInterner.privateListBytes(1);
+        long oneList = SchemaInterner.privateListBytes(List.of(attr("id", DataType.INTEGER)));
         long bothLists = oneList * 2;
 
         CircuitBreaker wide = requestBreaker("1gb");
@@ -6655,6 +6655,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /** esql-planning#2143: the retained per-file schema is charged by its column names, not only by its column count. */
+    public void testGatheredFileBytesChargesColumnNames() {
+        String location = "s3://bucket/data/f0.ndjson";
+        SourceMetadata shortNamed = new SimpleSourceMetadata(
+            List.of(attr("a", DataType.INTEGER)),
+            "ndjson",
+            location,
+            null,
+            null,
+            null,
+            null
+        );
+        String longName = "a.".repeat(1_000);
+        SourceMetadata longNamed = new SimpleSourceMetadata(
+            List.of(attr(longName, DataType.INTEGER)),
+            "ndjson",
+            location,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertEquals(
+            2L * (longName.length() - 1),
+            ExternalSourceResolver.gatheredFileBytes(longNamed, true) - ExternalSourceResolver.gatheredFileBytes(shortNamed, true)
+        );
+        // The reconcile path charges the schema on its own run, so the results run must not charge it twice.
+        assertEquals(
+            ExternalSourceResolver.gatheredFileBytes(shortNamed, false),
+            ExternalSourceResolver.gatheredFileBytes(longNamed, false)
+        );
+    }
+
     /**
      * The FIRST_FILE_WINS stats gather keeps every file's own schema list in the results array until it completes,
      * with no interner and no private-list run. Each file's column statistics are folded away and only a slim record
@@ -6684,7 +6718,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(3, held.size());
         // Every fixture path has the same length, so the shell and location weigh the same for each file.
-        long perFileFloor = 64L + HeapEstimates.stringBytes(fixture.paths().get(0)) + SchemaInterner.privateListBytes(columns);
+        long perFileFloor = 64L + HeapEstimates.stringBytes(fixture.paths().get(0)) + SchemaInterner.privateListBytes(
+            fixture.schemas().get(fixture.paths().get(0))
+        );
         long previous = 0L;
         for (long total : held) {
             assertThat(total - previous, greaterThanOrEqualTo(perFileFloor));

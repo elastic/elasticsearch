@@ -1568,6 +1568,80 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    /**
+     * Filling a buffer exactly used to look like more data follows ({@code bytesRead == buf.length}),
+     * so the only chunk went out with {@code last=false}. Warm COUNT(*) then treated the harvest as
+     * PARTIAL_CHUNK and re-scanned. Peek-after-full-buffer marks EOF so {@code statsFileFinal} is true.
+     */
+    public void testExactFillMarksChunkFileFinal() throws Exception {
+        int chunkSize = 64;
+        String line = "x".repeat(31) + "\n";
+        byte[] content = line.repeat(2).getBytes(StandardCharsets.UTF_8);
+        assertEquals(chunkSize, content.length);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            List<String> lines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(content),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+            assertEquals(List.of(line.trim(), line.trim()), lines);
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertEquals(1, seen.size());
+            assertTrue("exact-fill EOF must mark the chunk file-final", seen.get(0).statsFileFinal());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Two exact fills: the first chunk carries a peeked leftover into the second, and only the
+     * second chunk is file-final.
+     */
+    public void testExactMultiChunkFillMarksOnlyLastFileFinal() throws Exception {
+        int chunkSize = 64;
+        String line = "x".repeat(31) + "\n";
+        byte[] content = line.repeat(4).getBytes(StandardCharsets.UTF_8);
+        assertEquals(128, content.length);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            List<String> lines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(content),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+            assertEquals(4, lines.size());
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertEquals(2, seen.size());
+            long fileFinal = seen.stream().filter(FormatReadContext::statsFileFinal).count();
+            assertEquals("exactly one chunk reaches EOF", 1, fileFinal);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {

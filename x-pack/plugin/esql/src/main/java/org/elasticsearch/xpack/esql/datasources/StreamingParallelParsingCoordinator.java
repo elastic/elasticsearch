@@ -976,13 +976,27 @@ public final class StreamingParallelParsingCoordinator {
                         continue;
                     }
 
-                    int validLen = isEof ? totalBytes : lastNewline + 1;
-
-                    if (isEof == false && validLen < totalBytes) {
-                        carryLen = totalBytes - validLen;
-                        carry = new byte[carryLen];
-                        System.arraycopy(buf, validLen, carry, 0, carryLen);
+                    // A full buffer is not EOF. Peek one byte so a file whose size equals chunkSize
+                    // (clamp-to-object fill) still marks last=true. Without this, the next loop's
+                    // empty read sets reachedEof after a last=false dispatch and stripe harvest
+                    // stays PARTIAL_CHUNK, so warm COUNT(*) re-scans.
+                    if (isEof == false) {
+                        int peek = stream.read();
+                        if (peek < 0) {
+                            isEof = true;
+                        } else {
+                            int leftoverStart = lastNewline + 1;
+                            int leftover = totalBytes - leftoverStart;
+                            carryLen = leftover + 1;
+                            carry = new byte[carryLen];
+                            if (leftover > 0) {
+                                System.arraycopy(buf, leftoverStart, carry, 0, leftover);
+                            }
+                            carry[leftover] = (byte) peek;
+                        }
                     }
+
+                    int validLen = isEof ? totalBytes : lastNewline + 1;
 
                     if (chunkIndex == 0) {
                         prepareFromFirstChunk(buf, validLen);

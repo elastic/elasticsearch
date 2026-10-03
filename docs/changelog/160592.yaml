@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160592
+summary: Circuit-break before growing the array
+type: bug

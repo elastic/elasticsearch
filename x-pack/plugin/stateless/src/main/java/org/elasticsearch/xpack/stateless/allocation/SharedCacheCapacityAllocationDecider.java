@@ -233,7 +233,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 
@@ -273,7 +273,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 
@@ -344,7 +344,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, null);
             }
         }
 

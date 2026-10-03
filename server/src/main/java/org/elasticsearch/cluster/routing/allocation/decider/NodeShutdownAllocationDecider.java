@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
  */
 public class NodeShutdownAllocationDecider extends AllocationDecider {
 
-    private static final String NAME = "node_shutdown";
+    public static final String NAME = "node_shutdown";
 
     private static final Decision YES_EMPTY_SHUTDOWN_METADATA = Decision.single(Decision.Type.YES, NAME, "no nodes are shutting down");
     private static final Decision YES_NODE_NOT_SHUTTING_DOWN = Decision.single(Decision.Type.YES, NAME, "this node is not shutting down");

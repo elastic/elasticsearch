@@ -55,14 +55,18 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.failedAllocations();
         if (numFailedAllocations > 0) {
             final var decision = numFailedAllocations >= maxRetries ? Decision.NO : Decision.YES;
-            return allocation.debugDecision() ? debugDecision(decision, unassignedInfo, numFailedAllocations, maxRetries) : decision;
+            return allocation.debugDecision()
+                ? debugDecision(decision, unassignedInfo, numFailedAllocations, maxRetries)
+                : allocation.decision(decision, NAME, null);
         }
 
         final var relocationFailureInfo = shardRouting.relocationFailureInfo();
         final int numFailedRelocations = relocationFailureInfo == null ? 0 : relocationFailureInfo.failedRelocations();
         if (numFailedRelocations > 0) {
             final var decision = numFailedRelocations >= maxRetries ? Decision.NO : Decision.YES;
-            return allocation.debugDecision() ? debugDecision(decision, relocationFailureInfo, numFailedRelocations, maxRetries) : decision;
+            return allocation.debugDecision()
+                ? debugDecision(decision, relocationFailureInfo, numFailedRelocations, maxRetries)
+                : allocation.decision(decision, NAME, null);
         }
 
         return YES_NO_FAILURES;

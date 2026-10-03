@@ -170,7 +170,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 }
                 return allocation.decision(Decision.NO, name, message);
             } else {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, name, null);
             }
         }
 
@@ -211,7 +211,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 }
                 return allocation.decision(Decision.NO, name, message);
             } else {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, name, null);
             }
         }
 
@@ -265,7 +265,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
                 }
                 return allocation.decision(Decision.NO, name, message);
             } else {
-                return Decision.NO;
+                return allocation.decision(Decision.NO, name, null);
             }
         }
 

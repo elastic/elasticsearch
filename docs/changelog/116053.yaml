@@ -1,0 +1,5 @@
+pr: 116053
+summary: Fix live version map unsafe flag
+area: Engine
+type: bug
+issues: []

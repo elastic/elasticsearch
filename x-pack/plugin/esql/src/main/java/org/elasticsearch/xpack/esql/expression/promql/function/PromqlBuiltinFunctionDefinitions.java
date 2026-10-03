@@ -181,6 +181,40 @@ public class PromqlBuiltinFunctionDefinitions {
         )
         .name("label_join");
 
+    public static final PromqlFunctionDefinition SORT = PromqlFunctionDefinition.def()
+        .resultOrdering()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Sorts instant-vector series by sample value in ascending order. NaN values are sorted last.")
+        .example("sort(http_requests_total)")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering."
+        )
+        .differenceFromPrometheus(
+            "Supported in this version only as the outermost function of the query; Prometheus also applies an ordering "
+                + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
+                + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
+        )
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .name("sort");
+
+    public static final PromqlFunctionDefinition SORT_DESC = PromqlFunctionDefinition.def()
+        .resultOrdering()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Sorts instant-vector series by sample value in descending order. NaN values are sorted last.")
+        .example("sort_desc(http_requests_total)")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering."
+        )
+        .differenceFromPrometheus(
+            "Supported in this version only as the outermost function of the query; Prometheus also applies an ordering "
+                + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
+                + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
+        )
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .name("sort_desc");
+
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

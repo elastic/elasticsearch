@@ -493,7 +493,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    // ok — counter/gauge type mismatches are coerced during translation
+                    if (functionCall instanceof ResultOrderingFunction && root.get() == false) {
+                        failures.add(
+                            fail(
+                                lp,
+                                "[{}] is only supported at the top-level at this time [{}]",
+                                functionCall.functionName(),
+                                lp.sourceText()
+                            )
+                        );
+                    }
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok

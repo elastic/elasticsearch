@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -19,12 +21,34 @@ public class LogicalOptimizerContext {
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;
     private final EsqlFlags flags;
+    @Nullable
+    private final AnalysisRegistry analysisRegistry;
 
     public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion, EsqlFlags flags) {
+        this(configuration, foldCtx, minimumVersion, flags, null);
+    }
+
+    public LogicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion,
+        EsqlFlags flags,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
         this.configuration = configuration;
         this.foldCtx = foldCtx;
         this.minimumVersion = minimumVersion;
         this.flags = flags;
+        this.analysisRegistry = analysisRegistry;
+    }
+
+    /**
+     * The node's analysis registry, for rules that must analyze text the way execution will (e.g. a query string into its
+     * terms). {@code null} where no registry is available, such as in most tests.
+     */
+    @Nullable
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
     }
 
     public Configuration configuration() {

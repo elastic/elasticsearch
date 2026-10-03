@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,10 +45,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -70,6 +73,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * <p>
  * The name must be a registered (prebuilt or plugin-contributed) analyzer; per-index custom analyzers are not resolvable because the
  * expression is not backed by an index.
+ * <p>
+ * The optional (snapshot-only) {@code similarity} option opts a scored {@code MATCH} on the column into BM25, see
+ * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteRuntimeMatchBm25}.
  */
 public class ToText extends AbstractConvertFunction
     implements
@@ -82,12 +88,19 @@ public class ToText extends AbstractConvertFunction
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToText.class)
         .binary(ToText::new)
         .capabilities("analyzer")
+        .snapshotCapabilities("similarity")
         .name("to_text");
 
     public static final TransportVersion ESQL_TO_TEXT_VALUES_ANALYZER = TransportVersion.fromName("esql_to_text_values_analyzer");
 
     private static final String ANALYZER = "analyzer";
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(Map.entry(ANALYZER, KEYWORD));
+    private static final String SIMILARITY = "similarity";
+    private static final String BM25_SIMILARITY = "bm25";
+    private static final String BOOLEAN_SIMILARITY = "boolean";
+    // The similarity option is still under development, so it only exists in snapshot builds.
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Collections.unmodifiableSortedMap(
+        new TreeMap<>(Build.current().isSnapshot() ? Map.of(ANALYZER, KEYWORD, SIMILARITY, KEYWORD) : Map.of(ANALYZER, KEYWORD))
+    );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(KEYWORD, (source, fieldEval) -> fieldEval),
@@ -126,6 +139,14 @@ public class ToText extends AbstractConvertFunction
                         + "mapping's `analyzer` plays for an indexed text field. Defaults to `standard`. Must name a registered "
                         + "(prebuilt or plugin-provided) analyzer, and is only accepted on expressions that are not backed by an "
                         + "index-mapped field."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "similarity",
+                    type = "keyword",
+                    valueHint = { "boolean", "bm25" },
+                    description = "How a `match` on the resulting text column scores rows. Defaults to `boolean`: one point per "
+                        + "matched query term. `bm25` ranks like an indexed text field, using statistics that a separate pass "
+                        + "computes over the rows entering the `match`, which reads the input twice."
                 ) },
             description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",
             optional = true
@@ -176,7 +197,16 @@ public class ToText extends AbstractConvertFunction
      */
     @Override
     public String valuesAnalyzer() {
-        if (options instanceof MapExpression map && map.keyFoldedMap().get(ANALYZER) instanceof Literal literal) {
+        return keywordOption(ANALYZER);
+    }
+
+    /** Whether a {@code match} on this column is scored with BM25 rather than the default boolean similarity. */
+    public boolean isBm25Similarity() {
+        return BM25_SIMILARITY.equals(keywordOption(SIMILARITY));
+    }
+
+    private String keywordOption(String name) {
+        if (options instanceof MapExpression map && map.keyFoldedMap().get(name) instanceof Literal literal) {
             return BytesRefs.toString(literal.value());
         }
         return null;
@@ -195,9 +225,18 @@ public class ToText extends AbstractConvertFunction
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
         return (plan, failures) -> {
-            String analyzerName = valuesAnalyzer();
             // Every checker runs against every plan node; only act for the node holding this instance.
-            if (analyzerName == null || isInCurrentNode(plan) == false) {
+            if (options == null || isInCurrentNode(plan) == false) {
+                return;
+            }
+            String similarity = keywordOption(SIMILARITY);
+            if (similarity != null && BM25_SIMILARITY.equals(similarity) == false && BOOLEAN_SIMILARITY.equals(similarity) == false) {
+                failures.add(
+                    fail(this, "[similarity] option must be one of [{}, {}], found [{}]", BOOLEAN_SIMILARITY, BM25_SIMILARITY, similarity)
+                );
+            }
+            String analyzerName = valuesAnalyzer();
+            if (analyzerName == null) {
                 return;
             }
             // The registry is only available in the post-analysis pass; analyzer names cannot change during

@@ -18,6 +18,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,6 +42,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -104,7 +107,6 @@ final class RequestDispatcher {
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
 
         ProjectState project = projectResolver.getProjectState(clusterState);
-
         for (String index : indices) {
             final List<SearchShardRouting> shardIts;
             try {
@@ -147,6 +149,79 @@ final class RequestDispatcher {
                 innerExecute();
             }
         });
+    }
+
+    static void dispatch(
+        ClusterService clusterService,
+        TransportService transportService,
+        ProjectResolver projectResolver,
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        Task parentTask,
+        FieldCapabilitiesRequest fieldCapsRequest,
+        OriginalIndices originalIndices,
+        long nowInMillis,
+        String[] indices,
+        @Nullable FieldCapsCache cache,
+        Executor executor,
+        Consumer<FieldCapabilitiesIndexResponse> onIndexResponse,
+        BiConsumer<String, Exception> onIndexFailure,
+        Runnable onComplete
+    ) {
+        if (cache != null) {
+            if (parentTask instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+                onComplete.run();
+                return;
+            }
+            String[] fields = fieldCapsRequest.fields().clone();
+            Arrays.sort(fields);
+            String[] filters = fieldCapsRequest.filters().clone();
+            ProjectState project = projectResolver.getProjectState(clusterService.state());
+            List<String> uncachedIndices = new ArrayList<>(indices.length);
+            Map<String, FieldCapsCache.Key> cacheKeys = new HashMap<>(indices.length);
+            for (String index : indices) {
+                IndexMetadata indexMetadata = project.metadata().index(index);
+                FieldCapsCache.Key key = indexMetadata == null ? null : cacheKey(indexMetadata, fields, filters);
+                FieldCapabilitiesIndexResponse cached = key == null ? null : cache.get(key);
+                if (cached == null) {
+                    uncachedIndices.add(index);
+                    if (key != null) {
+                        cacheKeys.put(index, key);
+                    }
+                } else {
+                    onIndexResponse.accept(cached);
+                }
+            }
+            if (uncachedIndices.isEmpty()) {
+                onComplete.run();
+                return;
+            }
+            indices = uncachedIndices.toArray(String[]::new);
+            Consumer<FieldCapabilitiesIndexResponse> responseConsumer = onIndexResponse;
+            onIndexResponse = response -> {
+                if (response.canMatch()) {
+                    FieldCapsCache.Key key = cacheKeys.remove(response.getIndexName());
+                    if (key != null) {
+                        cache.put(key, response);
+                    }
+                }
+                responseConsumer.accept(response);
+            };
+        }
+        new RequestDispatcher(
+            clusterService,
+            transportService,
+            projectResolver,
+            coordinatorRewriteContextProvider,
+            parentTask,
+            fieldCapsRequest,
+            originalIndices,
+            nowInMillis,
+            indices,
+            executor,
+            onIndexResponse,
+            onIndexFailure,
+            onComplete
+        ).execute();
     }
 
     private void innerExecute() {
@@ -266,6 +341,16 @@ final class RequestDispatcher {
                 indexSelector.setFailure(shardId, e);
             }
         }
+    }
+
+    private static FieldCapsCache.Key cacheKey(IndexMetadata indexMetadata, String[] fields, String[] filters) {
+        return new FieldCapsCache.Key(
+            indexMetadata.getIndexUUID(),
+            indexMetadata.getSettingsVersion(),
+            indexMetadata.getMappingVersion(),
+            fields,
+            filters
+        );
     }
 
     private static class IndexSelector {

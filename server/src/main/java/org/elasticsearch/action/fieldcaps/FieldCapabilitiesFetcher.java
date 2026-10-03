@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Numbers;
@@ -112,6 +113,9 @@ class FieldCapabilitiesFetcher {
         IndexService indexService,
         @Nullable Engine.Searcher searcher
     ) throws IOException {
+        final IndexMetadata indexMetadata = indexService.getMetadata();
+        final long settingsVersion = indexMetadata.getSettingsVersion();
+        final long mappingVersion = Math.min(indexMetadata.getMappingVersion(), indexService.mapperService().mappingVersion());
         final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
             shardId.id(),
             0,
@@ -131,11 +135,13 @@ class FieldCapabilitiesFetcher {
                 Collections.emptyMap(),
                 false,
                 indexMode,
-                numberOfShards
+                numberOfShards,
+                settingsVersion,
+                mappingVersion
             );
         }
 
-        final MappingMetadata mapping = indexService.getMetadata().mapping();
+        final MappingMetadata mapping = indexMetadata.mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
             // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local.
@@ -160,7 +166,9 @@ class FieldCapabilitiesFetcher {
                     existing,
                     true,
                     indexMode,
-                    numberOfShards
+                    numberOfShards,
+                    settingsVersion,
+                    mappingVersion
                 );
             }
         }
@@ -177,7 +185,16 @@ class FieldCapabilitiesFetcher {
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }
-        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode, numberOfShards);
+        return new FieldCapabilitiesIndexResponse(
+            shardId.getIndexName(),
+            indexMappingHash,
+            responseMap,
+            true,
+            indexMode,
+            numberOfShards,
+            settingsVersion,
+            mappingVersion
+        );
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(

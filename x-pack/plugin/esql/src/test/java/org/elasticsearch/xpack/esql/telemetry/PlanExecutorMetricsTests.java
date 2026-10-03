@@ -668,7 +668,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         Map.entry("bar", new IndexFieldCapabilitiesBuilder("bar", "long").build())
                     ),
                     true,
-                    IndexMode.STANDARD
+                    IndexMode.STANDARD,
+                    0,
+                    0,
+                    0
                 )
             );
         }

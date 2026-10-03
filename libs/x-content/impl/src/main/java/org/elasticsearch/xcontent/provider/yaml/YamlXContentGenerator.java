@@ -13,7 +13,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.json.JsonXContentGenerator;
+import org.yaml.snakeyaml.error.YAMLException;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Set;
 
@@ -36,5 +38,13 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     @Override
     protected boolean supportsRawWrites() {
         return false;
+    }
+
+    @Override
+    public void closeAllowIllFormed() throws IOException {
+        // SnakeYAML fails with an exception when trying to close a generator that is in the middle of object/array
+        try {
+            super.closeAllowIllFormed();
+        } catch (YAMLException ignored) {}
     }
 }

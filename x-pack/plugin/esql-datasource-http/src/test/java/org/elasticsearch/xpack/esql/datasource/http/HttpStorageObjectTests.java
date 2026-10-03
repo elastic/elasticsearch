@@ -450,8 +450,8 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the bytes read from the response.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
+     * received-body, so a close with no read books 0.
      */
     public void testRangeNewStreamIncrementsMetrics() throws Exception {
         long rangeBytes = 1024L;
@@ -473,9 +473,31 @@ public class HttpStorageObjectTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals(0L, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainCountsReceivedBytes() throws Exception {
+        long rangeBytes = 1024L;
+        int drained = between(1, (int) rangeBytes);
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(rangeBytes))), (a, b) -> true)
+        );
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[(int) rangeBytes]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        try (InputStream stream = obj.newStream(0, rangeBytes)) {
+            assertEquals(drained, stream.read(new byte[drained]));
+        }
+        assertEquals(1L, obj.metrics().requestCount());
+        assertEquals(drained, obj.metrics().bytesRead());
     }
 
     public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {

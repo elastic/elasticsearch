@@ -48,6 +48,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomFrom(UnmappedResolution.values()),
             randomIntBetween(0, 100),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -72,7 +74,9 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         int externalWarmAggregates = instance.externalWarmAggregates();
         long splitDiscovery = instance.splitDiscoveryNanos();
         long splitDiscoveryCpu = instance.splitDiscoveryCpuNanos();
-        switch (randomIntBetween(0, 17)) {
+        long externalPlanningBytes = instance.externalPlanningBytesRead();
+        long externalPlanningRequests = instance.externalPlanningRequests();
+        switch (randomIntBetween(0, 19)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -91,6 +95,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 15 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
             case 16 -> splitDiscovery = randomValueOtherThan(splitDiscovery, ESTestCase::randomNonNegativeLong);
             case 17 -> splitDiscoveryCpu = randomValueOtherThan(splitDiscoveryCpu, ESTestCase::randomNonNegativeLong);
+            case 18 -> externalPlanningBytes = randomValueOtherThan(externalPlanningBytes, ESTestCase::randomNonNegativeLong);
+            case 19 -> externalPlanningRequests = randomValueOtherThan(externalPlanningRequests, ESTestCase::randomNonNegativeLong);
         }
         return new EsqlQueryProfile(
             query,
@@ -110,7 +116,9 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             unmappedResolution,
             externalWarmAggregates,
             splitDiscovery,
-            splitDiscoveryCpu
+            splitDiscoveryCpu,
+            externalPlanningBytes,
+            externalPlanningRequests
         );
     }
 
@@ -167,6 +175,18 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         profile.addExternalWarmAggregates(2);
         profile.addExternalWarmAggregates(3);
         assertEquals(5, profile.externalWarmAggregates());
+    }
+
+    public void testExternalPlanningIoOmittedWhenZero() throws IOException {
+        EsqlQueryProfile empty = new EsqlQueryProfile();
+        assertThat(toJson(empty), not(containsString("external_planning_bytes_read")));
+        assertThat(toJson(empty), not(containsString("external_planning_requests")));
+
+        EsqlQueryProfile withIo = new EsqlQueryProfile();
+        withIo.addExternalPlanningIo(128L, 3L);
+        String json = toJson(withIo);
+        assertThat(json, containsString("\"external_planning_bytes_read\":128"));
+        assertThat(json, containsString("\"external_planning_requests\":3"));
     }
 
     public void testWarmAggregatesOnlyEmittedWhenServedWarm() throws IOException {

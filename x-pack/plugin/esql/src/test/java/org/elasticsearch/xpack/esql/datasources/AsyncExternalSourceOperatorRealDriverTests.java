@@ -19,8 +19,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.Limiter;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -49,9 +54,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -209,6 +217,153 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
 
         assertEquals("every split must be read exactly once", splits, readCount.get());
         assertEquals("total pages must be splits * pagesPerSplit", splits * pagesPerSplit, pageCount.get());
+    }
+
+    /**
+     * LIMIT closes the source before the producer finishes emitting. Bytes are received-body,
+     * not an at-open booking, so the profile after the completion listener must show the
+     * transferred stream size (not a planned range).
+     */
+    public void testBytesReadVisibleWhenLimitClosesBeforeSnapshot() throws Exception {
+        int bodyBytes = 2000;
+        LateBytesStorageObject storage = new LateBytesStorageObject(StoragePath.of("s3://bucket/limit.parquet"), new byte[bodyBytes]);
+        FormatReader formatReader = new StreamThenPagesFormatReader(4, 0L);
+
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", storage.path(), 0, bodyBytes, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new FixedStorageProvider(storage),
+            formatReader,
+            storage.path(),
+            singleIntAttribute(),
+            100,
+            1,
+            producerExec
+        ).sliceQueue(sliceQueue).build();
+
+        AtomicInteger pageCount = new AtomicInteger();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            factory.get(driverContext),
+            List.of(new LimitOperator(new Limiter(1))),
+            new PageConsumerOperator(page -> {
+                pageCount.incrementAndGet();
+                page.releaseBlocks();
+            })
+        );
+
+        runDriver(driver);
+
+        assertEquals(1, pageCount.get());
+        assertEquals(bodyBytes, profileBytesRead(driver));
+    }
+
+    /**
+     * Producer close-time {@code addBytes} after LIMIT must appear in {@code driver.profile()}
+     * because the driver resnapshots after {@code waitForAsyncActions}.
+     */
+    public void testCloseTimeBytesAppearInProfileAfterLimit() throws Exception {
+        long closeTimeBytes = 777L;
+        LateBytesStorageObject storage = new LateBytesStorageObject(StoragePath.of("s3://bucket/late.parquet"), new byte[0]);
+        FormatReader formatReader = new CloseTimeBytesFormatReader(storage, closeTimeBytes, 8);
+
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", storage.path(), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new FixedStorageProvider(storage),
+            formatReader,
+            storage.path(),
+            singleIntAttribute(),
+            100,
+            1,
+            producerExec
+        ).sliceQueue(sliceQueue).build();
+
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            factory.get(driverContext),
+            List.of(new LimitOperator(new Limiter(1))),
+            new PageConsumerOperator(page -> page.releaseBlocks())
+        );
+
+        runDriver(driver);
+
+        assertEquals(closeTimeBytes, profileBytesRead(driver));
+        assertTrue("LIMIT still processed a split", profileSplitsProcessed(driver) >= 1);
+    }
+
+    /**
+     * Two drivers, LIMIT on each. Profile bytes are transferred body bytes, not an at-open
+     * 1000-per-file booking (the old 5000 lie for five unread opens).
+     */
+    public void testMultiDriverBytesReadVisibleWhenLimitClosesBeforeSnapshot() throws Exception {
+        int driverCount = 2;
+        int bodyBytes = 512;
+        List<FileSplit> splits = new ArrayList<>();
+        FixedStorageProvider provider = new FixedStorageProvider();
+        for (int i = 0; i < driverCount; i++) {
+            StoragePath path = StoragePath.of("s3://bucket/rg" + i + ".parquet");
+            provider.put(path, new LateBytesStorageObject(path, new byte[bodyBytes]));
+            splits.add(new FileSplit("test", path, 0, bodyBytes, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.copyOf(splits));
+        FormatReader formatReader = new StreamThenPagesFormatReader(4, 1L);
+
+        List<Driver> drivers = new ArrayList<>(driverCount);
+        for (int d = 0; d < driverCount; d++) {
+            DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                provider,
+                formatReader,
+                StoragePath.of("s3://bucket/rg0.parquet"),
+                singleIntAttribute(),
+                100,
+                1,
+                producerExec
+            ).sliceQueue(sliceQueue).build();
+            drivers.add(
+                TestDriverFactory.create(
+                    ctx,
+                    factory.get(ctx),
+                    List.of(new LimitOperator(new Limiter(1))),
+                    new PageConsumerOperator(page -> page.releaseBlocks())
+                )
+            );
+        }
+
+        runDrivers(drivers);
+
+        long total = 0L;
+        for (Driver driver : drivers) {
+            total += profileBytesRead(driver);
+        }
+        assertEquals("profile bytes are transferred bodies, not planned opens", (long) driverCount * bodyBytes, total);
+    }
+
+    private static long profileBytesRead(Driver driver) {
+        DriverProfile profile = driver.profile();
+        long bytes = 0L;
+        for (OperatorStatus status : profile.operators()) {
+            if (status.status() instanceof AsyncExternalSourceOperator.Status s) {
+                bytes += s.bytesRead();
+            }
+        }
+        return bytes;
+    }
+
+    private static int profileSplitsProcessed(Driver driver) {
+        DriverProfile profile = driver.profile();
+        int splits = 0;
+        for (OperatorStatus status : profile.operators()) {
+            if (status.status() instanceof AsyncExternalSourceOperator.Status s) {
+                splits += s.splitsProcessed();
+            }
+        }
+        return splits;
     }
 
     /**
@@ -392,6 +547,227 @@ public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Reads the object's stream to EOF (Metered counts received bytes) then emits pages so LIMIT
+     * can close the source afterward.
+     */
+    private static class StreamThenPagesFormatReader implements NoConfigFormatReader {
+        private final int pagesPerRead;
+        private final long sleepMillis;
+
+        StreamThenPagesFormatReader(int pagesPerRead, long sleepMillis) {
+            this.pagesPerRead = pagesPerRead;
+            this.sleepMillis = sleepMillis;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            try (InputStream in = object.newStream()) {
+                in.readAllBytes();
+            }
+            return new CloseableIterator<>() {
+                private int remaining = pagesPerRead;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public Page next() {
+                    if (remaining <= 0) {
+                        throw new NoSuchElementException();
+                    }
+                    remaining--;
+                    if (sleepMillis > 0) {
+                        try {
+                            Thread.sleep(sleepMillis);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    return createSmallPage();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stream-then-pages";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /** Emits pages immediately; books bytes on iterator close so LIMIT teardown is the fold path. */
+    private static class CloseTimeBytesFormatReader implements NoConfigFormatReader {
+        private final LateBytesStorageObject storage;
+        private final long closeTimeBytes;
+        private final int pagesPerRead;
+
+        CloseTimeBytesFormatReader(LateBytesStorageObject storage, long closeTimeBytes, int pagesPerRead) {
+            this.storage = storage;
+            this.closeTimeBytes = closeTimeBytes;
+            this.pagesPerRead = pagesPerRead;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new CloseableIterator<>() {
+                private int remaining = pagesPerRead;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public Page next() {
+                    if (remaining <= 0) {
+                        throw new NoSuchElementException();
+                    }
+                    remaining--;
+                    return createSmallPage();
+                }
+
+                @Override
+                public void close() {
+                    storage.addCloseTimeBytes(closeTimeBytes);
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-close-time-bytes";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static Page createSmallPage() {
+        var builder = TEST_BLOCK_FACTORY.newIntBlockBuilder(1);
+        builder.appendInt(1);
+        return new Page(builder.build());
+    }
+
+    private static class FixedStorageProvider extends StubStorageProvider {
+        private final Map<StoragePath, StorageObject> objects = new HashMap<>();
+
+        FixedStorageProvider() {}
+
+        FixedStorageProvider(LateBytesStorageObject object) {
+            objects.put(object.path(), object);
+        }
+
+        void put(StoragePath path, StorageObject object) {
+            objects.put(path, object);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            StorageObject obj = objects.get(path);
+            return obj == null ? super.newObject(path) : obj;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return newObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return newObject(path);
+        }
+    }
+
+    private static final class LateBytesStorageObject extends AbstractMeteredStorageObject {
+        private final StoragePath path;
+        private final byte[] body;
+
+        LateBytesStorageObject(StoragePath path, byte[] body) {
+            this.path = path;
+            this.body = body;
+        }
+
+        void addCloseTimeBytes(long bytes) {
+            counters.addBytes(bytes);
+        }
+
+        @Override
+        public InputStream newStream() {
+            counters.addRequest(1L, 0L);
+            return metered(new ByteArrayInputStream(body));
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            counters.addRequest(1L, 0L);
+            return metered(new ByteArrayInputStream(body));
+        }
+
+        @Override
+        public long length() {
+            return body.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
     }
 
     private record StubStorageObject(StoragePath path) implements StorageObject {

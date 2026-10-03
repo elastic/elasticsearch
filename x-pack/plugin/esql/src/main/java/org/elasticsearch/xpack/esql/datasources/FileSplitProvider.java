@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -1649,7 +1651,12 @@ public class FileSplitProvider implements SplitProvider {
      * backoff the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
-        return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
+        ExternalPlanningIo planningIo = ExternalPlanningIo.current();
+        return command -> executor.execute(() -> {
+            try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
+                StorageRetryCancellation.runWithCancellation(isCancelled, command::run);
+            }
+        });
     }
 
     /**

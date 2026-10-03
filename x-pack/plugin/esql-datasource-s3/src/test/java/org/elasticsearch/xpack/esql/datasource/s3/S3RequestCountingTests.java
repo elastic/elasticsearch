@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -119,8 +120,8 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the requested byte count.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
+     * received-body, so a close with no read books 0.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -139,9 +140,30 @@ public class S3RequestCountingTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals(0L, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainThenAbortCountsReceivedBytes() throws IOException {
+        long rangeBytes = 1024L;
+        int drained = 17;
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-" + (rangeBytes - 1) + "/" + FILE_SIZE)
+            .contentLength(rangeBytes)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        InputStream stream = obj.newStream(0, rangeBytes);
+        assertEquals(drained, stream.read(new byte[drained]));
+        obj.abortStream(stream);
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(drained, metrics.bytesRead());
     }
 
     /**

@@ -21,8 +21,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -365,6 +371,104 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.addBytesRead(0);
         buffer.addBytesRead(-50);
         assertEquals(350L, buffer.bytesRead());
+    }
+
+    public void testRequestAndRetryCountsAccumulatePositiveDeltas() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertEquals(0L, buffer.requestCount());
+        assertEquals(0L, buffer.retryCount());
+
+        buffer.addRequestCount(2);
+        buffer.addRetryCount(1);
+        buffer.addRequestCount(3);
+        buffer.addRetryCount(4);
+        assertEquals(5L, buffer.requestCount());
+        assertEquals(5L, buffer.retryCount());
+
+        buffer.addRequestCount(0);
+        buffer.addRetryCount(-1);
+        assertEquals(5L, buffer.requestCount());
+        assertEquals(5L, buffer.retryCount());
+    }
+
+    public void testLiveObjectAppearsInStatusBeforeFold() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        GrowingObject obj = new GrowingObject();
+        buffer.trackLiveObject(obj);
+        obj.publishBytes(256 * 1024);
+        obj.publishRequest();
+        assertEquals(256 * 1024L, buffer.bytesRead());
+        assertEquals(1L, buffer.requestCount());
+
+        buffer.addBytesRead(256 * 1024);
+        buffer.addRequestCount(1);
+        buffer.setLiveBaselines(256 * 1024, 1, 0);
+        assertEquals("folded bytes plus uncommitted must not double", 256 * 1024L, buffer.bytesRead());
+        assertEquals(1L, buffer.requestCount());
+
+        obj.publishBytes(128);
+        assertEquals(256 * 1024L + 128L, buffer.bytesRead());
+
+        buffer.clearLiveObject();
+        assertEquals(256 * 1024L, buffer.bytesRead());
+    }
+
+    public void testLiveBatchSumsUntilCleared() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        GrowingObject a = new GrowingObject();
+        GrowingObject b = new GrowingObject();
+        buffer.trackLiveBatch(List.of(a, b));
+        a.publishBytes(10);
+        b.publishBytes(20);
+        assertEquals(30L, buffer.bytesRead());
+        buffer.clearLiveBatch();
+        buffer.addBytesRead(30);
+        assertEquals(30L, buffer.bytesRead());
+    }
+
+    private static final class GrowingObject extends AbstractMeteredStorageObject {
+        void publishBytes(long bytes) {
+            counters.addBytes(bytes);
+        }
+
+        void publishRequest() {
+            counters.addRequest(1L, 0L);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public long length() {
+            return 0;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/live.parquet");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
     }
 
     public void testSplitTrackingTriplet() {

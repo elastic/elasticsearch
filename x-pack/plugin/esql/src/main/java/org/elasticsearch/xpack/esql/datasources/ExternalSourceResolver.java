@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -551,9 +553,12 @@ public class ExternalSourceResolver {
         this.restorableContext = threadContext == null ? null : threadContext.newRestorableContext(true);
         // Install the query cancellation signal as the ambient StorageRetryCancellation scope for every footer read
         // dispatched to the executor, so an executor-backed synchronous read's backoff aborts promptly on cancel.
-        this.metadataReadExecutor = command -> executor.execute(
-            () -> StorageRetryCancellation.runWithCancellation(this::isCancelled, command::run)
-        );
+        this.metadataReadExecutor = command -> executor.execute(() -> {
+            ExternalPlanningIo planningIo = planningReservation != null ? planningReservation.planningIo() : ExternalPlanningIo.current();
+            try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
+                StorageRetryCancellation.runWithCancellation(this::isCancelled, command::run);
+            }
+        });
     }
 
     /**

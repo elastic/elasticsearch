@@ -37,6 +37,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -610,6 +611,7 @@ public final class AzureStorageProvider implements StorageProvider {
         ListBlobsOptions options = new ListBlobsOptions().setPrefix(parsed.blobName);
 
         try {
+            ExternalPlanningIo.addMetadataGet(0);
             return collectChildren(
                 containerClient.listBlobsByHierarchy("/", options, null),
                 blobPathPrefix(prefix, parsed.container),
@@ -866,6 +868,7 @@ public final class AzureStorageProvider implements StorageProvider {
         public boolean hasNext() {
             try {
                 if (iterator == null) {
+                    ExternalPlanningIo.addMetadataGet(0);
                     iterator = blobItems.iterator();
                 }
                 if (current != null) {

@@ -78,16 +78,14 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             throw new IOException("Path is not a regular file: " + filePath);
         }
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             InputStream stream = Files.newInputStream(filePath);
             if (cachedLength == null) {
                 cachedLength = Files.size(filePath);
             }
-            bytes = cachedLength;
-            return stream;
+            return metered(stream);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -108,9 +106,9 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         try {
             // READ_TO_END: read from position to the end of the file (no length() / size() lookup).
-            return new RangeInputStream(filePath, position, length);
+            return metered(new RangeInputStream(filePath, position, length));
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length < 0 ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 

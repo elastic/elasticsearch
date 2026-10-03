@@ -167,6 +167,16 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         return isBlocked;
     }
 
+    /**
+     * {@link #status()} only reads the buffer and driver-thread counters, so it stays valid after
+     * {@link #close()}. The driver resnapshots after async close so LIMIT teardown does not drop
+     * producer close-time bytes, splits, or format-reader counters.
+     */
+    @Override
+    public boolean finalStatusAfterAsyncActions() {
+        return true;
+    }
+
     @Override
     public void close() {
         try {
@@ -247,7 +257,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.readCounters(),
             buffer.formatReaderStatus(),
             buffer.capturedSourceMetadataSnapshot(),
-            buffer.isPartial()
+            buffer.isPartial(),
+            buffer.requestCount(),
+            buffer.retryCount()
         );
     }
 
@@ -268,6 +280,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
+        private static final TransportVersion ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS = TransportVersion.fromName("esql_external_planning_io");
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
@@ -282,6 +296,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final FormatReaderStatus formatReader;
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
         private final boolean partial;
+        private final long requestCount;
+        private final long retryCount;
 
         Status(
             int pagesWaiting,
@@ -299,6 +315,44 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             Map<String, List<Map<String, Object>>> capturedSourceMetadata,
             boolean partial
         ) {
+            this(
+                pagesWaiting,
+                pagesEmitted,
+                rowsEmitted,
+                bytesBuffered,
+                failure,
+                processNanos,
+                splitsProcessed,
+                splitsTotal,
+                currentSplit,
+                bytesRead,
+                readCounters,
+                formatReader,
+                capturedSourceMetadata,
+                partial,
+                0L,
+                0L
+            );
+        }
+
+        Status(
+            int pagesWaiting,
+            int pagesEmitted,
+            long rowsEmitted,
+            long bytesBuffered,
+            Throwable failure,
+            long processNanos,
+            int splitsProcessed,
+            int splitsTotal,
+            int currentSplit,
+            long bytesRead,
+            ExternalReadCounters readCounters,
+            FormatReaderStatus formatReader,
+            Map<String, List<Map<String, Object>>> capturedSourceMetadata,
+            boolean partial,
+            long requestCount,
+            long retryCount
+        ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
@@ -313,6 +367,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.formatReader = formatReader;
             this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
             this.partial = partial;
+            this.requestCount = requestCount;
+            this.retryCount = retryCount;
         }
 
         Status(StreamInput in) throws IOException {
@@ -363,6 +419,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 capturedSourceMetadata = Map.of();
             }
             partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS)) {
+                requestCount = in.readVLong();
+                retryCount = in.readVLong();
+            } else {
+                requestCount = 0L;
+                retryCount = 0L;
+            }
         }
 
         @Override
@@ -399,6 +462,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             }
             if (out.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS)) {
                 out.writeBoolean(partial);
+            }
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_REQUEST_COUNTS)) {
+                out.writeVLong(requestCount);
+                out.writeVLong(retryCount);
             }
         }
 
@@ -490,6 +557,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return bytesRead;
         }
 
+        public long requestCount() {
+            return requestCount;
+        }
+
+        public long retryCount() {
+            return retryCount;
+        }
+
         public ExternalReadCounters readCounters() {
             return readCounters;
         }
@@ -531,6 +606,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("splits_total", splitsTotal);
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
+            builder.field("request_count", requestCount);
+            builder.field("retry_count", retryCount);
             builder.field("read_nanos", readCounters.readNanos());
             builder.field("read_cpu_nanos", readCounters.readCpuNanos());
             builder.field("stripes_committed", stripesCommitted());
@@ -566,6 +643,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && splitsTotal == status.splitsTotal
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
+                && requestCount == status.requestCount
+                && retryCount == status.retryCount
                 && readNanos() == status.readNanos()
                 && readCpuNanos() == status.readCpuNanos()
                 && partial == status.partial
@@ -587,6 +666,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal,
                 currentSplit,
                 bytesRead,
+                requestCount,
+                retryCount,
                 readCounters.readNanos(),
                 readCounters.readCpuNanos(),
                 formatReader,

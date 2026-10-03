@@ -881,6 +881,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // object's counters, so attaching after — as an earlier version did — loses the storage
                 // request/bytes metrics for whole-file providers that finish the read at open.
                 attachStorageMetrics(storageObject);
+                buffer.trackLiveObject(storageObject);
                 if (formatReader.supportsNativeAsync()) {
                     startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext, operatorReader, formatCounters);
                 } else {
@@ -1617,6 +1618,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable
         StorageObject currentObject;
         long currentObjectBytesSnapshot;
+        long currentObjectRequestSnapshot;
+        long currentObjectRetrySnapshot;
+        /** Batch {@code readAll} objects; folded into the buffer after the iterator closes. */
+        @Nullable
+        List<StorageObject> batchObjects;
         // 1-based index of the split / file the producer is currently working on (0 = not started).
         int currentSplitIndex;
 
@@ -1723,20 +1729,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 case DONE -> {
                     // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
                     // close it before reporting completion so no resources leak on cancellation paths.
-                    snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state);
+                    // Snapshot after close so iterator/stream close-time addBytes reach the buffer.
                     clearCurrentIterator(state);
+                    snapshotBytesRead(state);
+                    foldBatchObjectBytes(state);
+                    snapshotFormatReaderStatus(state);
                     completionListener.onResponse(null);
                 }
                 case EOF -> {
-                    // Finished consuming this unit: capture deltas, count the split as processed,
-                    // and re-enter to advance to the next unit (openUnitThenDrain re-dispatches to the I/O pool).
+                    // Finished consuming this unit: close first so close-time bytes fold in, then
+                    // capture deltas, count the split as processed, and re-enter to advance.
+                    clearCurrentIterator(state);
                     snapshotBytesRead(state);
+                    foldBatchObjectBytes(state);
                     snapshotFormatReaderStatus(state);
                     state.buffer.incSplitsProcessed();
-                    clearCurrentIterator(state);
                     state.currentObject = null;
                     state.currentObjectBytesSnapshot = 0L;
+                    state.currentObjectRequestSnapshot = 0L;
+                    state.currentObjectRetrySnapshot = 0L;
+                    state.buffer.clearLiveObject();
                     runProducerLoop(state, completionListener);
                 }
                 case BLOCKED -> {
@@ -1747,6 +1759,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
         } catch (Exception e) {
             clearCurrentIterator(state);
+            snapshotBytesRead(state);
+            foldBatchObjectBytes(state);
             completionListener.onFailure(e);
         }
     }
@@ -1772,10 +1786,53 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.buffer.addBytesRead(delta);
                 state.currentObjectBytesSnapshot = current;
             }
+            long requests = metrics.requestCount();
+            long requestDelta = requests - state.currentObjectRequestSnapshot;
+            if (requestDelta > 0) {
+                state.buffer.addRequestCount(requestDelta);
+                state.currentObjectRequestSnapshot = requests;
+            }
+            long retries = metrics.retryCount();
+            long retryDelta = retries - state.currentObjectRetrySnapshot;
+            if (retryDelta > 0) {
+                state.buffer.addRetryCount(retryDelta);
+                state.currentObjectRetrySnapshot = retries;
+            }
+            state.buffer.setLiveBaselines(current, requests, retries);
         } catch (Exception e) {
             // metrics() is opt-in; never let an instrumentation accessor break the producer lifecycle.
             // TRACE so on-call has a breadcrumb if telemetry counters silently flatline.
             logger.trace(() -> "telemetry: bytesRead snapshot failed for " + state.currentObject, e);
+        }
+    }
+
+    /**
+     * Folds each batch {@code readAll} object's received bytes into the buffer. Used instead of
+     * {@link #snapshotBytesRead} because that helper follows only {@code currentObject}.
+     */
+    private static void foldBatchObjectBytes(ProducerState state) {
+        List<StorageObject> objects = state.batchObjects;
+        if (objects == null) {
+            return;
+        }
+        state.batchObjects = null;
+        // Clear live first so status() cannot double the full snapshot we are about to fold.
+        state.buffer.clearLiveBatch();
+        for (StorageObject obj : objects) {
+            foldObjectMetrics(state.buffer, obj);
+        }
+    }
+
+    private static void foldObjectMetrics(AsyncExternalSourceBuffer buffer, StorageObject obj) {
+        StorageObjectMetrics metrics = readMetricsOrZero(obj);
+        if (metrics.bytesRead() > 0) {
+            buffer.addBytesRead(metrics.bytesRead());
+        }
+        if (metrics.requestCount() > 0) {
+            buffer.addRequestCount(metrics.requestCount());
+        }
+        if (metrics.retryCount() > 0) {
+            buffer.addRetryCount(metrics.retryCount());
         }
     }
 
@@ -2079,8 +2136,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = state.buffer.readCounters().meteredCpu(() -> rangeReader.readRange(fullObj, rangeCtx));
                 state.lastRangeFilePath = fileSplit.path();
                 state.lastFileContext = rangeCtx.fileContext();
-                state.currentObject = fullObj;
-                state.currentObjectBytesSnapshot = readBytesOrZero(fullObj);
+                bindCurrentObject(state, fullObj);
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
@@ -2092,7 +2148,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Cache per file path to avoid redundant metadata fetches across splits of the same file.
                     List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
                     if (cachedSchema == null) {
-                        SourceMetadata meta = fileReader.metadata(FileSplitProvider.newObjectForFile(storageProvider, fileSplit));
+                        StorageObject schemaObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
+                        attachStorageMetrics(schemaObj);
+                        SourceMetadata meta = fileReader.metadata(schemaObj);
+                        foldObjectMetrics(state.buffer, schemaObj);
                         if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                             cachedSchema = meta.schema();
                         }
@@ -2178,8 +2237,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 } else {
                     pages = applyRowPositionStrategy(fileReader, pages, readerCols);
                 }
-                state.currentObject = obj;
-                state.currentObjectBytesSnapshot = readBytesOrZero(obj);
+                bindCurrentObject(state, obj);
                 pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             }
             // The adapter uses the same per-file schema and projected column order pinned above so it
@@ -2238,12 +2296,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
 
         List<RangeAwareFormatReader.SplitRef> splitRefs = new ArrayList<>(claims.size());
+        List<StorageObject> batchObjects = new ArrayList<>();
         for (ExternalSplit claim : claims) {
             for (ExternalSplit leaf : flattenToLeaves(claim)) {
                 if (leaf instanceof FileSplit fs) {
                     StorageObject obj = FileSplitProvider.newObjectForFile(storageProvider, fs);
                     // Batch path reads several objects together — attach each before readAll() opens them.
                     attachStorageMetrics(obj);
+                    batchObjects.add(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
                 }
             }
@@ -2266,12 +2326,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) wrapForObject(readerForMapping(null), firstObjectName);
         CloseableIterator<Page> pages = null;
         try {
+            // Do not bindCurrentObject on a batch object: foldBatchObjectBytes folds the full
+            // snapshot. Live status follows the batch list instead.
+            state.buffer.trackLiveBatch(batchObjects);
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
             pages = applyRowPositionStrategy(rangeReader, pages, cols);
             state.pages = pages;
+            state.batchObjects = batchObjects;
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
+            state.buffer.clearLiveBatch();
+            for (StorageObject obj : batchObjects) {
+                foldObjectMetrics(state.buffer, obj);
+            }
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
@@ -2396,8 +2464,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
             state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
-            state.currentObject = obj;
-            state.currentObjectBytesSnapshot = readBytesOrZero(obj);
+            bindCurrentObject(state, obj);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -2435,13 +2502,30 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /** Best-effort read of {@code obj.metrics().bytesRead()}; returns 0 on null/throw so test mocks don't break the producer. */
     private static long readBytesOrZero(StorageObject obj) {
+        return readMetricsOrZero(obj).bytesRead();
+    }
+
+    private static StorageObjectMetrics readMetricsOrZero(StorageObject obj) {
         try {
-            StorageObjectMetrics m = obj.metrics();
-            return m == null ? 0L : m.bytesRead();
+            StorageObjectMetrics m = obj == null ? null : obj.metrics();
+            return m == null ? StorageObjectMetrics.ZERO : m;
         } catch (Exception e) {
-            logger.trace(() -> "telemetry: bytesRead baseline read failed for " + obj, e);
-            return 0L;
+            logger.trace(() -> "telemetry: metrics baseline read failed for " + obj, e);
+            return StorageObjectMetrics.ZERO;
         }
+    }
+
+    private static void bindCurrentObject(ProducerState state, StorageObject obj) {
+        state.currentObject = obj;
+        // Baseline at zero, then snapshot immediately so bytes already received during
+        // {@code read()}/{@code newStream()} (before this bind) fold into the buffer. Further
+        // close-time growth is picked up by later {@link #snapshotBytesRead} calls and by
+        // live status() via trackLiveObject.
+        state.currentObjectBytesSnapshot = 0L;
+        state.currentObjectRequestSnapshot = 0L;
+        state.currentObjectRetrySnapshot = 0L;
+        state.buffer.trackLiveObject(obj);
+        snapshotBytesRead(state);
     }
 
     private void startNativeAsyncRead(
@@ -2655,13 +2739,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.incSplitsProcessed();
         try {
             if (storageObject != null) {
-                StorageObjectMetrics metrics = storageObject.metrics();
-                if (metrics != null) {
-                    long bytes = metrics.bytesRead();
-                    if (bytes > 0) {
-                        buffer.addBytesRead(bytes);
-                    }
-                }
+                buffer.clearLiveObject();
+                foldObjectMetrics(buffer, storageObject);
             }
         } catch (Exception e) {
             logger.trace(() -> "telemetry: bytesRead snapshot failed for " + storageObject, e);

@@ -910,9 +910,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the requested byte count. GCS ReadChannel does not expose content length on open, so the
-     * implementation records the requested range length as bytesRead.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
+     * received-body, so a close with no read books 0.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -927,10 +926,36 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertTrue("bytesRead should be >= 0", metrics.bytesRead() >= 0);
-        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals(0L, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainCountsReceivedBytes() throws IOException {
+        byte[] payload = randomByteArrayOfLength(between(8, 64));
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        AtomicInteger offset = new AtomicInteger();
+        doAnswer(invocation -> {
+            ByteBuffer buf = invocation.getArgument(0);
+            int pos = offset.get();
+            if (pos >= payload.length) {
+                return -1;
+            }
+            int n = Math.min(buf.remaining(), payload.length - pos);
+            buf.put(payload, pos, n);
+            offset.addAndGet(n);
+            return n;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path, 100_000L);
+        int drained = between(1, payload.length);
+        try (InputStream stream = obj.newStream(0, payload.length)) {
+            assertEquals(drained, stream.read(new byte[drained]));
+        }
+        assertEquals(1L, obj.metrics().requestCount());
+        assertEquals(drained, obj.metrics().bytesRead());
     }
 
     // --- Retry-After hint extraction tests ---

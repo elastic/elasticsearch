@@ -14,6 +14,8 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.ToLongFunction;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -138,6 +141,18 @@ public final class AsyncExternalSourceBuffer {
     // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
     // single consumer counter and stays AtomicLong.
     private final LongAdder bytesRead = new LongAdder();
+    private final LongAdder requestCount = new LongAdder();
+    private final LongAdder retryCount = new LongAdder();
+    /**
+     * In-flight object whose {@link StorageObject#metrics()} have not all been folded into the
+     * adders yet. Operator {@code status()} readers add {@code metrics - baseline} so live
+     * {@code _tasks} sees 256 KiB publishes without waiting for a producer yield.
+     */
+    private volatile StorageObject liveObject;
+    private volatile long liveBytesBaseline;
+    private volatile long liveRequestBaseline;
+    private volatile long liveRetryBaseline;
+    private volatile List<StorageObject> liveBatch = List.of();
     private volatile int splitsTotal = 0;
     private final AtomicInteger splitsProcessed = new AtomicInteger();
     private volatile int currentSplit = 0;
@@ -525,6 +540,58 @@ public final class AsyncExternalSourceBuffer {
         }
     }
 
+    /** Adds {@code delta} completed storage requests observed on the current object. */
+    public void addRequestCount(long delta) {
+        if (delta > 0) {
+            requestCount.add(delta);
+        }
+    }
+
+    /** Adds {@code delta} storage retries observed on the current object. */
+    public void addRetryCount(long delta) {
+        if (delta > 0) {
+            retryCount.add(delta);
+        }
+    }
+
+    /**
+     * Follows {@code obj.metrics()} until the next fold. Live {@code _tasks} can show received
+     * bytes before the producer yields.
+     */
+    public void trackLiveObject(StorageObject obj) {
+        this.liveObject = obj;
+        this.liveBytesBaseline = 0L;
+        this.liveRequestBaseline = 0L;
+        this.liveRetryBaseline = 0L;
+    }
+
+    /** Marks how much of {@link #liveObject} is already in the adders. */
+    public void setLiveBaselines(long bytes, long requests, long retries) {
+        this.liveBytesBaseline = bytes;
+        this.liveRequestBaseline = requests;
+        this.liveRetryBaseline = retries;
+    }
+
+    public void clearLiveObject() {
+        this.liveObject = null;
+        this.liveBytesBaseline = 0L;
+        this.liveRequestBaseline = 0L;
+        this.liveRetryBaseline = 0L;
+    }
+
+    /**
+     * Batch {@code readAll} objects are never bound as {@code currentObject}. Status sums their
+     * full metrics until {@link #clearLiveBatch}. Do not also {@link #trackLiveObject} one of them
+     * and fold the same snapshot — that would double.
+     */
+    public void trackLiveBatch(List<StorageObject> objects) {
+        this.liveBatch = objects == null || objects.isEmpty() ? List.of() : List.copyOf(objects);
+    }
+
+    public void clearLiveBatch() {
+        this.liveBatch = List.of();
+    }
+
     /** Sets the total number of splits the producer expects to process; callable once when known. */
     public void setSplitsTotal(int total) {
         this.splitsTotal = total;
@@ -552,7 +619,58 @@ public final class AsyncExternalSourceBuffer {
 
     /** Returns cumulative pre-decompression bytes read from the storage layer. */
     public long bytesRead() {
-        return bytesRead.sum();
+        return bytesRead.sum() + liveExtraBytes();
+    }
+
+    /** Returns completed storage requests folded into this buffer. */
+    public long requestCount() {
+        return requestCount.sum() + liveExtraRequests();
+    }
+
+    /** Returns storage retries folded into this buffer. */
+    public long retryCount() {
+        return retryCount.sum() + liveExtraRetries();
+    }
+
+    private long liveExtraBytes() {
+        long extra = uncommitted(liveObject, StorageObjectMetrics::bytesRead, liveBytesBaseline);
+        for (StorageObject obj : liveBatch) {
+            extra += metricsOrZero(obj).bytesRead();
+        }
+        return extra;
+    }
+
+    private long liveExtraRequests() {
+        long extra = uncommitted(liveObject, StorageObjectMetrics::requestCount, liveRequestBaseline);
+        for (StorageObject obj : liveBatch) {
+            extra += metricsOrZero(obj).requestCount();
+        }
+        return extra;
+    }
+
+    private long liveExtraRetries() {
+        long extra = uncommitted(liveObject, StorageObjectMetrics::retryCount, liveRetryBaseline);
+        for (StorageObject obj : liveBatch) {
+            extra += metricsOrZero(obj).retryCount();
+        }
+        return extra;
+    }
+
+    private static long uncommitted(StorageObject obj, ToLongFunction<StorageObjectMetrics> field, long baseline) {
+        if (obj == null) {
+            return 0L;
+        }
+        long delta = field.applyAsLong(metricsOrZero(obj)) - baseline;
+        return delta > 0 ? delta : 0L;
+    }
+
+    private static StorageObjectMetrics metricsOrZero(StorageObject obj) {
+        try {
+            StorageObjectMetrics metrics = obj == null ? null : obj.metrics();
+            return metrics == null ? StorageObjectMetrics.ZERO : metrics;
+        } catch (Exception e) {
+            return StorageObjectMetrics.ZERO;
+        }
     }
 
     /** Returns the total number of splits the producer expects to process. */

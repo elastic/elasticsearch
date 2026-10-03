@@ -167,6 +167,9 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     }
 
     private void uploadBatchedCompoundCommitFile(ActionListener<BccUploadResult> listener) {
+        assert pauseUploadSupplier.apply(generation) == false
+            : shardId + " uploading batched compound commit generation [" + generation + "] whose upload is paused";
+
         final long generationQueueWaitMs = threadPool.relativeTimeInMillis() - attemptStartMillis;
         final int attempt = uploadTryNumber;
         final long enqueuedAtNanos = threadPool.relativeTimeInNanos();

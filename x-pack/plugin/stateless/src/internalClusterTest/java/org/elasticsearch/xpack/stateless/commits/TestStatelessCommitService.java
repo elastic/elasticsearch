@@ -57,8 +57,13 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     @Override
-    public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
-        return getStrategy().markRelocating(
+    public ActionListener<Void> markRelocationStarting(ShardId shardId) {
+        return getStrategy().markRelocationStarting(() -> super.markRelocationStarting(shardId), shardId);
+    }
+
+    @Override
+    public void markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
+        getStrategy().markRelocating(
             () -> super.markRelocating(shardId, minRelocatedGeneration, listener),
             shardId,
             minRelocatedGeneration,
@@ -67,13 +72,12 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     public static class Strategy {
-        public ActionListener<Void> markRelocating(
-            Supplier<ActionListener<Void>> originalSupplier,
-            ShardId shardId,
-            long minRelocatedGeneration,
-            ActionListener<Void> listener
-        ) {
+        public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId shardId) {
             return originalSupplier.get();
+        }
+
+        public void markRelocating(Runnable original, ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
+            original.run();
         }
     }
 }

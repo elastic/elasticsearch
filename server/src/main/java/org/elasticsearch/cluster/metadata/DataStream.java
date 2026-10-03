@@ -829,10 +829,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the backing indices.
+     * Retrieves the explicit lifecycle configuration as persisted on the data stream's state.
+     * This may differ from the effective lifecycle that can be retrieved by
+     * {@link #getEffectiveDataLifecycle(boolean)}
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycle() {
+        return lifecycle;
+    }
+
+    /**
+     * Retrieves the <b>effective</b> lifecycle configuration meant for the backing indices.
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveDataLifecycle(boolean enableLifecycleByDefault) {
+        if (lifecycle == null && enableLifecycleByDefault && indexMode == IndexMode.TIME_SERIES) {
+            return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
+        }
         return lifecycle;
     }
 
@@ -869,8 +882,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getDataLifecycleForIndex(Index index) {
+        return getEffectiveLifecycleForIndex(index, false);
+    }
+
+    /**
+     * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     */
+    @Nullable
+    public DataStreamLifecycle getEffectiveLifecycleForIndex(Index index, boolean enableLifecycleByDefault) {
         if (backingIndices.containsIndex(index.getName())) {
-            return getDataLifecycle();
+            return getEffectiveDataLifecycle(enableLifecycleByDefault);
         }
         if (failureIndices.containsIndex(index.getName())) {
             return getFailuresLifecycle();
@@ -1349,7 +1370,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indices,
             effectiveRetention,
             indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
+            indexMetadata -> isIndexManagedByDataStreamLifecycle(indexMetadata, false),
             nowSupplier
         );
     }
@@ -1437,11 +1458,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
      * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
-    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+    public boolean isIndexManagedByDataStreamLifecycle(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean defaultLifecycleForTimeSeriesEnabled
+    ) {
         if (containsIndex(index.getName()) == false) {
             return false;
         }
@@ -1450,20 +1475,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // the index was deleted
             return false;
         }
-        return isIndexManagedByDataStreamLifecycle(indexMetadata);
+        return isIndexManagedByDataStreamLifecycle(indexMetadata, defaultLifecycleForTimeSeriesEnabled);
     }
 
     /**
-     * This is the raw definition of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
-     * if it's part of a data stream that has a data stream lifecycle configured and enabled and depending on the value of
-     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
-     * This method also skips any validation to make sure the index is part of this data stream, hence the private
-     * access method.
+     * Checks if the provided backing index is effectively managed by the data stream lifecycle as part of this data stream.
+     * If the index is not a backing index or a failure store index of this data stream we return false.
      */
-    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata, boolean defaultLifecycleForTimeSeriesEnabled) {
         Settings settings = indexMetadata.getSettings();
         IndexMode indexMode = indexMetadata.getIndexMode();
-        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
+        var lifecycle = getEffectiveLifecycleForIndex(indexMetadata.getIndex(), defaultLifecycleForTimeSeriesEnabled);
         return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings, indexMode) == LifecycleManagedBy.DLM;
     }
 

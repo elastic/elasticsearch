@@ -10,9 +10,11 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class NodeCacheSizeAndCommitmentsTests extends AbstractWireSerializingTestCase<NodeCacheSizeAndCommitments> {
 
@@ -46,6 +48,17 @@ public class NodeCacheSizeAndCommitmentsTests extends AbstractWireSerializingTes
             );
             default -> throw new AssertionError("unexpected branch");
         };
+    }
+
+    public void testWatermarkBytes() {
+        final var instance = new NodeCacheSizeAndCommitments(1000L, 0L, 0L);
+        final RatioValue watermark = RatioValue.ofPercent(75);
+
+        assertThat(instance.watermarkBytes(watermark), equalTo(750L));
+
+        // exceedsWatermark is strictly greater than watermarkBytes
+        assertFalse(instance.exceedsWatermark(750L, watermark));
+        assertTrue(instance.exceedsWatermark(751L, watermark));
     }
 
     public void testRejectsNegativeValues() {

@@ -46,6 +46,8 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         "not rerouting for nodes * over the high watermark because all search nodes exceed the low watermark";
     private static final String MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE =
         "skipping monitor as the shared cache capacity decider or its canRemain check is disabled";
+    private static final String MONITOR_NOT_REROUTING_NO_SHARD_FITS_LOG_MESSAGE =
+        "not rerouting for nodes * over the high watermark because each holds a shard that exceeds the low watermark*";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -530,6 +532,65 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         ensureGreen(indexName);
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));
         assertTrue(findSearchShard(indexName).routingEntry().started());
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
+    public void testMonitorSuppressesRerouteWhenShardExceedsLowWatermarkOnItsOwn() {
+        startMasterOnlyNode();
+        startIndexNode();
+        final var searchNodeA = startSearchNode();
+        final var searchNodeB = startSearchNode();
+        ensureStableCluster(4);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final String searchNodeAId = getNodeId(searchNodeA);
+        final String searchNodeBId = getNodeId(searchNodeB);
+
+        // Discover which node actually hosts the search-only replica, so the faked requirement maps to a real started shard on
+        // the over-committed node. If the requirement were faked against the wrong node, the routing node for the over-committed
+        // node would have no started shards and the gate would fail open, defeating the test.
+        final String hostedNodeId = findSearchShard(indexName).routingEntry().currentNodeId();
+        final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // The hosting node exceeds the 95% high watermark. The other node sits at 0%, below the 75% low watermark. The shard's
+        // boosted requirement is 800 bytes, which exceeds the 750 byte low watermark of every search node on its own, so the
+        // balancer has nowhere to move it. The monitor must suppress the reroute rather than firing it uselessly.
+        final long hostedBoostedBytes = bytesForPercent(97);
+        final long otherBoostedBytes = 0L;
+        final long noUnboostedBytes = 0L;
+        final long shardRequirementBytes = bytesForPercent(80); // 800 bytes > 750 byte low watermark
+        try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "suppression because no shard fits",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_NOT_REROUTING_NO_SHARD_FITS_LOG_MESSAGE
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no reroute log while suppressed",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
+                )
+            );
+            fakeCacheSizesAndCommitments(
+                Map.of(shardId, new BoostedAndUnboostedCacheRequirements(shardRequirementBytes, noUnboostedBytes)),
+                Map.of(
+                    hostedNodeId,
+                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedBytes, noUnboostedBytes),
+                    otherNodeId,
+                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, otherBoostedBytes, noUnboostedBytes)
+                )
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     private void fakeNodeCacheSizeAndCommitments(Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments) {

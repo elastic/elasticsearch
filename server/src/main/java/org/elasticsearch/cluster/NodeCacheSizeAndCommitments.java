@@ -43,7 +43,14 @@ public record NodeCacheSizeAndCommitments(long cacheSizeInBytes, long boostedCac
      * this record's concern.
      */
     public boolean exceedsWatermark(long commitmentBytes, RatioValue watermark) {
-        return commitmentBytes > (long) (cacheSizeInBytes * watermark.getAsRatio());
+        return commitmentBytes > watermarkBytes(watermark);
+    }
+
+    /**
+     * The commitment, in bytes, above which this node is considered to exceed the given watermark.
+     */
+    public long watermarkBytes(RatioValue watermark) {
+        return (long) (cacheSizeInBytes * watermark.getAsRatio());
     }
 
     @Override

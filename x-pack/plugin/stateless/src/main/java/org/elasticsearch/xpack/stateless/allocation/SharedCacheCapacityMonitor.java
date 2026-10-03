@@ -8,18 +8,23 @@
 package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -35,6 +40,12 @@ import java.util.stream.Collectors;
  * boost window, and triggers a reroute via {@link RerouteService#reroute} so {@link SharedCacheCapacityAllocationDecider} gets a
  * chance to act on it. Only active when {@link SharedCacheCapacityAllocationDecider#CAN_REMAIN_ENABLED_SETTING} is also enabled, since
  * otherwise the decider's {@code canRemain} check would never see the reroute.
+ *
+ * <p>A reroute is suppressed when every over-committed node holds a shard whose requirement alone exceeds the high watermark of
+ * every search node, since such a shard cannot be placed anywhere even on an empty node. This is a deliberate approximation: such a
+ * node might still shed its other shards, but the largest shard is taken as the cause of the pressure. If shard requirement data is
+ * absent from {@link ClusterInfo#getShardCacheRequirements()} (for example in a stateful cluster), the check fails open and the
+ * reroute fires as before.
  */
 public class SharedCacheCapacityMonitor {
 
@@ -89,7 +100,8 @@ public class SharedCacheCapacityMonitor {
      * {@link #decideReroute}. Only the retry case is throttled by {@link #minimumRerouteInterval}.
      */
     public void onNewInfo(ClusterInfo clusterInfo) {
-        if (clusterStateSupplier.get().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        final ClusterState state = clusterStateSupplier.get();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             logger.debug("skipping monitor as the cluster state is not recovered yet");
             return;
         }
@@ -100,7 +112,6 @@ public class SharedCacheCapacityMonitor {
             return;
         }
 
-        final ClusterState state = clusterStateSupplier.get();
         final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = clusterInfo.getNodeCacheSizeAndCommitments();
 
         // Restrict the snapshot to search nodes present in the cluster state right now, so a departed node is excluded rather
@@ -116,7 +127,13 @@ public class SharedCacheCapacityMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
         final boolean intervalElapsed = (currentTimeMillis - lastRerouteTimeMillis) >= minimumRerouteInterval.millis();
 
-        final RerouteDecision rerouteDecision = decideReroute(currentSearchNodeCommitments, lastNodeCommitments, intervalElapsed);
+        final RerouteDecision rerouteDecision = decideReroute(
+            state.getRoutingNodes(),
+            clusterInfo.getShardCacheRequirements(),
+            currentSearchNodeCommitments,
+            lastNodeCommitments,
+            intervalElapsed
+        );
         lastNodeCommitments = currentSearchNodeCommitments;
 
         if (rerouteDecision.shouldReroute()) {
@@ -148,13 +165,22 @@ public class SharedCacheCapacityMonitor {
      * nothing for a reroute to relieve. Given that, a node newly crossing the high watermark or newly dropping below the low
      * watermark triggers a reroute immediately, regardless of {@code intervalElapsed}. Otherwise, the over-subscription is
      * retried once {@code intervalElapsed} is {@code true}, since the earlier reroute may not have relieved the pressure.
+     *
+     * <p>A reroute is also suppressed if every over-committed node holds a started shard whose requirement alone exceeds the high
+     * watermark of every search node. This check scans shards, so it is only evaluated once a reroute is otherwise warranted. Absent
+     * shard requirement data causes this gate to fail open, preserving behavior in environments where
+     * {@link ClusterInfo#getShardCacheRequirements()} returns an empty map.
      */
     RerouteDecision decideReroute(
+        RoutingNodes routingNodes,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
         Map<DiscoveryNode, NodeCacheSizeAndCommitments> currentSearchNodeCommitments,
         Map<DiscoveryNode, NodeCacheSizeAndCommitments> previousSearchNodeCommitments,
         boolean intervalElapsed
     ) {
+        final SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode = this.accountingMode;
         final NodeWatermarkTransitions transitions = classifyWatermarkTransitions(
+            accountingMode,
             currentSearchNodeCommitments,
             previousSearchNodeCommitments
         );
@@ -166,24 +192,39 @@ public class SharedCacheCapacityMonitor {
                     "not rerouting for nodes {} over the high watermark because all search nodes exceed the low watermark",
                     shortDescriptions(transitions.nodesOverHighWatermark())
                 );
-            } else if (transitions.nodesNewlyExceedingHighWatermark().isEmpty() == false) {
-                logger.debug(
-                    "cache commitments exceeded the high watermark for nodes {}, triggering reroute",
-                    shortDescriptions(transitions.nodesNewlyExceedingHighWatermark())
-                );
-                return RerouteDecision.yes(RerouteDecision.NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON, transitions);
-            } else if (transitions.nodesNewlyDroppedBelowLowWatermark().isEmpty() == false) {
-                logger.debug(
-                    "cache commitments dropped below the low watermark for nodes {}, triggering reroute",
-                    shortDescriptions(transitions.nodesNewlyDroppedBelowLowWatermark())
-                );
-                return RerouteDecision.yes(RerouteDecision.DROPPED_BELOW_LOW_WATERMARK_REASON, transitions);
-            } else if (intervalElapsed) {
-                logger.debug(
-                    "cache commitments for nodes {} remain over the high watermark, retrying reroute",
-                    shortDescriptions(transitions.nodesOverHighWatermark())
-                );
-                return RerouteDecision.yes(RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON, transitions);
+            } else {
+                final String reason;
+                final String logMessage;
+                final Set<DiscoveryNode> nodesToLog;
+                if (transitions.nodesNewlyExceedingHighWatermark().isEmpty() == false) {
+                    reason = RerouteDecision.NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON;
+                    logMessage = "cache commitments exceeded the high watermark for nodes {}, triggering reroute";
+                    nodesToLog = transitions.nodesNewlyExceedingHighWatermark();
+                } else if (transitions.nodesNewlyDroppedBelowLowWatermark().isEmpty() == false) {
+                    reason = RerouteDecision.DROPPED_BELOW_LOW_WATERMARK_REASON;
+                    logMessage = "cache commitments dropped below the low watermark for nodes {}, triggering reroute";
+                    nodesToLog = transitions.nodesNewlyDroppedBelowLowWatermark();
+                } else if (intervalElapsed) {
+                    reason = RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON;
+                    logMessage = "cache commitments for nodes {} remain over the high watermark, retrying reroute";
+                    nodesToLog = transitions.nodesOverHighWatermark();
+                } else {
+                    return RerouteDecision.no(transitions);
+                }
+
+                // Evaluated last because it scans the shards on every over-committed node, and is only needed once a reroute is
+                // otherwise warranted.
+                if (everyOverCommittedNodeHasUnplaceableShard(routingNodes, shardCacheRequirements, transitions, accountingMode)) {
+                    logger.debug(
+                        "not rerouting for nodes {} over the high watermark because each holds a shard that exceeds the high "
+                            + "watermark of every search node on its own",
+                        shortDescriptions(transitions.nodesOverHighWatermark())
+                    );
+                    return RerouteDecision.no(transitions);
+                }
+
+                logger.debug(logMessage, shortDescriptions(nodesToLog));
+                return RerouteDecision.yes(reason, transitions);
             }
         }
 
@@ -198,12 +239,15 @@ public class SharedCacheCapacityMonitor {
      * The per-node watermark state observed on this call, plus the transitions since the previous call.
      * {@code nodesOverHighWatermark} is the full current set, a superset of {@code nodesNewlyExceedingHighWatermark}, so a node
      * over the high watermark since an earlier call is still recognized even when it is not a new transition this time.
+     * {@code maxHighWatermarkBytes} is the largest high watermark threshold, in bytes, across all search nodes. A shard requiring more
+     * than that cannot be placed on any node without pushing it over the high watermark, even if it were empty.
      */
     record NodeWatermarkTransitions(
         Set<DiscoveryNode> nodesOverHighWatermark,
         Set<DiscoveryNode> nodesNewlyExceedingHighWatermark,
         Set<DiscoveryNode> nodesNewlyDroppedBelowLowWatermark,
-        Set<DiscoveryNode> nodesBelowLowWatermark
+        Set<DiscoveryNode> nodesBelowLowWatermark,
+        long maxHighWatermarkBytes
     ) {}
 
     /**
@@ -212,12 +256,12 @@ public class SharedCacheCapacityMonitor {
      * newly crossing.
      */
     private NodeWatermarkTransitions classifyWatermarkTransitions(
+        SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode,
         Map<DiscoveryNode, NodeCacheSizeAndCommitments> currentSearchNodeCommitments,
         Map<DiscoveryNode, NodeCacheSizeAndCommitments> previousSearchNodeCommitments
     ) {
         // Snapshot the watermark settings once before classifying nodes, so a concurrent settings update cannot apply different
         // watermarks to different nodes in the same decision.
-        final SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode = this.accountingMode;
         final RatioValue lowWatermark = this.lowWatermark;
         final RatioValue highWatermark = this.highWatermark;
 
@@ -225,6 +269,7 @@ public class SharedCacheCapacityMonitor {
         final Set<DiscoveryNode> nodesNewlyExceedingHighWatermark = new HashSet<>();
         final Set<DiscoveryNode> nodesNewlyDroppedBelowLowWatermark = new HashSet<>();
         final Set<DiscoveryNode> nodesBelowLowWatermark = new HashSet<>();
+        long maxHighWatermarkBytes = 0L;
 
         for (Map.Entry<DiscoveryNode, NodeCacheSizeAndCommitments> entry : currentSearchNodeCommitments.entrySet()) {
             final DiscoveryNode node = entry.getKey();
@@ -233,6 +278,7 @@ public class SharedCacheCapacityMonitor {
             final boolean exceedsLowWatermarkNow = current.exceedsWatermark(currentCommitmentBytes, lowWatermark);
             final boolean exceedsHighWatermarkNow = current.exceedsWatermark(currentCommitmentBytes, highWatermark);
 
+            maxHighWatermarkBytes = Math.max(maxHighWatermarkBytes, current.watermarkBytes(highWatermark));
             if (exceedsLowWatermarkNow == false) {
                 nodesBelowLowWatermark.add(node);
             } else if (exceedsHighWatermarkNow) {
@@ -266,8 +312,46 @@ public class SharedCacheCapacityMonitor {
             nodesOverHighWatermark,
             nodesNewlyExceedingHighWatermark,
             nodesNewlyDroppedBelowLowWatermark,
-            nodesBelowLowWatermark
+            nodesBelowLowWatermark,
+            maxHighWatermarkBytes
         );
+    }
+
+    /**
+     * Whether every over-committed node holds a started shard whose requirement alone exceeds the largest high watermark of any
+     * search node, so the node's pressure is taken to be caused by a shard that cannot be placed anywhere. A single over-committed
+     * node without such a shard means a reroute might relieve it, so the answer is {@code false}. A node with no routing entry, no
+     * started shards, or no requirement data for its shards has no shard known to be unplaceable, so this fails open.
+     */
+    private static boolean everyOverCommittedNodeHasUnplaceableShard(
+        RoutingNodes routingNodes,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
+        NodeWatermarkTransitions transitions,
+        SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode
+    ) {
+        for (DiscoveryNode node : transitions.nodesOverHighWatermark()) {
+            final RoutingNode routingNode = routingNodes.node(node.getId());
+            if (routingNode == null
+                || hasShardExceeding(routingNode, shardCacheRequirements, accountingMode, transitions.maxHighWatermarkBytes()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasShardExceeding(
+        RoutingNode routingNode,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
+        SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode,
+        long thresholdBytes
+    ) {
+        for (ShardRouting shard : routingNode.started()) {
+            final BoostedAndUnboostedCacheRequirements requirement = shardCacheRequirements.get(shard.shardId());
+            if (requirement != null && accountingMode.getShardRequirementBytes(requirement) > thresholdBytes) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void reroute(String reason) {

@@ -8,20 +8,29 @@
 package org.elasticsearch.xpack.stateless.allocation;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -55,6 +64,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
     private static final int LOW_WATERMARK_PERCENT = 75;
     private static final int HIGH_WATERMARK_PERCENT = 95;
+    private static final long HIGH_WATERMARK_BYTES = CACHE_SIZE_IN_BYTES * HIGH_WATERMARK_PERCENT / 100;
 
     private static final String EXCEEDED_HIGH_WATERMARK_REASON = SharedCacheCapacityMonitor.RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON;
     private static final String NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON =
@@ -93,6 +103,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         var previousCommitments = Map.<DiscoveryNode, NodeCacheSizeAndCommitments>of();
         final boolean intervalElapsed = false;
         final SharedCacheCapacityMonitor.RerouteDecision initialDecision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -118,6 +130,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+                emptyRoutingNodes(),
+                Map.of(),
                 currentCommitments,
                 previousCommitments,
                 intervalElapsed
@@ -142,6 +156,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = false;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -165,6 +181,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = true;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -201,6 +219,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+                emptyRoutingNodes(),
+                Map.of(),
                 currentCommitments,
                 previousCommitments,
                 intervalElapsed
@@ -229,6 +249,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = true;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -256,6 +278,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = false;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -292,6 +316,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+                emptyRoutingNodes(),
+                Map.of(),
                 currentCommitments,
                 previousCommitments,
                 intervalElapsed
@@ -320,6 +346,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = false;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -345,6 +373,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = true;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -370,6 +400,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = false;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -393,6 +425,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = true;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -426,6 +460,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final boolean intervalElapsed = false;
 
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            emptyRoutingNodes(),
+            Map.of(),
             currentCommitments,
             previousCommitments,
             intervalElapsed
@@ -437,6 +473,234 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------------
+    // unplaceable shard gate tests, asserted directly against decideReroute with explicit routing nodes and shard requirements.
+    // The high watermark of every search node is HIGH_WATERMARK_PERCENT of CACHE_SIZE_IN_BYTES, i.e. 950 bytes.
+    // -----------------------------------------------------------------------------------------------------------------------
+
+    public void testNoRerouteWhenShardExceedsHighWatermarkOnItsOwn() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // The one started shard on SEARCH_0 requires more than any search node's high watermark, so it cannot be placed anywhere.
+        // The reroute is suppressed even though this is a new transition.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final RoutingNodes routingNodes = routingNodesWithStartedShard(shardId, SEARCH_0);
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId,
+            new BoostedAndUnboostedCacheRequirements(HIGH_WATERMARK_BYTES + 1, 0L)
+        );
+
+        try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "suppression log names the over-committed nodes",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "not rerouting for nodes * over the high watermark because each holds a shard that exceeds the high watermark*"
+                )
+            );
+            final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+                routingNodes,
+                requirements,
+                currentCommitments,
+                Map.of(),
+                false
+            );
+            mockLog.assertAllExpectationsMatched();
+            assertThat(decision.shouldReroute(), equalTo(false));
+        }
+    }
+
+    public void testNoRerouteWhenLargestShardExceedsHighWatermarkEvenIfOthersFit() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // A deliberate approximation: SEARCH_0's other shard is small enough to move, but its largest shard cannot be placed
+        // anywhere, so the pressure is taken to be unrelievable and the reroute is suppressed.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId largeShardId = new ShardId("test", "_na_", 0);
+        final ShardId smallShardId = new ShardId("test", "_na_", 1);
+        final var largeShard = TestShardRouting.newShardRouting(largeShardId, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var smallShard = TestShardRouting.newShardRouting(smallShardId, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var routingNodes = RoutingNodes.immutable(
+            GlobalRoutingTableTestHelper.routingTable(
+                ProjectId.DEFAULT,
+                IndexRoutingTable.builder(largeShardId.getIndex()).addShard(largeShard).addShard(smallShard).build()
+            ),
+            DiscoveryNodes.builder().add(SEARCH_0).build()
+        );
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            largeShardId,
+            new BoostedAndUnboostedCacheRequirements(HIGH_WATERMARK_BYTES + 1, 0L),
+            smallShardId,
+            new BoostedAndUnboostedCacheRequirements(9L, 0L)
+        );
+
+        assertThat(monitor.decideReroute(routingNodes, requirements, currentCommitments, Map.of(), false).shouldReroute(), equalTo(false));
+    }
+
+    public void testRerouteWhenNoShardExceedsHighWatermarkOnItsOwn() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // The shard exactly meets the high watermark rather than exceeding it, so an empty node could accept it.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId,
+            new BoostedAndUnboostedCacheRequirements(HIGH_WATERMARK_BYTES, 0L)
+        );
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            routingNodesWithStartedShard(shardId, SEARCH_0),
+            requirements,
+            currentCommitments,
+            Map.of(),
+            false
+        );
+        assertThat(decision.shouldReroute(), equalTo(true));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
+    }
+
+    public void testRerouteWhenShardExceedsSmallerNodesHighWatermarkButFitsLargerNode() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // The shard exceeds the high watermark of the nodes in this cluster of 1000 byte caches, but search-1 has a cache twice
+        // that size, so the shard could be placed there once it has room.
+        final var currentCommitments = Map.of(
+            SEARCH_0,
+            new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(HIGH_WATERMARK_PERCENT + 1), 0L),
+            SEARCH_1,
+            new NodeCacheSizeAndCommitments(2 * CACHE_SIZE_IN_BYTES, 0L, 0L)
+        );
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId,
+            new BoostedAndUnboostedCacheRequirements(HIGH_WATERMARK_BYTES + 1, 0L)
+        );
+
+        assertThat(
+            monitor.decideReroute(routingNodesWithStartedShard(shardId, SEARCH_0), requirements, currentCommitments, Map.of(), false)
+                .shouldReroute(),
+            equalTo(true)
+        );
+    }
+
+    public void testRerouteWhenNoOtherShardOnNodeExceedsHighWatermark() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // Same shards as above but both fit within the high watermark, so a movable shard exists and a reroute is warranted.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId shardId0 = new ShardId("test", "_na_", 0);
+        final ShardId shardId1 = new ShardId("test", "_na_", 1);
+        final var shard0 = TestShardRouting.newShardRouting(shardId0, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var shard1 = TestShardRouting.newShardRouting(shardId1, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var irt = IndexRoutingTable.builder(shardId0.getIndex()).addShard(shard0).addShard(shard1).build();
+        final var routingNodes = RoutingNodes.immutable(
+            GlobalRoutingTableTestHelper.routingTable(ProjectId.DEFAULT, irt),
+            DiscoveryNodes.builder().add(SEARCH_0).build()
+        );
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId0,
+            new BoostedAndUnboostedCacheRequirements(11L, 0L),
+            shardId1,
+            new BoostedAndUnboostedCacheRequirements(9L, 0L)
+        );
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            routingNodes,
+            requirements,
+            currentCommitments,
+            Map.of(),
+            false
+        );
+        assertThat(decision.shouldReroute(), equalTo(true));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
+    }
+
+    public void testRerouteWhenShardRequirementIsAbsentFromClusterInfo() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // SEARCH_0 is over the high watermark with one started shard whose ShardId is not in the requirements map.
+        // Absent requirement data causes the gate to fail open, so the reroute fires as if the shard might fit.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final RoutingNodes routingNodes = routingNodesWithStartedShard(shardId, SEARCH_0);
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            routingNodes,
+            Map.of(), // no requirement data → fail open
+            currentCommitments,
+            Map.of(),
+            false
+        );
+        assertThat(decision.shouldReroute(), equalTo(true));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
+    }
+
+    public void testRerouteWhenOverCommittedNodeHasNoStartedShards() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // SEARCH_0 is over the high watermark but has no started shards (the routing node exists but is empty).
+        // Absent started-shard information causes the gate to fail open, so the reroute fires.
+        final var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        // Build routing nodes where SEARCH_0 appears (via DiscoveryNodes) but hosts no shards.
+        final var routingNodes = RoutingNodes.immutable(
+            GlobalRoutingTable.EMPTY_ROUTING_TABLE,
+            DiscoveryNodes.builder().add(SEARCH_0).build()
+        );
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            new ShardId("test", "_na_", 0),
+            new BoostedAndUnboostedCacheRequirements(11L, 0L)
+        );
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            routingNodes,
+            requirements,
+            currentCommitments,
+            Map.of(),
+            false
+        );
+        assertThat(decision.shouldReroute(), equalTo(true));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
+    }
+
+    public void testRerouteUnlessEveryOverCommittedNodeHasAnUnplaceableShard() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // SEARCH_0 and SEARCH_1 both over the high watermark; SEARCH_2 below the low watermark.
+        // SEARCH_0's shard exceeds the high watermark on its own. If SEARCH_1's shard is small enough to be placed, suppressing on
+        // SEARCH_0 alone would block relief for SEARCH_1, so the reroute fires. If both are unplaceable, it is suppressed.
+        final boolean bothUnplaceable = randomBoolean();
+        final var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final ShardId shardId0 = new ShardId("test-0", "_na_", 0);
+        final ShardId shardId1 = new ShardId("test-1", "_na_", 0);
+        final var shard0 = TestShardRouting.newShardRouting(shardId0, SEARCH_0.getId(), true, ShardRoutingState.STARTED);
+        final var shard1 = TestShardRouting.newShardRouting(shardId1, SEARCH_1.getId(), true, ShardRoutingState.STARTED);
+        final var irt0 = IndexRoutingTable.builder(shardId0.getIndex()).addShard(shard0).build();
+        final var irt1 = IndexRoutingTable.builder(shardId1.getIndex()).addShard(shard1).build();
+        final var routingNodes = RoutingNodes.immutable(
+            GlobalRoutingTableTestHelper.routingTable(ProjectId.DEFAULT, irt0, irt1),
+            DiscoveryNodes.builder().add(SEARCH_0).add(SEARCH_1).build()
+        );
+        final Map<ShardId, BoostedAndUnboostedCacheRequirements> requirements = Map.of(
+            shardId0,
+            new BoostedAndUnboostedCacheRequirements(HIGH_WATERMARK_BYTES + 1, 0L),
+            shardId1,
+            new BoostedAndUnboostedCacheRequirements(bothUnplaceable ? HIGH_WATERMARK_BYTES + 1 : 9L, 0L)
+        );
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            routingNodes,
+            requirements,
+            currentCommitments,
+            Map.of(),
+            false
+        );
+        assertThat(decision.shouldReroute(), equalTo(bothUnplaceable == false));
     }
 
     // -----------------------------------------------------------------------------------------------------------------------
@@ -1035,6 +1299,19 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
 
     private static long bytesForPercent(int percent) {
         return CACHE_SIZE_IN_BYTES * percent / 100;
+    }
+
+    private static RoutingNodes emptyRoutingNodes() {
+        return RoutingNodes.immutable(GlobalRoutingTable.EMPTY_ROUTING_TABLE, DiscoveryNodes.EMPTY_NODES);
+    }
+
+    private static RoutingNodes routingNodesWithStartedShard(ShardId shardId, DiscoveryNode node) {
+        final var shard = TestShardRouting.newShardRouting(shardId, node.getId(), true, ShardRoutingState.STARTED);
+        final var irt = IndexRoutingTable.builder(shardId.getIndex()).addShard(shard).build();
+        return RoutingNodes.immutable(
+            GlobalRoutingTableTestHelper.routingTable(ProjectId.DEFAULT, irt),
+            DiscoveryNodes.builder().add(node).build()
+        );
     }
 
     private SharedCacheCapacityMonitor createMonitor(boolean enabled, TimeValue rerouteInterval) {

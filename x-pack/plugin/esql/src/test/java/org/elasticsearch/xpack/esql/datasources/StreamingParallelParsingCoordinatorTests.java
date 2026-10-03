@@ -1558,7 +1558,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         try {
             drainParallelRead(new LineFormatReader(requested), new ByteArrayInputStream(payload), object, breaker, executor, parallelism);
             assertEquals(StorageObject.READ_TO_END, StreamingParallelParsingCoordinator.streamingFillHint(object));
-            assertEquals(requested, breaker.peakUsed());
+            // Lazy pool: one 4 MiB fill today. Bound the pool depth, not a single alloc, in case
+            // takeOrAllocateBuffer starts pre-filling.
+            assertThat(breaker.peakUsed(), Matchers.greaterThanOrEqualTo((long) requested));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) requested * (parallelism + 1)));
         } finally {
             executor.shutdownNow();
         }

@@ -292,24 +292,25 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public void add(final ShardId shardId, final Translog.Serialized operation, final long seqNo, final Translog.Location location) {
-        addRecord(shardId, operation, new long[] { seqNo }, location);
+        addRecord(shardId, operation, seqNo, seqNo, location);
     }
 
     /**
-     * Adds a record carrying one or more operations ({@code seqNos} has one entry per operation).
-     * Calls {@link NodeTranslogBuffer#writeToBuffer}.
+     * Adds a record carrying one or more operations occupying the contiguous seqNo range
+     * {@code [minSeqNo, maxSeqNo]}. Calls {@link NodeTranslogBuffer#writeToBuffer}.
      */
     public void addRecord(
         final ShardId shardId,
         final Translog.Serialized operation,
-        final long[] seqNos,
+        final long minSeqNo,
+        final long maxSeqNo,
         final Translog.Location location
     ) {
         try {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
             while (true) {
                 NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
-                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNos, location)) {
+                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, minSeqNo, maxSeqNo, location)) {
                     if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
                         executor.execute(new FlushTask(nodeTranslogBuffer));
                     }
@@ -333,7 +334,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
      * which shard each write belongs to.
      */
     public OperationListener listenerFor(ShardId shardId) {
-        return (operation, seqNos, location) -> addRecord(shardId, operation, seqNos, location);
+        return (operation, minSeqNo, maxSeqNo, location) -> addRecord(shardId, operation, minSeqNo, maxSeqNo, location);
     }
 
     private NodeTranslogBuffer getNodeTranslogBuffer() {

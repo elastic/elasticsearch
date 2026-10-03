@@ -24,7 +24,6 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 public class SlicedInputStreamTests extends ESTestCase {
 

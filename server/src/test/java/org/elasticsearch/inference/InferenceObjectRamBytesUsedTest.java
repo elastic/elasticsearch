@@ -17,7 +17,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assume.assumeTrue;
 
 /**
  * {@link InferenceObjectRamBytesUsedTest} tests, whether objects tracked by the

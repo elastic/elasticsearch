@@ -50,8 +50,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 public class RestActionsTests extends ESTestCase {
 

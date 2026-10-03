@@ -16,7 +16,7 @@ import java.util.Map;
  * Projects a {@code _source} value onto the keyword type ES|QL fabricates for an unmapped field: an object (a {@code Map}) has no
  * keyword representation and contributes nothing, an array contributes its scalar elements (nested arrays flattened), and a scalar
  * becomes a single value. Shared by the per-document {@link UnmappedKeywordBlockLoader} and the coordinator-side
- * {@code ExpandUnmappedFieldsPostProcessor} so an explicitly referenced unmapped field and its {@code LOAD_ALL} auto-expanded twin
+ * {@code ExpandUnmappedFieldsOperator} so an explicitly referenced unmapped field and its {@code LOAD_ALL} auto-expanded twin
  * render identically.
  */
 public final class UnmappedKeywordValues {

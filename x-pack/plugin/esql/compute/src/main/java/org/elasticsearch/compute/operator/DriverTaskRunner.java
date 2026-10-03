@@ -50,13 +50,29 @@ public class DriverTaskRunner {
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, Executor workerExecutor, ActionListener<Void> listener) {
+        executeDrivers(parentTask, drivers, workerExecutor, Driver.DEFAULT_MAX_ITERATIONS, listener);
+    }
+
+    /**
+     * Variant of {@link #executeDrivers(Task, List, Executor, ActionListener)} that caps how many loop iterations each driver runs
+     * before re-dispatching onto {@code workerExecutor}. A low budget makes the driver hand its worker thread back frequently (e.g.
+     * between pages) so other work queued on the pool interleaves, rather than running to completion in a single task. Pass
+     * {@link Driver#DEFAULT_MAX_ITERATIONS} for the standard behaviour.
+     */
+    public void executeDrivers(
+        Task parentTask,
+        List<Driver> drivers,
+        Executor workerExecutor,
+        int maxIterations,
+        ActionListener<Void> listener
+    ) {
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 transportService.sendChildRequest(
                     transportService.getLocalNode(),
                     ACTION_NAME,
-                    new DriverRequest(driver, workerExecutor),
+                    new DriverRequest(driver, workerExecutor, maxIterations),
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     TransportResponseHandler.empty(
@@ -75,10 +91,12 @@ public class DriverTaskRunner {
     private static class DriverRequest extends UntypedActionRequest implements CompositeIndicesRequest {
         private final Driver driver;
         private final Executor executor;
+        private final int maxIterations;
 
-        DriverRequest(Driver driver, Executor executor) {
+        DriverRequest(Driver driver, Executor executor, int maxIterations) {
             this.driver = driver;
             this.executor = executor;
+            this.maxIterations = maxIterations;
         }
 
         DriverRequest(StreamInput in) {
@@ -129,7 +147,7 @@ public class DriverTaskRunner {
                 transportService.getThreadPool().getThreadContext(),
                 request.executor,
                 request.driver,
-                Driver.DEFAULT_MAX_ITERATIONS,
+                request.maxIterations,
                 listener.map(unused -> ActionResponse.Empty.INSTANCE)
             );
         }

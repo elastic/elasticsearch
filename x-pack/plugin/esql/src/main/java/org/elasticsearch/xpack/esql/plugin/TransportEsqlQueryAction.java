@@ -417,6 +417,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            (result, ordering, expandListener) -> computeService.expandUnmappedFields(
+                sessionId,
+                (CancellableTask) task,
+                result,
+                ordering,
+                expandListener
+            ),
             ActionListener.wrap(result -> {
                 releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, null);

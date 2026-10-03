@@ -39,7 +39,7 @@ import java.util.function.Predicate;
  *
  * <p>Pruning the value-less parts here rather than on the coordinator keeps them off the wire entirely, and is what lets the
  * coordinator turn every key it receives into an output column without producing one that is null in every row - see
- * {@link UnmappedFields#prune} and {@code ExpandUnmappedFieldsPostProcessor}.
+ * {@link UnmappedFields#prune} and {@code ExpandUnmappedFieldsOperator}.
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.

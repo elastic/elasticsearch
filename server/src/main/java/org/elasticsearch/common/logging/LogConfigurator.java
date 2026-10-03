@@ -135,11 +135,21 @@ public class LogConfigurator {
     private static void configureStatusLoggerForwarder() {
         // the real logger is lazily retrieved here since logging won't yet be setup during clinit of this class
         var logger = LogManager.getLogger("StatusLogger");
+        var reentryGuard = ThreadLocal.withInitial(() -> false);
         var listener = new StatusConsoleListener(Level.WARN) {
             @Override
             public void log(StatusData data) {
-                logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
-                super.log(data);
+                // Drop status events raised by our own forwarding below, otherwise a failing log call would loop forever
+                if (reentryGuard.get()) {
+                    return;
+                }
+                reentryGuard.set(true);
+                try {
+                    logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
+                    super.log(data);
+                } finally {
+                    reentryGuard.set(false);
+                }
             }
         };
         StatusLogger.getLogger().registerListener(listener);

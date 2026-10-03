@@ -10,11 +10,14 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.util.ContextDataProvider;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -43,6 +46,8 @@ public class DynamicContextDataProvider implements ContextDataProvider {
      */
     private final AtomicInteger mapSize = new AtomicInteger(0);
 
+    private final Set<Class<?>> failedProviders = ConcurrentHashMap.newKeySet();
+
     public static void setDataProviders(List<? extends LoggingDataProvider> dataProviders) {
         DynamicContextDataProvider.DATA_PROVIDERS.compareAndSet(null, List.copyOf(dataProviders));
     }
@@ -57,7 +62,18 @@ public class DynamicContextDataProvider implements ContextDataProvider {
                 expectedSize = 10;
             }
             final Map<String, String> data = Maps.newLinkedHashMapWithExpectedSize(expectedSize);
-            providers.forEach(p -> p.collectData(data));
+            for (LoggingDataProvider provider : providers) {
+                try {
+                    provider.collectData(data);
+                } catch (Exception e) {
+                    // Log4j would drop the whole event, so keep it without this provider's fields. Report through the
+                    // StatusLogger because a regular logger would call this provider again.
+                    if (failedProviders.add(provider.getClass())) {
+                        StatusLogger.getLogger()
+                            .warn("logging data provider [{}] failed, omitting its fields", provider.getClass().getName(), e);
+                    }
+                }
+            }
             final var newMapSize = data.size();
             mapSize.updateAndGet(oldSize -> oldSize >= newMapSize ? oldSize : newMapSize);
             return data;

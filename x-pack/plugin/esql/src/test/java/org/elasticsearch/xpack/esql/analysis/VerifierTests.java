@@ -734,14 +734,15 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")",
             containsString(
-                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [numeric], found value [1 week] type [date_period]"
+                "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [integer, long or double], "
+                    + "found value [1 week] type [date_period]"
             )
         );
 
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5.5, \"2000-01-01\")",
             containsString(
-                "second argument of [bucket(hire_date, 5.5, \"2000-01-01\")] must be [integral, date_period or time_duration], "
+                "second argument of [bucket(hire_date, 5.5, \"2000-01-01\")] must be [integer, long, date_period or time_duration], "
                     + "found value [5.5] type [double]"
             )
         );
@@ -771,14 +772,25 @@ public class VerifierTests extends AnalyzerTestCase {
 
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(emp_no, \"5\")",
-            containsString("second argument of [bucket(emp_no, \"5\")] must be [numeric], found value [\"5\"] type [keyword]")
+            containsString(
+                "second argument of [bucket(emp_no, \"5\")] must be [integer, long or double], found value [\"5\"] type [keyword]"
+            )
         );
 
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, \"5\")",
             containsString(
-                "second argument of [bucket(hire_date, \"5\")] must be [integral, date_period or time_duration], "
+                "second argument of [bucket(hire_date, \"5\")] must be [integer, long, date_period or time_duration], "
                     + "found value [\"5\"] type [keyword]"
+            )
+        );
+
+        defaultAnalyzer().error(
+            "from test | stats max(emp_no) by bucket(hire_date, 20::unsigned_long, \"1985-01-01\", \"1986-01-01\")",
+            containsString(
+                "second argument of [bucket(hire_date, 20::unsigned_long, \"1985-01-01\", \"1986-01-01\")] "
+                    + "must be [integer, long, date_period or time_duration], "
+                    + "found value [20::unsigned_long] type [unsigned_long]"
             )
         );
     }
@@ -3074,21 +3086,21 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, \"1\")",
             equalTo(
-                "1:34: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                "1:34: second argument of [bucket(hire_date, \"1\")] must be [integer, long, date_period or time_duration], "
                     + "found value [\"1\"] type [keyword]"
             )
         );
         defaultAnalyzer().error(
             "from test | stats max = max(emp_no) by bucket(hire_date, \"1\") | sort max ",
             equalTo(
-                "1:40: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                "1:40: second argument of [bucket(hire_date, \"1\")] must be [integer, long, date_period or time_duration], "
                     + "found value [\"1\"] type [keyword]"
             )
         );
         defaultAnalyzer().error(
             "from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ",
             equalTo(
-                "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
+                "1:68: second argument of [bucket(y, \"1\")] must be [integer, long, date_period or time_duration], "
                     + "found value [\"1\"] type [keyword]"
             )
         );

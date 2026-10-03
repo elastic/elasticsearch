@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157158
+summary: Fix Bucket signatures and type logic for `date_nanos` and `unsigned_long`
+type: bug

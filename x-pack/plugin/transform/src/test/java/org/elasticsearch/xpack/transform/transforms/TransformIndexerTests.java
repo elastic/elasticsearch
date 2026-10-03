@@ -38,6 +38,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -81,7 +83,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -129,6 +133,32 @@ public class TransformIndexerTests extends ESTestCase {
             TransformIndexerStats jobStats,
             TransformContext context
         ) {
+            this(
+                numberOfLoops,
+                threadPool,
+                transformServices,
+                checkpointProvider,
+                transformConfig,
+                initialState,
+                initialPosition,
+                jobStats,
+                context,
+                false
+            );
+        }
+
+        MockedTransformIndexer(
+            int numberOfLoops,
+            ThreadPool threadPool,
+            TransformServices transformServices,
+            CheckpointProvider checkpointProvider,
+            TransformConfig transformConfig,
+            AtomicReference<IndexerState> initialState,
+            TransformIndexerPosition initialPosition,
+            TransformIndexerStats jobStats,
+            TransformContext context,
+            boolean securityEnabled
+        ) {
             super(
                 threadPool,
                 transformServices,
@@ -140,7 +170,8 @@ public class TransformIndexerTests extends ESTestCase {
                 /* TransformProgress */ null,
                 TransformCheckpoint.EMPTY,
                 TransformCheckpoint.EMPTY,
-                context
+                context,
+                securityEnabled
             );
             this.threadPool = threadPool;
             this.numberOfLoops = numberOfLoops;
@@ -340,6 +371,128 @@ public class TransformIndexerTests extends ESTestCase {
     @After
     public void tearDownClient() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
+
+    public void testOnStartFailsWhenSecurityEnabledAndCredentialsMissing() throws Exception {
+        TransformConfig config = new TransformConfig.Builder().setId("missing-creds")
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setPivotConfig(randomPivotConfig())
+            .setHeaders(Collections.emptyMap())
+            .build();
+        assertOnStartFailsForMissingCredentials(config, "missing-creds");
+    }
+
+    public void testOnStartFailsWhenSecurityEnabledAndOnlyNonSecurityHeaders() throws Exception {
+        TransformConfig config = new TransformConfig.Builder().setId("non-security-headers")
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setPivotConfig(randomPivotConfig())
+            .setHeaders(Map.of("x-trace-id", "trace-1"))
+            .build();
+        assertOnStartFailsForMissingCredentials(config, "non-security-headers");
+    }
+
+    public void testOnStartSucceedsWhenSecurityEnabledAndHeadersPresent() throws Exception {
+        TransformConfig config = new TransformConfig.Builder().setId("with-headers")
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setPivotConfig(randomPivotConfig())
+            .setHeaders(Map.of(AuthenticationField.AUTHENTICATION_KEY, "encoded-auth"))
+            .build();
+        assertOnStartDoesNotFailForMissingCredentials(config, true);
+    }
+
+    public void testOnStartSucceedsWhenSecurityEnabledAndCredentialIdPresent() throws Exception {
+        TransformConfig config = new TransformConfig.Builder().setId("with-credential")
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setPivotConfig(randomPivotConfig())
+            .setCredentialId("cloud-token-id")
+            .build();
+        assertOnStartDoesNotFailForMissingCredentials(config, true);
+    }
+
+    public void testOnStartAllowsMissingCredentialsWhenSecurityDisabled() throws Exception {
+        TransformConfig config = new TransformConfig.Builder().setId("security-off")
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setPivotConfig(randomPivotConfig())
+            .setHeaders(Collections.emptyMap())
+            .build();
+        assertOnStartDoesNotFailForMissingCredentials(config, false);
+    }
+
+    private void assertOnStartFailsForMissingCredentials(TransformConfig config, String transformId) throws Exception {
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        MockedTransformIndexer indexer = createMockIndexer(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context,
+            true
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        indexer.onStart(System.currentTimeMillis(), ActionListener.wrap(r -> latch.countDown(), e -> {
+            failure.set(e);
+            latch.countDown();
+        }));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(failure.get());
+        assertThat(failure.get(), instanceOf(org.elasticsearch.ElasticsearchSecurityException.class));
+        assertThat(
+            failure.get().getMessage(),
+            equalTo(TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_CREDENTIALS, transformId))
+        );
+    }
+
+    private void assertOnStartDoesNotFailForMissingCredentials(TransformConfig config, boolean securityEnabled) throws Exception {
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        MockedTransformIndexer indexer = createMockIndexer(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context,
+            securityEnabled
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        // onStart continues into async config reload; we only assert the missing-credentials gate did not fail.
+        indexer.onStart(System.currentTimeMillis(), ActionListener.wrap(r -> {
+            succeeded.set(true);
+            latch.countDown();
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
+        }));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            assertThat(
+                failure.get().getMessage(),
+                org.hamcrest.Matchers.not(
+                    equalTo(TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_CREDENTIALS, config.getId()))
+                )
+            );
+        } else {
+            assertTrue(succeeded.get());
+        }
     }
 
     public void testRetentionPolicyExecution() throws Exception {
@@ -896,6 +1049,20 @@ public class TransformIndexerTests extends ESTestCase {
         TransformIndexerStats jobStats,
         TransformContext context
     ) {
+        return createMockIndexer(numberOfLoops, config, state, failureConsumer, threadPool, transformAuditor, jobStats, context, false);
+    }
+
+    private MockedTransformIndexer createMockIndexer(
+        int numberOfLoops,
+        TransformConfig config,
+        AtomicReference<IndexerState> state,
+        Consumer<String> failureConsumer,
+        ThreadPool threadPool,
+        TransformAuditor transformAuditor,
+        TransformIndexerStats jobStats,
+        TransformContext context,
+        boolean securityEnabled
+    ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
         transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
         TransformServices transformServices = new TransformServices(
@@ -919,7 +1086,8 @@ public class TransformIndexerTests extends ESTestCase {
             state,
             null,
             jobStats,
-            context
+            context,
+            securityEnabled
         );
 
         indexer.initialize();

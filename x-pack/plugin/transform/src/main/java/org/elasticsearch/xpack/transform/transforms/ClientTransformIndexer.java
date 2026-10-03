@@ -50,6 +50,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
@@ -144,7 +145,9 @@ class ClientTransformIndexer extends TransformIndexer {
             transformProgress,
             lastCheckpoint,
             nextCheckpoint,
-            context
+            context,
+            // ClusterService mocks in unit tests often leave getSettings() unstubbed (null).
+            clusterService.getSettings() != null && XPackSettings.SECURITY_ENABLED.get(clusterService.getSettings())
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.credentialManager = transformExtension.getCloudCredentialManager();

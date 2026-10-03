@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 156222
+summary: Validate security headers
+type: bug

@@ -1,5 +1,5 @@
 ---
-navigation_title: "Connect data sources"
+navigation_title: "Data sources"
 description: "Connect Elasticsearch to external storage with ES|QL Data Federation by setting up S3 data sources, configuring endpoints, and authenticating access."
 applies_to:
   stack: experimental 9.5+
@@ -286,7 +286,7 @@ Settings vary by data source type.
 
 The following settings are available for `s3` data sources:
 
-**Connection settings:**
+Use the following connection settings:
 
 | Setting | Required | Description |
 |---|---|---|
@@ -319,10 +319,10 @@ A data source created before these endpoint restrictions were introduced keeps w
 ::::
 
 :::{note}
-The `region` setting on a data source is deprecated and has no effect. Set `region` on each [dataset](esql-data-federation-datasets.md#common-settings) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
+The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
 :::
 
-**Authentication settings:**
+Use the following authentication settings:
 
 | Setting | Required | Description |
 |---|---|---|
@@ -352,6 +352,8 @@ Managed identity uses the cloud identity attached to each {{es}} node (for examp
 
 ## Next steps
 
-- [Create datasets](esql-data-federation-datasets.md) that point at specific files in your data source, and configure file formats, schema inference, and parsing settings.
+Continue with the following data-source tasks:
+
+- [Create datasets](esql-data-federation-manage-datasets.md) that point at specific files in your data source, then review [file formats](esql-data-federation-file-formats.md) and [dataset settings](esql-data-federation-dataset-settings.md).
 - [Query your datasets](esql-data-federation-querying.md) with `FROM` to learn how partition pruning, column selection, and filter pushdown reduce storage reads.
 - [Manage credentials and privileges](esql-data-federation-security.md) to control who can create data sources and read external data.

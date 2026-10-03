@@ -392,6 +392,19 @@ public final class StreamingParallelParsingCoordinator {
         );
     }
 
+    /**
+     * Alloc ceiling for streaming fill buffers. Gzip/zstd wrappers keep {@link StorageObject#knownLength()}
+     * as {@link StorageObject#READ_TO_END} (decompressed EOF is unknown); the compressed listing/GET size
+     * is the fill hint only. Uncompressed objects use {@link StorageObject#knownLength()}. Missing object
+     * or unknown size keeps the format {@code minimumSegmentSize()}.
+     */
+    static long streamingFillHint(@Nullable StorageObject storageObject) {
+        if (storageObject instanceof DecompressingStorageObject decompressing) {
+            return decompressing.delegateKnownLength();
+        }
+        return storageObject == null ? StorageObject.READ_TO_END : storageObject.knownLength();
+    }
+
     // Package-private so close-path tests can assert on segmentator wait state via
     // isSegmentatorParkedOnDispatchPermits(); production callers see only CloseableIterator<Page>.
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
@@ -469,6 +482,12 @@ public final class StreamingParallelParsingCoordinator {
         private final int bufferPoolSize;
         /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
         private final int pageQueueRingSize;
+        /**
+         * Fill-buffer length charged to {@link #breaker} for each pooled array. Format
+         * {@link SegmentableFormatReader#minimumSegmentSize()} clamped by
+         * {@link ExternalSourceSettings#ioFillBytes} to a known object size when that is smaller
+         * (compressed size for {@link DecompressingStorageObject}, else {@link StorageObject#knownLength()}).
+         */
         private final int chunkSize;
         /**
          * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
@@ -654,7 +673,7 @@ public final class StreamingParallelParsingCoordinator {
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
-            this.chunkSize = Math.toIntExact(reader.minimumSegmentSize());
+            this.chunkSize = ExternalSourceSettings.ioFillBytes(reader.minimumSegmentSize(), streamingFillHint(storageObject));
 
             this.bufferPool = new ArrayBlockingQueue<>(bufferPoolSize);
             this.buffersAllocated = new AtomicInteger(0);

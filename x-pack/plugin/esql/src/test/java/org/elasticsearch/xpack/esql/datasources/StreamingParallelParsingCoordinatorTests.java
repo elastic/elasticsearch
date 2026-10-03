@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -77,6 +79,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.GZIPOutputStream;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -1489,6 +1493,78 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals("concurrent close must not double-refund the breaker", 0L, breaker.getUsed());
     }
 
+    /**
+     * Tiny known objects must not reserve {@code minimumSegmentSize} (NDJSON 4 MiB) per pooled fill
+     * buffer. Peak charge is the object size times the pool depth ({@code parallelism + 1}).
+     */
+    public void testTinyKnownObjectFillClampsBelowMinimumSegmentSize() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] payload = repeatingLines(5 * 1024);
+        StorageObject object = new KnownLengthBytesObject(payload, payload.length);
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            drainParallelRead(new LineFormatReader(requested), new ByteArrayInputStream(payload), object, breaker, executor, parallelism);
+            assertEquals(payload.length, StreamingParallelParsingCoordinator.streamingFillHint(object));
+            assertThat(breaker.peakUsed(), Matchers.greaterThan(0L));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) payload.length * (parallelism + 1)));
+            assertThat(breaker.peakUsed(), Matchers.lessThan((long) requested));
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Gzip wrappers leave {@code knownLength()} as {@code READ_TO_END}. Fill still clamps to the
+     * compressed delegate size, not the format 4 MiB ceiling.
+     */
+    public void testGzipFillClampsToCompressedHint() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] original = repeatingLines(32 * 1024);
+        byte[] compressed = gzipBytes(original);
+        assertThat((long) compressed.length, Matchers.lessThan((long) requested));
+        StorageObject raw = new KnownLengthBytesObject(compressed, compressed.length);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        assertEquals(StorageObject.READ_TO_END, decompressing.knownLength());
+        assertEquals(compressed.length, decompressing.delegateKnownLength());
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try (InputStream stream = decompressing.newStream()) {
+            drainParallelRead(new LineFormatReader(requested), stream, decompressing, breaker, executor, parallelism);
+            assertEquals(compressed.length, StreamingParallelParsingCoordinator.streamingFillHint(decompressing));
+            assertThat(breaker.peakUsed(), Matchers.greaterThan(0L));
+            assertThat(breaker.peakUsed(), Matchers.lessThanOrEqualTo((long) compressed.length * (parallelism + 1)));
+            assertThat(breaker.peakUsed(), Matchers.lessThan((long) requested));
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Unknown object length keeps the format fill size (NDJSON 4 MiB). Regression against clamping
+     * every streaming read to the payload that happens to fit in the first chunk.
+     */
+    public void testUnknownLengthKeepsMinimumSegmentSize() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] payload = repeatingLines(5 * 1024);
+        StorageObject object = new KnownLengthBytesObject(payload, StorageObject.READ_TO_END);
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            drainParallelRead(new LineFormatReader(requested), new ByteArrayInputStream(payload), object, breaker, executor, parallelism);
+            assertEquals(StorageObject.READ_TO_END, StreamingParallelParsingCoordinator.streamingFillHint(object));
+            assertEquals(requested, breaker.peakUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -2030,6 +2106,60 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             ExternalReadCounters.NOOP,
             null
         );
+    }
+
+    private static void drainParallelRead(
+        SegmentableFormatReader reader,
+        InputStream stream,
+        StorageObject storageObject,
+        CircuitBreaker breaker,
+        Executor executor,
+        int parallelism
+    ) throws IOException {
+        try (
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                storageObject,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
+            )
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+    }
+
+    private static byte[] repeatingLines(int minBytes) {
+        StringBuilder sb = new StringBuilder(minBytes + 16);
+        int i = 0;
+        while (sb.length() < minBytes) {
+            sb.append("line-").append(i++).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] gzipBytes(byte[] input) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            gz.write(input);
+        }
+        return baos.toByteArray();
     }
 
     /**
@@ -3273,6 +3403,81 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static final class PeakTrackingBreaker extends LimitedBreaker {
+        private final AtomicLong peak = new AtomicLong();
+
+        PeakTrackingBreaker() {
+            super("streaming-fill", ByteSizeValue.ofMb(64));
+        }
+
+        long peakUsed() {
+            return peak.get();
+        }
+
+        private void recordPeak() {
+            peak.updateAndGet(p -> Math.max(p, getUsed()));
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+            recordPeak();
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            super.addWithoutBreaking(bytes);
+            recordPeak();
+        }
+    }
+
+    private static final class KnownLengthBytesObject extends AbstractTestStorageObject {
+        private final byte[] data;
+        private final long knownLength;
+        private final StoragePath path = StoragePath.of("mem://fill-hint");
+
+        KnownLengthBytesObject(byte[] data, long knownLength) {
+            this.data = data;
+            this.knownLength = knownLength;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int len = length == StorageObject.READ_TO_END ? data.length - (int) position : (int) length;
+            return new ByteArrayInputStream(data, (int) position, len);
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public long knownLength() {
+            return knownLength;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
     }
 
     /** Path + mtime only — bytes come from the decompressed stream, not this object. */

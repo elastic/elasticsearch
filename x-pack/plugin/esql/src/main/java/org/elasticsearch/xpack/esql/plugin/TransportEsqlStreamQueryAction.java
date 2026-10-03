@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -213,10 +214,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, request.allowPartialResults()),
-            EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
-        );
+        EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
@@ -409,6 +407,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         executionInfo.isPartial(),
                         warnings,
                         result.completionInfo(),
+                        footerClusters(executionInfo),
                         null,
                         profile
                     )
@@ -428,6 +427,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             executionInfo.isPartial(),
                             footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY),
                             null,
+                            footerClusters(executionInfo),
                             ex,
                             null
                         )
@@ -436,6 +436,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 listener.onFailure(ex);
             })
         );
+    }
+
+    static ToXContent footerClusters(EsqlExecutionInfo executionInfo) {
+        if (executionInfo.hasMetadataToReport() == false) {
+            return null;
+        }
+        return ChunkedToXContent.wrapAsToXContent(executionInfo);
     }
 
     private static Exception startStream(

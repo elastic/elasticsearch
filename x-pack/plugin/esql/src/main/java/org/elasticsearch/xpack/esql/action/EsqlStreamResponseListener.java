@@ -46,10 +46,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * <ul>
  *   <li>First line: {@code {"columns":[...]}}</li>
  *   <li>One line per page: {@code {"values":[[...],...]}}
- *   <li>Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...}}
- *       optionally followed by a {@code "profile"} object when {@code profile: true} was set.</li>
+ *   <li>Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...,"_clusters":{...}}}
+ *       ({@code _clusters} is omitted unless there is CCS metadata to report), optionally followed by a
+ *       {@code "profile"} object when {@code profile: true} was set.</li>
  *   <li>Last line (failure after header): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
- *       "error":{"type":"...","reason":"..."}}}</li>
+ *       "_clusters":{...},"error":{"type":"...","reason":"..."}}}</li>
  *   <li>On pre-header error: same terminal-record shape with an error HTTP status code on the response line itself.</li>
  * </ul>
  *
@@ -140,6 +141,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 false,
                 List.of(),
                 null,
+                null,
                 e,
                 null
             );
@@ -214,6 +216,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         0L,
                         false,
                         List.of(),
+                        null,
                         null,
                         e,
                         null
@@ -525,6 +528,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                             b.field("bytes_read", ci.bytesRead());
                             b.field("read_nanos", ci.readNanos());
                             b.field("cpu_nanos", ci.cpuNanos());
+                        }
+                        if (footer.clusters() != null) {
+                            b.field("_clusters");
+                            footer.clusters().toXContent(b, p);
                         }
                         if (footer.error() != null) {
                             b.startObject("error");

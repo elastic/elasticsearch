@@ -230,6 +230,15 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         return true;
     }
 
+    static boolean shardIsAllocatedOnNode(String localNodeId, IndexShardRoutingTable indexShardRoutingTable) {
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            if (localNodeId.equals(indexShardRoutingTable.shard(copy).currentNodeId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void deleteShardIfExistElseWhere(
         ClusterName clusterName,
         DiscoveryNodes nodes,
@@ -320,18 +329,6 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                 return;
             }
 
-            ClusterState latestClusterState = clusterService.state();
-            if (clusterStateVersion != latestClusterState.getVersion()) {
-                logger.trace(
-                    "not deleting shard {}, the latest cluster state version[{}] is not equal to cluster state "
-                        + "before shard active api call [{}]",
-                    shardId,
-                    latestClusterState.getVersion(),
-                    clusterStateVersion
-                );
-                return;
-            }
-
             deleteShardStoreOnApplierThread(shardId, clusterStateVersion, IndexRemovalReason.NO_LONGER_ASSIGNED);
         }
     }
@@ -340,14 +337,18 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         clusterService.getClusterApplierService()
             .runOnApplierThread("indices_store ([" + shardId + "] active fully on other nodes)", Priority.HIGH, currentState -> {
                 if (clusterStateVersion != currentState.getVersion()) {
-                    logger.trace(
-                        "not deleting shard {}, the update task state version[{}] is not equal to cluster state before "
-                            + "shard active api call [{}]",
-                        shardId,
-                        currentState.getVersion(),
-                        clusterStateVersion
-                    );
-                    return;
+                    String localNodeId = currentState.nodes().getLocalNodeId();
+                    IndexRoutingTable indexRouting = currentState.routingTable().index(shardId.getIndex());
+                    IndexShardRoutingTable currentShardRouting = indexRouting == null
+                        ? null
+                        : indexRouting.shard(shardId.id());
+                    if (currentShardRouting != null && shardIsAllocatedOnNode(localNodeId, currentShardRouting)) {
+                        logger.trace(
+                            "not deleting shard {}, shard has been re-allocated to this node",
+                            shardId
+                        );
+                        return;
+                    }
                 }
                 try {
                     indicesService.deleteShardStore("no longer used", shardId, currentState, indexRemovalReason);

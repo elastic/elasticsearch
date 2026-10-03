@@ -144,13 +144,13 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       wrapped in place rather than carved out. See {@link AstKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
- *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes
- *       through with type {@code flattened}, while csv-spec expected results declare the column
- *       as {@code keyword}. These tests will fail with a column-type mismatch &mdash; that failure
- *       is the intended signal that those particular surfaces require an additional projection
- *       step (e.g. {@code EVAL field = field_extract(field, "v")} immediately before the
- *       projection) to fully recover keyword semantics. Synthesizing that extra projection is not
- *       yet implemented.</li>
+ *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) would
+ *       otherwise come through with type {@code flattened} while csv-spec expected results declare
+ *       it {@code keyword}. {@link AstKeywordFieldRewriter#appendTopLevelTailRecovery} recovers
+ *       those columns by appending {@code EVAL field = field_extract(field, "v")} plus an
+ *       order-restoring {@code KEEP}, so a direct projection is no longer a column-type mismatch.
+ *       What tail recovery cannot repair is anything a command already observed mid-pipeline: a
+ *       warning naming the field, for instance, still reflects the {@code flattened} type.</li>
  * </ul>
  */
 public class CsvFlattenedKeywordIT extends CsvIT {

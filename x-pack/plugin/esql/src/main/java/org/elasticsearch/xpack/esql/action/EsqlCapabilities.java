@@ -4107,6 +4107,11 @@ public class EsqlCapabilities {
         PARTITIONING_AGGREGATIONS(),
 
         /**
+         * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
+         */
+        FILLNULL(Build.current().isSnapshot()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of

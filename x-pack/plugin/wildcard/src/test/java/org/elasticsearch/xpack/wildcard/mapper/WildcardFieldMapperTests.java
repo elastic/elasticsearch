@@ -59,6 +59,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -319,6 +320,19 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     // Test long query strings don't cause exceptions
+    /** With a request breaker in the context, the pattern is built step by step on it before any approximation is made. */
+    public void testRegexpQueryIsChargedToTheBreaker() {
+        // A mock context, because the field type reads only the breaker from it before the pattern trips.
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        when(context.getCircuitBreaker()).thenReturn(breaker);
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> wildcardFieldType.fieldType().regexpQuery("x?{500}{2}", RegExp.ALL, 0, 20000, null, context)
+        );
+        assertEquals(0L, breaker.getUsed());
+    }
+
     public void testTooBigQueryField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);

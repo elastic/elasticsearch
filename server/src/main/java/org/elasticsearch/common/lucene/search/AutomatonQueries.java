@@ -21,8 +21,8 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
-import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -112,19 +112,35 @@ public class AutomatonQueries {
     /**
      * Build a deterministic automaton from a regular expression, using the circuit breaker to avoid running
      * out of memory on huge patterns. Two steps can use a lot of heap and are each guarded:
-     * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions
+     * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions and is reserved
+     *   step by step by {@link CircuitBreakingRegExp}
      * - Determinizing it into a DFA ({@link CircuitBreakingOperations#determinize}), which accounts for the DFA as it grows.
      * If either step would exceed the breaker's budget the query is rejected with a {@code CircuitBreakingException}.
+     * If {@code circuitBreaker} is {@code null}, both steps run without accounting.
      */
     public static Automaton toRegexpAutomaton(
         Term term,
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
-        return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+        if (circuitBreaker == null) {
+            return Operations.determinize(nfa, maxDeterminizedStates);
+        }
+        return determinizeHoldingNfa(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+    }
+
+    /** Determinizes {@code nfa} with the DFA charged as it grows, holding the NFA itself on the breaker until it is done. */
+    private static Automaton determinizeHoldingNfa(Automaton nfa, int maxDeterminizedStates, CircuitBreaker circuitBreaker, String label) {
+        long held = nfa.ramBytesUsed();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(held, label);
+        try {
+            return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, label);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-held, label);
+        }
     }
 
     /**
@@ -146,12 +162,7 @@ public class AutomatonQueries {
             return new ByteRunAutomaton(Operations.determinize(nfa, maxDeterminizedStates));
         }
 
-        Automaton dfa = CircuitBreakingOperations.determinize(
-            nfa,
-            maxDeterminizedStates,
-            circuitBreaker,
-            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
-        );
+        Automaton dfa = determinizeHoldingNfa(nfa, maxDeterminizedStates, circuitBreaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
         circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         try {
@@ -162,9 +173,9 @@ public class AutomatonQueries {
     }
 
     /**
-     * Parse {@code pattern} into an NFA via {@link RegExp#toAutomaton()}, reserving a slight over-estimate of
-     * the build's peak heap on {@code circuitBreaker} beforehand and releasing it once the NFA is built. When
-     * {@code circuitBreaker} is {@code null} the NFA is built without accounting.
+     * Parse {@code pattern} into an NFA, with each step of the build reserved on {@code circuitBreaker} while it runs and
+     * bounded by {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT}. When {@code circuitBreaker} is {@code null} the NFA is
+     * built by {@link RegExp#toAutomaton()} without accounting.
      */
     private static Automaton buildRegexpNfa(
         String pattern,
@@ -173,17 +184,13 @@ public class AutomatonQueries {
         @Nullable CircuitBreaker circuitBreaker,
         String field
     ) {
-        RegExp re = new RegExp(pattern, syntaxFlags, matchFlags);
         if (circuitBreaker == null) {
-            return re.toAutomaton();
+            return new RegExp(pattern, syntaxFlags, matchFlags).toAutomaton();
         }
-        final long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-        try {
-            return re.toAutomaton();
-        } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-        }
+        return new CircuitBreakingRegExp(pattern, syntaxFlags, matchFlags).toAutomaton(
+            circuitBreaker,
+            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+        );
     }
 
     /**

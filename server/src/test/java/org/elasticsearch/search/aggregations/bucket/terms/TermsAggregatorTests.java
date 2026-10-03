@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
@@ -143,6 +144,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -597,6 +599,56 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             }
         }
         return doc;
+    }
+
+    /**
+     * The include/exclude regex is bounded by {@code index.max_regex_length}, like the regexp query, so a client cannot hand
+     * the data node a pattern large enough to overflow the stack in Lucene's regex compiler.
+     */
+    public void testIncludeExcludeRegexLengthLimit() throws Exception {
+        MappedFieldType ft = new KeywordFieldMapper.KeywordFieldType("field", randomBoolean(), true, Collections.emptyMap());
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocument(doc(ft, "val000"));
+        int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+        String tooLong = "a".repeat(maxRegexLength + 1);
+        String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+
+        for (IncludeExclude includeExclude : List.of(
+            new IncludeExclude(tooLong, null, null, null),
+            new IncludeExclude(null, tooLong, null, null)
+        )) {
+            AggregationBuilder builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
+                .includeExclude(includeExclude)
+                .field("field");
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> testCase(buildIndex, (StringTerms result) -> fail("the regex must be rejected"), new AggTestConfig(builder, ft))
+            );
+            assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
+            assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+            assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+        }
+    }
+
+    /**
+     * An unmapped field builds no filter, so the pattern is validated before the aggregator is built: a malformed or
+     * over-long include/exclude must not be accepted silently with an empty result, as it was rejected at request parse
+     * before compilation moved to the shard.
+     */
+    public void testIncludeExcludeRegexValidatedOnUnmappedField() throws Exception {
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocument(new Document());
+        String tooLong = "a".repeat(IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY) + 1);
+        for (IncludeExclude includeExclude : List.of(
+            new IncludeExclude("[", null, null, null),
+            new IncludeExclude(null, tooLong, null, null)
+        )) {
+            AggregationBuilder builder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                .includeExclude(includeExclude)
+                .field("unmapped");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> testCase(buildIndex, (StringTerms result) -> fail("the regex must be rejected"), new AggTestConfig(builder))
+            );
+        }
     }
 
     public void testStringIncludeExclude() throws Exception {

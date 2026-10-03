@@ -1,0 +1,148 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ aggregation_include_exclude_regex_charged ]
+      reason: "include/exclude regex is compiled on the shard through the charged compiler since 9.6"
+
+  - do:
+      indices.create:
+        index: test_terms
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              str:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_terms
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { str: apple }
+          - { index: { _id: "2" } }
+          - { str: apricot }
+          - { index: { _id: "3" } }
+          - { str: application }
+          - { index: { _id: "4" } }
+          - { str: banana }
+          - { index: { _id: "5" } }
+          - { str: berry }
+
+---
+"include and exclude together keep terms that match include but not exclude":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                include: "a.*"
+                exclude: "app.*"
+  - length: { aggregations.terms_agg.buckets: 1 }
+  - match: { aggregations.terms_agg.buckets.0.key: apricot }
+
+---
+"include with an intersection keeps terms that match both sides":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                # starts with a AND ends with e
+                include: "a.*&.*e"
+  - length: { aggregations.terms_agg.buckets: 1 }
+  - match: { aggregations.terms_agg.buckets.0.key: apple }
+
+---
+"include with an intersection and complement excludes the complemented language":
+  # The '~' complement operator is compiled the same way whether the request was parsed
+  # locally or deserialized on a data node; before, the two used different flags.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                # starts with a AND does not end with e
+                include: "a.*&~(.*e)"
+                order: { _key: asc }
+  - length: { aggregations.terms_agg.buckets: 2 }
+  - match: { aggregations.terms_agg.buckets.0.key: application }
+  - match: { aggregations.terms_agg.buckets.1.key: apricot }
+
+---
+"include with a negated character class":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                # first character is not 'b'
+                include: "[^b].*"
+                order: { _key: asc }
+  - length: { aggregations.terms_agg.buckets: 3 }
+  - match: { aggregations.terms_agg.buckets.0.key: apple }
+  - match: { aggregations.terms_agg.buckets.1.key: application }
+  - match: { aggregations.terms_agg.buckets.2.key: apricot }
+
+---
+"a short pattern whose automaton is too large to build is a client error":
+  # Eight characters, but linking the optional copies takes more work than the build limit allows.
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                include: "x{0,20000}"
+  - match:
+      error.root_cause.0.reason: "/.*too.complex.to.determinize.*/"
+
+---
+"an include and exclude whose product is too large to build is a client error":
+  # A broad include combined with a large 'contains one of these' exclude; the combined automaton
+  # outgrows the build limit before it finishes, so it is refused rather than built.
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: str
+                include: ".{0,400}"
+                exclude: ".*(qmdki|asnmw|quahb|ulcxj|kqjbo|idscv|xvbjx|qmiws|hmvdn|pazys|uxsys|wadot|mnmxs|nyjtj|wozqk|kmjha|qmjmx|iirja|oahjs|zobzf|cofob|plkgx|cnvsq|ppaxr|tfbbn|fcvhw|sfdsr|yymdy|newpf|xeooq|duqtl|gdvlb|mjwby|rldow|tfnrr|ttjzf|empsa|weesp|usklb|bhxji|himaa|itqzr|lpzcn|rrbkn|ovjvw|fxjoy|bnjpj|aiyve|tishk|ammhc|sjeax|slyqv|pkrxw|owrhi|ulzuv|tiaes|apmxt|inwbm|xzgmp|emesj|diowh|smjfa|wmgho|eucuk|qleds|nygtf|hwpbc|etoum|vdbsh|ccffa|jajwd|pxruq|nwjsy|hburv|cignv|uhyex|mzxav|zqbwb|shwfr|njfmm|jwhvf|jxmss|ombba|jxrjj|dapgn|zbjfn|okfae|wcboo|cjdwj|mtymk|vpomh|puifz|saqvf|mxcrw|dkwjd|jxynh|wblgw|otihb|lfyua|uhkrf|zonde|ywzcv|sjfcl|obyiu|vyzdf|hpdvm|uzgqz|raned|ipqaa|ajzlm|dcrkv|udbqs|brqfi|lknlo|lvkgw|mwens|cyhfh|dboea|swvhf|fpbqg).*"
+  - match:
+      error.root_cause.0.reason: "/.*too.complex.to.determinize.*/"

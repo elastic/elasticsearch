@@ -376,6 +376,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
                 return Translatable.NO;
             }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
+                // Binary-DV string equality/inequality rewrites to Lucene scans over the binary column
+                // Binary DV cannot distinguish the empty string from null (both encoded as a
+                // zero-length BytesRef), so pushing `field == ""` or `field != ""` to Lucene
+                // would match null-valued documents and produce wrong results.
+                if ((this instanceof Equals || this instanceof NotEquals)
+                    && left() instanceof FieldAttribute fa
+                    && pushdownPredicates.usesBinaryDocValues(fa)
+                    && isEmptyStringLiteral(right())) {
+                    return Translatable.NO;
+                }
                 return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
@@ -459,6 +469,11 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     @Override
     public Expression singleValueField() {
         return left();
+    }
+
+    /** True when {@code e} is a folded string/keyword literal with zero length. */
+    private static boolean isEmptyStringLiteral(Expression e) {
+        return e instanceof Literal lit && lit.value() instanceof BytesRef br && br.length == 0;
     }
 
     private Query translate(TranslatorHandler handler) {

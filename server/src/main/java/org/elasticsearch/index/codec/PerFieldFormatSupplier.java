@@ -90,6 +90,7 @@ public class PerFieldFormatSupplier {
 
     private final MapperService mapperService;
     private final ThreadPool threadPool;
+    private final SegmentStatsCollectors segmentStatsCollectors;
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
@@ -99,9 +100,19 @@ public class PerFieldFormatSupplier {
     private final DocValuesFormat idRandomAccessDocValuesFormat;
     private final DocValuesFormat stringColumnarDocValuesFormat;
 
-    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        this(mapperService, bigArrays, threadPool, SegmentStatsCollectors.NONE);
+    }
+
+    @SuppressWarnings("this-escape")
+    public PerFieldFormatSupplier(
+        MapperService mapperService,
+        BigArrays bigArrays,
+        @Nullable ThreadPool threadPool,
+        SegmentStatsCollectors segmentStatsCollectors
+    ) {
         this.mapperService = mapperService;
+        this.segmentStatsCollectors = segmentStatsCollectors;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
@@ -259,6 +270,14 @@ public class PerFieldFormatSupplier {
         }
 
         return docValuesFormat;
+    }
+
+    /**
+     * Returns the registered {@link SegmentStatsCollectors} that {@link SegmentStatsCollector#appliesTo apply} to the index's
+     * current mapping. Without a mapper service no collector applies.
+     */
+    public SegmentStatsCollectors getSegmentStatsCollectors() {
+        return segmentStatsCollectors.applicableTo(mapperService);
     }
 
     /**

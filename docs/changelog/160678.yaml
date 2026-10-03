@@ -1,0 +1,7 @@
+area: "Vector Search"
+issues:
+ - 160120
+pr: 160678
+summary: Reject `auto_calibrate` on `bbq_disk` fields for indices created before 9.5
+  instead of silently ignoring it
+type: bug

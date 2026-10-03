@@ -105,6 +105,11 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     /**
      * Builds the ES|QL expression that implements this PromQL function call.
+     * <p>
+     * The builder returns an {@link Expression}: a value expression for scalar/aggregate/value-transformation
+     * functions, or an {@code Order} (possibly {@code null} when unordered) for the order-statistic reductions
+     * ({@code topk}, {@code bottomk}, {@code limitk}), consumed by the translator. Functions lowered to plan nodes
+     * instead ({@code limit_ratio}) are translated directly and their builders throw.
      *
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
      * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)

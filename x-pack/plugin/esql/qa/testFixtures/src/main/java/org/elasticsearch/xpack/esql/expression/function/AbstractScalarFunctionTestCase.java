@@ -112,7 +112,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         TimeSeriesWithout.class,
 
         // Explicitly null-tolerant evaluator: @Evaluator(allNullsIsNull = false).
-        FilterUnsupportedTemporality.class
+        FilterUnsupportedTemporality.class,
+
+        // Sampling offset is always defined: null keys hash like any other identity.
+        org.elasticsearch.xpack.esql.expression.promql.function.HashOffset.class
     );
 
     /**

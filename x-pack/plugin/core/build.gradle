@@ -17,6 +17,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.benchmark'
 
 base {
   archivesName = 'x-pack-core'
@@ -43,6 +44,9 @@ configurations {
 }
 
 dependencies {
+  benchmarkImplementation project(':server')
+  benchmarkTestImplementation sourceSets.main.output
+
   api project(':libs:grok')
   api project(":libs:ssl-config")
 

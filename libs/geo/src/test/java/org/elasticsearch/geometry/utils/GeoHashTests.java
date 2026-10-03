@@ -104,6 +104,12 @@ public class GeoHashTests extends ESTestCase {
 
         ex = expectThrows(IllegalArgumentException.class, () -> Geohash.mortonEncode(""));
         assertEquals("empty geohash", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> Geohash.longEncode("55.5"));
+        assertEquals("unsupported symbol [.] in geohash [55.5]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> Geohash.longEncode(""));
+        assertEquals("empty geohash", ex.getMessage());
     }
 
     public void testNeighbors() {

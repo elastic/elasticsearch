@@ -468,6 +468,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         Driver.start(
                             threadPool.getThreadContext(),
                             threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+                            threadPool.generic(),
                             driver,
                             between(1, 10000),
                             driverListener

@@ -8,23 +8,28 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A Driver be put to sleep while its sink is full or its source is empty or be rescheduled after running several iterations.
- * This scheduler tracks the delayed and scheduled tasks, allowing them to run without waking up the driver or waiting for
- * the thread pool to pick up the task. This enables fast cancellation or early finishing without discarding the current result.
+ * This scheduler tracks the delayed and scheduled tasks, allowing a sleeping driver to be woken up without waiting for its
+ * sink or source. This enables fast cancellation or early finishing without discarding the current result.
+ * <p>
+ * Cancellation and early finishing are triggered from arbitrary threads, including transport workers handling a task ban.
+ * Running the driver there would close its operators, which can release Lucene readers and block the transport worker. The
+ * driver's own executor is no good either: it is bounded and shared with long-running drivers, so a cancelled driver would
+ * wait in its queue while holding shard references and memory. Once completing, the driver is therefore resumed on a separate
+ * completion executor, taking over a task that is still waiting in the driver's queue.
  */
 final class DriverScheduler {
     private final AtomicReference<Runnable> delayedTask = new AtomicReference<>();
     private final AtomicReference<AbstractRunnable> scheduledTask = new AtomicReference<>();
     private final AtomicBoolean completing = new AtomicBoolean();
+    private volatile Executor completionExecutor;
 
     void addOrRunDelayedTask(Runnable task) {
         delayedTask.set(task);
@@ -37,11 +42,18 @@ final class DriverScheduler {
         }
     }
 
-    void scheduleOrRunTask(Executor executor, AbstractRunnable task) {
+    void scheduleOrRunTask(Executor executor, Executor completionExecutor, AbstractRunnable task) {
+        this.completionExecutor = completionExecutor;
         final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
-        final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
-        executorToUse.execute(new AbstractRunnable() {
+        if (completing.get()) {
+            // Whoever clears the slot owns the task; runPendingTasks may be taking it over concurrently.
+            if (scheduledTask.getAndSet(null) == task) {
+                runOnCompletionExecutor(task);
+            }
+            return;
+        }
+        executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 assert e instanceof EsRejectedExecutionException : new AssertionError(e);
@@ -60,13 +72,37 @@ final class DriverScheduler {
         });
     }
 
+    /**
+     * Wakes up a sleeping driver so it can observe cancellation or early finishing, and takes over a task that is still waiting
+     * in the driver's executor. Either way the driver is resumed on the completion executor, never on the calling thread.
+     * The entry left in the driver's executor becomes a no-op.
+     */
     void runPendingTasks() {
         completing.set(true);
-        for (var taskHolder : List.of(scheduledTask, delayedTask)) {
-            final Runnable task = taskHolder.getAndSet(null);
-            if (task != null) {
+        final AbstractRunnable scheduled = scheduledTask.getAndSet(null);
+        if (scheduled != null) {
+            runOnCompletionExecutor(scheduled);
+        }
+        final Runnable task = delayedTask.getAndSet(null);
+        if (task != null) {
+            task.run();
+        }
+    }
+
+    private void runOnCompletionExecutor(AbstractRunnable task) {
+        completionExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                assert e instanceof EsRejectedExecutionException : new AssertionError(e);
+                // Only a shut-down executor rejects the task. Let the driver finish here rather than leave it unclosed.
+                // A node stops its transport before its thread pools, so the calling thread is not a transport worker.
                 task.run();
             }
-        }
+
+            @Override
+            protected void doRun() {
+                task.run();
+            }
+        });
     }
 }

@@ -52,8 +52,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
@@ -410,23 +413,30 @@ public class DriverTests extends ESTestCase {
             CountDownLatch driverCompleted = new CountDownLatch(1);
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putHeader("user", "user1");
-                Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), ActionListener.running(() -> {
-                    try {
-                        assertRunningWithRegularUser(threadPool);
-                        assertThat(outPages, equalTo(inPages));
-                        Map<String, Set<String>> actualResponseHeaders = new HashMap<>();
-                        for (Map.Entry<String, List<String>> e : threadPool.getThreadContext().getResponseHeaders().entrySet()) {
-                            actualResponseHeaders.put(e.getKey(), Sets.newHashSet(e.getValue()));
+                Driver.start(
+                    threadContext,
+                    threadPool.executor("esql"),
+                    threadPool.generic(),
+                    driver,
+                    between(1, 1000),
+                    ActionListener.running(() -> {
+                        try {
+                            assertRunningWithRegularUser(threadPool);
+                            assertThat(outPages, equalTo(inPages));
+                            Map<String, Set<String>> actualResponseHeaders = new HashMap<>();
+                            for (Map.Entry<String, List<String>> e : threadPool.getThreadContext().getResponseHeaders().entrySet()) {
+                                actualResponseHeaders.put(e.getKey(), Sets.newHashSet(e.getValue()));
+                            }
+                            Map<String, Set<String>> expectedResponseHeaders = new HashMap<>(warning1.warnings);
+                            for (Map.Entry<String, Set<String>> e : warning2.warnings.entrySet()) {
+                                expectedResponseHeaders.merge(e.getKey(), e.getValue(), Sets::union);
+                            }
+                            assertThat(actualResponseHeaders, equalTo(expectedResponseHeaders));
+                        } finally {
+                            driverCompleted.countDown();
                         }
-                        Map<String, Set<String>> expectedResponseHeaders = new HashMap<>(warning1.warnings);
-                        for (Map.Entry<String, Set<String>> e : warning2.warnings.entrySet()) {
-                            expectedResponseHeaders.merge(e.getKey(), e.getValue(), Sets::union);
-                        }
-                        assertThat(actualResponseHeaders, equalTo(expectedResponseHeaders));
-                    } finally {
-                        driverCompleted.countDown();
-                    }
-                }));
+                    })
+                );
             }
             allPagesProcessed.await(30, TimeUnit.SECONDS);
             // race with the Driver to notify the listener
@@ -482,7 +492,7 @@ public class DriverTests extends ESTestCase {
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
-            Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), future);
+            Driver.start(threadContext, threadPool.executor("esql"), threadPool.generic(), driver, between(1, 1000), future);
             future.actionGet(30, TimeUnit.SECONDS);
             assertThat(processedRows.get(), equalTo(maxAllowedRows));
         } finally {
@@ -500,7 +510,14 @@ public class DriverTests extends ESTestCase {
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
             Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(), sinkOperator);
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            Driver.start(
+                threadPool.getThreadContext(),
+                threadPool.executor("esql"),
+                threadPool.generic(),
+                driver,
+                between(1, 1000),
+                future
+            );
             assertBusy(
                 () -> assertThat(
                     driver.status().status(),
@@ -513,6 +530,122 @@ public class DriverTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /**
+     * Cancelling a waiting driver must resume it on the completion executor, not on the cancelling thread. Task bans run
+     * cancellation on a transport worker, and closing operators can release Lucene readers, which can block for seconds.
+     */
+    public void testCancelClosesOperatorsOnDriverExecutor() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            BlockedDriver blocked = startBlockedDriver(driverContext, threadPool);
+            blocked.driver.cancel("test cancel");
+            expectThrows(TaskCancelledException.class, () -> blocked.future.actionGet(10, TimeUnit.SECONDS));
+            assertThat(EsExecutors.executorName(blocked.closeThread.get()), equalTo(ThreadPool.Names.GENERIC));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Finishing the exchange sink early must resume a waiting driver on the completion executor, not on the thread that finished
+     * the sink. A failed exchange request finishes the sink from its cancellation listener on a transport worker.
+     */
+    public void testEarlyFinishClosesOperatorsOnDriverExecutor() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            BlockedDriver blocked = startBlockedDriver(driverContext, threadPool);
+            blocked.sinkHandler.fetchPageAsync(true, ActionListener.noop());
+            blocked.future.actionGet(10, TimeUnit.SECONDS);
+            assertThat(EsExecutors.executorName(blocked.closeThread.get()), equalTo(ThreadPool.Names.GENERIC));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Cancelling a driver must not wait behind other work in the driver's executor. Cancellation used to be moved onto the
+     * driver pool, where it could queue for a long time behind long-running drivers, delaying the release of resources.
+     */
+    public void testCancelDoesNotWaitForSaturatedDriverExecutor() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            BlockedDriver blocked = startBlockedDriver(driverContext, threadPool);
+            ThreadPoolExecutor esql = (ThreadPoolExecutor) threadPool.executor("esql");
+            for (int i = 0; i < esql.getMaximumPoolSize(); i++) {
+                esql.execute(() -> safeAwait(release));
+            }
+            assertBusy(() -> assertThat(esql.getActiveCount(), equalTo(esql.getMaximumPoolSize())));
+            blocked.driver.cancel("test cancel");
+            expectThrows(TaskCancelledException.class, () -> blocked.future.actionGet(10, TimeUnit.SECONDS));
+            assertThat(EsExecutors.executorName(blocked.closeThread.get()), equalTo(ThreadPool.Names.GENERIC));
+        } finally {
+            release.countDown();
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * The completion executor must differ from the driver executor, otherwise a full driver queue would reject the completion
+     * task and the driver would be closed on the cancelling thread.
+     */
+    public void testCompletionExecutorMustDifferFromDriverExecutor() {
+        ThreadPool threadPool = threadPool();
+        try {
+            Executor esql = threadPool.executor("esql");
+            Driver driver = TestDriverFactory.create(
+                driverContext(),
+                new CannedSourceOperator(List.<Page>of().iterator()),
+                List.of(),
+                new PageConsumerOperator(page -> {})
+            );
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Driver.start(threadPool.getThreadContext(), esql, esql, driver, 1, ActionListener.noop())
+            );
+            assertThat(e.getMessage(), equalTo("the completion executor must differ from the driver executor"));
+            driver.close();
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    private record BlockedDriver(
+        Driver driver,
+        ExchangeSinkHandler sinkHandler,
+        PlainActionFuture<Void> future,
+        AtomicReference<Thread> closeThread
+    ) {}
+
+    /**
+     * Starts a driver on the {@code esql} executor that waits on an exchange source that never receives pages.
+     */
+    private BlockedDriver startBlockedDriver(DriverContext driverContext, ThreadPool threadPool) throws Exception {
+        var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"));
+        var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
+        var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
+        var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
+        AtomicReference<Thread> closeThread = new AtomicReference<>();
+        Operator closeRecorder = new PassThroughOperator() {
+            @Override
+            public void close() {
+                closeThread.set(Thread.currentThread());
+                super.close();
+            }
+        };
+        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(closeRecorder), sinkOperator);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), threadPool.generic(), driver, between(1, 1000), future);
+        assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
+        // The status turns ASYNC before the driver registers its wake-up task, so also wait for the driver thread to go idle.
+        // Otherwise a cancellation could land in between and the driver would observe it on its own thread.
+        assertBusy(() -> assertThat(((ThreadPoolExecutor) threadPool.executor("esql")).getActiveCount(), equalTo(0)));
+        return new BlockedDriver(driver, sinkHandler, future, closeThread);
     }
 
     private static void assertRunningWithRegularUser(ThreadPool threadPool) {

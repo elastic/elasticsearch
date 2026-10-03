@@ -26,6 +26,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -53,6 +54,11 @@ public class Driver implements Releasable, Describable {
 
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
+
+    /**
+     * Closing operators can release Lucene readers, which can block for seconds and stall every channel of a transport worker.
+     */
+    private static final String CLOSE_ON_TRANSPORT_THREAD = "closing driver operators can block while releasing Lucene readers";
     /**
      * Minimum time between updating status.
      */
@@ -411,6 +417,7 @@ public class Driver implements Releasable, Describable {
                         // report one last time before closing
                         sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
                     }
+                    assert Transports.assertNotTransportThread(CLOSE_ON_TRANSPORT_THREAD);
                     op.close();
                     finishedOperators.remove();
                 }
@@ -442,13 +449,26 @@ public class Driver implements Releasable, Describable {
         }
     }
 
+    /**
+     * Starts the driver on {@code executor}.
+     *
+     * @param completionExecutor where a cancelled or early-finished driver is resumed to close its operators. Cancellation can
+     *                           arrive on a transport worker, and closing operators can block while releasing Lucene readers,
+     *                           so the driver must not run on the calling thread. This executor must differ from
+     *                           {@code executor}: that one is bounded and shared with other drivers, so a cancelled driver would
+     *                           wait in its queue, or be rejected by it and run on the cancelling thread.
+     */
     public static void start(
         ThreadContext threadContext,
         Executor executor,
+        Executor completionExecutor,
         Driver driver,
         int maxIterations,
         ActionListener<Void> listener
     ) {
+        if (executor == completionExecutor) {
+            throw new IllegalArgumentException("the completion executor must differ from the driver executor");
+        }
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             LongSupplier currentTimeNanosSupplier = System::nanoTime;
@@ -459,6 +479,7 @@ public class Driver implements Releasable, Describable {
                 maxIterations,
                 threadContext,
                 executor,
+                completionExecutor,
                 driver,
                 driver.completionListener,
                 currentTimeNanosSupplier
@@ -518,6 +539,7 @@ public class Driver implements Releasable, Describable {
     }
 
     protected void drainAndCloseOperators(@Nullable Exception e) {
+        assert activeOperators.isEmpty() || Transports.assertNotTransportThread(CLOSE_ON_TRANSPORT_THREAD);
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
@@ -538,6 +560,7 @@ public class Driver implements Releasable, Describable {
         int maxIterations,
         ThreadContext threadContext,
         Executor executor,
+        Executor completionExecutor,
         Driver driver,
         ActionListener<Void> listener,
         LongSupplier currentTimeNanosSupplier
@@ -551,10 +574,28 @@ public class Driver implements Releasable, Describable {
                     return;
                 }
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier);
+                    schedule(
+                        maxTime,
+                        maxIterations,
+                        threadContext,
+                        executor,
+                        completionExecutor,
+                        driver,
+                        listener,
+                        currentTimeNanosSupplier
+                    );
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier),
+                        ignored -> schedule(
+                            maxTime,
+                            maxIterations,
+                            threadContext,
+                            executor,
+                            completionExecutor,
+                            driver,
+                            listener,
+                            currentTimeNanosSupplier
+                        ),
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
@@ -573,7 +614,7 @@ public class Driver implements Releasable, Describable {
             }
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
-        driver.scheduler.scheduleOrRunTask(executor, task);
+        driver.scheduler.scheduleOrRunTask(executor, completionExecutor, task);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

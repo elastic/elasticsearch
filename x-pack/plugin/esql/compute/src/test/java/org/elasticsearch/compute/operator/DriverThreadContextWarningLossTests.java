@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -89,7 +90,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadContext) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadContext, twoThreadHoppingExecutor, driver, 1, driverListener);
+                    Driver.start(threadContext, twoThreadHoppingExecutor, EsExecutors.DIRECT_EXECUTOR_SERVICE, driver, 1, driverListener);
                 }
             };
 
@@ -163,7 +164,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadContext) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadContext, threeThreadHoppingExecutor, driver, 1, driverListener);
+                    Driver.start(threadContext, threeThreadHoppingExecutor, EsExecutors.DIRECT_EXECUTOR_SERVICE, driver, 1, driverListener);
                 }
             };
 

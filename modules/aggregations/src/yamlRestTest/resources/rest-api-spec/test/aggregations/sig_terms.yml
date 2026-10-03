@@ -533,3 +533,40 @@
         index: test_alias
         body: {"aggs": {"sig_terms": {"significant_terms": {"field": "field1"}}}}
   - match: { aggregations.sig_terms.bg_count: 2 }
+
+---
+"Floating point field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ significant_terms_floating_point_bad_request ]
+      test_runner_features: capabilities
+      reason: "significant_terms on floating point fields returned 500 instead of 400"
+
+  - do:
+      indices.create:
+        index: float_index
+        body:
+          mappings:
+            properties:
+              number:
+                type: double
+
+  - do:
+      index:
+        index: float_index
+        id: "1"
+        body: { "number": 1.5 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      search:
+        index: float_index
+        body: { "size": 0, "aggs": { "sig_number": { "significant_terms": { "field": "number" } } } }
+
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "/does.not.support.floating.point.values/" }

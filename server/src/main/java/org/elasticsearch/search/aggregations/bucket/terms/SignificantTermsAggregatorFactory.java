@@ -177,7 +177,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
             if (numericValuesSource.isFloatingPoint()) {
-                throw new UnsupportedOperationException("No support for examining floating point numerics");
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] of type ["
+                        + SignificantTermsAggregationBuilder.NAME
+                        + "] does not support floating point values from "
+                        + valuesSourceConfig.getDescription()
+                );
             }
 
             IncludeExclude.LongFilter longFilter = null;

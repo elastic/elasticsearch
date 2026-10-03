@@ -140,7 +140,7 @@ public class TemplateUtils {
     /**
      * Replaces all occurrences of given variable with the value
      */
-    static String replaceVariable(String input, String variable, String value) {
+    public static String replaceVariable(String input, String variable, String value) {
         return input.replace("${" + variable + "}", value);
     }
 

@@ -1,0 +1,51 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.bwc-test'
+
+dependencies {
+    testImplementation project(':test:framework')
+    testImplementation project(':server')
+    testImplementation project(xpackModule('stack'))
+    testImplementation project(xpackModule('core'))
+    testImplementation project(xpackModule('mapper-constant-keyword'))
+}
+
+// Compute the repo-relative path to the template-resources module's sources once.
+def templateResourcesDir = rootProject.projectDir.toPath()
+    .relativize(project(':x-pack:plugin:core:template-resources').file('src/main/resources').toPath())
+    .toString()
+
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+    def info = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
+    if (info == null || info.gradleProjectPath() == ':distribution') {
+        // Released version or current version: no BWC source checkout available
+        return
+    }
+
+    def safeBaseName = baseName.replace('.', '_').replace('#', '_')
+    def checkoutConfigName = "bwcCheckout_${safeBaseName}"
+    configurations.create(checkoutConfigName) {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+    dependencies {
+        add(checkoutConfigName, project(path: info.gradleProjectPath, configuration: 'checkout'))
+    }
+
+    tasks.register(bwcTaskName(bwcVersion), Test) {
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        dependsOn configurations."${checkoutConfigName}"
+        systemProperty 'tests.bwc.checkoutDir',
+            project(info.gradleProjectPath).layout.buildDirectory
+                .dir("bwc/checkout-${info.branch}").get().asFile.absolutePath
+        systemProperty 'tests.bwc.version', bwcVersion.toString()
+        systemProperty 'tests.bwc.templateResourcesDir', templateResourcesDir
+    }
+}

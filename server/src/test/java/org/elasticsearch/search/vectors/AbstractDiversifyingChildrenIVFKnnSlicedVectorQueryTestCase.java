@@ -12,6 +12,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -32,6 +33,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -73,8 +75,10 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
 
     abstract V randomDenseQueryVector(int dim);
 
+    /** Adds the encoded slice key (the index sort field) and the numeric slice hash that sliced search prunes on. */
     protected static void addRoutingSlice(Document doc, BytesRef sliceId) {
-        doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, sliceId));
+        doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, SliceIndexing.encodeSliceKey(sliceId)));
+        doc.add(SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(sliceId)));
     }
 
     protected static SortField routingSliceSortField() {

@@ -27,6 +27,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
@@ -47,6 +48,7 @@ import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
@@ -424,10 +426,12 @@ public class KnnIndexer {
     public static class PartitionDocumentFactory implements DocumentFactory {
         private final String[] docPartitionIds;
         private final int[] docOrdinals;
+        private final boolean sliced;
 
-        public PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals) {
+        public PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals, boolean sliced) {
             this.docPartitionIds = docPartitionIds;
             this.docOrdinals = docOrdinals;
+            this.sliced = sliced;
         }
 
         @Override
@@ -435,7 +439,14 @@ public class KnnIndexer {
             Document doc = new Document();
             doc.add(vectorField);
             doc.add(new StringField(ID_FIELD, Integer.toString(docOrdinals[docOrd]), Field.Store.YES));
-            doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
+            final String partitionId = docPartitionIds[docOrd];
+            doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(partitionId)));
+            if (sliced) {
+                doc.add(SortedDocValuesField.indexedField(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(partitionId)));
+                doc.add(
+                    SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(partitionId))
+                );
+            }
             return doc;
         }
     }

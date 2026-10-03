@@ -1,0 +1,6 @@
+pr: 131833
+summary: "ESQL: Remove redundant `TopN`"
+area: ES|QL
+type: enhancement
+issues:
+  - 131233

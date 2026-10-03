@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -68,7 +67,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -592,8 +590,6 @@ public class Verifier {
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
                             + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof ViewUnionAll ? "ViewUnionAll"
-                            : p instanceof NamedSubquery ? "NamedSubquery"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
                     )
@@ -620,8 +616,9 @@ public class Verifier {
             || plan instanceof LookupJoin
             || plan instanceof Enrich
             || plan instanceof Fork
-            || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
-            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            // UnionAll includes ViewUnionAll; Subquery includes NamedSubquery.
+            || plan instanceof UnionAll
+            || plan instanceof Subquery
             || plan instanceof AbstractSubqueryJoin;
     }
 

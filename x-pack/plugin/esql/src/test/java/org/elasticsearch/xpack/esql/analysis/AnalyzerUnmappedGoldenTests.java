@@ -1439,21 +1439,23 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """);
     }
 
-    // Branching view (expands to ViewUnionAll, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
-    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
+    // Branching view (ViewUnionAll). does_not_exist is an outer reference: employees loads it from _source, and the languages
+    // KEEP cannot surface it, so that branch null-fills it. language_code is mapped integer on languages: LOAD null-fills it on
+    // employees, LOAD_ALL loads it from _source and casts to integer.
     public void testViewBranchingLoadsUnmappedField() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
     }
 
-    // Branching view (ViewUnionAll): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
-    // loaded into that branch's source and null-filled in the employees branch (Decision A), mirroring the subquery case.
+    // does_not_exist is referenced inside the languages KEEP: LOAD null-fills it on employees, LOAD_ALL loads it there from _source.
+    // language_code is mapped integer on languages, so LOAD_ALL also loads and casts it on employees. The languages KEEP drops the
+    // employees columns, so those stay null.
     public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        runInNullifyAndLoadModes("""
+        runInNullifyLoadAndLoadAllModes("""
             FROM emp_lang_view
             | KEEP emp_no, language_code, does_not_exist
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));

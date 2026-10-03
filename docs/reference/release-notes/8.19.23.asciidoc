@@ -1,0 +1,59 @@
+[[release-notes-8.19.23]]
+== {es} version 8.19.23
+
+coming[8.19.23]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.23]]
+[float]
+=== Bug fixes
+
+ES|QL::
+* Circuitbreak Base64 and `MvConcat/Zip` {es-pull}159659[#159659]
+* Fix NPE when folding regex {es-pull}158768[#158768] (issue: {es-issue}158748[#158748])
+* Fix `isPartial` flag handling {es-pull}157475[#157475] (issue: {es-issue}157440[#157440])
+* Fix nested fields conflicting with object fields {es-pull}158573[#158573] (issue: {es-issue}154011[#154011])
+* Warn on GROK typed conversion failure {es-pull}160574[#160574] (issue: {es-issue}160564[#160564])
+
+Extract&Transform::
+* Limit the connector description length {es-pull}159638[#159638]
+
+Geo::
+* Bound geometry nesting depth at construction {es-pull}160004[#160004]
+* Fix H3 great-circle latitude correction edge selection {es-pull}160228[#160228] (issue: {es-issue}159682[#159682])
+
+Infra/Core::
+* Skip unrelated files when scanning config dir for log4j2.properties {es-pull}150016[#150016]
+
+Machine Learning::
+* Auto-stop datafeed after consecutive extraction failures {es-pull}159554[#159554] (issue: {es-issue}158426[#158426])
+
+Search::
+* Improve consistency checks for PIT ids {es-pull}160179[#160179]
+* Release late shard results after a phase failure {es-pull}160439[#160439] (issue: {es-issue}160321[#160321])
+
+Security::
+* Consistency improvements for shard-level requests {es-pull}159691[#159691]
+
+Templates::
+* Reduce memory usage when serializing when retrieving component and composable templates via the GET APIs- {es-pull}158175[#158175]
+
+[[enhancement-8.19.23]]
+[float]
+=== Enhancements
+
+Authorization::
+* [XM Cyber] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}160185[#160185]
+
+[[upgrade-8.19.23]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade Jackson to 2.21.7 {es-pull}160501[#160501]
+
+Network::
+* Netty upgrade 4.1.138.Final {es-pull}159561[#159561]
+
+

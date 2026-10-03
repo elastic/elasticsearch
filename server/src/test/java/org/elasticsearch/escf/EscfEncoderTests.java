@@ -264,15 +264,15 @@ public class EscfEncoderTests extends ESTestCase {
      * Encodes {@code sources} into a single-partition batch via a {@link MockPageCacheRecycler}-backed
      * encoder so the batch's column buffers are leak-tracked. Mirrors {@link EscfEncoder#encode} but with
      * a recycling encoder; the encoder is closed here (its builders were already consumed by
-     * {@link EscfEncoder#buildPartition}), and the returned batch owns and releases the pages when closed.
+     * {@link EscfEncoder#build()}), and the returned batch owns and releases the pages when closed.
      */
     private static EscfBatch encode(List<BytesReference> sources) throws IOException {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, XContentType.JSON, 0);
+                encoder.addDocument(source, XContentType.JSON);
             }
-            return encoder.buildPartition(0);
+            return encoder.build();
         }
     }
 

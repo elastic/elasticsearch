@@ -444,7 +444,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     /**
      * A data-point group whose attribute list contains a duplicate key must be rejected by
      * {@link OTLPMetricsTransportAction#isEscfEligible}. Without this check, the duplicate would
-     * reach {@code EscfRowBuffer} as an {@code IllegalArgumentException} and surface as a 500.
+     * reach {@code EscfBatchBuilder} as an {@code IllegalArgumentException} and surface as a 500.
      */
     public void testIsEscfEligibleFalseForDuplicateDataPointAttributeKey() throws Exception {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()

@@ -49,9 +49,9 @@ public class BulkShardBatchWireSerializingTests extends AbstractWireSerializingT
         }
         try (EscfEncoder encoder = new EscfEncoder()) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, XContentType.JSON, 0);
+                encoder.addDocument(source, XContentType.JSON);
             }
-            SourceBatch batch = encoder.buildPartition(0);
+            SourceBatch batch = encoder.build();
             return new BulkShardBatch(batch);
         } catch (IOException e) {
             throw new AssertionError(e);

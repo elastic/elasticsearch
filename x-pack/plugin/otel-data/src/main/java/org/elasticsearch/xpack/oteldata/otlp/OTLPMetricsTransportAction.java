@@ -239,7 +239,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             if (MetricColumnarBuilder.hasNonScalarAttributes(group.scope().getAttributesList())) {
                 return false;
             }
-            // OTel attribute lists allow duplicate keys; EscfRowBuffer rejects them. Detect here to
+            // OTel attribute lists allow duplicate keys; EscfBatchBuilder rejects them. Detect here to
             // avoid a mid-batch IllegalArgumentException that would propagate as a 500.
             if (hasDuplicateAttributeKeys(group.dataPointAttributes())
                 || hasDuplicateAttributeKeys(group.resource().getAttributesList())
@@ -269,7 +269,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         List<DataPointGroupingContext.DataPointGroup> groups,
         String target
     ) throws IOException {
-        // Collect (rowIndex -> IndexRequest) during the build pass, then attach source rows after buildPartition.
+        // Collect (rowIndex -> IndexRequest) during the build pass, then attach source rows after build().
         Map<Integer, IndexRequest> rowRequests = new LinkedHashMap<>(groups.size());
         try (EscfBatchBuilder batchBuilder = new EscfBatchBuilder(bytesRefRecycler)) {
             for (DataPointGroupingContext.DataPointGroup group : groups) {
@@ -283,7 +283,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                         "ESCF pre-flight check passed but buildMetricRow returned false for target [" + target + "]"
                     );
                 }
-                int rowIndex = batchBuilder.commit(0);
+                int rowIndex = batchBuilder.finishRow();
 
                 Instant tsTimestamp = DataStream.getCanonicalTimestampBound(
                     Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(group.getTimestampUnixNano()))
@@ -294,15 +294,13 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     .setDynamicTemplates(dynamicTemplates)
                     .setDynamicTemplateParams(dynamicTemplateParams)
                     .setTimeSeriesTimestamp(tsTimestamp);
-                // Source row will be attached after buildPartition below.
+                // Source row will be attached after build() below.
                 rowRequests.put(rowIndex, indexRequest);
                 bulkRequestBuilder.add(indexRequest);
             }
 
-            // Partition 0 is the only partition: EscfBatchBuilder supports multiple keyed partitions
-            // for producers that pre-split rows by shard, but we keep all rows in one flat batch and
-            // let BatchModeRouter / EscfBatchScatterer handle shard scatter downstream.
-            EscfBatch batch = batchBuilder.buildPartition(0);
+            // All rows are kept in one flat batch; BatchModeRouter / EscfBatchScatterer handle shard scatter downstream.
+            EscfBatch batch = batchBuilder.build();
 
             // Guard against coordinator heap exhaustion on large fan-out OTLP exports (resource/scope
             // attributes copied into every row mean the batch can be significantly larger than the
@@ -329,7 +327,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // ForIndexDimensions.indexShard(requests, batch), which calls ColumnarTsidCalculator to
             // derive _tsid column-major (no pre-set tsid required on the IndexRequests).
             // Ownership of the batch transfers to the bulk request here. EscfBatchBuilder.close() only
-            // releases *unbuilt* partitions (buildPartition nulls the slot), so closing the builder
+            // EscfBatchBuilder.close() only releases unbuilt column buffers; closing the builder
             // below does NOT close or invalidate the batch; that is the caller's (router's) responsibility.
             bulkRequestBuilder.setPreBuiltBatches(Map.of(target, batch));
         }

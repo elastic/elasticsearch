@@ -20,12 +20,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -122,8 +120,8 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     /**
      * Multi-row batch: exercises the SIMD string buffer lifetime constraint — each document's
      * {@code reset()} overwrites the buffer, so strings must be copied into the column builder
-     * (via {@code commitScratchTo}) before the next {@code reset()}. The caller does parse +
-     * commit per document, so this is safe, but a regression would corrupt later rows.
+     * Since each document's {@code addDocument()} call finalises the row immediately (no separate
+     * commit step), this is safe, but a regression that defers the copy would corrupt later rows.
      */
     public void testMultiRowBatchStringLifetime() throws IOException {
         assertSameOutputAllSourceShapes("""
@@ -266,37 +264,6 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
-     * {@link LeafSink} with {@code passRawText() == true}: the direct walker passes raw JSON text
-     * for numbers and booleans to the sink. Output must still match Jackson.
-     */
-    public void testPassRawTextSinkHandledByDirectWalker() throws IOException {
-        String json = "{\"k\":\"v\",\"n\":99}";
-
-        LeafSink rawTextSink = new LeafSink() {
-            @Override
-            public boolean passRawText() {
-                return true;
-            }
-
-            @Override
-            public void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {}
-        };
-
-        for (SourceShape shape : SourceShape.values()) {
-            BytesReference source = wrapSource(json, shape);
-            Recycler<BytesRef> recycler = newRecycler();
-            try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true)) {
-                simdEncoder.parseToScratch(source, XContentType.JSON, rawTextSink);
-                simdEncoder.commitScratchTo(0);
-                try (EscfBatch batch = simdEncoder.buildPartition(0)) {
-                    Map<String, Object> actual = reconstruct(batch, 0);
-                    assertEquals("source shape " + shape, asMap(json), actual);
-                }
-            }
-        }
-    }
-
-    /**
      * SIMD explicitly disabled via {@code allowSimd=false} — the encoder uses Jackson only.
      * Verifies the allowSimd flag is respected and output is still correct.
      */
@@ -306,8 +273,8 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         Recycler<BytesRef> recycler = newRecycler();
 
         try (EscfEncoder jacksonOnly = new EscfEncoder(recycler, false)) {
-            jacksonOnly.addDocument(source, XContentType.JSON, 0);
-            try (EscfBatch batch = jacksonOnly.buildPartition(0)) {
+            jacksonOnly.addDocument(source, XContentType.JSON);
+            try (EscfBatch batch = jacksonOnly.build()) {
                 assertEquals(asMap(json), reconstruct(batch, 0));
             }
         }
@@ -324,8 +291,8 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         Recycler<BytesRef> recycler = newRecycler();
 
         try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
-            encoder.addDocument(source, XContentType.JSON, 0);
-            try (EscfBatch batch = encoder.buildPartition(0)) {
+            encoder.addDocument(source, XContentType.JSON);
+            try (EscfBatch batch = encoder.build()) {
                 assertEquals(asMap(json), reconstruct(batch, 0));
             }
         }
@@ -342,12 +309,12 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
         expectThrows(Exception.class, () -> {
             try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true)) {
-                simdEncoder.addDocument(source, XContentType.JSON, 0);
+                simdEncoder.addDocument(source, XContentType.JSON);
             }
         });
         expectThrows(Exception.class, () -> {
             try (EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
-                jacksonEncoder.addDocument(source, XContentType.JSON, 0);
+                jacksonEncoder.addDocument(source, XContentType.JSON);
             }
         });
     }
@@ -370,19 +337,23 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
         Recycler<BytesRef> recycler = newRecycler();
         try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true); EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
-            simdEncoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
-            jacksonEncoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
-            try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
-                assertEquals("depth fallback row mismatch", reconstruct(jacksonBatch, 0), reconstruct(simdBatch, 0));
+            int simdRow = simdEncoder.addDocument(new BytesArray(json), XContentType.JSON);
+            int jacksonRow = jacksonEncoder.addDocument(new BytesArray(json), XContentType.JSON);
+            try (EscfBatch simdBatch = simdEncoder.build(); EscfBatch jacksonBatch = jacksonEncoder.build()) {
+                // simdBatch may contain an extra orphan row from the failed SIMD attempt; compare
+                // only the real rows returned by addDocument.
+                assertEquals("depth fallback row mismatch", reconstruct(jacksonBatch, jacksonRow), reconstruct(simdBatch, simdRow));
             }
         }
     }
 
     /**
      * When the direct walker calls {@code beginRow()} and throws mid-document (before
-     * {@code finishRow()}), {@link EscfEncoder#parseToScratch} falls back to Jackson, which
-     * calls {@code beginRow()} again to discard the partial scratch row. Only the completed
-     * Jackson row is committed — not the abandoned SIMD staging.
+     * {@code finishRow()}), {@link EscfEncoder#addDocument} calls {@code abortRow()} to seal the
+     * partial row as an orphan, then falls back to Jackson which produces the correct row.
+     * The batch contains both the orphan row (row 0) and the completed Jackson row (row 1).
+     * The returned row index points to the Jackson row; the orphan flows to the discard partition
+     * at scatter time and is not surfaced to callers.
      */
     public void testSimdFailureAfterBeginRowResetsRowBeforeJacksonFallback() throws IOException {
         // Root scalars are written by SIMD before maxDepth is exceeded inside "deep".
@@ -390,11 +361,12 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
         Recycler<BytesRef> recycler = newRecycler();
         try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
-            encoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
-            assertEquals(1, encoder.docCount(0));
-            try (EscfBatch batch = encoder.buildPartition(0)) {
-                assertEquals(1, batch.docCount());
-                assertEquals(asMap(json), reconstruct(batch, 0));
+            int rowIdx = encoder.addDocument(new BytesArray(json), XContentType.JSON);
+            // orphan row 0 (SIMD partial) + real row 1 (Jackson fallback)
+            assertEquals(2, encoder.docCount());
+            try (EscfBatch batch = encoder.build()) {
+                assertEquals(2, batch.docCount());
+                assertEquals(asMap(json), reconstruct(batch, rowIdx));
             }
         }
     }
@@ -415,10 +387,10 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         Recycler<BytesRef> recycler = newRecycler();
         try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true); EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
             for (BytesReference source : sources) {
-                simdEncoder.addDocument(source, XContentType.JSON, 0);
-                jacksonEncoder.addDocument(source, XContentType.JSON, 0);
+                simdEncoder.addDocument(source, XContentType.JSON);
+                jacksonEncoder.addDocument(source, XContentType.JSON);
             }
-            try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
+            try (EscfBatch simdBatch = simdEncoder.build(); EscfBatch jacksonBatch = jacksonEncoder.build()) {
                 assertEquals(jacksonBatch.docCount(), simdBatch.docCount());
                 for (int i = 0; i < jacksonBatch.docCount(); i++) {
                     assertEquals("row " + i + " mismatch", reconstruct(jacksonBatch, i), reconstruct(simdBatch, i));
@@ -626,7 +598,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
-     * Duplicate field names are rejected by {@link EscfRowBuffer} regardless of parser; SIMD must
+     * Duplicate field names are rejected by {@link EscfBatchBuilder} regardless of parser; SIMD must
      * fail the same way as Jackson (including after SIMD fallback).
      */
     public void testDuplicateKeysRejected() throws IOException {
@@ -637,14 +609,14 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
             IllegalArgumentException simdEx = expectThrows(IllegalArgumentException.class, () -> {
                 try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
-                    encoder.addDocument(source, XContentType.JSON, 0);
+                    encoder.addDocument(source, XContentType.JSON);
                 }
             });
             assertEquals("source shape " + shape, "Duplicate field [a]", simdEx.getMessage());
 
             IllegalArgumentException jacksonEx = expectThrows(IllegalArgumentException.class, () -> {
                 try (EscfEncoder encoder = new EscfEncoder(recycler, false)) {
-                    encoder.addDocument(source, XContentType.JSON, 0);
+                    encoder.addDocument(source, XContentType.JSON);
                 }
             });
             assertEquals("source shape " + shape, "Duplicate field [a]", jacksonEx.getMessage());
@@ -653,7 +625,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
     /**
      * Duplicate keys inside an object nested in an array are written into the KEY_VALUE blob,
-     * bypassing {@link EscfRowBuffer}'s duplicate-leaf rejection at the root. Both parser paths
+     * bypassing {@link EscfBatchBuilder}'s duplicate-leaf rejection at the root. Both parser paths
      * retain multiple entries for the same key.
      */
     public void testDuplicateKeysInsideArrayObjectKvBlobAreRetained() throws IOException {
@@ -663,92 +635,6 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
         assertEquals(List.of("a", "a"), simdKeys);
         assertEquals(simdKeys, jacksonKeys);
-    }
-
-    /**
-     * Root-level array leaves must fire onArrayLeaf once on both parser paths.
-     */
-    public void testArrayLeafSinkFiresOnce() throws IOException {
-        String json = "{\"tags\":[\"a\",\"b\"]}";
-        for (boolean allowSimd : new boolean[] { true, false }) {
-            for (SourceShape shape : SourceShape.values()) {
-                BytesReference source = wrapSource(json, shape);
-                Recycler<BytesRef> recycler = newRecycler();
-                java.util.concurrent.atomic.AtomicInteger arrayEvents = new java.util.concurrent.atomic.AtomicInteger();
-
-                LeafSink sink = new LeafSink() {
-                    @Override
-                    public boolean passRawText() {
-                        return false;
-                    }
-
-                    @Override
-                    public void onArrayLeaf(int columnIndex, String dottedPath) {
-                        assertEquals("tags", dottedPath);
-                        arrayEvents.incrementAndGet();
-                    }
-                };
-
-                try (EscfEncoder encoder = new EscfEncoder(recycler, allowSimd)) {
-                    encoder.parseToScratch(source, XContentType.JSON, sink);
-                    encoder.commitScratchTo(0);
-                    try (EscfBatch batch = encoder.buildPartition(0)) {
-                        assertEquals(1, batch.docCount());
-                    }
-                }
-                assertEquals("allowSimd=" + allowSimd + " shape=" + shape, 1, arrayEvents.get());
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // rawTextMode: sink receives raw text for primitive values
-    // -----------------------------------------------------------------------
-
-    /**
-     * With rawTextMode enabled, the direct walker should pass raw JSON text bytes
-     * to the sink for numbers and booleans, and the round-trip output should still match.
-     */
-    public void testRawTextModeCaptures() throws IOException {
-        String json = "{\"n\":42,\"d\":3.14,\"t\":true,\"f\":false,\"s\":\"hello\"}";
-
-        for (SourceShape shape : SourceShape.values()) {
-            BytesReference source = wrapSource(json, shape);
-            Recycler<BytesRef> recycler = newRecycler();
-
-            List<String> capturedPaths = new ArrayList<>();
-            List<String> capturedTexts = new ArrayList<>();
-
-            LeafSink captureSink = new LeafSink() {
-                @Override
-                public boolean passRawText() {
-                    return true;
-                }
-
-                @Override
-                public void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {
-                    capturedPaths.add(dottedPath);
-                    capturedTexts.add(new String(textBytes.bytes(), textBytes.offset(), textBytes.length(), StandardCharsets.UTF_8));
-                }
-            };
-
-            try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
-                encoder.parseToScratch(source, XContentType.JSON, captureSink);
-                encoder.commitScratchTo(0);
-                try (EscfBatch batch = encoder.buildPartition(0)) {
-                    Map<String, Object> actual = reconstruct(batch, 0);
-                    assertEquals("source shape " + shape, asMap(json), actual);
-                }
-            }
-
-            assertTrue("source shape " + shape + " sink should have received callbacks", capturedPaths.size() >= 5);
-            assertTrue("source shape " + shape + " sink should capture 'n'", capturedPaths.contains("n"));
-            assertTrue("source shape " + shape + " sink should capture 't'", capturedPaths.contains("t"));
-            int nIdx = capturedPaths.indexOf("n");
-            assertEquals("source shape " + shape, "42", capturedTexts.get(nIdx));
-            int tIdx = capturedPaths.indexOf("t");
-            assertEquals("source shape " + shape, "true", capturedTexts.get(tIdx));
-        }
     }
 
     // -----------------------------------------------------------------------
@@ -1123,22 +1009,27 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
     /**
      * Encodes {@code sources} through both the SIMD-enabled and the Jackson-only encoder and
-     * asserts that every row's decoded source map is identical.
+     * asserts that every row's decoded source map is identical. Row indices are taken from the
+     * values returned by {@link EscfEncoder#addDocument} so that orphan rows left by SIMD parse
+     * failures (which go to the discard partition at scatter time) are skipped.
      */
     private static void compareSimdAndJackson(List<BytesReference> sources) throws IOException {
         Recycler<BytesRef> recycler = newRecycler();
 
         try (var simdEncoder = new EscfEncoder(recycler, true); var jacksonEncoder = new EscfEncoder(recycler, false)) {
-            for (BytesReference source : sources) {
-                simdEncoder.addDocument(source, XContentType.JSON, 0);
-                jacksonEncoder.addDocument(source, XContentType.JSON, 0);
+            int[] simdRows = new int[sources.size()];
+            int[] jacksonRows = new int[sources.size()];
+            for (int i = 0; i < sources.size(); i++) {
+                simdRows[i] = simdEncoder.addDocument(sources.get(i), XContentType.JSON);
+                jacksonRows[i] = jacksonEncoder.addDocument(sources.get(i), XContentType.JSON);
             }
 
-            try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
-                assertEquals("doc count mismatch", jacksonBatch.docCount(), simdBatch.docCount());
-                for (int i = 0; i < jacksonBatch.docCount(); i++) {
-                    Map<String, Object> simdRow = reconstruct(simdBatch, i);
-                    Map<String, Object> jacksonRow = reconstruct(jacksonBatch, i);
+            try (EscfBatch simdBatch = simdEncoder.build(); EscfBatch jacksonBatch = jacksonEncoder.build()) {
+                // Do not compare total docCount — simdBatch may contain extra orphan rows left by
+                // SIMD parse failures. Compare only the real rows identified by their row indices.
+                for (int i = 0; i < sources.size(); i++) {
+                    Map<String, Object> simdRow = reconstruct(simdBatch, simdRows[i]);
+                    Map<String, Object> jacksonRow = reconstruct(jacksonBatch, jacksonRows[i]);
                     assertEquals("row " + i + " mismatch", jacksonRow, simdRow);
                 }
             }
@@ -1163,8 +1054,8 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     private static List<String> readItemsObjectKeys(String json, boolean allowSimd) throws IOException {
         Recycler<BytesRef> recycler = newRecycler();
         try (EscfEncoder encoder = new EscfEncoder(recycler, allowSimd)) {
-            encoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
-            try (EscfBatch batch = encoder.buildPartition(0)) {
+            encoder.addDocument(new BytesArray(json), XContentType.JSON);
+            try (EscfBatch batch = encoder.build()) {
                 int itemsCol = findColumn(batch, "items");
                 ArrayReader array = batch.row(0).getArrayValue(itemsCol);
                 assertTrue(array.next());

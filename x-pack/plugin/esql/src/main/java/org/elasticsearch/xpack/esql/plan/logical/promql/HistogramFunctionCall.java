@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.exclude;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.promoted;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.rest;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.subtract;
@@ -92,7 +93,15 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
         // bucket bound off the `le` column itself, so the child must also expose it by name.
         List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-        TranslationConstraint childRequired = union(union(subtract(context.required(), le), rest(le)), promoted(le));
+        TranslationConstraint childRequired;
+        if (context.supportsTimeSeriesUnset()) {
+            // One _timeseries per node: the child carries its series' whole _timeseries, and `le` is unset from it below,
+            // where the buckets merge.
+            childRequired = union(union(exclude(context.required(), le), rest()), promoted(le));
+        } else {
+            // The child delivers the _timeseries already excluding `le`, one _timeseries per exclusion set.
+            childRequired = union(union(subtract(context.required(), le), rest(le)), promoted(le));
+        }
         IntermediateResult result = context.withRequired(childRequired).translate(child());
         if (result.kind().constant) {
             return result;
@@ -123,7 +132,14 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         }
 
         // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-        TranslationConstraint requirement = context.regroupWithout(deliveredRequirement(result.plan(), result.step(), result.value()), le);
+        TranslationConstraint delivered = deliveredRequirement(result.plan(), result.step(), result.value());
+        TranslationConstraint requirement;
+        if (context.supportsTimeSeriesUnset()) {
+            requirement = context.regroupUnset(delivered, le);
+            result = context.unsetLabels(result, le);
+        } else {
+            requirement = context.regroupWithout(delivered, le);
+        }
         Expression count = new ToDouble(source(), result.value());
         return context.regroup(result, requirement, true, buildAggregateFunction(count, leColumn));
     }

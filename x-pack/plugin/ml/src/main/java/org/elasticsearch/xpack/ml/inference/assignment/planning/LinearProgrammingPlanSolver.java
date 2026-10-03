@@ -161,9 +161,12 @@ class LinearProgrammingPlanSolver {
                     .sorted(Comparator.comparingDouble(n -> descendingSizeAnyFitsNodeOrder(n, m, assignmentPlan)))
                     .toList();
                 for (Node n : orderedNodes) {
+                    // Pass the allocations already placed on this node so the sizing uses the incremental memory cost and does
+                    // not charge the fixed per-deployment overhead again when topping up a node the deployment already runs on.
                     int allocations = m.findOptimalAllocations(
                         Math.min(assignmentPlan.getRemainingCores(n) / m.threadsPerAllocation(), assignmentPlan.getRemainingAllocations(m)),
-                        assignmentPlan.getRemainingMemory(n)
+                        assignmentPlan.getRemainingMemory(n),
+                        assignmentPlan.getAssignedAllocations(m, n)
                     );
                     if (allocations > 0 && assignmentPlan.canAssign(m, n, allocations)) {
                         assignmentPlan.assignModelToNode(m, n, allocations);

@@ -681,3 +681,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.DatasetCacheIsolationIT
   method: testSchemaAndListingCacheIsolatedByEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/160916
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/36_columnar_sorting/field collapse on columnar keyword field}"
+  issue: https://github.com/elastic/elasticsearch/issues/158753

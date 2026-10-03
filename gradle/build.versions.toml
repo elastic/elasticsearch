@@ -52,5 +52,5 @@ wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
-ospackage = { id = "com.netflix.nebula.ospackage-base", version = "12.1.0" }
+ospackage = { id = "com.netflix.nebula.ospackage-base", version = "803155a812e0d1896295d6fc10830adbb390e620" }
 nmcp-aggregation = { id = "com.gradleup.nmcp.aggregation", version.ref="nmcp" }

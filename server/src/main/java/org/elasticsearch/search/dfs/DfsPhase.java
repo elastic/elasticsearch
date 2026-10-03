@@ -21,6 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.SearchPhaseExecutor;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -229,45 +230,38 @@ public class DfsPhase {
                 knnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
             }
         }
-        List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
-        final long afterQueryTime;
-        final long beforeQueryTime = System.nanoTime();
-        var opsListener = context.indexShard().getSearchOperationListener();
-        opsListener.onPreQueryPhase(context);
-
         if (timeoutRunnable != null) {
             context.searcher().addQueryCancellation(timeoutRunnable);
         }
         try {
-            for (int i = 0; i < knnSearch.size(); i++) {
-                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
-                String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+            SearchPhaseExecutor.executeQueryPhase(context.indexShard().getSearchOperationListener(), context, () -> {
+                try {
+                    List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
+                    for (int i = 0; i < knnSearch.size(); i++) {
+                        String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+                        String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
+                        Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+                        knnResults.add(
+                            singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath)
+                        );
 
-                // Re-throw so the catch block below can handle KNN timeout consistently.
-                if (context.searcher().timeExceeded()) {
-                    context.searcher().throwTimeExceededException();
+                        // Re-throw so the catch block below can handle KNN timeout consistently.
+                        if (context.searcher().timeExceeded()) {
+                            context.searcher().throwTimeExceededException();
+                        }
+                    }
+                    context.dfsResult().knnResults(knnResults);
+                } catch (ContextIndexSearcher.TimeExceededException e) {
+                    // a timeout is a partial success, so it still records as a completed query phase
+                    context.dfsResult().knnResults(List.of());
+                    handleDfsTimeout(context);
                 }
-            }
-            afterQueryTime = System.nanoTime();
-            opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
-            opsListener = null;
-        } catch (ContextIndexSearcher.TimeExceededException e) {
-            context.dfsResult().knnResults(List.of());
-            handleDfsTimeout(context);
-            opsListener.onQueryPhase(context, System.nanoTime() - beforeQueryTime);
-            opsListener = null;
-            return;
+            });
         } finally {
             if (timeoutRunnable != null) {
                 context.searcher().removeQueryCancellation(timeoutRunnable);
             }
-            if (opsListener != null) {
-                opsListener.onFailedQueryPhase(context);
-            }
         }
-        context.dfsResult().knnResults(knnResults);
     }
 
     static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)

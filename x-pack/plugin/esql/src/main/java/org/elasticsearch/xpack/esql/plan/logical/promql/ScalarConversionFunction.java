@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 
 import java.util.List;
 
@@ -61,7 +62,7 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
         IntermediateResult child = context.withRequired(TranslationConstraint.EMPTY).translate(child());
         if (child.value().foldable()) {
             Expression value = new ToDouble(source(), child.value());
-            return new IntermediateResult(child.plan(), TranslationConstraint.EMPTY, value, child.step(), child.pendingFilter());
+            return new IntermediateResult(child.plan(), value, child.step(), child.pendingFilter(), Kind.BEFORE_INITIAL_AGGREGATE);
         }
         var scalarExpr = new Scalar(source(), child.value());
         return child.kind().afterInitialAggregation

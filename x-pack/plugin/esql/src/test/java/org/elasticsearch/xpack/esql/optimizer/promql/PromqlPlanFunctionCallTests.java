@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -49,6 +50,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -414,5 +416,20 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             }
         });
         return lenient;
+    }
+
+    /**
+     * Only dimension fields are labels of a raw series: a label function reading a stored non-dimension field ({@code event}
+     * on k8s) sees it as absent, so no per-series aggregate groups by it.
+     */
+    public void testLabelFunctionsReadOnlyDimensionLabels() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        for (String query : List.of(
+            "sum by (dst) (label_replace(network.cost, \"dst\", \"$1\", \"event\", \"(.+)\"))",
+            "sum by (cluster) (label_join(network.cost, \"dst\", \"-\", \"event\", \"pod\"))"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(" + query + ")", false);
+            assertThat(query, seriesColumns(plan), not(hasItem("event")));
+        }
     }
 }

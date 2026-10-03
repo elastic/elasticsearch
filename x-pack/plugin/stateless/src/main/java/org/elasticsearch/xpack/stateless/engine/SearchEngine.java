@@ -195,7 +195,9 @@ public class SearchEngine extends Engine {
             this.searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
             directoryReader = ElasticsearchDirectoryReader.wrap(
                 new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, config.getLeafSorter()), Lucene.SOFT_DELETES_FIELD),
-                shardId
+                shardId,
+                null,
+                config.getShardMetrics().codec()
             );
             IndexCommit initialCommit = directoryReader.getIndexCommit();
             OptionalLong primaryTerm = searchDirectory.getPrimaryTerm(initialCommit.getSegmentsFileName());

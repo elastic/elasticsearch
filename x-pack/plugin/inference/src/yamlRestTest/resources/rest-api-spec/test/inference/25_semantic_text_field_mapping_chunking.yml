@@ -570,3 +570,128 @@ setup:
 
   - not_exists: chunking-update.mappings.properties.inference_field.chunking_settings
 
+---
+"Highlighting a multi-value copy_to target with none chunking":
+  - do:
+      indices.create:
+        index: none-chunking-copy-to
+        body:
+          mappings:
+            properties:
+              title:
+                type: text
+                copy_to: [ "inference_field" ]
+              subtitle:
+                type: text
+                copy_to: [ "inference_field" ]
+              tags:
+                type: keyword
+                copy_to: [ "inference_field" ]
+              category:
+                type: keyword
+                copy_to: [ "inference_field" ]
+              summary:
+                type: text
+                copy_to: [ "inference_field" ]
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                chunking_settings:
+                  strategy: none
+  - do:
+      index:
+        index: none-chunking-copy-to
+        id: doc_1
+        body:
+          title: "A title"
+          subtitle: "A subtitle"
+          tags: [ "tag-one", "tag-two" ]
+          category: "cat"
+          summary: "A short summary"
+          inference_field: [ "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+  - do:
+      search:
+        index: none-chunking-copy-to
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "What is Elasticsearch?"
+          highlight:
+            fields:
+              inference_field:
+                type: "semantic"
+                number_of_fragments: 10
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0.highlight.inference_field: 8 }
+  - match: { hits.hits.0.highlight.inference_field.0: "cat" }
+  - match: { hits.hits.0.highlight.inference_field.1: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.inference_field.2: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.inference_field.3: "A subtitle" }
+  - match: { hits.hits.0.highlight.inference_field.4: "A short summary" }
+  - match: { hits.hits.0.highlight.inference_field.5: "tag-one" }
+  - match: { hits.hits.0.highlight.inference_field.6: "tag-two" }
+  - match: { hits.hits.0.highlight.inference_field.7: "A title" }
+
+---
+"Highlighting a copy_to target with default chunking":
+  - do:
+      indices.create:
+        index: default-chunking-copy-to
+        body:
+          mappings:
+            properties:
+              title:
+                type: text
+                copy_to: [ "inference_field" ]
+              subtitle:
+                type: text
+                copy_to: [ "inference_field" ]
+              tags:
+                type: keyword
+                copy_to: [ "inference_field" ]
+              category:
+                type: keyword
+                copy_to: [ "inference_field" ]
+              summary:
+                type: text
+                copy_to: [ "inference_field" ]
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+  - do:
+      index:
+        index: default-chunking-copy-to
+        id: doc_1
+        body:
+          title: "A title"
+          subtitle: "A subtitle"
+          tags: [ "tag-one", "tag-two" ]
+          category: "cat"
+          summary: "A short summary"
+          inference_field: [ "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+  - do:
+      search:
+        index: default-chunking-copy-to
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "What is Elasticsearch?"
+          highlight:
+            fields:
+              inference_field:
+                type: "semantic"
+                number_of_fragments: 10
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0.highlight.inference_field: 8 }
+  - match: { hits.hits.0.highlight.inference_field.0: "cat" }
+  - match: { hits.hits.0.highlight.inference_field.1: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.inference_field.2: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.inference_field.3: "A subtitle" }
+  - match: { hits.hits.0.highlight.inference_field.4: "A short summary" }
+  - match: { hits.hits.0.highlight.inference_field.5: "tag-one" }
+  - match: { hits.hits.0.highlight.inference_field.6: "tag-two" }
+  - match: { hits.hits.0.highlight.inference_field.7: "A title" }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.highlight;
 
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
@@ -64,6 +65,13 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
         var sourceFieldType = searchContext.getMappingLookup().getFieldType(sourceField);
         if (sourceFieldType == null) {
             throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
+        }
+
+        // Offsets are computed at ingest against the values at exactly this _source path. A _source-based fetcher also returns
+        // copy_to values in unspecified order, so read the path directly instead.
+        ValueFetcher fetcher = sourceFieldType.valueFetcher(searchContext, null);
+        if (fetcher.storedFieldsSpec().requiresSource()) {
+            return new SemanticFieldContent(hitContext.source().extractValue(sourceField, null));
         }
 
         List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);

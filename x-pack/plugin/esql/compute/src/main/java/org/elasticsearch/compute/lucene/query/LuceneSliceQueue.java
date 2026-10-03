@@ -435,8 +435,15 @@ public final class LuceneSliceQueue {
          * together so that each slice carries at least {@link #MIN_DOCS_PER_SLICE} docs (or its
          * fair share, {@code totalDocs / taskConcurrency}, whichever is larger). The total slice
          * count is capped at {@code taskConcurrency}. This delegates to
-         * {@link ContextIndexSearcher#computeSlices}, which is the same algorithm the regular
+         * {@link ContextIndexSearcher#computeSlices(List, int, int, double)}, the grouping the regular
          * {@code _search} API uses — so the SEGMENT floor matches the DOC floor.
+         *
+         * <p>Unlike {@code _search} we do not apply its extra "10% of the docs per slice" floor. That floor
+         * exists to bound per-slice aggregator memory and the terms aggregation error margin, neither of which
+         * applies here (ES|QL aggregates in the compute engine, and the TopN collector is bounded by the limit).
+         * With it, a large shard could never fan out to more than ten drivers even when {@code task_concurrency}
+         * and the segment count both allow more: a 16 vCPU node with a single 23M-doc, 33-segment shard ran
+         * every {@code SORT _score} TopN on eight drivers.
          */
         SEGMENT(1) {
             @Override
@@ -450,7 +457,8 @@ public final class LuceneSliceQueue {
                 IndexSearcher.LeafSlice[] gs = ContextIndexSearcher.computeSlices(
                     searcher.getLeafContexts(),
                     Math.max(1, taskConcurrency),
-                    minDocsPerSlice
+                    minDocsPerSlice,
+                    0.0
                 );
                 return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
             }

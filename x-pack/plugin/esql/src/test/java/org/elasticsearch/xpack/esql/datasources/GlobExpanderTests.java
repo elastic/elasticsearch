@@ -15,6 +15,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
@@ -27,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -3152,6 +3157,34 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
         assertEquals(1, filtered.size());
         assertEquals("s3://b/events_2024.parquet", filtered.get(0).path().toString());
+    }
+
+    public void testFileMetadataFilterByNamePrefixRange() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/2024-03-14-23"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/2024-03-15-0"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/2024-03-15-23"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/2024-03-16-0"), 100, Instant.EPOCH)
+        );
+        var gte = hint("_file.name", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, "2024-03-15");
+        var lt = hint("_file.name", PartitionFilterHintExtractor.Operator.LESS_THAN, "2024-03-16");
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(gte, lt));
+        assertEquals(2, filtered.size());
+        assertEquals("s3://b/2024-03-15-0", filtered.get(0).path().toString());
+        assertEquals("s3://b/2024-03-15-23", filtered.get(1).path().toString());
+
+        Expression startsWith = new StartsWith(
+            Source.EMPTY,
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.NAME, DataType.KEYWORD),
+            Literal.keyword(Source.EMPTY, "2024-03-15")
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> fromStartsWith = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(startsWith),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        List<StorageEntry> fromExtractor = GlobExpander.applyFileMetadataFilters(entries, fromStartsWith);
+        assertEquals(filtered, fromExtractor);
     }
 
     public void testFileMetadataFilterIgnoresNonFileHints() {

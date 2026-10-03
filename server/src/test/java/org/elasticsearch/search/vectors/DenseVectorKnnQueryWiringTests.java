@@ -100,7 +100,6 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
                 false,
                 autoCalibrate,
                 BBQIVFIndexOptions.QuantizationType.OSQ,
-                0.5f, // projected_dims (unused for OSQ)
                 false
             ),
             Collections.emptyMap(),

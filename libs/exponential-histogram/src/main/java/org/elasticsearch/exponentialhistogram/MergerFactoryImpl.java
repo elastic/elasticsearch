@@ -80,6 +80,11 @@ public class MergerFactoryImpl implements ExponentialHistogramMerger.Factory {
         return result;
     }
 
+    @Override
+    public int bucketLimit() {
+        return bucketLimit;
+    }
+
     protected void maybeReleaseMemory() {
         if (isClosed && activeMergers == 0) {
             circuitBreaker.adjustBreaker(-BASE_SIZE);

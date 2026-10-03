@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.util.List;
@@ -43,7 +43,7 @@ public class RestGetEnrichPolicyAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetEnrichPolicyAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel)
+            new RestChunkedToXContentListener<>(channel)
         );
     }
 }

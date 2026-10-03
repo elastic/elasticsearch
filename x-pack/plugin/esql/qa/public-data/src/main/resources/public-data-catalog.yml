@@ -1,0 +1,1834 @@
+# The public-data catalog: the single machine-readable description of what the suite covers.
+# Every entry points at REAL, publicly-published objects on REAL object stores, pinned by
+# HEAD/LIST metadata only. Adding a corpus = one entry here + one public-<corpus>.csv-spec.
+# Structure is validated offline by CatalogValidator (unit tests + validatePublicDataCatalog).
+version: 1
+corpora:
+  - id: clickbench
+    title: ClickBench web analytics hits (full public corpus)
+    registry_url: https://github.com/ClickHouse/ClickBench
+    license: CC BY-NC-SA 4.0 (Yandex.Metrica sample dataset terms)
+    description: >
+      The 99,997,497-row ClickBench corpus in the public clickhouse-public-datasets bucket,
+      immutable since 2022-06-25. One logical corpus in multiple formats and layouts: the
+      format x codec x layout cross the matrix needs, at full scale, over real S3 latency.
+    kind: workload
+    scale: huge
+    quality: clean
+    workload: public-clickbench.csv-spec
+    variants:
+      # The reference variant: the exact bytes the oracle read at authoring time.
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/hits.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        tags: [reference]
+        notes: 13.76 GiB single Parquet object, SNAPPY column chunks, 105 columns.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 14779976446
+          samples:
+            - key: "hits_compatible/hits.parquet"
+              etag: "6b028bb94eecf0ff4e6cde62a0f8fa48-829"
+              size: 14779976446
+      # Same rows sharded into 100 Parquet objects: S3 listing makes UNIFORM_SHARDS a real
+      # layout for this corpus (glob + ListObjectsV2), not a blocked cell.
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: uniform_shards
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/athena_partitioned/hits_*.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        notes: 100 shards, 33-363 MB each, 13.73 GiB total; identical logical rows to the reference.
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 100
+          total_bytes: 14737666736
+          samples:
+            - key: "hits_compatible/athena_partitioned/hits_0.parquet"
+              etag: "843c108848a3929260d44588b39ec1b6-6"
+              size: 122446530
+            - key: "hits_compatible/athena_partitioned/hits_99.parquet"
+              etag: "589519c50a3277092c1ed2df16b17d30-9"
+              size: 160289383
+      # The large-compressed-text case elastic/esql-planning#1650 calls out: 15.5 GiB gzip CSV,
+      # non-seekable, headerless, re-read in full by every query. Load-bearing but trimmed: the
+      # query_subset still covers all four read shapes without re-transferring 43 x 15.5 GiB.
+      # EventTime/EventDate hold formatted date strings in this export (unlike the Parquet
+      # epoch numbers), so the subset avoids them and the declared schema types them keyword.
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/hits.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        dataset_settings:
+          header_row: false
+        query_subset: [q01_countHits, q02_countAdvEngineIdNonzero, q13_statsSearchPhraseCount, q20_filterUserid, q26_sortSearchPhraseAsc, q44_limitUseridNeedle]
+        notes: >
+          Headerless CSV export of the same rows. With header_row false the reader synthesizes
+          col0..col104 names and declared columns bind BY NAME, so every declared column carries
+          a path rename onto its positional colN (without paths, all declared columns read null
+          and warn 'not present in some source files').
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            WatchID:
+              type: long
+              path: col0
+            JavaEnable:
+              type: integer
+              path: col1
+            Title:
+              type: keyword
+              path: col2
+            GoodEvent:
+              type: integer
+              path: col3
+            EventTime:
+              type: keyword
+              path: col4
+            EventDate:
+              type: keyword
+              path: col5
+            CounterID:
+              type: integer
+              path: col6
+            ClientIP:
+              type: integer
+              path: col7
+            RegionID:
+              type: integer
+              path: col8
+            UserID:
+              type: long
+              path: col9
+            CounterClass:
+              type: integer
+              path: col10
+            OS:
+              type: integer
+              path: col11
+            UserAgent:
+              type: integer
+              path: col12
+            URL:
+              type: keyword
+              path: col13
+            Referer:
+              type: keyword
+              path: col14
+            IsRefresh:
+              type: integer
+              path: col15
+            RefererCategoryID:
+              type: integer
+              path: col16
+            RefererRegionID:
+              type: integer
+              path: col17
+            URLCategoryID:
+              type: integer
+              path: col18
+            URLRegionID:
+              type: integer
+              path: col19
+            ResolutionWidth:
+              type: integer
+              path: col20
+            ResolutionHeight:
+              type: integer
+              path: col21
+            ResolutionDepth:
+              type: integer
+              path: col22
+            FlashMajor:
+              type: integer
+              path: col23
+            FlashMinor:
+              type: integer
+              path: col24
+            FlashMinor2:
+              type: keyword
+              path: col25
+            NetMajor:
+              type: integer
+              path: col26
+            NetMinor:
+              type: integer
+              path: col27
+            UserAgentMajor:
+              type: integer
+              path: col28
+            UserAgentMinor:
+              type: keyword
+              path: col29
+            CookieEnable:
+              type: integer
+              path: col30
+            JavascriptEnable:
+              type: integer
+              path: col31
+            IsMobile:
+              type: integer
+              path: col32
+            MobilePhone:
+              type: integer
+              path: col33
+            MobilePhoneModel:
+              type: keyword
+              path: col34
+            Params:
+              type: keyword
+              path: col35
+            IPNetworkID:
+              type: integer
+              path: col36
+            TraficSourceID:
+              type: integer
+              path: col37
+            SearchEngineID:
+              type: integer
+              path: col38
+            SearchPhrase:
+              type: keyword
+              path: col39
+            AdvEngineID:
+              type: integer
+              path: col40
+            IsArtifical:
+              type: integer
+              path: col41
+            WindowClientWidth:
+              type: integer
+              path: col42
+            WindowClientHeight:
+              type: integer
+              path: col43
+            ClientTimeZone:
+              type: integer
+              path: col44
+            ClientEventTime:
+              type: keyword
+              path: col45
+            SilverlightVersion1:
+              type: integer
+              path: col46
+            SilverlightVersion2:
+              type: integer
+              path: col47
+            SilverlightVersion3:
+              type: integer
+              path: col48
+            SilverlightVersion4:
+              type: integer
+              path: col49
+            PageCharset:
+              type: keyword
+              path: col50
+            CodeVersion:
+              type: integer
+              path: col51
+            IsLink:
+              type: integer
+              path: col52
+            IsDownload:
+              type: integer
+              path: col53
+            IsNotBounce:
+              type: integer
+              path: col54
+            FUniqID:
+              type: long
+              path: col55
+            OriginalURL:
+              type: keyword
+              path: col56
+            HID:
+              type: integer
+              path: col57
+            IsOldCounter:
+              type: integer
+              path: col58
+            IsEvent:
+              type: integer
+              path: col59
+            IsParameter:
+              type: integer
+              path: col60
+            DontCountHits:
+              type: integer
+              path: col61
+            WithHash:
+              type: integer
+              path: col62
+            HitColor:
+              type: keyword
+              path: col63
+            LocalEventTime:
+              type: keyword
+              path: col64
+            Age:
+              type: integer
+              path: col65
+            Sex:
+              type: integer
+              path: col66
+            Income:
+              type: integer
+              path: col67
+            Interests:
+              type: integer
+              path: col68
+            Robotness:
+              type: integer
+              path: col69
+            RemoteIP:
+              type: integer
+              path: col70
+            WindowName:
+              type: integer
+              path: col71
+            OpenerName:
+              type: integer
+              path: col72
+            HistoryLength:
+              type: integer
+              path: col73
+            BrowserLanguage:
+              type: keyword
+              path: col74
+            BrowserCountry:
+              type: keyword
+              path: col75
+            SocialNetwork:
+              type: keyword
+              path: col76
+            SocialAction:
+              type: keyword
+              path: col77
+            HTTPError:
+              type: integer
+              path: col78
+            SendTiming:
+              type: integer
+              path: col79
+            DNSTiming:
+              type: integer
+              path: col80
+            ConnectTiming:
+              type: integer
+              path: col81
+            ResponseStartTiming:
+              type: integer
+              path: col82
+            ResponseEndTiming:
+              type: integer
+              path: col83
+            FetchTiming:
+              type: integer
+              path: col84
+            SocialSourceNetworkID:
+              type: integer
+              path: col85
+            SocialSourcePage:
+              type: keyword
+              path: col86
+            ParamPrice:
+              type: long
+              path: col87
+            ParamOrderID:
+              type: keyword
+              path: col88
+            ParamCurrency:
+              type: keyword
+              path: col89
+            ParamCurrencyID:
+              type: integer
+              path: col90
+            OpenstatServiceName:
+              type: keyword
+              path: col91
+            OpenstatCampaignID:
+              type: keyword
+              path: col92
+            OpenstatAdID:
+              type: keyword
+              path: col93
+            OpenstatSourceID:
+              type: keyword
+              path: col94
+            UTMSource:
+              type: keyword
+              path: col95
+            UTMMedium:
+              type: keyword
+              path: col96
+            UTMCampaign:
+              type: keyword
+              path: col97
+            UTMContent:
+              type: keyword
+              path: col98
+            UTMTerm:
+              type: keyword
+              path: col99
+            FromTag:
+              type: keyword
+              path: col100
+            HasGCLID:
+              type: integer
+              path: col101
+            RefererHash:
+              type: long
+              path: col102
+            URLHash:
+              type: long
+              path: col103
+            CLID:
+              type: integer
+              path: col104
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 16608960810
+          samples:
+            - key: "hits_compatible/hits.csv.gz"
+              etag: "7728690ca410a69e53450371463b6f28-931"
+              size: 16608960810
+      # The TSV twin of the gzip-CSV leg: same rows, tab dialect, headerless, non-seekable.
+      # Reuses the same positional path-bound declared schema and the same 6-query all-shapes
+      # subset; ClickHouse TSV export escapes tab/newline/backslash in values, asserted only via
+      # the subset's plain-text columns.
+      - provider: s3
+        format: tsv
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/hits.tsv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        dataset_settings:
+          header_row: false
+        query_subset: [q01_countHits, q02_countAdvEngineIdNonzero, q13_statsSearchPhraseCount, q20_filterUserid, q26_sortSearchPhraseAsc, q44_limitUseridNeedle]
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            WatchID:
+              type: long
+              path: col0
+            JavaEnable:
+              type: integer
+              path: col1
+            Title:
+              type: keyword
+              path: col2
+            GoodEvent:
+              type: integer
+              path: col3
+            EventTime:
+              type: keyword
+              path: col4
+            EventDate:
+              type: keyword
+              path: col5
+            CounterID:
+              type: integer
+              path: col6
+            ClientIP:
+              type: integer
+              path: col7
+            RegionID:
+              type: integer
+              path: col8
+            UserID:
+              type: long
+              path: col9
+            CounterClass:
+              type: integer
+              path: col10
+            OS:
+              type: integer
+              path: col11
+            UserAgent:
+              type: integer
+              path: col12
+            URL:
+              type: keyword
+              path: col13
+            Referer:
+              type: keyword
+              path: col14
+            IsRefresh:
+              type: integer
+              path: col15
+            RefererCategoryID:
+              type: integer
+              path: col16
+            RefererRegionID:
+              type: integer
+              path: col17
+            URLCategoryID:
+              type: integer
+              path: col18
+            URLRegionID:
+              type: integer
+              path: col19
+            ResolutionWidth:
+              type: integer
+              path: col20
+            ResolutionHeight:
+              type: integer
+              path: col21
+            ResolutionDepth:
+              type: integer
+              path: col22
+            FlashMajor:
+              type: integer
+              path: col23
+            FlashMinor:
+              type: integer
+              path: col24
+            FlashMinor2:
+              type: keyword
+              path: col25
+            NetMajor:
+              type: integer
+              path: col26
+            NetMinor:
+              type: integer
+              path: col27
+            UserAgentMajor:
+              type: integer
+              path: col28
+            UserAgentMinor:
+              type: keyword
+              path: col29
+            CookieEnable:
+              type: integer
+              path: col30
+            JavascriptEnable:
+              type: integer
+              path: col31
+            IsMobile:
+              type: integer
+              path: col32
+            MobilePhone:
+              type: integer
+              path: col33
+            MobilePhoneModel:
+              type: keyword
+              path: col34
+            Params:
+              type: keyword
+              path: col35
+            IPNetworkID:
+              type: integer
+              path: col36
+            TraficSourceID:
+              type: integer
+              path: col37
+            SearchEngineID:
+              type: integer
+              path: col38
+            SearchPhrase:
+              type: keyword
+              path: col39
+            AdvEngineID:
+              type: integer
+              path: col40
+            IsArtifical:
+              type: integer
+              path: col41
+            WindowClientWidth:
+              type: integer
+              path: col42
+            WindowClientHeight:
+              type: integer
+              path: col43
+            ClientTimeZone:
+              type: integer
+              path: col44
+            ClientEventTime:
+              type: keyword
+              path: col45
+            SilverlightVersion1:
+              type: integer
+              path: col46
+            SilverlightVersion2:
+              type: integer
+              path: col47
+            SilverlightVersion3:
+              type: integer
+              path: col48
+            SilverlightVersion4:
+              type: integer
+              path: col49
+            PageCharset:
+              type: keyword
+              path: col50
+            CodeVersion:
+              type: integer
+              path: col51
+            IsLink:
+              type: integer
+              path: col52
+            IsDownload:
+              type: integer
+              path: col53
+            IsNotBounce:
+              type: integer
+              path: col54
+            FUniqID:
+              type: long
+              path: col55
+            OriginalURL:
+              type: keyword
+              path: col56
+            HID:
+              type: integer
+              path: col57
+            IsOldCounter:
+              type: integer
+              path: col58
+            IsEvent:
+              type: integer
+              path: col59
+            IsParameter:
+              type: integer
+              path: col60
+            DontCountHits:
+              type: integer
+              path: col61
+            WithHash:
+              type: integer
+              path: col62
+            HitColor:
+              type: keyword
+              path: col63
+            LocalEventTime:
+              type: keyword
+              path: col64
+            Age:
+              type: integer
+              path: col65
+            Sex:
+              type: integer
+              path: col66
+            Income:
+              type: integer
+              path: col67
+            Interests:
+              type: integer
+              path: col68
+            Robotness:
+              type: integer
+              path: col69
+            RemoteIP:
+              type: integer
+              path: col70
+            WindowName:
+              type: integer
+              path: col71
+            OpenerName:
+              type: integer
+              path: col72
+            HistoryLength:
+              type: integer
+              path: col73
+            BrowserLanguage:
+              type: keyword
+              path: col74
+            BrowserCountry:
+              type: keyword
+              path: col75
+            SocialNetwork:
+              type: keyword
+              path: col76
+            SocialAction:
+              type: keyword
+              path: col77
+            HTTPError:
+              type: integer
+              path: col78
+            SendTiming:
+              type: integer
+              path: col79
+            DNSTiming:
+              type: integer
+              path: col80
+            ConnectTiming:
+              type: integer
+              path: col81
+            ResponseStartTiming:
+              type: integer
+              path: col82
+            ResponseEndTiming:
+              type: integer
+              path: col83
+            FetchTiming:
+              type: integer
+              path: col84
+            SocialSourceNetworkID:
+              type: integer
+              path: col85
+            SocialSourcePage:
+              type: keyword
+              path: col86
+            ParamPrice:
+              type: long
+              path: col87
+            ParamOrderID:
+              type: keyword
+              path: col88
+            ParamCurrency:
+              type: keyword
+              path: col89
+            ParamCurrencyID:
+              type: integer
+              path: col90
+            OpenstatServiceName:
+              type: keyword
+              path: col91
+            OpenstatCampaignID:
+              type: keyword
+              path: col92
+            OpenstatAdID:
+              type: keyword
+              path: col93
+            OpenstatSourceID:
+              type: keyword
+              path: col94
+            UTMSource:
+              type: keyword
+              path: col95
+            UTMMedium:
+              type: keyword
+              path: col96
+            UTMCampaign:
+              type: keyword
+              path: col97
+            UTMContent:
+              type: keyword
+              path: col98
+            UTMTerm:
+              type: keyword
+              path: col99
+            FromTag:
+              type: keyword
+              path: col100
+            HasGCLID:
+              type: integer
+              path: col101
+            RefererHash:
+              type: long
+              path: col102
+            URLHash:
+              type: long
+              path: col103
+            CLID:
+              type: integer
+              path: col104
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 16298506510
+          samples:
+            - key: "hits_compatible/hits.tsv.gz"
+              etag: "61bc7eb22518bf35f084b858be66e236-914"
+              size: 16298506510
+      # The NDJSON leg: field names in-band, but ClickHouse's JSON export QUOTES 64-bit integers
+      # as strings (output_format_json_quote_64bit_integers), so UserID/WatchID are declared long -
+      # a live declared-coercion assertion over quoted int64s. Other fields infer from JSON types.
+      - provider: s3
+        format: ndjson
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/hits.json.gz"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        query_subset: [q01_countHits, q02_countAdvEngineIdNonzero, q13_statsSearchPhraseCount, q20_filterUserid, q26_sortSearchPhraseAsc, q44_limitUseridNeedle]
+        dataset_mappings:
+          dynamic: "true"
+          properties:
+            UserID:
+              type: long
+            WatchID:
+              type: long
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 23728268670
+          samples:
+            - key: "hits_compatible/hits.json.gz"
+              etag: "0989003c39907e30e97dc66d640b7545-1171"
+              size: 23728268670
+      # Inert backup entry: the byte-identical object on the HTTPS mirror. Not onboarded (no
+      # HTTPS in active runs); if ever activated it must return byte-identical answers.
+      - provider: https
+        format: parquet
+        codec: snappy
+        layout: single_file
+        partitioning: none
+        resource: "https://datasets.clickhouse.com/hits_compatible/hits.parquet"
+        tags: [backup]
+        notes: HTTPS mirror of the reference object; backup only, never onboarded while S3 is the sole active provider.
+  - id: cse-cic-ids2018
+    title: CSE-CIC-IDS2018 processed traffic (CICFlowMeter)
+    registry_url: https://registry.opendata.aws/cse-cic-ids2018/
+    license: CIC research license (publicly hosted by AWS Open Data)
+    description: >
+      Real dirty security logs: CICFlowMeter feature CSVs on anonymous S3 (ca-central-1). The
+      workload reads the 8 standard-header files (80 columns, LF) via an explicit brace-glob; the
+      corpus's genuine dirt is asserted, not avoided - embedded mid-file header rows, Excel
+      truncation at 2^20-1 rows, dd/MM/yyyy timestamp strings, Infinity/NaN rate columns. The
+      84-column CRLF file (Thuesday-20) is deliberately excluded here and drives the
+      mixed-schema-glob dirty case in cse-dirty.
+    kind: workload
+    scale: medium
+    quality: schema-drift
+    workload: public-cse-cic-ids2018.csv-spec
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: uniform_shards
+        partitioning: none
+        region: ca-central-1
+        resource: "s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Friday-16-02-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Friday-23-02-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv,s3://cse-cic-ids2018/Processed Traffic Data for ML Algorithms/Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv"
+        data_source_settings:
+          auth: anonymous
+          region: ca-central-1
+        dataset_settings:
+          error_mode: null_field
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            "Dst Port":
+              type: long
+            "Protocol":
+              type: long
+            "Timestamp":
+              type: keyword
+            "Flow Duration":
+              type: long
+            "Tot Fwd Pkts":
+              type: long
+            "Tot Bwd Pkts":
+              type: long
+            "TotLen Fwd Pkts":
+              type: long
+            "TotLen Bwd Pkts":
+              type: long
+            "Fwd Pkt Len Max":
+              type: long
+            "Fwd Pkt Len Min":
+              type: long
+            "Fwd Pkt Len Mean":
+              type: double
+            "Fwd Pkt Len Std":
+              type: double
+            "Bwd Pkt Len Max":
+              type: long
+            "Bwd Pkt Len Min":
+              type: long
+            "Bwd Pkt Len Mean":
+              type: double
+            "Bwd Pkt Len Std":
+              type: double
+            "Flow Byts/s":
+              type: keyword
+            "Flow Pkts/s":
+              type: double
+            "Flow IAT Mean":
+              type: keyword
+            "Flow IAT Std":
+              type: keyword
+            "Flow IAT Max":
+              type: keyword
+            "Flow IAT Min":
+              type: keyword
+            "Fwd IAT Tot":
+              type: keyword
+            "Fwd IAT Mean":
+              type: keyword
+            "Fwd IAT Std":
+              type: keyword
+            "Fwd IAT Max":
+              type: keyword
+            "Fwd IAT Min":
+              type: keyword
+            "Bwd IAT Tot":
+              type: keyword
+            "Bwd IAT Mean":
+              type: keyword
+            "Bwd IAT Std":
+              type: keyword
+            "Bwd IAT Max":
+              type: keyword
+            "Bwd IAT Min":
+              type: keyword
+            "Fwd PSH Flags":
+              type: long
+            "Bwd PSH Flags":
+              type: long
+            "Fwd URG Flags":
+              type: long
+            "Bwd URG Flags":
+              type: long
+            "Fwd Header Len":
+              type: long
+            "Bwd Header Len":
+              type: long
+            "Fwd Pkts/s":
+              type: double
+            "Bwd Pkts/s":
+              type: double
+            "Pkt Len Min":
+              type: long
+            "Pkt Len Max":
+              type: long
+            "Pkt Len Mean":
+              type: double
+            "Pkt Len Std":
+              type: double
+            "Pkt Len Var":
+              type: double
+            "FIN Flag Cnt":
+              type: long
+            "SYN Flag Cnt":
+              type: long
+            "RST Flag Cnt":
+              type: long
+            "PSH Flag Cnt":
+              type: long
+            "ACK Flag Cnt":
+              type: long
+            "URG Flag Cnt":
+              type: long
+            "CWE Flag Count":
+              type: long
+            "ECE Flag Cnt":
+              type: long
+            "Down/Up Ratio":
+              type: long
+            "Pkt Size Avg":
+              type: double
+            "Fwd Seg Size Avg":
+              type: double
+            "Bwd Seg Size Avg":
+              type: double
+            "Fwd Byts/b Avg":
+              type: long
+            "Fwd Pkts/b Avg":
+              type: long
+            "Fwd Blk Rate Avg":
+              type: long
+            "Bwd Byts/b Avg":
+              type: long
+            "Bwd Pkts/b Avg":
+              type: long
+            "Bwd Blk Rate Avg":
+              type: long
+            "Subflow Fwd Pkts":
+              type: long
+            "Subflow Fwd Byts":
+              type: long
+            "Subflow Bwd Pkts":
+              type: long
+            "Subflow Bwd Byts":
+              type: long
+            "Init Fwd Win Byts":
+              type: long
+            "Init Bwd Win Byts":
+              type: long
+            "Fwd Act Data Pkts":
+              type: long
+            "Fwd Seg Size Min":
+              type: long
+            "Active Mean":
+              type: keyword
+            "Active Std":
+              type: keyword
+            "Active Max":
+              type: keyword
+            "Active Min":
+              type: keyword
+            "Idle Mean":
+              type: keyword
+            "Idle Std":
+              type: keyword
+            "Idle Max":
+              type: keyword
+            "Idle Min":
+              type: keyword
+            "Label":
+              type: keyword
+        tags: [reference]
+        notes: >
+          8 files, 100-380 MB each, 2.31 GiB total; an explicit comma-list of full URIs (the
+          engine's multi-location resource form) because a wildcard cannot exclude the two
+          odd-header files. The declared schema pins the 80 column types: per-file inference
+          samples catch embedded header rows in some files and union-by-name then widens the
+          numeric columns to keyword, 400-ing every numeric query. Embedded header rows parse
+          as nulls under the declared types - exactly what the expected tables assert. Numeric
+          columns are declared LONG, not integer: real clock-skew garbage rows (1970-epoch
+          timestamps, Flow Duration = -11873000000) legitimately exceed int32 and both engines
+          must keep those values; error_mode null_field covers thetruly unparseable header text. Large uncompressed text over real S3 latency.
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 11
+          total_bytes: 6886649507
+          samples:
+            - key: "Processed Traffic Data for ML Algorithms/Friday-16-02-2018_TrafficForML_CICFlowMeter.csv"
+              etag: "e68ef27c09c98ba91fe3c6b1108a18b9-20"
+              size: 333723605
+            - key: "Processed Traffic Data for ML Algorithms/Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv"
+              etag: "af10d2362a17be6331cfc6d1ce2474f2-13"
+              size: 209249758
+  - id: openaq
+    title: OpenAQ archive, Del Norte station 2016 (locationid=2178)
+    registry_url: https://registry.opendata.aws/openaq/
+    license: CC BY 4.0
+    description: >
+      Catalog-declared fraction of the OpenAQ archive: the locationid=2178/year=2016 subtree - 298
+      gzip CSVs of a few hundred bytes each in nested year=/month= hive partitions. The per-object
+      overhead is the case: many tiny objects, deeply nested layout, real store latency, detected
+      hive-partition columns (asserted by q45/q46).
+    kind: workload
+    scale: small
+    quality: clean
+    workload: public-openaq.csv-spec
+    variants:
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: nested_hive
+        partitioning: hive
+        region: us-east-1
+        resource: "s3://openaq-data-archive/records/csv.gz/locationid=2178/year=2016/month=*/*.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        tags: [reference]
+        notes: 298 objects, 194 KiB total; partition columns locationid/year/month detected from the paths.
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 298
+          total_bytes: 198997
+          samples:
+            - key: "records/csv.gz/locationid=2178/year=2016/month=03/location-2178-20160306.csv.gz"
+              etag: "de2bca91290a852027cb6472f764b012"
+              size: 232
+            - key: "records/csv.gz/locationid=2178/year=2016/month=12/location-2178-20161231.csv.gz"
+              etag: "63d78e69d1a4089df3e2dac463e87fb7"
+              size: 717
+  - id: clickbench-dirty
+    title: Deliberately wrong configurations over pinned ClickBench objects
+    registry_url: https://github.com/ClickHouse/ClickBench
+    license: CC BY-NC-SA 4.0 (Yandex.Metrica sample dataset terms)
+    description: >
+      Not fabricated data - deliberately wrong configurations pointed at REAL, already-pinned
+      public objects, giving genuine malformed-input coverage with zero new hosting. Every case
+      must fail with a clean, attributable client error: never a 5xx, never a hang, never
+      silently-wrong rows. A mislabeled-codec case is not expressible (compression is
+      extension-derived; no dataset setting overrides it) and is deliberately absent.
+    kind: failure-only
+    scale: small
+    quality: mislabeled
+    variants:
+      # A Parquet object declared as CSV must be rejected cleanly, not read as garbage rows.
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/hits.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        dataset_settings:
+          format: csv
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 14779976446
+          samples:
+            - key: "hits_compatible/hits.parquet"
+              etag: "6b028bb94eecf0ff4e6cde62a0f8fa48-829"
+              size: 14779976446
+        expect_failure:
+          status: 4xx
+          message_regex: "(?i)(parse|malformed|unexpected|invalid|cannot|failed)"
+          reason: "A Parquet object declared as CSV must be rejected cleanly, not read as garbage rows."
+        case: mislabeled-format
+      # A glob mixing four different physical formats under one parquet-declared dataset.
+      - provider: s3
+        format: parquet
+        codec: uncompressed
+        layout: uniform_shards
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/hits.*"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        dataset_settings:
+          format: parquet
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 4
+          total_bytes: 71415712436
+          samples:
+            - key: "hits_compatible/hits.csv.gz"
+              etag: "7728690ca410a69e53450371463b6f28-931"
+              size: 16608960810
+            - key: "hits_compatible/hits.parquet"
+              etag: "6b028bb94eecf0ff4e6cde62a0f8fa48-829"
+              size: 14779976446
+        expect_failure:
+          status: 4xx
+          message_regex: "(?i)(parse|malformed|unexpected|invalid|cannot|failed|magic)"
+          reason: "A mispointed glob mixing parquet/csv.gz/tsv.gz/json.gz must fail cleanly, never silently drop or garble files."
+        case: mispointed-glob
+      # A valid bucket, a key that does not exist: 404-equivalent, not a hang.
+      - provider: s3
+        format: parquet
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/does-not-exist.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        expect_failure:
+          status: 4xx
+          message_regex: "(?i)(not found|no such|does not exist|404|no files|not exist)"
+          reason: "A nonexistent key must surface as a clean 404-equivalent, not a hang or a 5xx."
+        case: nonexistent-key
+        disabled: >
+          DEFECT (found 2026-08-14, live run): ES|QL returns 500 for a nonexistent object -
+          "Failed to resolve external source [...]: Object not found" surfaces as a plain
+          exception, not a client error. Expected a clean 404-equivalent. Kept as the reproducer;
+          goes into the defect report for triage.
+      # The real 0-byte directory-marker key: empty input must not crash the reader.
+      - provider: s3
+        format: parquet
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://clickhouse-public-datasets/hits_compatible/bench_test/"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 0
+          samples:
+            - key: "hits_compatible/bench_test/"
+              etag: "d41d8cd98f00b204e9800998ecf8427e"
+              size: 0
+        expect_failure:
+          status: 4xx
+          message_regex: "(?i)(iceberg|resolve|metadata|no file extension|infer|empty|too small|magic|invalid)"
+          reason: >
+            The zero-byte directory-marker key must be rejected cleanly. Observed live: a
+            trailing-slash resource resolves as an ICEBERG TABLE ROOT, so the clean rejection is
+            "Failed to resolve Iceberg table metadata" (400) - the reader never sees the 0 bytes,
+            and the format dataset setting is not recognised in the Iceberg resolution context.
+            The raw zero-byte-object-as-parquet read is therefore not expressible; this case
+            asserts the directory-shaped-resource rejection instead.
+        case: zero-byte
+  - id: ookla-fixed-2024
+    title: Ookla Open Data, fixed broadband tiles 2024
+    registry_url: https://registry.opendata.aws/speedtest-global-performance/
+    license: CC BY-NC-SA 4.0
+    description: >
+      The four 2024 quarters of fixed-broadband tile aggregates: hive-partitioned Parquet on
+      anonymous S3 (26,364,521 rows). Carries the HIVE_PARTITIONED layout cell with detected
+      partition columns (type/year constant, quarter 1-4, asserted by q08/q45). Deviation from the
+      source plan, recorded: the Parquet is internally SNAPPY, not zstd.
+    kind: workload
+    scale: medium
+    quality: clean
+    workload: public-ookla.csv-spec
+    variants:
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: hive_partitioned
+        partitioning: hive
+        region: us-west-2
+        resource: "s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=*/*.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: us-west-2
+        tags: [reference]
+        notes: 4 quarter files, 354-365 MB each; the tile column holds WKT polygons (never projected).
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 4
+          total_bytes: 1440356335
+          samples:
+            - key: "parquet/performance/type=fixed/year=2024/quarter=1/2024-01-01_performance_fixed_tiles.parquet"
+              etag: "e2e4bf7d1d3465e7b0270f7bea0e6f1d-44"
+              size: 362203929
+            - key: "parquet/performance/type=fixed/year=2024/quarter=4/2024-10-01_performance_fixed_tiles.parquet"
+              etag: "dadb0e0e7c93afbd60286450ad62c3c6-43"
+              size: 359418242
+  - id: ghcnd-usw3
+    title: GHCN-D daily observations, USW00003* stations
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      195 station files per tree, 20,064,326 rows, in the frozen by_station trees (unchanged since
+      2025-02; the by_year tree regenerates daily and is unpinnable - declared gap). Two variants
+      hold proven-identical rows: uncompressed+headered vs gzip+systematically-headerless - a real
+      published-dataset dialect difference carried per-variant. Closes MANY_SMALL.
+    kind: workload
+    scale: medium
+    quality: schema-drift
+    workload: public-ghcnd-usw3.csv-spec
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: many_small
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv/by_station/USW00003*.csv"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            ELEMENT:
+              type: keyword
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: headered tree; declared types for cross-file parity with the headerless gz twin.
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 195
+          total_bytes: 700125209
+          samples:
+            - key: "csv/by_station/USW00003012.csv"
+              etag: "e3c079943b2e9765a6aa8910ad2d9b37"
+              size: 860357
+            - key: "csv/by_station/USW00003999.csv"
+              etag: "b761296261f1f1858fae3548750ac03f"
+              size: 4221416
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: many_small
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv.gz/by_station/USW00003*.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_settings:
+          header_row: false
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+              path: col0
+            DATE:
+              type: integer
+              path: col1
+            ELEMENT:
+              type: keyword
+              path: col2
+            DATA_VALUE:
+              type: integer
+              path: col3
+            M_FLAG:
+              type: keyword
+              path: col4
+            Q_FLAG:
+              type: keyword
+              path: col5
+            S_FLAG:
+              type: keyword
+              path: col6
+            OBS_TIME:
+              type: keyword
+              path: col7
+        notes: >
+          The gz tree is SYSTEMATICALLY headerless (all 195 files) while the csv tree is headered -
+          real published-dataset dialect drift, hence header_row false + positional path mappings.
+          Rows proven identical to the reference (equal counts and content hashes).
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 195
+          total_bytes: 79017654
+          samples:
+            - key: "csv.gz/by_station/USW00003012.csv.gz"
+              etag: "fce22c7fddba8646a25de878d04ff5fb"
+              size: 101422
+            - key: "csv.gz/by_station/USW00003999.csv.gz"
+              etag: "dc0f85c172accb7dbc0f70f928a1eb9f"
+              size: 498604
+  - id: ghcnd-parquet-8st
+    title: GHCN-D daily observations, 8 US stations, Parquet hive tree
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      The same GHCN-D observations as ghcnd-usw3, in the Parquet by_station tree: 8 US stations
+      (7 major airports plus NY Central Park), 427 objects, 2,941,551 rows, two-level hive
+      partitioning STATION=<id>/ELEMENT=<code>. Closes parquet x nested_hive, and carries the
+      suite's only MULTI-SOURCE reads: the same rows are queried as one comma-list dataset and as
+      eight datasets unioned by FROM, which must agree. The whole USW00* subtree left NOAA's
+      active set in 2025-02 (data stops at 20250206) and has been byte-frozen since.
+    kind: workload
+    scale: small
+    quality: clean
+    workload: public-ghcnd-parquet-8st.csv-spec
+    variants:
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: nested_hive
+        partitioning: hive
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094728/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023174/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094846/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00012960/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023183/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00013874/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00024233/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00003017/ELEMENT=*/*.parquet"
+        # The same 8 locations addressable one at a time, so a spec can read them as eight
+        # datasets in one FROM. Their union is exactly `resource`, which is what makes the
+        # ...Multi twins' expected tables identical to their single-dataset originals.
+        sub_resources:
+          st_nyc: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094728/ELEMENT=*/*.parquet"   # NY CITY CNTRL PARK
+          st_lax: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023174/ELEMENT=*/*.parquet"   # LOS ANGELES INTL AP
+          st_ord: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094846/ELEMENT=*/*.parquet"   # CHICAGO OHARE INTL AP
+          st_iah: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00012960/ELEMENT=*/*.parquet"   # HOUSTON INTERCONTINENTAL AP
+          st_phx: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023183/ELEMENT=*/*.parquet"   # PHOENIX AP
+          st_atl: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00013874/ELEMENT=*/*.parquet"   # ATLANTA HARTSFIELD-JACKSON INT
+          st_sea: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00024233/ELEMENT=*/*.parquet"   # SEATTLE TACOMA AP
+          st_den: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00003017/ELEMENT=*/*.parquet"   # DENVER INTL AP
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: >
+          DATE is a Parquet STRING (18690101..20250206) declared as integer, matching
+          ghcnd-usw3's declared schema so the two encodings stay comparable; STATION and ELEMENT
+          are NOT declared - they are auto-detected from the key=value path segments and the
+          files carry no physical column of either name, so there is no shadowing. Pinned by HEAD
+          with one sample per station: a comma-list's common listing prefix
+          (parquet/by_station/STATION=USW000) would enumerate far more than these 427 objects.
+          Live dependency worth restating: this subtree is frozen only because NOAA stopped
+          updating it; should the USW00* stations re-enter the active set, these pins (and
+          ghcnd-usw3's) drift and the pre-step reports PIN_DRIFT as maintenance.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 427
+          total_bytes: 19964198
+          samples:
+            - key: "parquet/by_station/STATION=USW00094728/ELEMENT=TMAX/40d8adc719b24b828f15e28fe9eeb340_0.snappy.parquet"
+              etag: "eda3f8c8e54a61ab92c0b390c054fc03"
+              size: 374165
+            - key: "parquet/by_station/STATION=USW00023174/ELEMENT=TMAX/8680a8418e704c968cd7dc5511172c5b_0.snappy.parquet"
+              etag: "27657e10243ed396b900a0f24e42d4bb"
+              size: 187426
+            - key: "parquet/by_station/STATION=USW00094846/ELEMENT=TMAX/ba5daf4b160b4c74a0a7995d5820582b_0.snappy.parquet"
+              etag: "e13e8006fe1da3729e93451baa80b1d5"
+              size: 161319
+            - key: "parquet/by_station/STATION=USW00012960/ELEMENT=TMAX/471a829f833f47459bca79bebd706a75_0.snappy.parquet"
+              etag: "a2b0d28ef5cf8eec87274e4ddcb51464"
+              size: 133673
+            - key: "parquet/by_station/STATION=USW00023183/ELEMENT=TMAX/de59fc8648ea4e3e920c83a74959e92a_0.snappy.parquet"
+              etag: "c97081aadc4cc0442a3e7a15a3a037c2"
+              size: 204693
+            - key: "parquet/by_station/STATION=USW00013874/ELEMENT=TMAX/c321eef2417d400f97c5d260af766522_0.snappy.parquet"
+              etag: "829f6ce6e183a825f031afe30ccd5e39"
+              size: 229216
+            - key: "parquet/by_station/STATION=USW00024233/ELEMENT=TMAX/5d0f6aa26d7d4e6899962f46f80200d6_0.snappy.parquet"
+              etag: "39bc0008ff812375b7e3aadfde8eed8d"
+              size: 183380
+            - key: "parquet/by_station/STATION=USW00003017/ELEMENT=TMAX/ac18eb1e839f48a39d1eaeabd9b9c320_0.snappy.parquet"
+              etag: "13e7c1195baed5a0ccde8ebc7e089aa1"
+              size: 72879
+  - id: ghcnd-by-year-1750
+    title: GHCN-D by_year 1750, the one frozen file in that tree
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      csv/by_year/1750.csv - 11.6 MB, 344,589 rows, 3,570 stations, dates 17500201..17500723.
+      NOAA rebuilds the by_year tree nightly for the entire period of record, but skips this file:
+      it holds records whose dates predate GHCN-D by a century (an implausible-date bucket), so it
+      has not moved since 2025-01-14. The only by_year object that can carry exact expected tables,
+      and the suite's csv x SINGLE_FILE cell, which the MANY_SMALL ghcnd-usw3 corpus lacks.
+    kind: workload
+    scale: small
+    quality: schema-drift
+    workload: public-ghcnd-by-year-1750.csv-spec
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv/by_year/1750.csv"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            ELEMENT:
+              type: keyword
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: headered tree; declared types for parity with the headerless gz twin.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 11608918
+          samples:
+            - key: "csv/by_year/1750.csv"
+              etag: "31401f45348426343dcd42f14934a699-3"
+              size: 11608918
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv.gz/by_year/1750.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_settings:
+          header_row: false
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+              path: col0
+            DATE:
+              type: integer
+              path: col1
+            ELEMENT:
+              type: keyword
+              path: col2
+            DATA_VALUE:
+              type: integer
+              path: col3
+            M_FLAG:
+              type: keyword
+              path: col4
+            Q_FLAG:
+              type: keyword
+              path: col5
+            S_FLAG:
+              type: keyword
+              path: col6
+            OBS_TIME:
+              type: keyword
+              path: col7
+        notes: >
+          The csv.gz tree is headerless where the csv tree is headered - the same systematic
+          dialect drift the by_station trees show - hence header_row false plus positional path
+          mappings. Rows proven identical to the reference: sha1 of the csv's post-header bytes
+          equals sha1 of the gunzipped gz (7f60ee6e1e89695b563c2a18cbc20498a05bf0eb).
+        pin:
+          method: HEAD
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 1385743
+          samples:
+            - key: "csv.gz/by_year/1750.csv.gz"
+              etag: "737328e471455987d32527a7950b0472"
+              size: 1385743
+  - id: ghcnd-by-year-2024
+    title: GHCN-D by_year 2024, the large uncompressed-text leg (volatile)
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      csv/by_year/2024.csv - a 1.3 GB uncompressed CSV single object, 37.1M rows, 44,667 stations -
+      plus its 168 MB gzip twin. The large-uncompressed-text-over-real-blob-latency shape #1650
+      names as the uncovered case. NOAA rewrites these files nightly, so this corpus is
+      assertion_mode invariant: every query reduces to something a re-publish cannot change (a
+      calibrated band, an in-year date range, a fixed cardinality, an absent needle, an exact
+      LIMIT) while still streaming the whole object. Reported as covered (invariant).
+    kind: workload
+    scale: large
+    quality: clean
+    workload: public-ghcnd-by-year-2024.csv-spec
+    assertion_mode: invariant
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv/by_year/2024.csv"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            ELEMENT:
+              type: keyword
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: >
+          VOLATILE by upstream design: NOAA's readme-by_year.txt states the by_year files are
+          "updated daily for the entire period of record", and this object was observed at
+          1336374349 bytes and then 1336374356 bytes a day apart. The pin therefore verifies
+          existence and an approximate size only; comparing ETags would report PIN_DRIFT every
+          night and train the reader to ignore the one signal that must stay meaningful. The
+          workload asserts invariants rather than frozen tables for the same reason.
+        pin:
+          method: HEAD
+          volatile: true
+          size_tolerance_pct: 10
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 1336374356
+          samples:
+            - key: "csv/by_year/2024.csv"
+              size: 1336374356
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv.gz/by_year/2024.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_settings:
+          header_row: false
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+              path: col0
+            DATE:
+              type: integer
+              path: col1
+            ELEMENT:
+              type: keyword
+              path: col2
+            DATA_VALUE:
+              type: integer
+              path: col3
+            M_FLAG:
+              type: keyword
+              path: col4
+            Q_FLAG:
+              type: keyword
+              path: col5
+            S_FLAG:
+              type: keyword
+              path: col6
+            OBS_TIME:
+              type: keyword
+              path: col7
+        query_subset: [q01_y2024CountInBand, q06_y2024DatesWithinYear, q07_y2024TopElementsCount, q08_y2024NeedleAbsent, q09_y2024LimitTen]
+        notes: >
+          VOLATILE by upstream design: NOAA's readme-by_year.txt states the by_year files are
+          "updated daily for the entire period of record", and this object was observed at
+          1336374349 bytes and then 1336374356 bytes a day apart. The pin therefore verifies
+          existence and an approximate size only; comparing ETags would report PIN_DRIFT every
+          night and train the reader to ignore the one signal that must stay meaningful. The
+          workload asserts invariants rather than frozen tables for the same reason.
+          Headerless like every csv.gz tree in this bucket, hence header_row false plus
+          positional path mappings. Non-seekable: each test re-streams all 168 MB and inflates
+          1.3 GB, so this leg runs a 5-query subset that still covers all four read shapes.
+        pin:
+          method: HEAD
+          volatile: true
+          size_tolerance_pct: 10
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 168385897
+          samples:
+            - key: "csv.gz/by_year/2024.csv.gz"
+              size: 168385897
+  - id: overture-divisions
+    title: Overture Maps divisions (release 2026-07-22.0)
+    registry_url: https://overturemaps.org/
+    license: Various open licenses (ODbL and others, per Overture attribution)
+    description: >
+      One zstd Parquet part of theme=divisions/type=division: 4,655,003 rows with a deeply nested
+      schema (structs, maps, arrays-of-structs, geometry) around scalar columns. Closes
+      codec=zstd; q30 is the kept nested-read probe (struct-field access on parquet). Release
+      paths are version-immutable.
+    kind: workload
+    scale: medium
+    quality: clean
+    workload: public-overture-divisions.csv-spec
+    variants:
+      - provider: s3
+        format: parquet
+        codec: zstd
+        layout: single_file
+        partitioning: none
+        region: us-west-2
+        resource: "s3://overturemaps-us-west-2/release/2026-07-22.0/theme=divisions/type=division/part-00000-3d9695ce-2282-56c2-9d25-622b1ec4727f-c000.zstd.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: us-west-2
+        tags: [reference]
+        notes: 549 MiB, 256 row groups; the nested columns ride along, the workload queries scalars plus the q30 probe.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 1
+          total_bytes: 576185044
+          samples:
+            - key: "release/2026-07-22.0/theme=divisions/type=division/part-00000-3d9695ce-2282-56c2-9d25-622b1ec4727f-c000.zstd.parquet"
+              etag: "9bacd054627da6a2302a55a46b1c29be-9"
+              size: 576185044
+  - id: btc-tx-skew
+    title: AWS Public Blockchain, Bitcoin transactions (2011 vs 2024 skew)
+    registry_url: https://registry.opendata.aws/aws-public-blockchain/
+    license: Public blockchain data (AWS Open Data hosting terms)
+    description: >
+      Six pinned dates spanning two eras - 2011-01-01..03 (0.6-1.2 MB) and 2024-01-01..03
+      (560-690 MB): a genuine 1000x SKEWED_SHARDS leg. Bound as an explicit comma-list (the
+      engine's multi-location form); the in-file date column drives grouping. Tree regenerated
+      2026-02, stable since.
+    kind: workload
+    scale: large
+    quality: clean
+    workload: public-btc-tx-skew.csv-spec
+    variants:
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: skewed_shards
+        partitioning: none
+        region: us-east-2
+        resource: "s3://aws-public-blockchain/v1.0/btc/transactions/date=2011-01-01/part-00000-997f7878-ce9a-49d4-a681-0aed5d294b45-c000.snappy.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2011-01-02/part-00000-e324ca27-a2f4-403b-adbd-8d6633eb7d2f-c000.snappy.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2011-01-03/part-00000-6fbdb400-edbc-43d8-a3ac-d1ca010c24e8-c000.snappy.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2024-01-01/part-00000-29abfb83-f99b-42bb-8711-d272413510b5-c000.snappy.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2024-01-02/part-00000-ae251f1d-d882-4159-a630-77ba8050d8f2-c000.snappy.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2024-01-03/part-00000-cd55e9ce-5e08-4023-a399-cf21c5d7f744-c000.snappy.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-2
+        dataset_settings:
+          hive_partitioning: false
+        tags: [reference]
+        notes: >
+          The era skew IS the case; 1.73 GiB total, dominated by the three 2024 files.
+          hive_partitioning is off because the date= path segments would otherwise SHADOW the
+          physical date column (disclosed by the reader with a same-named-partition-key warning);
+          the workload asserts the physical column.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 6
+          total_bytes: 1853852841
+          samples:
+            - key: "v1.0/btc/transactions/date=2011-01-01/part-00000-997f7878-ce9a-49d4-a681-0aed5d294b45-c000.snappy.parquet"
+              etag: "d50f9f4f71b2533672af88104ce44b7a"
+              size: 674030
+            - key: "v1.0/btc/transactions/date=2011-01-02/part-00000-e324ca27-a2f4-403b-adbd-8d6633eb7d2f-c000.snappy.parquet"
+              etag: "c5ae2dbccfcf3b7fc676c46fd6381981"
+              size: 607038
+            - key: "v1.0/btc/transactions/date=2011-01-03/part-00000-6fbdb400-edbc-43d8-a3ac-d1ca010c24e8-c000.snappy.parquet"
+              etag: "aa7bb4e46e3e081fc2c7d57ff85db837"
+              size: 1153632
+            - key: "v1.0/btc/transactions/date=2024-01-01/part-00000-29abfb83-f99b-42bb-8711-d272413510b5-c000.snappy.parquet"
+              etag: "fda1a2a47698bb40cb666e577395b43e-10"
+              size: 667993503
+            - key: "v1.0/btc/transactions/date=2024-01-02/part-00000-ae251f1d-d882-4159-a630-77ba8050d8f2-c000.snappy.parquet"
+              etag: "89464fa6f5938e0f5a7a6dcb52cd308d-9"
+              size: 559823569
+            - key: "v1.0/btc/transactions/date=2024-01-03/part-00000-cd55e9ce-5e08-4023-a399-cf21c5d7f744-c000.snappy.parquet"
+              etag: "56c804e16dc9d6d0b7aad5c72024ff8a-10"
+              size: 623601069
+  - id: abo-listings
+    title: Amazon Berkeley Objects product listings
+    registry_url: https://registry.opendata.aws/amazon-berkeley-objects/
+    license: CC BY-NC 4.0
+    description: >
+      16 gzip NDJSON shards (147,702 records) frozen since 2021-06 - the most stable pins in the
+      suite. Extreme per-attribute nesting (arrays of language-tagged values) around five flat
+      scalars; reading records whose bulk is deeply nested is the case. Deviation recorded: the
+      listings are NDJSON, not "CSV+gz" as the source plan assumed.
+    kind: workload
+    scale: small
+    quality: clean
+    workload: public-abo-listings.csv-spec
+    variants:
+      - provider: s3
+        format: ndjson
+        codec: gzip
+        layout: uniform_shards
+        partitioning: none
+        region: us-east-1
+        resource: "s3://amazon-berkeley-objects/listings/metadata/listings_*.json.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        tags: [reference]
+        notes: 16 shards, ~5.5 MB each, 83 MiB total.
+        pin:
+          method: LIST
+          verified_at: 2026-08-14T16:21:54Z
+          object_count: 16
+          total_bytes: 87437341
+          samples:
+            - key: "listings/metadata/listings_0.json.gz"
+              etag: "49304dd0edc3aa3d4cb19231927732fc"
+              size: 5446000
+            - key: "listings/metadata/listings_f.json.gz"
+              etag: "1ac3c1f41611dcd7c34e80b4ac6ac7b2"
+              size: 5460984
+gaps:
+  - id: https-provider-backup-only
+    reason: >
+      No HTTPS in the active runs by decision; every HTTPS variant (ClickBench mirror, NYC TLC,
+      GH Archive) is an inert backup entry. The HTTP datasource read path keeps its coverage in
+      the existing per-dimension ITs.
+    cells: [provider=https]
+  - id: gcs-azure-providers-unsupported
+    reason: >
+      The esql-datasource-gcs/-azure plugins and feature flags exist, but the type gcs/azure
+      data-source definitions are not usable yet (product decision). Modelled in the catalog so
+      activation is a catalog edit; GH Archive (GCS) and Overture (Azure) are the intended first
+      corpora when support lands.
+    cells: [provider=gcs, provider=azure]
+  - id: layouts-pending-phases-1-3
+    reason: >
+      Every layout except WIDE_SINGLE_ROW_GROUP is covered as of Phase 3 (SKEWED_SHARDS via the
+      BTC era skew). The intended widerg carrier was Common Crawl's columnar index, but that
+      bucket denies ALL anonymous S3 access (403 on GET/HEAD/LIST; HTTPS-CDN-only - catalogued as
+      a backup entry), and no other anonymously-readable public corpus with few-huge-row-groups
+      Parquet has been identified (Overture parts carry 256 row groups each).
+    cells: [layout=wide_single_row_group]
+  - id: mixed-schema-glob-union-assertion
+    reason: >
+      The real mixed-schema glob (all 10 CSE processed CSVs: 80-col LF files unioned with the
+      84-col CRLF file) does NOT fail - observed live, ES|QL unions by name and discloses
+      per-column widening in warnings, which is the "coherent union" arm of the acceptable
+      behaviours and rules out an expect_failure case. Freezing the union's expected tables
+      (nulls for the 4 extra columns across 8 files, widened types) needs its own workload and
+      an oracle mirror of union-by-name semantics: deferred to Phase 2, tracked here so the cell
+      is not silently unasserted.
+    cells: []
+  - id: ghcnd-by-year-exact-tables-impossible
+    reason: >
+      The GHCN-D by_year trees (csv, csv.gz AND parquet alike) are rebuilt nightly: NOAA's own
+      readme-by_year.txt says "updated daily for the entire period of record", 1763/1800/1850/1950/
+      2024/2025 all carry the previous night's Last-Modified, and 2024.csv was observed moving from
+      1336374349 to 1336374356 bytes a day apart. Exact frozen expected tables over this tree are
+      therefore impossible, and no re-proposal should assume otherwise. What IS covered: 1750.csv
+      is the tree's one frozen object (skipped by the rebuild because its dates predate GHCN-D) and
+      carries exact tables as ghcnd-by-year-1750; 2024.csv carries the large-uncompressed-text
+      shape as ghcnd-by-year-2024 under assertion_mode invariant with volatile pins. What remains
+      uncovered: exact row-level assertions at by_year scale, and the parquet/by_year tree
+      (same volatility, and parquet x nested_hive is already covered by ghcnd-parquet-8st).
+    cells: []
+  - id: vpc-flow-logs-real-data
+    reason: >
+      No anonymously readable public bucket of genuine AWS VPC flow logs exists (verified via web
+      search and direct probes). CSE-CIC-IDS2018 stands in as the real dirty-security-logs corpus
+      in Phase 1; VPC flow-log format/layout coverage stays synthetic in
+      ExternalCsvHivePartitionedIT.
+    cells: []

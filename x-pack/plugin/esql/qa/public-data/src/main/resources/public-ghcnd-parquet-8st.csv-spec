@@ -1,0 +1,864 @@
+// GHCN-D daily observations read from the Parquet by_station tree: 8 US stations (7 major airports
+// plus NY Central Park), 427 objects / 19,964,198 bytes / 2,941,551 rows, two-level hive
+// partitioning STATION=<id>/ELEMENT=<code>. The whole USW00* subtree left NOAA's active set in
+// 2025-02 (data stops at 20250206) and has been byte-frozen since - the same pin basis the
+// ghcnd-usw3 CSV corpus rests on. STATION and ELEMENT are path-derived columns, auto-detected from
+// the key=value segments; DATE is a Parquet STRING coerced by a declared integer mapping so the
+// answers line up with the CSV corpus.
+//
+// Every shape ships twice. The plain test reads the corpus as ONE dataset bound to a comma-list of
+// the 8 station globs; the `...Multi` twin reads the identical rows as EIGHT datasets unioned by
+// `FROM st_nyc, st_lax, ...`, exercising the leaf UnionAll and PushAggregateThroughUnionAll against
+// real object storage. The two expected tables are identical by construction and that identity is
+// enforced offline on `check` - a drift in either fails precommit, not the nightly leg.
+//
+// Deliberate divergences from ghcnd-usw3 (same observations, other encoding), asserted not hidden:
+// Parquet stores M_FLAG/Q_FLAG as NULL where the CSV tree stores empty strings (q10); ELEMENT is a
+// partition column here and a physical column there; ID == STATION on every row, so the CSV
+// corpus's ID-based shapes are dropped rather than duplicated.
+// Expected tables derived at authoring time by clickhouse local over the scratch copy of the same
+// pinned objects.
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q01_pqCountObservations
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS count = COUNT(*);
+
+count:long
+2941551
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q01_pqCountObservations by construction
+q01_pqCountObservationsMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS count = COUNT(*);
+
+count:long
+2941551
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE ELEMENT = 'PRCP'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: ELEMENT is a hive path column here, so this is partition pruning, not a value filter
+q02_pqCountPrcp
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | WHERE ELEMENT == "PRCP" | STATS count = COUNT(*);
+
+count:long
+236157
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE ELEMENT = 'PRCP'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: ELEMENT is a hive path column here, so this is partition pruning, not a value filter
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q02_pqCountPrcp by construction
+q02_pqCountPrcpMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | WHERE ELEMENT == "PRCP" | STATS count = COUNT(*);
+
+count:long
+236157
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(DATA_VALUE), count(), avg(DATA_VALUE) FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE ELEMENT = 'TMAX'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q03_pqStatsTmax
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | WHERE ELEMENT == "TMAX" | STATS sum_value = SUM(DATA_VALUE), count = COUNT(*), avg_value = AVG(DATA_VALUE);
+
+sum_value:long | count:long | avg_value:double
+48235254       | 236109     | 204.2923141430441
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(DATA_VALUE), count(), avg(DATA_VALUE) FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE ELEMENT = 'TMAX'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q03_pqStatsTmax by construction
+q03_pqStatsTmaxMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | WHERE ELEMENT == "TMAX" | STATS sum_value = SUM(DATA_VALUE), count = COUNT(*), avg_value = AVG(DATA_VALUE);
+
+sum_value:long | count:long | avg_value:double
+48235254       | 236109     | 204.2923141430441
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(STATION) FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: exact two-stage distinct; STATION never null (path-derived)
+q04_pqDistinctStations
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS BY STATION | STATS u = COUNT(*);
+
+u:long
+8
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(STATION) FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: exact two-stage distinct; STATION never null (path-derived)
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q04_pqDistinctStations by construction
+q04_pqDistinctStationsMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS BY STATION | STATS u = COUNT(*);
+
+u:long
+8
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(ELEMENT) FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q05_pqDistinctElements
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS BY ELEMENT | STATS u = COUNT(*);
+
+u:long
+73
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(ELEMENT) FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q05_pqDistinctElements by construction
+q05_pqDistinctElementsMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS BY ELEMENT | STATS u = COUNT(*);
+
+u:long
+73
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(toInt32(DATE)), max(toInt32(DATE)) FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: DATE is a Parquet STRING coerced by the declared integer mapping; oracle mirrors with toInt32
+q06_pqMinMaxDate
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS min_date = MIN(DATE), max_date = MAX(DATE);
+
+min_date:integer | max_date:integer
+18690101         | 20250206
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(toInt32(DATE)), max(toInt32(DATE)) FROM file('STATION=*/ELEMENT=*/*.parquet')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: DATE is a Parquet STRING coerced by the declared integer mapping; oracle mirrors with toInt32
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q06_pqMinMaxDate by construction
+q06_pqMinMaxDateMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS min_date = MIN(DATE), max_date = MAX(DATE);
+
+min_date:integer | max_date:integer
+18690101         | 20250206
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ELEMENT FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY ELEMENT ORDER BY c DESC, ELEMENT ASC LIMIT 12
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 12
+q07_pqCountByElement
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS c = COUNT(*) BY ELEMENT | SORT c DESC, ELEMENT ASC | LIMIT 12;
+
+c:long | ELEMENT:keyword
+236157 | PRCP
+236147 | TMIN
+236109 | TMAX
+203543 | SNOW
+188614 | SNWD
+113903 | PGTM
+111310 | AWND
+85043  | WDF2
+85043  | WSF2
+84304  | WSF5
+84260  | WDF5
+73250  | WSFG
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ELEMENT FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY ELEMENT ORDER BY c DESC, ELEMENT ASC LIMIT 12
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 12
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q07_pqCountByElement by construction
+q07_pqCountByElementMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS c = COUNT(*) BY ELEMENT | SORT c DESC, ELEMENT ASC | LIMIT 12;
+
+c:long | ELEMENT:keyword
+236157 | PRCP
+236147 | TMIN
+236109 | TMAX
+203543 | SNOW
+188614 | SNWD
+113903 | PGTM
+111310 | AWND
+85043  | WDF2
+85043  | WSF2
+84304  | WSF5
+84260  | WDF5
+73250  | WSFG
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, STATION FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY STATION ORDER BY c DESC, STATION ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+q08_pqCountByStation
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS c = COUNT(*) BY STATION | SORT c DESC, STATION ASC | LIMIT 10;
+
+c:long | STATION:keyword
+458003 | USW00094728
+435535 | USW00013874
+391120 | USW00024233
+382584 | USW00094846
+374519 | USW00023174
+373372 | USW00023183
+348731 | USW00012960
+177687 | USW00003017
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, STATION FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY STATION ORDER BY c DESC, STATION ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q08_pqCountByStation by construction
+q08_pqCountByStationMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS c = COUNT(*) BY STATION | SORT c DESC, STATION ASC | LIMIT 10;
+
+c:long | STATION:keyword
+458003 | USW00094728
+435535 | USW00013874
+391120 | USW00024233
+382584 | USW00094846
+374519 | USW00023174
+373372 | USW00023183
+348731 | USW00012960
+177687 | USW00003017
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, STATION, ELEMENT FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY STATION, ELEMENT ORDER BY c DESC, STATION ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+// note: the two hive partition columns crossed
+q09_pqCountByStationAndElement
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS c = COUNT(*) BY STATION, ELEMENT | SORT c DESC, STATION ASC, ELEMENT ASC | LIMIT 10;
+
+c:long | STATION:keyword | ELEMENT:keyword
+57014  | USW00094728     | PRCP
+57007  | USW00094728     | TMAX
+57007  | USW00094728     | TMIN
+56848  | USW00094728     | SNOW
+40458  | USW00094728     | SNWD
+34735  | USW00013874     | TMAX
+34735  | USW00013874     | TMIN
+34733  | USW00013874     | PRCP
+33505  | USW00013874     | SNWD
+31988  | USW00013874     | SNOW
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, STATION, ELEMENT FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY STATION, ELEMENT ORDER BY c DESC, STATION ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+// note: the two hive partition columns crossed
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q09_pqCountByStationAndElement by construction
+q09_pqCountByStationAndElementMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS c = COUNT(*) BY STATION, ELEMENT | SORT c DESC, STATION ASC, ELEMENT ASC | LIMIT 10;
+
+c:long | STATION:keyword | ELEMENT:keyword
+57014  | USW00094728     | PRCP
+57007  | USW00094728     | TMAX
+57007  | USW00094728     | TMIN
+56848  | USW00094728     | SNOW
+40458  | USW00094728     | SNWD
+34735  | USW00013874     | TMAX
+34735  | USW00013874     | TMIN
+34733  | USW00013874     | PRCP
+33505  | USW00013874     | SNWD
+31988  | USW00013874     | SNOW
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, Q_FLAG FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY Q_FLAG ORDER BY c DESC, Q_FLAG ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+// divergence: Parquet stores these flags as NULL; the ghcnd-usw3 CSV corpus stores empty strings
+q10_pqCountByQFlag
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | STATS c = COUNT(*) BY Q_FLAG | SORT c DESC, Q_FLAG ASC | LIMIT 10;
+
+c:long  | Q_FLAG:keyword
+2939967 | null
+698     | Z
+506     | X
+341     | I
+16      | L
+10      | G
+9       | O
+3       | S
+1       | W
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, Q_FLAG FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY Q_FLAG ORDER BY c DESC, Q_FLAG ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+// divergence: Parquet stores these flags as NULL; the ghcnd-usw3 CSV corpus stores empty strings
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q10_pqCountByQFlag by construction
+q10_pqCountByQFlagMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | STATS c = COUNT(*) BY Q_FLAG | SORT c DESC, Q_FLAG ASC | LIMIT 10;
+
+c:long  | Q_FLAG:keyword
+2939967 | null
+698     | Z
+506     | X
+341     | I
+16      | L
+10      | G
+9       | O
+3       | S
+1       | W
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT STATION FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE STATION = 'USW00094728' AND ELEMENT = 'TMAX' AND DATA_VALUE > 400
+// oracle-run: 2026-08-25
+// read-shape: scan
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+// tier: comment tier 1 - one station, one element (a single 374 KB object's worth of rows)
+q11_pqOneStationOneElement
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | WHERE STATION == "USW00094728" AND ELEMENT == "TMAX" AND DATA_VALUE > 400 | KEEP STATION;
+
+STATION:keyword
+USW00094728
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT STATION FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE STATION = 'USW00094728' AND ELEMENT = 'TMAX' AND DATA_VALUE > 400
+// oracle-run: 2026-08-25
+// read-shape: scan
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+// tier: comment tier 1 - one station, one element (a single 374 KB object's worth of rows)
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q11_pqOneStationOneElement by construction
+q11_pqOneStationOneElementMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | WHERE STATION == "USW00094728" AND ELEMENT == "TMAX" AND DATA_VALUE > 400 | KEEP STATION;
+
+STATION:keyword
+USW00094728
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, avg(DATA_VALUE) FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE STATION = 'USW00094728'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// tier: comment tier 2 - one station, all 59 element partitions
+q12_pqOneStationAllElements
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | WHERE STATION == "USW00094728" | STATS c = COUNT(*), avg_value = AVG(DATA_VALUE);
+
+c:long | avg_value:double
+458003 | 426.71805206516115
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, avg(DATA_VALUE) FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE STATION = 'USW00094728'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// tier: comment tier 2 - one station, all 59 element partitions
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q12_pqOneStationAllElements by construction
+q12_pqOneStationAllElementsMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | WHERE STATION == "USW00094728" | STATS c = COUNT(*), avg_value = AVG(DATA_VALUE);
+
+c:long | avg_value:double
+458003 | 426.71805206516115
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT STATION, toInt32(DATE) AS DATE, ELEMENT, DATA_VALUE FROM file('STATION=*/ELEMENT=*/*.parquet') ORDER BY DATA_VALUE DESC, STATION ASC, DATE ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+// note: explicit NULLS LAST: ES|QL sorts nulls first on a bare DESC. DATA_VALUE has no nulls here
+q13_pqTopValues
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | SORT DATA_VALUE DESC NULLS LAST, STATION ASC, DATE ASC, ELEMENT ASC | KEEP STATION, DATE, ELEMENT, DATA_VALUE | LIMIT 10;
+
+STATION:keyword | DATE:integer | ELEMENT:keyword | DATA_VALUE:integer
+USW00094728     | 19840402     | FMTM            | 32767
+USW00024233     | 19630201     | THIC            | 10922
+USW00024233     | 20141230     | ASLP            | 10437
+USW00012960     | 20080102     | ASLP            | 10433
+USW00094846     | 20190209     | ASLP            | 10423
+USW00003017     | 20141230     | ASLP            | 10417
+USW00094846     | 20171227     | ASLP            | 10413
+USW00094728     | 20151126     | ASLP            | 10410
+USW00003017     | 20080101     | ASLP            | 10406
+USW00094728     | 20180213     | ASLP            | 10406
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT STATION, toInt32(DATE) AS DATE, ELEMENT, DATA_VALUE FROM file('STATION=*/ELEMENT=*/*.parquet') ORDER BY DATA_VALUE DESC, STATION ASC, DATE ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+// note: explicit NULLS LAST: ES|QL sorts nulls first on a bare DESC. DATA_VALUE has no nulls here
+// defect: multi-source row materialization dies with HTTP 500 UnsupportedOperationException [can't append non-null values to a null block]
+// defect-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// defect-detail: SourceExtractors.materialize builds each column's block builder from the FIRST non-null source block across split ids; when that block is a ConstantNullBlock the builder is a ConstantNullBlock.Builder, and the next split carrying real values fails copyFrom. Unioning 8 datasets mixes splits whose per-column nullness differs, so the all-null block wins the race.
+// defect-oracle: clickhouse local returns the 10 rows below; ES|QL returns HTTP 500
+// defect-evidence: the single-source twin q13_pqTopValues passes with THIS EXACT expected table, so the rows and the expectation are not in question - only the multi-source plan is. The other 14 Multi twins pass; q13 is the only one that materializes raw row columns rather than aggregating.
+// defect-found: 2026-08-25
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q13_pqTopValues by construction
+q13_pqTopValuesMulti-Ignore
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | SORT DATA_VALUE DESC NULLS LAST, STATION ASC, DATE ASC, ELEMENT ASC | KEEP STATION, DATE, ELEMENT, DATA_VALUE | LIMIT 10;
+
+STATION:keyword | DATE:integer | ELEMENT:keyword | DATA_VALUE:integer
+USW00094728     | 19840402     | FMTM            | 32767
+USW00024233     | 19630201     | THIC            | 10922
+USW00024233     | 20141230     | ASLP            | 10437
+USW00012960     | 20080102     | ASLP            | 10433
+USW00094846     | 20190209     | ASLP            | 10423
+USW00003017     | 20141230     | ASLP            | 10417
+USW00094846     | 20171227     | ASLP            | 10413
+USW00094728     | 20151126     | ASLP            | 10410
+USW00003017     | 20080101     | ASLP            | 10406
+USW00094728     | 20180213     | ASLP            | 10406
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, intDiv(toInt32(DATE), 10000) AS y FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY y ORDER BY y ASC LIMIT 40
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 40
+// sort-reviewed: y is the sole grouping key, so ascending y is already a total order
+q14_pqYearBuckets
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | EVAL y = DATE / 10000 | STATS c = COUNT(*) BY y | SORT y ASC | LIMIT 40;
+
+c:long | y:integer
+1446   | 1869
+1460   | 1870
+1460   | 1871
+1464   | 1872
+1460   | 1873
+1460   | 1874
+1460   | 1875
+1464   | 1876
+1460   | 1877
+1460   | 1878
+1460   | 1879
+1463   | 1880
+1460   | 1881
+1460   | 1882
+1460   | 1883
+1464   | 1884
+1460   | 1885
+1460   | 1886
+1460   | 1887
+1465   | 1888
+1460   | 1889
+1460   | 1890
+1461   | 1891
+1465   | 1892
+1459   | 1893
+1461   | 1894
+1462   | 1895
+1464   | 1896
+1460   | 1897
+1459   | 1898
+1460   | 1899
+1460   | 1900
+1460   | 1901
+1464   | 1902
+1460   | 1903
+1463   | 1904
+1460   | 1905
+1460   | 1906
+1460   | 1907
+1463   | 1908
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, intDiv(toInt32(DATE), 10000) AS y FROM file('STATION=*/ELEMENT=*/*.parquet') GROUP BY y ORDER BY y ASC LIMIT 40
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 40
+// sort-reviewed: y is the sole grouping key, so ascending y is already a total order
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q14_pqYearBuckets by construction
+q14_pqYearBucketsMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | EVAL y = DATE / 10000 | STATS c = COUNT(*) BY y | SORT y ASC | LIMIT 40;
+
+c:long | y:integer
+1446   | 1869
+1460   | 1870
+1460   | 1871
+1464   | 1872
+1460   | 1873
+1460   | 1874
+1460   | 1875
+1464   | 1876
+1460   | 1877
+1460   | 1878
+1460   | 1879
+1463   | 1880
+1460   | 1881
+1460   | 1882
+1460   | 1883
+1464   | 1884
+1460   | 1885
+1460   | 1886
+1460   | 1887
+1465   | 1888
+1460   | 1889
+1460   | 1890
+1461   | 1891
+1465   | 1892
+1459   | 1893
+1461   | 1894
+1462   | 1895
+1464   | 1896
+1460   | 1897
+1459   | 1898
+1460   | 1899
+1460   | 1900
+1460   | 1901
+1464   | 1902
+1460   | 1903
+1463   | 1904
+1460   | 1905
+1460   | 1906
+1460   | 1907
+1463   | 1908
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT STATION FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE STATION = 'USW00003017' LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q15_pqLimitNeedle
+required_capability: dataset_in_from_command
+dataset: ghcnd_parquet: "{{corpus}}"
+FROM ghcnd_parquet | WHERE STATION == "USW00003017" | KEEP STATION | LIMIT 10;
+
+STATION:keyword
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+;
+
+// corpus: ghcnd-parquet-8st
+// reference-variant: ghcnd-parquet-8st-s3-parquet-snappy-nested-hive
+// pinned: 427 objects (8-station comma-list), 19964198 bytes, frozen since 2025-02-09
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT STATION FROM file('STATION=*/ELEMENT=*/*.parquet') WHERE STATION = 'USW00003017' LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+// multi-source: the same rows through 8 datasets unioned by FROM; the expected table is identical to q15_pqLimitNeedle by construction
+q15_pqLimitNeedleMulti
+required_capability: dataset_in_from_command
+dataset: st_nyc: "{{corpus:st_nyc}}"
+dataset: st_lax: "{{corpus:st_lax}}"
+dataset: st_ord: "{{corpus:st_ord}}"
+dataset: st_iah: "{{corpus:st_iah}}"
+dataset: st_phx: "{{corpus:st_phx}}"
+dataset: st_atl: "{{corpus:st_atl}}"
+dataset: st_sea: "{{corpus:st_sea}}"
+dataset: st_den: "{{corpus:st_den}}"
+FROM st_nyc, st_lax, st_ord, st_iah, st_phx, st_atl, st_sea, st_den | WHERE STATION == "USW00003017" | KEEP STATION | LIMIT 10;
+
+STATION:keyword
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+USW00003017
+;

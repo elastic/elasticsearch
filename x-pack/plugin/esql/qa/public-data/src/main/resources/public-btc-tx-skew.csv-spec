@@ -1,0 +1,245 @@
+// AWS Public Blockchain, Bitcoin transactions for six pinned dates spanning two eras:
+// 2011-01-01..03 (0.6-1.2 MB each) and 2024-01-01..03 (560-690 MB each) - a genuine 1000x
+// SKEWED_SHARDS leg over real S3. The in-file `date` STRING column drives date grouping
+// (engine-identical; the path-detected partition column goes unreferenced). The tree was
+// regenerated 2026-02 and has been stable since (GHCN-D-style pin posture). Expected tables
+// derived at authoring time by clickhouse local over the scratch copy of the same pinned bytes.
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q01_countTransactions
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS count = COUNT(*);
+
+count:long
+1530176
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT countIf(is_coinbase) FROM file('*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q02_countCoinbase
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | WHERE is_coinbase | STATS count = COUNT(*);
+
+count:long
+956
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(output_value), count(), avg(output_value) FROM file('*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q03_statsOutputValue
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS sum_out = SUM(output_value), count = COUNT(*), avg_out = AVG(output_value);
+
+sum_out:double    | count:long | avg_out:double
+2434724.988565175 | 1530176    | 1.5911404887837575
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(fee), avg(fee) FROM file('*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q31_statsFees
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS sum_fee = SUM(fee), avg_fee = AVG(fee);
+
+sum_fee:double    | avg_fee:double
+509.5514375199999 | 0.00033321002702031097
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(date) FROM file('*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: the 6 pinned dates; date is an IN-FILE string column, not a path detection
+q05_distinctDates
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS BY date | STATS u = COUNT(*);
+
+u:long
+6
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, date FROM file('*.parquet') GROUP BY date ORDER BY c DESC, date ASC LIMIT 6
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 6
+// note: the 1000x era skew shows directly in these counts
+q08_txByDate
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS c = COUNT(*) BY date | SORT c DESC, date ASC | LIMIT 6;
+
+c:long | date:keyword
+657752 | 2024-01-01
+502749 | 2024-01-03
+367319 | 2024-01-02
+1128   | 2011-01-03
+659    | 2011-01-01
+569    | 2011-01-02
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(fee), count() AS c, date FROM file('*.parquet') GROUP BY date ORDER BY date ASC LIMIT 6
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 6
+// sort-reviewed: sorted by the group key itself, which is unique per row
+q10_feesByDate
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS avg_fee = AVG(fee), c = COUNT(*) BY date | SORT date ASC | LIMIT 6;
+
+avg_fee:double         | c:long | date:keyword
+0.00018651167364016735 | 659    | 2011-01-01
+0.00022253126903553302 | 569    | 2011-01-02
+0.0007492325308641976  | 1128   | 2011-01-03
+0.000334391453412971   | 657752 | 2024-01-01
+0.0003880812517565897  | 367319 | 2024-01-02
+0.00029099756728632976 | 502749 | 2024-01-03
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(block_number), max(block_number) FROM file('*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q07_minMaxBlock
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | STATS min_block = MIN(block_number), max_block = MAX(block_number);
+
+min_block:long | max_block:long
+100410         | 824229
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT txid FROM file('*.parquet') WHERE txid = '01453b24e001aa9cd162d3a25c85abedfd9386c0113ec1398e7cf5bd72aa0fc4'
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+// note: needle = the lexically smallest txid of the 2011-01-01 file, picked deterministically
+q20_scanNeedleTxid
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | WHERE txid == "01453b24e001aa9cd162d3a25c85abedfd9386c0113ec1398e7cf5bd72aa0fc4" | KEEP txid;
+
+txid:keyword
+01453b24e001aa9cd162d3a25c85abedfd9386c0113ec1398e7cf5bd72aa0fc4
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT txid, output_value, fee, date FROM file('*.parquet') ORDER BY output_value DESC NULLS LAST, txid ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+q24_topOutputs
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | SORT output_value DESC NULLS LAST, txid ASC | KEEP txid, output_value, fee, date | LIMIT 10;
+
+txid:keyword                                                     | output_value:double | fee:double | date:keyword
+47a61d9d236f469e4646f75392ff6d945a44eef3e817a45e13c4e11efa4e7e1a | 16559.44460698      | 0.0017967  | 2024-01-02
+2a5a486543cbba3ccde05794072512b12762eab8b56bde86cd0ebb0811946ed3 | 16517.580514780002  | 0.00088086 | 2024-01-02
+9ed6573bf1cda2bf45b19ad52b06c4642713591ebe29c2b97e355d7324e99f6b | 16489.11464319      | 0.00073486 | 2024-01-01
+3911460f14818571302884b98cccd6459af42e445ae80d934b2d9eec6dc919e6 | 16475.85714113      | 0.00057558 | 2024-01-02
+c6e7ad37cb60f0320024cd4de97df364b3f4d52dc84a838bbe4f774bb7d51384 | 16469.04763756      | 0.00101105 | 2024-01-03
+58e450d56e03a5e15fa1f1cd364a932569a1011e0e8cdf68251d0a7316c25bf9 | 16428.95304325      | 0.00101105 | 2024-01-03
+ca3db3acc391c3965cfc7b0b64b9f069cd3318234ce1295d9f095c5928c7b4ec | 16422.01012138      | 0.00066065 | 2024-01-03
+74230c4f6f119182249485dfc26a0420136c56dbfaad6226649de33fae93997e | 16416.11868422      | 0.00066065 | 2024-01-03
+c7b6ab929211e93dae8b48acbc1e6343cfd8be3b26bb1fa0a52aececbdca21b2 | 14510.73483368      | 0.0017688  | 2024-01-01
+6224d670813c5b2c5aa22d862d9261d7879fb4f32c651d96da4f836bb88392ad | 8500.54266614       | 0.00109458 | 2024-01-03
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT txid FROM file('*.parquet') ORDER BY txid ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: txids are unique; single-key sort is total
+q26_sortTxidsAsc
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | SORT txid ASC | KEEP txid | LIMIT 10;
+
+txid:keyword
+00000000486ac4d4afc9dbc230af3a0c4abc09fa807333cb6be9930cce499a44
+00000000cbfcd2d39ea01544755630cc61c5e01f4f8fbbcd53dee4b8ec0742f1
+00000000ef11d33a1cdcfa6e9f011dcca5bb306e4eeab055b17ab2554856ba9c
+000000014182b98347b409e7d40483b38ea8303828fd241055d54be37bb22bc3
+00000001baf2e7769e23308b30ec6cfd85e6a0107981085362f604238713f5a5
+0000000241b1b02af7f1ecf0c300d730c5fa15035792337e9f9885f8435c25fe
+000000024528ef21d1a1c5b73a310970cf2a1dbc24bc46fdc00bd7fa3e74b21e
+00000003b16c67ce77fc833bd0e93bcbae65465ce512bf2786b86917b5cfdc67
+00000003c98026d24f69abd9a4777d6702442902fa4c469aed0d6a9a50aa7bad
+00000003e5f387485728ad5f823c8f17f21e4343bec3c7e7c5b6acd6a8f7bb5f
+;
+
+// corpus: btc-tx-skew
+// reference-variant: btc-tx-skew-s3-parquet-snappy-skewed
+// pinned: 6 objects (explicit comma-list), 1853852841 bytes, dates 2011-01-01..03 + 2024-01-01..03
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT txid FROM file('*.parquet') WHERE txid = '01453b24e001aa9cd162d3a25c85abedfd9386c0113ec1398e7cf5bd72aa0fc4' LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitNeedleTxid
+required_capability: dataset_in_from_command
+dataset: btc_tx: "{{corpus}}"
+FROM btc_tx | WHERE txid == "01453b24e001aa9cd162d3a25c85abedfd9386c0113ec1398e7cf5bd72aa0fc4" | KEEP txid | LIMIT 10;
+
+txid:keyword
+01453b24e001aa9cd162d3a25c85abedfd9386c0113ec1398e7cf5bd72aa0fc4
+;

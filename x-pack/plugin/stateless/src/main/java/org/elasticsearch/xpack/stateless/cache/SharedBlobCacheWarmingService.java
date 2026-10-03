@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -31,7 +30,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -54,6 +55,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -92,8 +94,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
@@ -386,6 +390,44 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    public static final String SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX = SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME
+        + ".recovery_warming_timeout_reevaluation";
+
+    /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
+    /// opening a shard. This means that warming for a shard will continue extending until we need to stop to give minimum time slices for
+    /// to-be-relocated shards to relocate. Enabling this setting should reduce blob store cache misses after shard relocations.
+    public static final Setting<Boolean> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
+        SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /// Minimum re-evaluation slice that is worth rescheduling. When the remaining grace-period budget would produce a slice shorter than
+    /// this value, the re-evaluation loop terminates and recovery resumes immediately. Setting this too low (approaching zero) risks a
+    /// busy-reschedule loop; setting it too high causes the loop to abort earlier than necessary, reducing the warming window.
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING = Setting.timeSetting(
+        SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".abort_threshold",
+        TimeValue.timeValueMillis(300L),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /// Minimum grace-period budget reserved per wave of pending shards on the relocation source when computing the timeout slice for a
+    /// relocating shard. Pending (STARTED, not yet relocating) shards still on the source are expected to relocate in parallel waves, whose
+    /// size is approximated by the number of relocations currently in flight from the source to the target. For each such wave, this many
+    /// milliseconds are subtracted from the available budget before capping the current shard's slice. This prevents in-flight
+    /// re-evaluations from consuming all remaining grace time and leaving later-starting shards with no warming budget at all.
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING = Setting
+        .timeSetting(
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".min_budget_per_pending_shard",
+            TimeValue.timeValueMillis(500),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+
     /**
      * Fraction of the total shared blob cache capacity assumed to be devoted to search shard warming across all concurrently warming
      * shards on this node. Used as a throughput proxy when computing the data-volume-proportional warming timeout: a shard whose
@@ -466,6 +508,9 @@ public class SharedBlobCacheWarmingService {
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingReshardTargetTimeout;
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
+    private volatile boolean searchRecoveryWarmingTimeoutReevaluationEnabled;
+    private volatile TimeValue searchRecoveryReevaluationAbortThreshold;
+    private volatile TimeValue searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
 
@@ -600,6 +645,18 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             value -> this.searchRecoveryWarmingRelocationWithShutdownTimeout = value
+        );
+        clusterSettings.initializeAndWatch(
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+            value -> this.searchRecoveryWarmingTimeoutReevaluationEnabled = value
+        );
+        clusterSettings.initializeAndWatch(
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+            value -> this.searchRecoveryReevaluationAbortThreshold = value
+        );
+        clusterSettings.initializeAndWatch(
+            SEARCH_RECOVERY_WARMING_TIMEOUT_REEVALUATION_MIN_BUDGET_PER_PENDING_SHARD_SETTING,
+            value -> this.searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard = value
         );
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
@@ -848,10 +905,13 @@ public class SharedBlobCacheWarmingService {
      * whether to race warming against a timeout; otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via
      * {@link ActionListener#noop()}).
      *
+     * <p>The {@code clusterStateSupplier} is called lazily each time the warming timeout is (re-)evaluated against the grace-period
+     * deadline, so callers should pass {@code clusterService::state} rather than a snapshot.
+     *
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
@@ -860,7 +920,7 @@ public class SharedBlobCacheWarmingService {
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeout(clusterState, indexShard, totalBytesToWarm)
+            ? searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -871,14 +931,7 @@ public class SharedBlobCacheWarmingService {
                 directory,
                 endTargetsToWarm,
                 false,
-                searchRecoveryWarmingListener(
-                    plan.timeout(),
-                    plan.timeoutContext(),
-                    indexShard,
-                    directory,
-                    totalBytesToWarm,
-                    resumeRecoveryListener
-                )
+                searchRecoveryWarmingListener(plan, clusterStateSupplier, indexShard, directory, totalBytesToWarm, resumeRecoveryListener)
             );
         } else {
             warmCacheAndTimeIt(Type.SEARCH, indexShard, commit, directory, endTargetsToWarm, false, ActionListener.noop());
@@ -1077,16 +1130,44 @@ public class SharedBlobCacheWarmingService {
     /**
      * Search shard recovery warming for the internal replicated-files path: {@link #timeout()} drives the race in
      * {@link #searchRecoveryWarmingListener}; {@link TimeValue#ZERO} means do not await warming. Use {@link #awaitWarming()} to branch.
+     *
+     * <p>{@link #totalBudget}: when greater than zero, caps the total accumulated timeout across all re-evaluation slices.
+     *
+     * <p>{@link #extendable}: when {@code false}, the re-evaluation loop fires the race immediately on first expiry without
+     * re-reading the cluster state or rescheduling, regardless of the node-level re-evaluation setting.
      */
-    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext) {
+    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, TimeValue totalBudget, boolean extendable) {
 
         public static SearchRecoveryTimeout skip() {
-            return new SearchRecoveryTimeout(TimeValue.ZERO, "");
+            return new SearchRecoveryTimeout(TimeValue.ZERO, "", TimeValue.ZERO, false);
+        }
+
+        public static SearchRecoveryTimeout fixed(TimeValue timeout, String timeoutContext) {
+            return new SearchRecoveryTimeout(timeout, timeoutContext, TimeValue.ZERO, false);
+        }
+
+        public static SearchRecoveryTimeout extendable(TimeValue timeout, String timeoutContext, TimeValue totalBudget) {
+            return new SearchRecoveryTimeout(timeout, timeoutContext, totalBudget, true);
         }
 
         /** When {@code true}, recovery should use {@link #searchRecoveryWarmingListener} with {@link #timeout()} (which is then &gt; 0). */
         public boolean awaitWarming() {
             return timeout.millis() > 0;
+        }
+
+        private boolean considerTotalBudget() {
+            return totalBudget.millis() > 0;
+        }
+
+        public TimeValue timeoutCappedToTotalBudget(SearchRecoveryTimeout initialPlan, TimeValue timeElapsed) {
+            if (initialPlan.considerTotalBudget() == false) {
+                return timeout;
+            }
+            final long budgetLeftMs = Math.max(0L, initialPlan.totalBudget.millis() - timeElapsed.millis());
+            if (budgetLeftMs >= timeout.millis()) {
+                return timeout;
+            }
+            return TimeValue.timeValueMillis(budgetLeftMs);
         }
     }
 
@@ -1105,21 +1186,27 @@ public class SharedBlobCacheWarmingService {
                 return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
-                return new SearchRecoveryTimeout(
+                return SearchRecoveryTimeout.extendable(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    "relocation source not shutting down, cluster shutdown metadata present"
+                    "relocation source not shutting down, cluster shutdown metadata present",
+                    searchRecoveryWarmingGracePeriodCap
                 );
             }
-            return new SearchRecoveryTimeout(
+            return SearchRecoveryTimeout.extendable(
                 searchRecoveryWarmingRelocationTimeout,
-                "relocation source not shutting down, no cluster shutdown"
+                "relocation source not shutting down, no cluster shutdown",
+                searchRecoveryWarmingGracePeriodCap
             );
         }
         if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
-            return new SearchRecoveryTimeout(searchRecoveryWarmingNonRelocationTimeout, "not a relocation, another active shard copy");
+            return SearchRecoveryTimeout.extendable(
+                searchRecoveryWarmingNonRelocationTimeout,
+                "not a relocation, another active shard copy",
+                searchRecoveryWarmingGracePeriodCap
+            );
         }
         if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {
-            return new SearchRecoveryTimeout(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
+            return SearchRecoveryTimeout.fixed(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
         }
         return SearchRecoveryTimeout.skip();
     }
@@ -1132,37 +1219,77 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Completes {@code resumeRecoveryListener} when warming finishes, or when {@code timeout} elapses (whichever comes first). Records
-     * {@link #searchRecoveryWaitDurationMetric} with {@link SearchRecoveryWaitOutcome#TIMEOUT} or
+     * Completes {@code resumeRecoveryListener} when warming finishes, or when the timeout budget is exhausted (whichever comes first).
+     * Records {@link #searchRecoveryWaitDurationMetric} with {@link SearchRecoveryWaitOutcome#TIMEOUT} or
      * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two won the race. A warming failure that beats the
      * timeout also records the metric (attributed to {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE}) and then fails
      * {@code resumeRecoveryListener}.
      *
+     * <p>
      * {@code directory} and {@code bytesToWarm} only feed the timeout log line. The data set size comes from {@code directory}, not from
      * {@link IndexShard#storeStats}, because the latter calls {@code ensureOpen()} and fails the shard on {@link IOException}; neither is
      * acceptable while logging on a path where the store may already be closing.
      */
     public ActionListener<Void> searchRecoveryWarmingListener(
-        TimeValue timeout,
-        String timeoutContext,
+        SearchRecoveryTimeout initialPlan,
+        Supplier<ClusterState> clusterStateSupplier,
         IndexShard indexShard,
         BlobStoreCacheDirectory directory,
         long bytesToWarm,
         ActionListener<Void> resumeRecoveryListener
     ) {
-        assert timeout.millis() > 0;
+        assert initialPlan.awaitWarming();
         final long startedMillis = threadPool.relativeTimeInMillis();
         final long bytesWarmedAtStart = directory.totalBytesWarmedFromObjectStore();
         // First of the two events to complete `race` wins and decides the recorded outcome. The second event is discarded. Events:
-        // - timeout: the scheduled task completes it with TIMEOUT
+        // - timeout: the scheduled task (possibly re-evaluated) completes it with TIMEOUT
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
         final SubscribableListener<SearchRecoveryWaitOutcome> race = new SubscribableListener<>();
 
-        final var timeoutTask = threadPool.schedule(
-            () -> race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT),
-            timeout,
-            threadPool.generic()
-        );
+        // Accumulated timeout across all scheduling rounds — used in the TIMEOUT log so the operator sees the total wait.
+        final AtomicReference<TimeValue> totalOfflineWarmingTime = new AtomicReference<>(initialPlan.timeout());
+        final AtomicReference<String> latestTimeoutContext = new AtomicReference<>(initialPlan.timeoutContext());
+        final AtomicReference<Scheduler.ScheduledCancellable> currentTimeoutTask = new AtomicReference<>();
+
+        // Recursive re-evaluating timeout command. When reEvaluateOnTimeout is true, re-calls searchRecoveryTimeout() on each expiry
+        // and reschedules if the grace deadline still has budget, otherwise fires the race.
+        final Runnable scheduleOrFireTimeout = new Runnable() {
+            @Override
+            public void run() {
+                // cancel() on the scheduled task is best-effort: if this command was already dequeued when cancel() ran,
+                // it executes anyway. Without this guard it would reschedule a new task that cancel() never sees.
+                if (race.isDone()) {
+                    return;
+                }
+                if (searchRecoveryWarmingTimeoutReevaluationEnabled && initialPlan.extendable()) {
+                    try {
+                        final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
+                        final var newTimeout = newPlan.timeoutCappedToTotalBudget(initialPlan, totalOfflineWarmingTime.get());
+                        if (newTimeout.compareTo(searchRecoveryReevaluationAbortThreshold) >= 0) {
+                            totalOfflineWarmingTime.getAndUpdate(
+                                oldValue -> TimeValue.timeValueMillis(oldValue.millis() + newTimeout.millis())
+                            );
+                            latestTimeoutContext.set(newPlan.timeoutContext());
+                            currentTimeoutTask.set(threadPool.schedule(this, newTimeout, threadPool.generic()));
+                            logger.info(
+                                "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
+                                newTimeout,
+                                newPlan.timeoutContext(),
+                                indexShard.shardId(),
+                                totalOfflineWarmingTime.get()
+                            );
+                            return;
+                        }
+                    } catch (Exception e) {
+                        race.onFailure(e);
+                        return;
+                    }
+                }
+                race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
+            }
+        };
+        currentTimeoutTask.set(threadPool.schedule(scheduleOrFireTimeout, initialPlan.timeout(), threadPool.generic()));
+
         final ActionListener<Void> resumeRecoveryByForkingToGeneric = new ThreadedActionListener<>(
             threadPool.generic(),
             resumeRecoveryListener
@@ -1175,21 +1302,22 @@ public class SharedBlobCacheWarmingService {
                 if (outcome == SearchRecoveryWaitOutcome.TIMEOUT) {
                     final long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
                     final long bytesWarmed = directory.totalBytesWarmedFromObjectStore() - bytesWarmedAtStart;
-                    final String context = timeoutContext.isEmpty() ? "default" : timeoutContext;
-                    // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that are
-                    // not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
+                    final String context = latestTimeoutContext.get().isEmpty() ? "default" : latestTimeoutContext.get();
+                    // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that
+                    // are not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
+                    final TimeValue totalMs = totalOfflineWarmingTime.get();
                     logger.warn(
                         new ESLogMessage(
                             "Search shard recovery cache warming timed out after [{}] ({}) for {}, "
                                 + "shard data set size [{}], bytes to warm [{}], bytes warmed [{}]",
-                            timeout,
+                            totalMs,
                             context,
                             indexShard.shardId(),
                             ByteSizeValue.ofBytes(dataSetSizeInBytes),
                             ByteSizeValue.ofBytes(bytesToWarm),
                             ByteSizeValue.ofBytes(bytesWarmed)
                         ).field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "shard", indexShard.shardId().toString())
-                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", timeout.millis())
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", totalMs.millis())
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_context", context)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "data_set_size_bytes", dataSetSizeInBytes)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_to_warm", bytesToWarm)
@@ -1206,9 +1334,9 @@ public class SharedBlobCacheWarmingService {
             });
 
         // Best-effort inline cleanup on every completion path; the result is intentionally ignored. If the timeout won, the task has
-        // already fired and cancel() is a no-op; if warming won or failed, the task is still pending and cancel() stops it from
-        // firing later. The outcome is already decided regardless, so a redundant or too-late cancel is harmless.
-        race.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
+        // already fired and cancel() is a no-op; if warming won or failed, the latest task is still pending and cancel() stops it.
+        // The outcome is already decided by SubscribableListener regardless, so a redundant or too-late cancel is harmless.
+        race.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, () -> currentTimeoutTask.get().cancel()));
 
         // warming finishing wins with WARMING_COMPLETE; warming failures propagate (after recording the wait metric).
         return race.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
@@ -1277,6 +1405,24 @@ public class SharedBlobCacheWarmingService {
         return node == null ? 0 : node.size();
     }
 
+    /**
+     * Counts shards that are in {@link ShardRoutingState#STARTED} state on {@code nodeId}. These are shards that have not yet begun
+     * relocating and will need grace-period budget in a future recovery round.
+     */
+    private static int countStartedShardsOnNode(ClusterState clusterState, String nodeId) {
+        final RoutingNode node = clusterState.getRoutingNodes().node(nodeId);
+        if (node == null) {
+            return 0;
+        }
+        int count = 0;
+        for (ShardRouting shard : node) {
+            if (shard.state() == ShardRoutingState.STARTED) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
             if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
@@ -1314,7 +1460,7 @@ public class SharedBlobCacheWarmingService {
         final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
         final long remaining = deadline - now;
         if (remaining <= 0) {
-            return new SearchRecoveryTimeout(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
+            return SearchRecoveryTimeout.fixed(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
         }
         int shardsOnSource = countShardsOnNode(state, sourceNodeId);
         if (shardsOnSource <= 0) {
@@ -1349,7 +1495,25 @@ public class SharedBlobCacheWarmingService {
             timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+
+        if (searchRecoveryWarmingTimeoutReevaluationEnabled) {
+            // Reserve a min budget for every shard on source that has not yet begun
+            // relocating (still STARTED). Without this cap, re-evaluations could consume all remaining
+            // grace-period time and leave those shards with no budget when their recovery eventually starts.
+            final int pendingShards = countStartedShardsOnNode(state, sourceNodeId);
+            final int pendingWaves = (pendingShards + ongoingRelocations - 1) / ongoingRelocations;
+            final long reservedForPendingMs = pendingWaves * searchRecoveryWarmingSourceShutdownMinBudgetPerPendingShard.millis();
+            final double cappedTimeoutMs = Math.clamp(remaining - reservedForPendingMs, 0.0, timeoutMs);
+            final String finalContext = cappedTimeoutMs < timeoutMs
+                ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
+                : context;
+            return SearchRecoveryTimeout.extendable(
+                TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)),
+                finalContext,
+                searchRecoveryWarmingGracePeriodCap
+            );
+        }
+        return SearchRecoveryTimeout.fixed(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 
     /**
@@ -1950,7 +2114,7 @@ public class SharedBlobCacheWarmingService {
         protected abstract void onWarmingSuccess(long duration);
 
         protected void onWarmingFailed(Exception e) {
-            Supplier<String> logMessage = () -> Strings.format(
+            org.apache.logging.log4j.util.Supplier<String> logMessage = () -> Strings.format(
                 "%s %s warming failed with message %s",
                 warmingRun.shardId(),
                 warmingRun.type(),

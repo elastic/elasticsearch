@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +58,15 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     @Override
+    public void markRelocationStarting(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+        getStrategy().markRelocationStarting(
+            () -> super.markRelocationStarting(shardId, uploadBoundListener),
+            shardId,
+            uploadBoundListener
+        );
+    }
+
+    @Override
     public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
         return getStrategy().markRelocating(
             () -> super.markRelocating(shardId, minRelocatedGeneration, listener),
@@ -67,6 +77,10 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     public static class Strategy {
+        public void markRelocationStarting(Runnable originalRunnable, ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
+            originalRunnable.run();
+        }
+
         public ActionListener<Void> markRelocating(
             Supplier<ActionListener<Void>> originalSupplier,
             ShardId shardId,

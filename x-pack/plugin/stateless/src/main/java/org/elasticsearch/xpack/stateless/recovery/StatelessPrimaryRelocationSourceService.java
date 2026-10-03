@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -350,8 +351,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+            // Completed with the pinned upload bound by markRelocating, failed below if the handoff never gets that far.
+            // See StatelessCommitService#markRelocationStarting
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
+                primaryContext,
+                handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
+                // markRelocationStarting before the final flush, so that a registering search shard cannot pick up a
+                // commit above the upload bound that markRelocating pins after it.
+                statelessCommitServiceProvider.get().markRelocationStarting(indexShard.shardId(), uploadBoundListener);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
@@ -568,6 +577,17 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         finalHandoffListener
                     );
                 }), recoveryExecutor, threadContext);
+            };
+
+            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+                try {
+                    handoffConsumer.accept(primaryContext, handoffResultListener);
+                } catch (Exception e) {
+                    // Unwind before IndexShard#relocated releases the operation permits, such that a retry stays blocked
+                    // until state is clean. No-op if markRelocating already completed the listener.
+                    uploadBoundListener.onFailure(e);
+                    throw e;
+                }
             }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
         }), recoveryExecutor, threadContext);
     }

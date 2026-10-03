@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 159562
+summary: Bound recovery VBCC by `maxGenerationToUpload`
+type: bug

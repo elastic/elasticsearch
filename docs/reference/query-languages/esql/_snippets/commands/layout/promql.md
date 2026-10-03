@@ -7,7 +7,7 @@ The `PROMQL` source command queries [time series indices](docs-content://manage-
 Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
 
 ::::{note}
-`PROMQL` supports most, but not all, of PromQL. Refer to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) for unsupported constructs and behavioral differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
+`PROMQL` supports most, but not all, of PromQL. Refer to [Limitations](#esql-promql-limitations) for unsupported constructs, to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) for behavioral differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
 ::::
 
 
@@ -106,6 +106,58 @@ The `PROMQL` command allows omitting the range selector entirely. When the range
 determined automatically as `max(step, scrape_interval)`.
 For example: `PROMQL scrape_interval=15s sum(rate(http_requests_total))`.
 
+## Best practices [esql-promql-best-practices]
+
+% This section serves both human readers and AI agents that write PROMQL queries.
+% Only add a practice that a reader who already understands the command would still benefit from,
+% and state the user-facing reason (performance, stable results, correct semantics).
+% Don't add warnings against mistakes only a confused writer would make, or restate facts
+% documented elsewhere on this page. Put those facts in the relevant reference section instead.
+
+- Set `index` explicitly instead of relying on the `metrics-*` default, to narrow the data scanned.
+- Omit range selectors, so the window adapts to the time range and step instead of being fixed.
+  This also applies when porting a Prometheus query: write `rate(http_requests_total)` instead of `rate(http_requests_total[5m])`.
+  Only set a range selector when you need a fixed window, such as the rate over the last 5 minutes.
+- Name the result, such as `http_rate=(...)`. Otherwise, the value column is named after the expression text,
+  which changes whenever the expression is reformatted, so later commands can't reliably reference it.
+- Match the function to the metric type: use `rate`, `irate`, or `increase` for counters, and functions such as
+  `avg_over_time` or `max_over_time`, or the raw metric, for gauges.
+  For native histograms, use `increase` instead of `rate`, and wrap the result in a histogram function, such as
+  `histogram_quantile(0.99, sum by (job) (increase(http_request_duration_seconds)))`.
+- In Kibana, omit `start` and `end` so the query follows the date picker. Elsewhere, set `start` and `end`
+  explicitly. Otherwise the query covers all data in the index.
+- Filter by labels in the PromQL selector, such as `network.cost{cluster!="prod"}`, rather than with `WHERE`
+  after `PROMQL`. Selector filters reduce the data read, and a later `WHERE` doesn't.
+
+### Single-value results [esql-promql-single-value]
+
+A range query returns a value for every step. To get a single value per series, such as for a metric or gauge chart
+or a ranking:
+
+- For the current value, use an [instant query](#esql-promql-instant-query). In Kibana, set `time=?_tend` to evaluate
+  the expression at the end of the time range of the date picker
+  (refer to [time range parameters](docs-content://explore-analyze/query-filter/languages/esql-kibana.md)):
+
+  ```esql
+  PROMQL index=metrics-generic.prometheus-* time=?_tend http_rate=(sum(rate(http_requests_total)))
+  ```
+
+- For a value over the whole time range, such as a total, collapse the steps of a range query with `STATS`.
+  With an implicit range selector, the window of each step is one step wide, so summing the increase of each step
+  gives the increase over the whole time range:
+
+  ```esql
+  PROMQL index=metrics-generic.prometheus-* requests=(sum(increase(http_requests_total)))
+  | STATS total_requests = SUM(requests)
+  ```
+
+## Limitations [esql-promql-limitations]
+
+:::{include} ../../../../promql/_snippets/promql-unsupported-constructs.md
+:::
+
+For behavioral differences from Prometheus, refer to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md).
+
 ## Examples
 
 ### Fully adaptive query
@@ -113,20 +165,20 @@ For example: `PROMQL scrape_interval=15s sum(rate(http_requests_total))`.
 Rely on Kibana's date picker for the time range, and let `step` and range selectors be inferred automatically:
 
 ```esql
-PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+PROMQL index=metrics-generic.prometheus-* http_rate=(sum(rate(http_requests_total)))
 ```
 
 This is the recommended pattern for Kibana dashboards. The query responds to the date picker, adjusts the step size
 to the selected time range, and sizes the range selector window accordingly.
 
-### Instant query
+### Instant query [esql-promql-instant-query]
 
 {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
 
 Evaluate the expression once, for example to get the current value of a metric:
 
 ```esql
-PROMQL index=metrics-*
+PROMQL index=metrics-generic.prometheus-*
   time="2026-04-01T01:00:00Z"
   http_rate=(sum(rate(http_requests_total)))
 ```
@@ -159,10 +211,10 @@ For queries outside Kibana, set `start` and `end` explicitly. The step and range
 automatically from the time range and the default `buckets` count:
 
 ```esql
-PROMQL index=metrics-*
+PROMQL index=metrics-generic.prometheus-*
   start="2026-04-01T00:00:00Z"
   end="2026-04-01T01:00:00Z"
-  sum by (instance) (rate(http_requests_total))
+  http_rate=(sum(rate(http_requests_total)))
 ```
 
 ### Enrich with a lookup
@@ -170,7 +222,7 @@ PROMQL index=metrics-*
 Join PromQL results with external data using ES|QL commands:
 
 ```esql
-PROMQL index=metrics-*
+PROMQL index=metrics-generic.prometheus-*
   http_rate=(sum by (instance) (rate(http_requests_total)))
 | LOOKUP JOIN instance_metadata ON instance
 ```

@@ -104,8 +104,12 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     List<String> startCluster(int numberOfNodes) {
+        return startCluster(numberOfNodes, Settings.EMPTY);
+    }
+
+    List<String> startCluster(int numberOfNodes, Settings extraSettings) {
         InternalTestCluster internalCluster = internalCluster();
-        List<String> nodes = internalCluster.startNodes(numberOfNodes);
+        List<String> nodes = internalCluster.startNodes(numberOfNodes, extraSettings);
         ensureStableCluster(numberOfNodes);
         return nodes;
     }

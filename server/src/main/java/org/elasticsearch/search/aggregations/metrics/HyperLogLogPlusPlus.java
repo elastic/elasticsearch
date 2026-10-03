@@ -24,14 +24,16 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
  * <a href="http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf">this paper</a> and
  * <a href="https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen">its appendix</a>
  *
- * This implementation is different from the original implementation in that it uses a hash table instead of a sorted list for linear
- * counting. Although this requires more space and makes hyperloglog (which is less accurate) used sooner, this is also considerably faster.
+ * This implementation is different from the original implementation in that linear counting keeps, per bucket, a sorted prefix plus an
+ * unsorted tail of appended values that is sorted, deduplicated and merged into the prefix lazily. This keeps inserts cheap (appends rather
+ * than random hash probes) and iteration proportional to the number of values.
  *
  * Trying to understand what this class does without having read the paper is considered adventurous.
  *
@@ -123,6 +125,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     public long cardinality(long bucketOrd) {
+        upgradeIfAboveThreshold(bucketOrd);
         final long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0;
         if (hllBucket > 0) {
             return hll.cardinality(hllBucket - 1);
@@ -133,6 +136,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected boolean getAlgorithm(long bucketOrd) {
+        upgradeIfAboveThreshold(bucketOrd);
         return bucketOrd < hllBuckets.size() && hllBuckets.get(bucketOrd) > 0;
     }
 
@@ -176,6 +180,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         hll.addRunLen(hllBucket, register, runLen);
     }
 
+    /**
+     * Linear counting defers deduplication so it can notice that a bucket holds more than the threshold of distinct values late.
+     * Since sets only grow and collecting into HyperLogLog is idempotent, the end state only depends on the final number of
+     * distinct values, so it is enough to settle this whenever the bucket is observed.
+     */
+    private void upgradeIfAboveThreshold(long bucketOrd) {
+        if ((bucketOrd < hllBuckets.size() && hllBuckets.get(bucketOrd) > 0) == false && lc.size(bucketOrd) > lc.threshold) {
+            upgradeToHll(bucketOrd);
+        }
+    }
+
     long upgradeToHll(long bucketOrd) {
         long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0;
         if (hllBucket > 0) {
@@ -186,6 +201,32 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         hllBuckets = bigArrays.grow(hllBuckets, bucketOrd + 1);
         hllBuckets.set(bucketOrd, hllBucket + 1);
         return hllBucket;
+    }
+
+    /**
+     * Sorts {@code values[0, n)} ascending and removes duplicates, unless they already are strictly ascending, which is the case
+     * for values read from another linear counting.
+     * @return the number of distinct values, which are moved to the start of the array
+     */
+    private static int sortDistinct(int[] values, int n) {
+        boolean strictlyAscending = true;
+        for (int i = 1; i < n; i++) {
+            if (values[i - 1] >= values[i]) {
+                strictlyAscending = false;
+                break;
+            }
+        }
+        if (strictlyAscending) {
+            return n;
+        }
+        Arrays.sort(values, 0, n);
+        int w = 1;
+        for (int r = 1; r < n; r++) {
+            if (values[r] != values[w - 1]) {
+                values[w++] = values[r];
+            }
+        }
+        return w;
     }
 
     public void combine(long bucket, BytesRef other) throws IOException {
@@ -202,18 +243,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                 for (int i = 0; i < length; i++) {
                     values[i] = in.readInt();
                 }
-                int i = 0;
-                long hllBucket = -1;
-                while (i < length) {
-                    // TODO: bulk
-                    int size = lc.addEncoded(bucket, values[i++]);
-                    if (size > lc.threshold) {
-                        hllBucket = upgradeToHll(bucket);
-                        break;
-                    }
-                }
-                while (i < length) {
-                    hll.collectEncoded(hllBucket, values[i++]);
+                final int n = sortDistinct(values, length);
+                if (lc.addSorted(bucket, values, n) > lc.threshold) {
+                    upgradeToHll(bucket);
                 }
             } finally {
                 breaker.addWithoutBreaking(-bytesUsed);
@@ -241,21 +273,26 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private void merge(long bucketOrd, AbstractLinearCounting.HashesIterator values) {
         long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
         if (hllBucket < 0) {
-            while (values.next()) {
-                final int encoded = values.value();
-                final int newSize = lc.addEncoded(bucketOrd, encoded);
-                if (newSize > lc.threshold) {
-                    hllBucket = upgradeToHll(bucketOrd);
-                    hll.collectEncoded(hllBucket, encoded);
-                    break;
+            final int length = values.size();
+            final long bytesUsed = (long) length * Integer.BYTES;
+            breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
+            try {
+                final int[] encoded = new int[length];
+                for (int i = 0; i < length; i++) {
+                    values.next();
+                    encoded[i] = values.value();
                 }
+                final int n = sortDistinct(encoded, length);
+                if (lc.addSorted(bucketOrd, encoded, n) > lc.threshold) {
+                    upgradeToHll(bucketOrd);
+                }
+            } finally {
+                breaker.addWithoutBreaking(-bytesUsed);
             }
+            return;
         }
-        if (hllBucket >= 0) {
-            while (values.next()) {
-                final int encoded = values.value();
-                hll.collectEncoded(hllBucket, encoded);
-            }
+        while (values.next()) {
+            hll.collectEncoded(hllBucket, values.value());
         }
     }
 
@@ -341,17 +378,21 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * A single bucket's linear counting set: an int array laid out as {@code [sorted+deduplicated prefix | unsorted tail]}.
+     * Inserts append to the tail; the tail is sorted, deduplicated and merged into the prefix ("compacted") only when the array
+     * is full or when the exact content is needed. Values are never removed, so the set only grows.
+     */
     private static final class LinearCountingCell {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LinearCountingCell.class);
-        private int size;
-        private final int nextGrowSize;
-        private final int mask;
-        private final int[] values;
+        /** Number of used slots in {@link #values}; includes the unsorted tail, which may contain duplicates. */
+        private int len;
+        /** Length of the sorted, duplicate free prefix. Always a lower bound of the number of distinct values. */
+        private int sortedLen;
+        private int[] values;
 
         LinearCountingCell(int capacity) {
-            this.mask = capacity - 1;
             this.values = new int[capacity];
-            this.nextGrowSize = (int) (capacity * MAX_LOAD_FACTOR);
         }
 
         static long bytesUsed(int length) {
@@ -360,62 +401,32 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             );
         }
 
-        void rehashTo(LinearCountingCell newCell) {
-            final int[] newValues = newCell.values;
-            final int newMask = newCell.mask;
-            for (int v : this.values) {
-                if (v != 0) {
-                    int pos = v & newMask;
-                    if (newValues[pos] != 0) {
-                        do {
-                            pos = (pos + 1) & newMask;
-                        } while (newValues[pos] != 0);
-                    }
-                    newValues[pos] = v;
-                }
-            }
-            newCell.size = this.size;
-        }
-
-        void add(int encoded) {
-            assert encoded != 0;
-            int pos = encoded & mask;
-            while (values[pos] != 0) {
-                if (values[pos] == encoded) {
-                    return;
-                }
-                pos = (pos + 1) & mask;
-            }
-            values[pos] = encoded;
-            ++size;
-        }
-
         int capacity() {
             return values.length;
         }
     }
 
+    /** Iterates the distinct values of a compacted cell, in ascending order. */
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
         private final LinearCountingCell cell;
         private int index;
 
         LinearCountingIterator(LinearCountingCell cell) {
+            assert cell.len == cell.sortedLen : "iterating a cell that was not compacted";
             this.cell = cell;
             this.index = 0;
         }
 
         @Override
         public int size() {
-            return cell.size;
+            return cell.len;
         }
 
         @Override
         public boolean next() {
-            while (index < cell.values.length) {
-                int v = cell.values[index++];
-                if (v != 0) {
-                    return true;
-                }
+            if (index < cell.len) {
+                index++;
+                return true;
             }
             return false;
         }
@@ -426,13 +437,39 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * Linear counting where each bucket keeps its values in a {@link LinearCountingCell sorted buffer} rather than a hash table.
+     * Compared to hashing this avoids random memory access on insert and iterates in proportion to the number of values. Two cheap
+     * shortcuts drop inserts of values that are provably already present: a check against the last element of the buffer and a
+     * shared direct-mapped filter of recently seen {@code (bucket, value)} pairs. Both are optimizations only: a miss defers
+     * deduplication to compaction.
+     *
+     * Because deduplication is deferred, a size returned by {@link #addEncoded} is only guaranteed to be above the threshold when
+     * the bucket really holds more distinct values. A bucket that is above the threshold is detected at the latest when its buffer
+     * is full, or when it is read, see {@link HyperLogLogPlusPlus#upgradeIfAboveThreshold}.
+     *
+     * This class is not thread safe, and reading values or sizes compacts (mutates) the buffers.
+     */
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
+        private static final int INITIAL_CELL_CAPACITY = 8;
+        /** Number of slots of the recent-values filter; a power of two. */
+        private static final int FILTER_BITS = 14;
+        /** Compaction doubles the buffer when more than this fraction of it holds distinct values. */
+        private static final float GROW_ABOVE = 0.5f;
+
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long bytesUsed;
         private final int threshold;
         private ObjectArray<LinearCountingCell> cells;
         private final int capacity;
+        /** Scratch space for merging a tail into a prefix, shared by all buckets. */
+        private int[] scratch = new int[0];
+        /**
+         * Direct-mapped cache of recently inserted {@code (bucketOrd + 1) << 32 | value} keys, shared by all buckets. A hit implies the
+         * value is in the bucket, which holds because sets only grow. Allocated lazily as small aggregations never need it.
+         */
+        private long[] filter;
 
         LinearCounting(BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount, int precision) {
             super(precision);
@@ -443,13 +480,13 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.cells = bigArrays.newObjectArray(initialBucketCount);
         }
 
-        private static int initialCellSize(long bucket, int capacity) {
-            // Pre-allocate full capacity for the first few buckets to bypass the cost of multiple rehashes.
+        private int initialCellSize(long bucket) {
+            // Pre-allocate full capacity for the first few buckets to bypass the cost of multiple resizes.
             // Optimized for ungrouped aggregations or those with few groups but high cardinality.
             if (bucket < 10) {
                 return capacity;
             } else {
-                return Math.min(capacity, 32);
+                return Math.min(capacity, INITIAL_CELL_CAPACITY);
             }
         }
 
@@ -466,37 +503,190 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             bytesUsed -= bytes;
         }
 
+        private void resize(LinearCountingCell cell, int newCapacity) {
+            long newBytes = LinearCountingCell.bytesUsed(newCapacity);
+            long oldBytes = LinearCountingCell.bytesUsed(cell.values.length);
+            breaker.addEstimateBytesAndMaybeBreak(newBytes - oldBytes, "linear counting cell");
+            bytesUsed += newBytes - oldBytes;
+            cell.values = Arrays.copyOf(cell.values, newCapacity);
+        }
+
+        private void ensureScratch(int length) {
+            if (scratch.length < length) {
+                long newBytes = RamUsageEstimator.alignObjectSize(
+                    (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * length
+                );
+                long oldBytes = RamUsageEstimator.sizeOf(scratch);
+                breaker.addEstimateBytesAndMaybeBreak(newBytes - oldBytes, "linear counting scratch");
+                bytesUsed += newBytes - oldBytes;
+                scratch = new int[length];
+            }
+        }
+
+        /** Returns true if {@code (bucketOrd, encoded)} was recently inserted, otherwise remembers it and returns false. */
+        private boolean filterContainsOrAdd(long bucketOrd, int encoded) {
+            final long key = ((bucketOrd + 1) << 32) | (encoded & 0xFFFFFFFFL);
+            final int slot = (int) ((key * 0x9E3779B97F4A7C15L) >>> (64 - FILTER_BITS));
+            if (filter[slot] == key) {
+                return true;
+            }
+            filter[slot] = key;
+            return false;
+        }
+
+        private void allocateFilter() {
+            long bytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * (1 << FILTER_BITS);
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "linear counting filter");
+            bytesUsed += bytes;
+            filter = new long[1 << FILTER_BITS];
+        }
+
+        /**
+         * Sorts and deduplicates the tail of the cell and merges it into the sorted prefix, leaving {@code len == sortedLen}
+         * equal to the number of distinct values.
+         */
+        private void compact(LinearCountingCell cell) {
+            final int[] a = cell.values;
+            final int sorted = cell.sortedLen;
+            if (sorted == cell.len) {
+                return;
+            }
+            Arrays.sort(a, sorted, cell.len);
+            // Dedup the tail in place. This also drops tail values equal to the last element of the prefix.
+            int w = sorted;
+            for (int r = sorted; r < cell.len; r++) {
+                final int v = a[r];
+                if (w == 0 || a[w - 1] != v) {
+                    a[w++] = v;
+                }
+            }
+            if (w == sorted || sorted == 0 || a[sorted - 1] < a[sorted]) {
+                // The (remaining) tail is entirely above the prefix: it is already in order.
+                cell.len = cell.sortedLen = w;
+                return;
+            }
+            ensureScratch(w);
+            final int k = mergeDistinct(a, sorted, a, sorted, w, scratch);
+            System.arraycopy(scratch, 0, a, 0, k);
+            cell.len = cell.sortedLen = k;
+        }
+
+        /**
+         * Merges the strictly ascending runs {@code x[0, xLen)} and {@code y[yFrom, yTo)} into {@code out}, writing each value once.
+         * @return the number of values written
+         */
+        private static int mergeDistinct(int[] x, int xLen, int[] y, int yFrom, int yTo, int[] out) {
+            int i = 0;
+            int j = yFrom;
+            int k = 0;
+            while (i < xLen && j < yTo) {
+                final int a = x[i];
+                final int b = y[j];
+                if (a < b) {
+                    out[k++] = a;
+                    i++;
+                } else if (a > b) {
+                    out[k++] = b;
+                    j++;
+                } else {
+                    out[k++] = a;
+                    i++;
+                    j++;
+                }
+            }
+            while (i < xLen) {
+                out[k++] = x[i++];
+            }
+            while (j < yTo) {
+                out[k++] = y[j++];
+            }
+            return k;
+        }
+
+        /**
+         * Adds values that are strictly ascending (sorted and distinct) with a single linear merge into the bucket's sorted prefix,
+         * rather than one insert per value. This is why merging buckets is cheaper than hashing each value.
+         * @return the exact number of distinct values in the bucket afterwards
+         */
+        int addSorted(long bucketOrd, int[] sortedValues, int n) {
+            if (n == 0) {
+                return size(bucketOrd);
+            }
+            LinearCountingCell cell;
+            if (bucketOrd >= cells.size()) {
+                cells = bigArrays.grow(cells, bucketOrd + 1);
+                cell = null;
+            } else {
+                cell = cells.get(bucketOrd);
+            }
+            if (cell == null) {
+                cell = newCell(initialCellSize(bucketOrd));
+                cells.set(bucketOrd, cell);
+            }
+            compact(cell);
+            ensureScratch(cell.len + n);
+            final int k = mergeDistinct(cell.values, cell.len, sortedValues, 0, n, scratch);
+            if (k > cell.capacity()) {
+                resize(cell, k);
+            }
+            System.arraycopy(scratch, 0, cell.values, 0, k);
+            cell.len = cell.sortedLen = k;
+            return k;
+        }
+
+        /** Frees at least one slot of a full cell by compacting it, growing it if it is mostly distinct values. */
+        private void makeRoom(LinearCountingCell cell) {
+            if (filter == null) {
+                allocateFilter();
+            }
+            compact(cell);
+            final int cap = cell.capacity();
+            if (cell.len == cap) {
+                // Everything is distinct and above the threshold: the caller upgrades, but needs room for the value being added.
+                resize(cell, cap * 2);
+            } else if (cell.len > (int) (cap * GROW_ABOVE) && cap < capacity) {
+                resize(cell, Math.min(cap * 2, capacity));
+            }
+        }
+
         @Override
         protected int addEncoded(long bucketOrd, int encoded) {
             assert encoded != 0;
             LinearCountingCell cell;
             if (bucketOrd >= cells.size()) {
                 cells = bigArrays.grow(cells, bucketOrd + 1);
-                cell = newCell(initialCellSize(bucketOrd, capacity));
-                cells.set(bucketOrd, cell);
+                cell = null;
             } else {
                 cell = cells.get(bucketOrd);
-                if (cell != null) {
-                    if (cell.size > cell.nextGrowSize) {
-                        var newCell = newCell(cell.capacity() << 1);
-                        cell.rehashTo(newCell);
-                        cells.set(bucketOrd, newCell);
-                        closeCell(cell);
-                        cell = newCell;
-                    }
-                } else {
-                    cell = newCell(initialCellSize(bucketOrd, capacity));
-                    cells.set(bucketOrd, cell);
+            }
+            if (cell == null) {
+                cell = newCell(initialCellSize(bucketOrd));
+                cells.set(bucketOrd, cell);
+            } else {
+                if (filter != null && filterContainsOrAdd(bucketOrd, encoded)) {
+                    return Math.max(cell.sortedLen, Math.min(cell.len, threshold));
+                }
+                if (cell.len != 0 && cell.values[cell.len - 1] == encoded) {
+                    return Math.max(cell.sortedLen, Math.min(cell.len, threshold));
+                }
+                if (cell.len == cell.values.length) {
+                    makeRoom(cell);
                 }
             }
-            cell.add(encoded);
-            return cell.size;
+            cell.values[cell.len++] = encoded;
+            // len is an upper bound on the distinct count and sortedLen a lower bound. Only report exceeding the threshold when
+            // that is certain; otherwise the true size is not worth compacting for.
+            return Math.max(cell.sortedLen, Math.min(cell.len, threshold));
         }
 
         @Override
         protected int size(long bucketOrd) {
             final var cell = bucketOrd < cells.size() ? cells.get(bucketOrd) : null;
-            return cell != null ? cell.size : 0;
+            if (cell == null) {
+                return 0;
+            }
+            compact(cell);
+            return cell.len;
         }
 
         private HashesIterator values(long bucketOrd) {
@@ -504,6 +694,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             if (cell == null) {
                 return AbstractLinearCounting.HashesIterator.EMPTY;
             } else {
+                compact(cell);
                 return new LinearCountingIterator(cell);
             }
         }
@@ -513,10 +704,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             if (cell == null) {
                 return;
             }
-            for (int v : cell.values) {
-                if (v != 0) {
-                    hll.collectEncoded(hllBucket, v);
-                }
+            // Duplicates in the tail are harmless as collecting is idempotent.
+            for (int i = 0; i < cell.len; i++) {
+                hll.collectEncoded(hllBucket, cell.values[i]);
             }
             closeCell(cell);
             cells.set(bucketOrd, null);

@@ -12,7 +12,6 @@ package org.elasticsearch.geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -34,14 +33,9 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         GeometryValidator validator = GeographyValidator.instance(true);
-        assertEquals("CIRCLE (20.0 10.0 15.0)", WellKnownText.toWKT(new Circle(20, 10, 15)));
-        assertEquals(new Circle(20, 10, 15), WellKnownText.fromWKT(validator, true, "circle (20.0 10.0 15.0)"));
-
-        assertEquals("CIRCLE (20.0 10.0 15.0 25.0)", WellKnownText.toWKT(new Circle(20, 10, 25, 15)));
-        assertEquals(new Circle(20, 10, 25, 15), WellKnownText.fromWKT(validator, true, "circle (20.0 10.0 15.0 25.0)"));
-
-        assertEquals("CIRCLE EMPTY", WellKnownText.toWKT(Circle.EMPTY));
-        assertEquals(Circle.EMPTY, WellKnownText.fromWKT(validator, true, "CIRCLE EMPTY)"));
+        assertSerialization(validator, true, "CIRCLE (20.0 10.0 15.0)", new Circle(20, 10, 15));
+        assertSerialization(validator, true, "CIRCLE (20.0 10.0 15.0 25.0)", new Circle(20, 10, 25, 15));
+        assertSerialization(validator, true, "CIRCLE EMPTY", Circle.EMPTY);
     }
 
     public void testInitValidation() {

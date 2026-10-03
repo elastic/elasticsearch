@@ -16,6 +16,8 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -41,7 +43,12 @@ public enum GeometryParserFormat {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return null;
             }
-            return WellKnownText.fromWKT(validator, coerce, parser.text());
+            if (parser instanceof MapXContentParser) {
+                // we have already serialized the string so using optimize text will allocate a new byte array
+                return WellKnownText.fromWKT(validator, coerce, parser.text());
+            }
+            XContentString.UTF8Bytes utfBytes = parser.optimizedText().bytes();
+            return WellKnownText.fromWKT(validator, coerce, utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
         }
 
     },

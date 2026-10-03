@@ -194,6 +194,12 @@ public class CsvTestsDataLoader {
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
         new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
+        new TestDataset("mapped_object_source_data", "mapping-mapped_object_source_data.json", "mapped_object_source_data.csv"),
+        // ignore_malformed accepting an object value for a scalar (date) field is a 9.x capability, so this dataset fails to index on an
+        // older bwc node. Gate it on the LOAD_ALL capability it exists to serve, which is absent on those nodes, so the mixed-cluster
+        // loader skips it (the consuming test is likewise gated by required_capability).
+        new TestDataset("malformed_date_source_data", "mapping-malformed_date_source_data.json", "malformed_date_source_data.csv")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
         // a foo leaf only, a bar leaf only, foo / bar / deep.leaf across separate documents (synthetic source), and a bare scalar plus a
         // foo array. All share mapping-unmapped_multi.json (dynamic:false, only id mapped) so the rest lands in _source / _ignored_source.

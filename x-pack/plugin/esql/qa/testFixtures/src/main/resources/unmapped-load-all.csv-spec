@@ -20,6 +20,26 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+// A fully-mapped index has no unmapped source fields, so LOAD_ALL adds no columns. The data node skips the _source read entirely
+// (SkipUnmappedFieldsExtraction nullifies the synthetic column in the local physical plan), and the coordinator drops that null column.
+fromFullyMappedIndexHasNoUnmappedColumns
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM sample_data
+| SORT @timestamp
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
+;
+
 keepStarIsIdempotent
 required_capability: optional_fields_load_all_v2
 
@@ -3353,6 +3373,46 @@ FROM unmapped_object_data
 id:keyword | extra:keyword | extra.baz:keyword
 1          | hello         | null
 2          | null          | world
+;
+
+// A mapped field whose JSON value is an object (here an "integer_range", but the same holds for geo_point, aggregate_metric_double,
+// vectors, etc.) is fully mapped, so a name-only skip check would wrongly conclude LOAD_ALL adds nothing and skip the _source read.
+// But the object flattens to dotted leaf columns ("span.gte", "span.lt"), so the read must not be skipped and the inner columns must
+// still surface. Excluding only the parent name "span" does not exclude those inner leaves.
+mappedObjectValuedFieldStillExpandsUnderLoadAll
+required_capability: optional_fields_load_all_v2
+skip_columnar: A mapped integer_range's object value is not surfaced to the LOAD_ALL _unmapped_fields loader from columnar synthetic _source, so span.gte/span.lt come back null
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mapped_object_source_data
+| KEEP id, span.gte, span.lt
+| SORT id
+;
+
+id:keyword | span.gte:keyword | span.lt:keyword
+1          | 1                | 5
+2          | 10               | 20
+;
+
+// End-to-end companion to the SearchContextStatsTests ignore_malformed case. A scalar-typed leaf can still keep an object in _source
+// when ignore_malformed is enabled: a "date" (the same holds for ip) that receives a malformed object value is accepted, the value is
+// dropped from the index but retained verbatim in _source. That object flattens to a dotted leaf column, so LOAD_ALL surfaces
+// "event_time.original" even though "event_time" itself is a mapped date - matching the scenario that makes the source-skip check
+// decline whenever a mapped leaf has ignore_malformed enabled. The second document holds a well-formed date and contributes no inner
+// column. (Numeric and boolean leaves reject object values outright even with ignore_malformed, so "date"/"ip" are the reproducible
+// scalar cases.)
+mappedIgnoreMalformedFieldStillExpandsUnderLoadAll
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM malformed_date_source_data
+| KEEP id, event_time.original
+| SORT id
+;
+
+id:keyword | event_time.original:keyword
+1          | nope
+2          | null
 ;
 
 // Same data and mapping as fromNoProjection, but with synthetic source, which reconstructs the dotted key "unmapped.nested" as a

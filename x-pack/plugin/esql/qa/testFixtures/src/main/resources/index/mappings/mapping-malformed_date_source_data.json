@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "id": {
+      "type": "keyword"
+    },
+    "event_time": {
+      "type": "date",
+      "ignore_malformed": true
+    }
+  }
+}

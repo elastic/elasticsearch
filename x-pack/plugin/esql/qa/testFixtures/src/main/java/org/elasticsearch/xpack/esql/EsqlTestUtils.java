@@ -143,6 +143,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -535,9 +536,35 @@ public final class EsqlTestUtils {
             return constantValues.get(name.string());
         }
 
+        private boolean forceSkipUnmappedFieldsExtraction = false;
+
+        /**
+         * Forces {@link #canSkipUnmappedFieldsExtraction} to report the shard as fully mapped for
+         * {@code SET unmapped_fields="LOAD_ALL"}, so the synthetic {@code _unmapped_fields} column is nullified in the local
+         * physical plan instead of reading {@code _source}. Unlike the real
+         * {@link org.elasticsearch.xpack.esql.stats.SearchContextStats}, this override ignores the pattern and returns the
+         * forced value directly.
+         */
+        public TestConfigurableSearchStats forceSkipUnmappedFieldsExtraction(boolean value) {
+            this.forceSkipUnmappedFieldsExtraction = value;
+            return this;
+        }
+
+        @Override
+        public boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
+            return forceSkipUnmappedFieldsExtraction;
+        }
+
         @Override
         public String toString() {
-            return "TestConfigurableSearchStats{" + "includes=" + includes + ", excludes=" + excludes + '}';
+            return "TestConfigurableSearchStats{"
+                + "includes="
+                + includes
+                + ", excludes="
+                + excludes
+                + ", forceSkipUnmappedFieldsExtraction="
+                + forceSkipUnmappedFieldsExtraction
+                + '}';
         }
     }
 

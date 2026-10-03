@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.Map;
 
@@ -63,6 +64,21 @@ public interface SearchStats {
      */
     default MappedFieldType fieldType(FieldName name) {
         return null;
+    }
+
+    /**
+     * Whether the {@code _source} read that materialises the synthetic {@code _unmapped_fields} column of
+     * {@code SET unmapped_fields="LOAD_ALL"} can be skipped for the given {@code pattern}, because no unmapped
+     * {@code _source} field could ever survive it on <em>any</em> shard backing these stats. When true, the local
+     * physical plan can nullify the column instead of reading {@code _source} per document (see
+     * {@code SkipUnmappedFieldsExtraction}).
+     *
+     * <p>Conservative by design: returns {@code false} whenever a shard <em>might</em> hold an unmapped field
+     * (for example under {@code dynamic:false} or {@code dynamic:flattened}, where {@code _source} may carry fields
+     * absent from the mapping).
+     */
+    default boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
+        return false;
     }
 
     /**

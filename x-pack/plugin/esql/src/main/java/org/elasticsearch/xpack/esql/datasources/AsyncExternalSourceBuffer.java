@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -75,6 +76,8 @@ public final class AsyncExternalSourceBuffer {
     private final AtomicBoolean noMoreInputs = new AtomicBoolean(false);
     private final Object failureLock = new Object();
     private volatile Throwable failure = null;
+    /** Raw (pre-classify) first failure, kept for same-instance deduplication in {@link #onFailure}. */
+    private volatile Throwable rawFirstFailure = null;
 
     /**
      * Set when a live producer is cut by a hard stop — i.e. {@link #finish(boolean) finish(true)} performs the
@@ -469,12 +472,19 @@ public final class AsyncExternalSourceBuffer {
     public void onFailure(Throwable t) {
         synchronized (failureLock) {
             if (failure != null) {
-                if (failure != t) {
-                    failure.addSuppressed(t);
+                // rawFirstFailure tracks the raw winner so same-instance re-reports are silently
+                // ignored even when classify() wrapped the winner into a new object.
+                // Classify the loser before suppressing so storage-URI messages in raw SDK
+                // exceptions cannot surface through the suppressed[] array on the wire.
+                if (rawFirstFailure != t) {
+                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
                 }
                 return;
             }
-            failure = t;
+            rawFirstFailure = t;
+            // Classify once here so classify()'s side effects (WARN logging for IAE) fire
+            // exactly once and status() / propagateFailure() read an already-typed exception.
+            failure = (t instanceof Error) ? t : ExternalFailures.classify(t);
         }
         noMoreInputs.set(true);
         notifyNotEmpty();

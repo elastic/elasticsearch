@@ -45,9 +45,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToF
  * <p>The bug: {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} built
  * all three cache keys from the raw config map. For dataset queries, connection settings
  * (endpoint, region) and credentials live in a {@code _datasource} sub-map, not at the top
- * level. {@link org.elasticsearch.xpack.esql.datasources.cache.EndpointRegion} and
- * {@link org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey#computeCredentialHash}
- * both scan only top-level keys, so every dataset query produced {@code endpoint=""} and
+ * level. The key builders scanned only top-level keys, so every dataset query produced no endpoint and
  * {@code credentialHash=0} — all datasets shared one cache partition.
  *
  * <p>The fix: all cache-key build sites in {@code ExternalSourceResolver} now call
@@ -209,6 +207,20 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
                 + ", the listing/schema cache keys are not isolated by endpoint",
             ROWS_B,
             countB
+        );
+
+        // Reading B must not have rewritten A's record. Both datasets name one bucket and key on two stores, and
+        // both blobs are written in the same second, so the two entries agree on path, mtime and format config --
+        // everything a contribution carries. The harvest from B therefore matches A's entry as well, and before the
+        // enrichment path refused an ambiguous match it was written into both: A re-queried answered ROWS_B.
+        assertBusy(() -> assertCoordinatorWarm("FROM " + DATASET_B + " | STATS count = COUNT(*)"), 30, TimeUnit.SECONDS);
+        long countAAgain = count("FROM " + DATASET_A + " | STATS count = COUNT(*)");
+        assertEquals(
+            "Dataset A re-queried after B must still report its own row count; "
+                + ROWS_B
+                + " means B's harvest was enriched into A's cache entry",
+            ROWS_A,
+            countAAgain
         );
     }
 

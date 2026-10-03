@@ -542,6 +542,10 @@ public final class DatasetRewriter {
             );
         }
         Map<String, Object> merged = mergeSettings(parent, dataset);
+        // Everything cached about this dataset's files is derived from these two definitions, so it is
+        // addressed by a version of them. An edit to either takes the derived entries out of reach
+        // without anything having to notice the edit and invalidate them.
+        merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
         Literal path = Literal.keyword(source, dataset.resource());
         return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
     }
@@ -626,6 +630,12 @@ public final class DatasetRewriter {
             dsSettings.remove("region");
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }
+        // Attach dataset context so operators can annotate classified failures without the full path.
+        // Stripped from storageConfig() before reaching any provider; never sent to the object store.
+        merged.put(
+            ExternalSourceResolver.DATASET_CONTEXT_KEY,
+            Map.of("dataset", dataset.name(), "datasource", parent.name(), "type", parent.type())
+        );
         return merged;
     }
 

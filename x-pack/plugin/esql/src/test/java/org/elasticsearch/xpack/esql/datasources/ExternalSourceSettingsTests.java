@@ -314,12 +314,13 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(18, ExternalSourceSettings.settings().size());
+        assertEquals(19, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
     }

@@ -16,10 +16,13 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -53,6 +56,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
@@ -558,28 +562,32 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         dir.close();
     }
 
-    public void testCollapseColumnarPayloadKeywordWithSegmentMissingTheField() throws Exception {
+    public void testCollapseColumnarPayloadKeywordWithLeafMissingTheField() throws Exception {
         final Directory dir = newDirectory();
-        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        final IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE));
 
         Document doc = new Document();
         doc.add(new Field("group", columnarPayload("host-a"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 0));
         w.addDocument(doc);
+        w.commit();
+
         doc = new Document();
-        doc.add(new Field("group", columnarPayload("host-b"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 1));
         w.addDocument(doc);
         w.commit();
 
         doc = new Document();
+        doc.add(new Field("group", columnarPayload("host-b"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 2));
         w.addDocument(doc);
         w.commit();
 
-        final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexReader reader = DirectoryReader.open(w);
+        assertEquals(3, reader.leaves().size());
+        assertNull(reader.leaves().get(1).reader().getFieldInfos().fieldInfo("group"));
 
+        final IndexSearcher searcher = newSearcher(reader);
         final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
         final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
 
@@ -595,11 +603,84 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("host-a"), collapseTopFieldDocs.groupValues[0]);
-        assertEquals(new BytesRef("host-b"), collapseTopFieldDocs.groupValues[1]);
-        assertNull(collapseTopFieldDocs.groupValues[2]);
+        assertNull(collapseTopFieldDocs.groupValues[1]);
+        assertEquals(new BytesRef("host-b"), collapseTopFieldDocs.groupValues[2]);
         w.close();
         reader.close();
         dir.close();
+    }
+
+    public void testCollapseBinaryKeywordWithoutADecoderThrows() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        final Document doc = new Document();
+        doc.add(new Field("group", columnarPayload("host-a"), binaryDocValuesType()));
+        doc.add(new SortedNumericDocValuesField("sort", 0));
+        w.addDocument(doc);
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
+
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+            "group",
+            fieldType,
+            null,
+            sort,
+            10,
+            null
+        );
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector)
+        );
+        assertEquals("field `group` has binary doc values but its mapping does not name their format", e.getMessage());
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testCollapseSortedKeywordNeverAsksForABinaryDecoder() throws Exception {
+        assertNoBinaryDecoderRequested(value -> new SortedDocValuesField("group", value));
+    }
+
+    public void testCollapseSortedSetKeywordNeverAsksForABinaryDecoder() throws Exception {
+        assertNoBinaryDecoderRequested(value -> new SortedSetDocValuesField("group", value));
+    }
+
+    public void testCollapseAbsentFieldNeverAsksForABinaryDecoder() throws Exception {
+        assertNoBinaryDecoderRequested(null);
+    }
+
+    private void assertNoBinaryDecoderRequested(Function<BytesRef, Field> groupField) throws Exception {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < 2; i++) {
+                    Document doc = new Document();
+                    if (groupField != null) {
+                        doc.add(groupField.apply(new BytesRef("host-" + i)));
+                    }
+                    doc.add(new SortedNumericDocValuesField("sort", i));
+                    w.addDocument(doc);
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newSearcher(reader);
+                final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+                    "group",
+                    new MockFieldMapper.FakeFieldType("group"),
+                    leaf -> {
+                        throw new AssertionError("a binary decoder was requested for an ordinal backed field");
+                    },
+                    new Sort(new SortedNumericSortField("sort", SortField.Type.LONG)),
+                    10,
+                    null
+                );
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+                assertEquals(groupField == null ? 1 : 2, collapsingCollector.getTopGroups(0).groupValues.length);
+            }
+        }
     }
 
     private static BytesRef columnarPayload(String... slots) {

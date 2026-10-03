@@ -349,11 +349,11 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-periodic-micro-benchmarks
-  description: Runs periodic micro benchmarks fom the main branch
+  name: buildkite-pipeline-elasticsearch-periodic-esql-micro-benchmarks
+  description: Runs periodic ES|QL micro benchmarks from the main branch
   links:
     - title: Pipeline
-      url: https://buildkite.com/elastic/elasticsearch-periodic-micro-benchmarks
+      url: https://buildkite.com/elastic/elasticsearch-periodic-esql-micro-benchmarks
 spec:
   type: buildkite-pipeline
   system: buildkite
@@ -362,11 +362,11 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ":elasticsearch: Runs nightly micro benchmarks fom the main branch"
-      name: elasticsearch / periodic / micro-benchmarks
+      description: ":elasticsearch: Runs nightly ES|QL micro benchmarks from the main branch"
+      name: elasticsearch / periodic / esql-micro-benchmarks
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/periodic-micro-benchmarks.yml
+      pipeline_file: .buildkite/pipelines/periodic-esql-micro-benchmarks.yml
       branch_configuration: main
       teams:
         elasticsearch-team: {}

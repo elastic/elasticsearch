@@ -16,6 +16,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -34,15 +35,19 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testTopLevel() throws Exception {
@@ -111,6 +116,63 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(1L, searchHits.getTotalHits().value());
         assertEquals("3", searchHits.getAt(0).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
+    }
+
+    public void testSharedFetchContextKeepsBucketsIsolated() throws Exception {
+        int buckets = 50;
+        Directory directory = newDirectory();
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < buckets; i++) {
+            iw.addDocument(document(Integer.toString(i), "term" + i));
+        }
+        iw.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        Terms terms = searchAndReduce(
+            indexReader,
+            new AggTestConfig(terms("term").field("string").size(buckets).subAggregation(topHits("top")), STRING_FIELD_TYPE)
+        );
+        indexReader.close();
+        directory.close();
+
+        assertEquals(buckets, terms.getBuckets().size());
+        for (int i = 0; i < buckets; i++) {
+            SearchHits hits = ((TopHits) terms.getBucketByKey("term" + i).getAggregations().get("top")).getHits();
+            assertEquals(1L, hits.getTotalHits().value());
+            assertEquals(Integer.toString(i), hits.getAt(0).getId());
+        }
+    }
+
+    public void testSharedFetchContextSpansSegments() throws Exception {
+        int buckets = 20;
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                for (int i = 0; i < buckets; i++) {
+                    iw.addDocument(document(Integer.toString(i), "term" + i));
+                    iw.commit();
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                assertThat(indexReader.leaves().size(), greaterThan(1));
+                // debugTestCase always builds a single aggregator over every segment, where searchAndReduce may
+                // randomly build one per leaf, so the forked fetch context is reused across segments here.
+                debugTestCase(
+                    terms("term").field("string").size(buckets).subAggregation(topHits("top")),
+                    Queries.ALL_DOCS_INSTANCE,
+                    indexReader,
+                    (StringTerms result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                        assertEquals(buckets, result.getBuckets().size());
+                        for (int i = 0; i < buckets; i++) {
+                            SearchHits hits = ((TopHits) result.getBucketByKey("term" + i).getAggregations().get("top")).getHits();
+                            assertEquals(1L, hits.getTotalHits().value());
+                            assertEquals(Integer.toString(i), hits.getAt(0).getId());
+                        }
+                    },
+                    null,
+                    STRING_FIELD_TYPE
+                );
+            }
+        }
     }
 
     private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");

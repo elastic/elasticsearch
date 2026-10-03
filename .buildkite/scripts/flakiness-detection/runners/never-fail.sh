@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Runs one flakiness batch command so that the Buildkite step ALWAYS exits 0, annotating any failure
-# instead of propagating it. Buildkite's GitHub commit-status integration mirrors step.state and ignores
+# Runs one flakiness batch command so that the Buildkite step exits 0 whatever the wrapped command did,
+# annotating any failure instead of propagating it (--hard-fail-rc below is the single, deliberate
+# exception). Buildkite's GitHub commit-status integration mirrors step.state and ignores
 # the soft_failed flag, so a soft_fail step that fails still shows a red check on the PR; exiting 0 and
 # annotating is the only way to report failures without turning the PR red.
 #
@@ -11,9 +12,19 @@
 #
 # Usage:
 #   never-fail.sh --context <step-key> --inner-timeout-minutes <m> [--kind <test-kind>]
+#                 [--hard-fail-rc <code>]
 #
 # Passing --kind enables per-job outcome recording. The analyze step omits it: it wants the never-fail
 # behaviour but must not emit a batch outcome of its own.
+#
+# --hard-fail-rc is the one exception to the contract above, and the analyze step is the only step given
+# it: that step alone reaches a verdict (proven flakiness on a PR whose team opted into blocking, see
+# BLOCKING_LABELS in domain.ts) and has to report it to Buildkite. ONLY that one code is propagated - every
+# other non-zero code still exits 0 - so a crash, a failed artifact download or an overrun of the analyze
+# step itself cannot redden a PR. Deciding *whether* to reach that code is analyze.ts's job, not this
+# script's; here the code arrives as this flag's argument, generated from FLAKINESS_PROVEN_EXIT_CODE, so
+# there is a single definition of it. A batch step is never given the flag, because a gradle invocation
+# that happened to exit with that value would otherwise fail a PR with no verdict behind it.
 #
 # Deliberately no `set -e`: the whole point is to observe a failing command's exit code rather than die
 # with it.
@@ -21,6 +32,7 @@
 CONTEXT=""
 INNER_TIMEOUT_MINUTES=""
 KIND=""
+HARD_FAIL_RC=""
 WRAPPED_CMD_FILE=""
 rc=0
 
@@ -30,13 +42,14 @@ parse_arguments() {
       --context) CONTEXT="$2"; shift 2 ;;
       --inner-timeout-minutes) INNER_TIMEOUT_MINUTES="$2"; shift 2 ;;
       --kind) KIND="$2"; shift 2 ;;
+      --hard-fail-rc) HARD_FAIL_RC="$2"; shift 2 ;;
       *) echo "never-fail.sh: unknown argument '$1'" >&2; exit 2 ;;
     esac
   done
 }
 
 # Fail loudly for a malformed direct invocation. Once the wrapped command starts, the never-fail contract
-# takes over and nothing below here may exit non-zero.
+# takes over and nothing below here may exit non-zero, bar the one --hard-fail-rc code.
 validate_arguments() {
   [ -n "$CONTEXT" ] || { echo "never-fail.sh: --context is required" >&2; exit 2; }
   [ -n "$INNER_TIMEOUT_MINUTES" ] || { echo "never-fail.sh: --inner-timeout-minutes is required" >&2; exit 2; }
@@ -44,6 +57,13 @@ validate_arguments() {
     for var in FLAKINESS_STATUS_DIR FLAKINESS_JOB_STATUS_PREFIX FLAKINESS_TASK_STATUS_PREFIX FLAKINESS_TASK_STATUS_FILE; do
       [ -n "${!var}" ] || { echo "never-fail.sh: $var must be set when --kind is given" >&2; exit 2; }
     done
+  fi
+  # Checked up front because both bad values only bite at the very end of the step, once the tests have
+  # already run: a non-integer makes the comparison in main a bash error, and 0 would mean "propagate
+  # success", which is not a failure to propagate.
+  if [ -n "$HARD_FAIL_RC" ] && ! [ "$HARD_FAIL_RC" -gt 0 ] 2>/dev/null; then
+    echo "never-fail.sh: --hard-fail-rc must be a positive integer, got '$HARD_FAIL_RC'" >&2
+    exit 2
   fi
 }
 
@@ -68,6 +88,11 @@ run_wrapped_command() {
 # 124 is timeout's own SIGTERM exit, 137 the SIGKILL after --kill-after elapsed.
 annotate_failure() {
   local msg=""
+  if [ -n "$HARD_FAIL_RC" ] && [ "$rc" -eq "$HARD_FAIL_RC" ]; then
+    # Not a wrapper-level failure but a verdict the wrapped command reached deliberately, and already
+    # annotated itself (the flakiness report). A second "exited with N" annotation would only be noise.
+    return
+  fi
   if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
     msg="timed out after ${INNER_TIMEOUT_MINUTES}m (rc=$rc)"
   elif [ "$rc" -ne 0 ]; then
@@ -129,6 +154,13 @@ annotate_failure
 
 if [ -n "$KIND" ]; then
   write_outcome
+fi
+
+# The never-fail contract, and its single exception: with --hard-fail-rc that one code is propagated, so
+# an opted-in team's PR can go red on proven flakiness. Buildkite uploads artifact_paths after the command
+# regardless of its exit status, so the outcomes artifact still reaches the observability pipeline here.
+if [ -n "$HARD_FAIL_RC" ] && [ "$rc" -eq "$HARD_FAIL_RC" ]; then
+  exit "$rc"
 fi
 
 exit 0

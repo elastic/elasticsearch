@@ -1,0 +1,6 @@
+pr: 144908
+summary: Fix source filtering for field names containing a backslash
+area: Search
+type: bug
+issues:
+ - 136302

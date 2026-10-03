@@ -42,10 +42,24 @@ For now, a series stops appearing in results only once all its samples fall outs
 The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
-- Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression and a top-level `or` chain supports at most 8 operands; a nested `or`, or a chain of more than 8 operands, returns a client error (4xx).
+- Binary set operators: `and` and `unless`.
+- {applies_to}`stack: preview =9.4` Binary set operator `or`.
+- {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Binary set operator `or`, except at the top level of an expression. A top-level `or` chain supports at most 8 operands and can't use `on(...)` or `ignoring(...)`. A nested `or`, a chain of more than 8 operands, or an `or` with `on(...)` or `ignoring(...)` returns a client error (4xx).
 - Comparison operators: evaluated only at the top level of an expression and only with a scalar literal on the right-hand side. Comparisons between two instant vectors, and nested comparisons, return a client error (4xx).
 - Group modifiers: `on(...)`, `ignoring(...)`, `group_left`, `group_right`
-- Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
+- The `@` modifier.
+- Subqueries, such as `max_over_time(rate(http_requests_total[5m])[1h:])`.
+- Selectors without a metric name, and regex matchers on `__name__`, such as `{__name__=~"node_.*"}`.
+- Binary expressions with a `without(...)` aggregation as an operand. Use `by(...)` instead.
+- {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Binary expressions whose operands use different `offset` values, or nest an aggregation inside another aggregation, such as `sum(sum by (pod) (...))`.
+- Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions. Some supported functions have restrictions, which are listed under **Differences from Prometheus** on each function's reference entry.
+
+## Time bucket alignment [promql-limitations-time-buckets]
+
+{applies_to}`stack: preview =9.4`
+
+Time buckets align to fixed calendar boundaries rather than the query start time.
+This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
 
 ## Native histograms [promql-limitations-native-histograms]
 

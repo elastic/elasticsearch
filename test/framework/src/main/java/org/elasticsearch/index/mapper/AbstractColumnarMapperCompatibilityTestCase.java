@@ -82,15 +82,55 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     protected record Batch(String name, long primaryTerm, List<Doc> docs) {}
 
     /**
+     * Which ESCF encode path produces the source columns for a scenario. The two encoders assign
+     * element types independently, so the same JSON can yield different column kinds; tests that
+     * care about the mapper's reaction to a column kind pick the encoder explicitly instead of
+     * inheriting whatever the ambient feature flag selects.
+     */
+    protected enum SourceEncoder {
+        JACKSON(false),
+        SIMD(true);
+
+        private final boolean allowSimd;
+
+        SourceEncoder(boolean allowSimd) {
+            this.allowSimd = allowSimd;
+        }
+
+        /** Whether this encoder runs in the current build: simdjson needs its native library and feature flag. */
+        public boolean isAvailable() {
+            return this == JACKSON || EscfEncoder.isSimdEnabled();
+        }
+
+        /** The encoders a differential test can run in this build, in declaration order. */
+        public static List<SourceEncoder> available() {
+            return Arrays.stream(values()).filter(SourceEncoder::isAvailable).toList();
+        }
+    }
+
+    /**
      * Runs the parity check for the given mapping, index settings, and scenarios. Builds a
      * {@link MapperService} from the supplied mapping and settings, then calls
      * {@link #assertScenario} for each scenario.
      */
     protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
+        assertColumnarMatchesXContent(mapping, indexSettings, SourceEncoder.SIMD, scenarios);
+    }
+
+    /**
+     * Runs the parity check with {@code encoder} producing the source columns, for tests that must
+     * pin the encode path rather than inherit the ambient one.
+     */
+    protected final void assertColumnarMatchesXContent(
+        XContentBuilder mapping,
+        Settings indexSettings,
+        SourceEncoder encoder,
+        Batch... scenarios
+    ) throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario);
+            assertScenario(mapperService, scenario, encoder);
         }
     }
 
@@ -106,7 +146,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     ) throws IOException {
         final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario);
+            assertScenario(mapperService, scenario, SourceEncoder.SIMD);
         }
     }
 
@@ -121,6 +161,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * parity with the x-content parse path.
      */
     protected final void mapColumnarLeaf(MapperService mapperService, String field, String... sources) throws IOException {
+        mapColumnarLeaf(mapperService, field, SourceEncoder.SIMD, sources);
+    }
+
+    /**
+     * Runs a bail-out check with {@code encoder} producing the source column. A column kind the
+     * mapper refuses depends on the encode path, so a test asserting the refusal must pin it.
+     */
+    protected final void mapColumnarLeaf(MapperService mapperService, String field, SourceEncoder encoder, String... sources)
+        throws IOException {
         final int docCount = sources.length;
         final BytesReference[] sourceBytesArray = new BytesReference[docCount];
         final IndexRequest[] requests = new IndexRequest[docCount];
@@ -137,7 +186,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 indexSettings,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             );
-            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)
         ) {
             final SourceSchema schema = escfBatch.schema();
             for (int c = 0; c < schema.leafCount(); c++) {
@@ -185,7 +234,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@code (seqNo, primaryTerm, version)} values to both paths after parsing, exactly as
      * {@code InternalEngine} does at indexing time.
      */
-    private void assertScenario(MapperService mapperService, Batch scenario) throws IOException {
+    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder) throws IOException {
         final List<Doc> docs = scenario.docs();
         final int docCount = docs.size();
 
@@ -216,7 +265,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 m.preColumnarParse(ctx);
             }
 
-            try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            try (EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)) {
                 final SourceSchema schema = escfBatch.schema();
 
                 // Accumulate leaves owned by a group mapper (e.g. flattened). Groups are ordered by first-seen
@@ -327,6 +376,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     );
                 }
             }
+        }
+    }
+
+    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder) throws IOException {
+        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd)) {
+            for (BytesReference source : sources) {
+                escfEncoder.addDocument(source, XContentType.JSON, 0);
+            }
+            return escfEncoder.buildPartition(0);
         }
     }
 

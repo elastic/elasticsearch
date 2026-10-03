@@ -253,6 +253,28 @@ public class ZstdDecompressorTests extends ESTestCase {
         assertArrayEquals(original, dst);
     }
 
+    // Verifies the public decompressDirect(DataInput, byte[], int, int) overload: decompresses a full
+    // zstd frame into a sub-range of the output array starting at a non-zero outOffset.
+    public void testDecompressDirectIntoArrayWithOffset() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(1, 4096));
+        byte[] compressed = compress(original);
+
+        int outOffset = randomIntBetween(1, 64);
+        byte[] out = new byte[outOffset + original.length];
+
+        ZstdDecompressor decompressor = newDecompressor();
+        DataInput in = new ByteArrayIndexInput("test", compressed);
+        decompressor.decompressDirect(in, out, outOffset, original.length);
+
+        byte[] actual = new byte[original.length];
+        System.arraycopy(out, outOffset, actual, 0, original.length);
+        assertArrayEquals(original, actual);
+        // Bytes before outOffset must be untouched.
+        for (int i = 0; i < outOffset; i++) {
+            assertEquals(0, out[i]);
+        }
+    }
+
     // Verifies checkLength throws CorruptIndexException on mismatch.
     public void testCheckLengthThrowsOnMismatch() {
         DataInput dummyIn = new ByteArrayIndexInput("test", new byte[0]);

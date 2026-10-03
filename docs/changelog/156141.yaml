@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 156141
+summary: Eliminate intermediate buffer as part binary DV `decodeBulk` fast path
+type: enhancement

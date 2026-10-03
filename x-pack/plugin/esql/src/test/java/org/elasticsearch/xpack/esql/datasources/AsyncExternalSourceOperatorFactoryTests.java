@@ -78,6 +78,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -2390,6 +2391,132 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             drainLatch.countDown();
             if (operator != null) {
                 operator.close();
+            }
+            exec.shutdownNow();
+            assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Truncation leaves a GB-scale tail split. Two drivers claim the leading split and the tail;
+     * LIMIT then {@code close()}s the tail. 2174 abort-on-close must discard leftover &gt;64 KiB
+     * rather than drain it. Splits are stamped like {@code buildNewlineMacroSplits} so the tail is
+     * a non-first record-aligned CSV split. Each driver still returns exactly its {@code rowLimit}
+     * rows (page size matches the limit).
+     */
+    public void testMultiDriverLimitAbortsTheUnreadTail() throws Exception {
+        String header = "id:long,name:keyword\n";
+        String pad = "n".repeat(256);
+        StringBuilder head = new StringBuilder(header);
+        for (int i = 0; i < 20; i++) {
+            head.append(i).append(',').append(pad).append('\n');
+        }
+        StringBuilder tail = new StringBuilder();
+        for (int i = 20; i < 8_000; i++) {
+            tail.append(i).append(',').append(pad).append('\n');
+        }
+        byte[] headBytes = head.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] tailBytes = tail.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] payload = new byte[headBytes.length + tailBytes.length];
+        System.arraycopy(headBytes, 0, payload, 0, headBytes.length);
+        System.arraycopy(tailBytes, 0, payload, headBytes.length, tailBytes.length);
+        long headLen = headBytes.length;
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(4, false));
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
+        int startPermits = limiter.availablePermits();
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        StorageProvider storageProvider = new QueryBudgetedStorageProvider(
+            new ConcurrencyLimitedStorageProvider(new DrainFixtureStorageProvider(payload, tracking, path), limiter),
+            budget
+        );
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        Map<String, Object> firstCfg = new HashMap<>();
+        firstCfg.put(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY, "true");
+        firstCfg.put(FileSplitProvider.FILE_LENGTH_KEY, Long.toString(payload.length));
+        firstCfg.put(FileSplitProvider.FIRST_SPLIT_KEY, "true");
+        Map<String, Object> lastCfg = new HashMap<>();
+        lastCfg.put(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY, "true");
+        lastCfg.put(FileSplitProvider.FILE_LENGTH_KEY, Long.toString(payload.length));
+        lastCfg.put(FileSplitProvider.LAST_SPLIT_KEY, "true");
+        List<ExternalSplit> splits = List.of(
+            FileSplit.withReadSchema("test", path, 0, headLen, "csv", firstCfg, Map.of(), null, attributes),
+            FileSplit.withReadSchema("test", path, headLen, payload.length - headLen, "csv", lastCfg, Map.of(), null, attributes)
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        int rowLimit = 5;
+        ExecutorService exec = Executors.newFixedThreadPool(2);
+        List<SourceOperator> operators = new ArrayList<>();
+        try {
+            for (int d = 0; d < 2; d++) {
+                DriverContext driverContext = mock(DriverContext.class);
+                when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+                doAnswer(inv -> null).when(driverContext).addAsyncAction();
+                doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+                AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                    storageProvider,
+                    new CsvFormatReader(TEST_BLOCK_FACTORY),
+                    path,
+                    attributes,
+                    rowLimit,
+                    1,
+                    exec
+                ).sliceQueue(sliceQueue).parsingParallelism(1).rowLimit(rowLimit).build();
+                operators.add(factory.get(driverContext));
+            }
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+            int[] rows = new int[2];
+            boolean done = false;
+            while (done == false) {
+                if (System.nanoTime() > deadline) {
+                    fail(
+                        "multi-driver LIMIT did not finish; consumed="
+                            + tracking.bytesConsumed.get()
+                            + "/"
+                            + payload.length
+                            + " aborted="
+                            + tracking.aborted.get()
+                    );
+                }
+                done = true;
+                for (int i = 0; i < operators.size(); i++) {
+                    SourceOperator op = operators.get(i);
+                    if (op.isFinished() == false) {
+                        done = false;
+                        Page page = op.getOutput();
+                        if (page != null) {
+                            rows[i] += page.getPositionCount();
+                            page.releaseBlocks();
+                        }
+                    }
+                }
+            }
+            assertEquals("each driver returns its LIMIT rows", rowLimit, rows[0]);
+            assertEquals("each driver returns its LIMIT rows", rowLimit, rows[1]);
+            assertTrue("the unread tail leftover must abort rather than drain", tracking.aborted.get());
+            assertThat(
+                "drain must not consume the unread tail",
+                tracking.bytesConsumed.get(),
+                Matchers.lessThan((long) payload.length / 2)
+            );
+            assertThat(
+                payload.length - tracking.bytesConsumed.get(),
+                Matchers.greaterThan((long) DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES)
+            );
+            assertEquals(startPermits, limiter.availablePermits());
+            assertEquals(0, budget.inFlight());
+        } finally {
+            for (SourceOperator op : operators) {
+                op.close();
             }
             exec.shutdownNow();
             assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS));

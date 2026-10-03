@@ -178,7 +178,8 @@ public final class SplitDiscoveryPhase {
         long cpuNanos,
         // What discovery has to tell the query's author, gathered from every relation it resolved. The caller
         // raises these on the request's own thread context; nothing here can.
-        List<String> warnings
+        List<String> warnings,
+        int splitDiscoveryProbes
     ) {
         /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
@@ -186,7 +187,11 @@ public final class SplitDiscoveryPhase {
         }
 
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
-            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of());
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of(), 0);
+        }
+
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos, List<String> warnings) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, warnings, 0);
         }
     }
 
@@ -197,6 +202,7 @@ public final class SplitDiscoveryPhase {
         private int splitsScanned;
         private long bytesScanned;
         private long cpuNanos;
+        private int splitDiscoveryProbes;
     }
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
@@ -303,7 +309,8 @@ public final class SplitDiscoveryPhase {
             stats.splitsScanned,
             stats.bytesScanned,
             stats.cpuNanos,
-            List.copyOf(stats.warnings)
+            List.copyOf(stats.warnings),
+            stats.splitDiscoveryProbes
         );
     }
 
@@ -362,7 +369,8 @@ public final class SplitDiscoveryPhase {
                         stats.splitsScanned,
                         stats.bytesScanned,
                         stats.cpuNanos,
-                        List.copyOf(stats.warnings)
+                        List.copyOf(stats.warnings),
+                        stats.splitDiscoveryProbes
                     )
                 )
             );
@@ -726,6 +734,7 @@ public final class SplitDiscoveryPhase {
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
         stats.cpuNanos += result.cpuNanos();
+        stats.splitDiscoveryProbes += result.splitDiscoveryProbes();
         for (ExternalSplit split : splits) {
             long sizeInBytes = split.estimatedSizeInBytes();
             if (sizeInBytes > 0) {

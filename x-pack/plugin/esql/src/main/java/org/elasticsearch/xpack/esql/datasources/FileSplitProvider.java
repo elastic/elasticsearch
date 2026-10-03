@@ -385,6 +385,13 @@ public class FileSplitProvider implements SplitProvider {
      */
     private final NodeWarningThrottle warnings;
     private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
+    private final AtomicInteger splitDiscoveryProbes = new AtomicInteger();
+    /**
+     * Strided files whose probe grid was cut short because of {@code rowLimit}. Shortfall accounting must not
+     * treat unprobed offsets as missing or warn that the file was read whole.
+     */
+    private final Set<DeferredNewlineSplits> demandTruncatedFiles = Collections.newSetFromMap(new IdentityHashMap<>());
+    private volatile int discoveryRowLimit = FormatReader.NO_LIMIT;
     /**
      * What this discovery has to tell the query's author. Held per discovery, like
      * {@link #splitDiscoveryCpuNanos}: one discovery runs on a provider at a time, and the result is built after
@@ -463,7 +470,8 @@ public class FileSplitProvider implements SplitProvider {
         List<ExternalSplit> splits,
         boolean exhaustivelyPruned,
         long cpuNanos,
-        List<String> warnings
+        List<String> warnings,
+        int splitDiscoveryProbes
     ) {
         return new SplitDiscoveryResult(
             splits,
@@ -472,7 +480,8 @@ public class FileSplitProvider implements SplitProvider {
             cpuNanos,
             context.fileList(),
             context.schemaMap(),
-            warnings
+            warnings,
+            splitDiscoveryProbes
         );
     }
 
@@ -864,7 +873,7 @@ public class FileSplitProvider implements SplitProvider {
                 // No rows were planned, so a demand above zero was not covered. Over a prefix that sends the caller
                 // back for the whole dataset; over a complete listing the flag is never read.
                 return new Attempt(
-                    resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                    resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get(), 0),
                     fileList.isTruncated(),
                     false
                 );
@@ -879,6 +888,9 @@ public class FileSplitProvider implements SplitProvider {
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, probedFileBytes);
             // Only single split discovery is performed on each FileSplitProvider at a time
             splitDiscoveryCpuNanos.set(0L);
+            splitDiscoveryProbes.set(0);
+            demandTruncatedFiles.clear();
+            discoveryRowLimit = context.rowLimit();
             List<PlanResult> planResults;
             int survivorCount = batch.size();
             // A file is planned only while the rows already covered fall short of what the query asked for; see
@@ -919,20 +931,22 @@ public class FileSplitProvider implements SplitProvider {
             // flat batch under a single concurrency budget, so the number of in-flight probe reads is bounded by that
             // budget no matter how many files are being probed. Probing per file instead would multiply the per-file
             // budget by the number of files in flight.
+            List<PlanResult> planned = new ArrayList<>(planResults);
             Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes = probeDeferredBoundaries(
-                planResults,
+                planned,
                 probeWindowBytes,
-                isCancelled
+                isCancelled,
+                context.rowLimit()
             );
 
             // Phase 4: turn the plan results into splits, now that every boundary either was known at planning time
             // or has been probed.
-            List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
+            List<ExternalSplit> splits = splitsFromPlanResults(planned, probedOutcomes);
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
             return new Attempt(
-                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get(), splitDiscoveryProbes.get()),
                 fileList.isTruncated(),
                 budget.satisfied()
             );
@@ -1051,7 +1065,7 @@ public class FileSplitProvider implements SplitProvider {
                 // No rows were planned, so a demand above zero was not covered; see the sync path's same exit.
                 listener.onResponse(
                     new Attempt(
-                        resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                        resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get(), 0),
                         fileList.isTruncated(),
                         false
                     )
@@ -1064,6 +1078,9 @@ public class FileSplitProvider implements SplitProvider {
             final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, batch.probedFileBytes(), maxSplitProbes);
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
             splitDiscoveryCpuNanos.set(0L);
+            splitDiscoveryProbes.set(0);
+            demandTruncatedFiles.clear();
+            discoveryRowLimit = context.rowLimit();
             Executor fanOut = recordingDiscoveryCpu(withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled));
             ActionListener<Attempt> completion = ActionListener.runAfter(listener, () -> StorageProviderCache.closeLease(hoistedProvider));
             gatherSkippingCachedFooters(
@@ -1072,33 +1089,41 @@ public class FileSplitProvider implements SplitProvider {
                 strideBytes,
                 isCancelled,
                 fanOut,
-                ActionListener.<List<PlanResult>>wrap(
-                    planResults -> probeDeferredBoundariesAsync(
-                        planResults,
+                ActionListener.<List<PlanResult>>wrap(planResults -> {
+                    List<PlanResult> planned = new ArrayList<>(planResults);
+                    probeDeferredBoundariesAsync(
+                        planned,
                         probeWindowBytes,
                         isCancelled,
                         fanOut,
+                        context.rowLimit(),
                         ActionListener.wrap(probedOutcomes -> {
                             try {
                                 if (isCancelled.getAsBoolean()) {
                                     completion.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
                                     return;
                                 }
-                                List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
+                                List<ExternalSplit> splits = splitsFromPlanResults(planned, probedOutcomes);
                                 completion.onResponse(
                                     new Attempt(
-                                        resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                                        resultOver(
+                                            context,
+                                            splits,
+                                            false,
+                                            splitDiscoveryCpuNanos.get(),
+                                            discoveryWarnings.get(),
+                                            splitDiscoveryProbes.get()
+                                        ),
                                         fileList.isTruncated(),
-                                        coversTheDemand(context, planResults)
+                                        coversTheDemand(context, planned)
                                     )
                                 );
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
                         }, e -> completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits")))
-                    ),
-                    e -> completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"))
-                )
+                    );
+                }, e -> completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits")))
             );
             asyncStarted = true;
         } catch (Exception e) {
@@ -1910,7 +1935,7 @@ public class FileSplitProvider implements SplitProvider {
      * Splits come out in file order: walking the plan results keeps a probed file's macro-splits in the position
      * its file occupied in the file list.
      */
-    private static List<ExternalSplit> splitsFromPlanResults(
+    private List<ExternalSplit> splitsFromPlanResults(
         List<PlanResult> planResults,
         Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes
     ) {
@@ -1928,7 +1953,9 @@ public class FileSplitProvider implements SplitProvider {
                         throw new IllegalStateException("no probed boundaries for deferred file " + deferred.task().filePath());
                     }
                     List<Long> starts = RecordBoundaryProbe.reduce(outcomes);
-                    shortfall.recordProbed(deferred, outcomes, starts);
+                    if (demandTruncatedFiles.contains(deferred) == false) {
+                        shortfall.recordProbed(deferred, outcomes, starts);
+                    }
                     splits.addAll(buildNewlineMacroSplits(deferred, starts));
                 }
                 case PlanResult.Walked walked -> {
@@ -2067,85 +2094,44 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Probes the record boundaries of every deferred file, keyed by the descriptor they belong to.
+     * Probes the record boundaries of deferred files, keyed by the descriptor they belong to.
      * <p>
-     * With an executor, all files' stride offsets are gathered into one flat batch so a single concurrency budget
-     * ({@link #splitDiscoveryConcurrency()}) bounds the in-flight probe reads across the whole query, rather than
-     * one budget per file multiplied by the files in flight. Without one, each file is walked serially. Both
-     * produce the same per-offset outcomes; the caller reduces them to split starts.
+     * Under a {@code rowLimit}, only a leading wave of offsets is probed, in listing order. Files past that
+     * budget become whole-file splits with no probes. If the wave finds no boundary for a file, the rest of
+     * that file's grid is probed (today's behaviour), so a run of NONE cannot collapse it.
      * <p>
-     * Keying on the descriptor's identity rather than on a file's position in {@code planResults} is what keeps
-     * the two phases from having to agree on an ordering: a probe task already carries the descriptor it
-     * contributes to, so filtering or reordering the plan results between planning and probing cannot hand one
-     * file another file's boundaries.
+     * With an executor, selected offsets share {@link #splitDiscoveryConcurrency()}. Without one, they run
+     * serially. Both produce the same per-offset outcomes; the caller reduces them to split starts.
      *
      * @param probeWindowBytes the bytes each of these probes may read, from {@link #CONFIG_SPLIT_PROBE_WINDOW}
      */
     private Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probeDeferredBoundaries(
         List<PlanResult> planResults,
         long probeWindowBytes,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        int rowLimit
     ) {
-        List<DeferredNewlineSplits> deferredFiles = new ArrayList<>();
-        int probeCount = 0;
-        for (PlanResult planResult : planResults) {
-            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
-                deferredFiles.add(needsProbing.deferred());
-                probeCount += needsProbing.deferred().positions().size();
-            }
-        }
-        if (probeCount == 0) {
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions = new IdentityHashMap<>();
+        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, rowLimit, remainingPositions);
+        if (wave.isEmpty()) {
             return Map.of();
         }
-        // Every file's stride was widened to fit the query's probe budget, which MAX_SPLIT_PROBES_CEILING bounds,
-        // so the pooled count cannot approach the range of the int it is held in.
-        assert probeCount <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + probeCount + "] above the ceiling";
-        // A cancel between planning and probing should be seen before any probe read is issued.
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
         }
         try {
-            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
-            if (executor == null) {
-                for (DeferredNewlineSplits deferred : deferredFiles) {
-                    outcomesByFile.put(
-                        deferred,
-                        RecordBoundaryProbe.stridedOutcomes(
-                            deferred.splitter(),
-                            deferred.storageObject(),
-                            deferred.task().fileLength(),
-                            deferred.positions(),
-                            deferred.minSegment(),
-                            deferred.strideBytes(),
-                            deferred.task().maxRecordBytes(),
-                            probeWindowBytes,
-                            isCancelled
-                        )
-                    );
-                }
-            } else {
-                List<ProbeTask> probeTasks = new ArrayList<>(probeCount);
-                for (DeferredNewlineSplits deferred : deferredFiles) {
-                    for (long position : deferred.positions()) {
-                        probeTasks.add(new ProbeTask(deferred, position));
-                    }
-                }
-
-                List<RecordBoundaryProbe.Outcome> outcomes = runGather(
-                    probeTasks,
-                    probe -> runProbe(probe, probeWindowBytes, isCancelled),
-                    splitDiscoveryConcurrency(),
-                    executor
-                );
-
-                // Results come back in input order, and each file's offsets were added in ascending order, so
-                // grouping by file preserves the ascending order the reduction requires.
-                for (int i = 0; i < probeTasks.size(); i++) {
-                    outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
-                }
-            }
-            // A cancel landing after the last probe has read is seen by no probe, so check once more here rather
-            // than returning a split set the caller will discard.
+            List<RecordBoundaryProbe.Outcome> waveOutcomes = runProbeTasks(wave, probeWindowBytes, isCancelled);
+            List<ProbeTask> fallback = fallbackProbeTasks(wave, waveOutcomes, remainingPositions);
+            List<RecordBoundaryProbe.Outcome> fallbackOutcomes = fallback.isEmpty()
+                ? List.of()
+                : runProbeTasks(fallback, probeWindowBytes, isCancelled);
+            splitDiscoveryProbes.addAndGet(wave.size() + fallback.size());
+            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = groupProbeOutcomes(
+                wave,
+                waveOutcomes,
+                fallback,
+                fallbackOutcomes
+            );
             if (isCancelled.getAsBoolean()) {
                 throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
             }
@@ -2160,32 +2146,196 @@ public class FileSplitProvider implements SplitProvider {
         long probeWindowBytes,
         BooleanSupplier isCancelled,
         Executor fanOut,
+        int rowLimit,
         ActionListener<Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>>> listener
     ) {
-        List<DeferredNewlineSplits> deferredFiles = new ArrayList<>();
-        int probeCount = 0;
-        for (PlanResult planResult : planResults) {
-            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
-                deferredFiles.add(needsProbing.deferred());
-                probeCount += needsProbing.deferred().positions().size();
-            }
-        }
-        if (probeCount == 0) {
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions = new IdentityHashMap<>();
+        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, rowLimit, remainingPositions);
+        if (wave.isEmpty()) {
             listener.onResponse(Map.of());
             return;
         }
-        assert probeCount <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + probeCount + "] above the ceiling";
         if (isCancelled.getAsBoolean()) {
             listener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
             return;
         }
-        List<ProbeTask> probeTasks = new ArrayList<>(probeCount);
-        for (DeferredNewlineSplits deferred : deferredFiles) {
-            for (long position : deferred.positions()) {
-                probeTasks.add(new ProbeTask(deferred, position));
+        runProbeTasksAsync(wave, probeWindowBytes, isCancelled, fanOut, ActionListener.wrap(waveOutcomes -> {
+            List<ProbeTask> fallback = fallbackProbeTasks(wave, waveOutcomes, remainingPositions);
+            if (fallback.isEmpty()) {
+                finishProbeAsync(wave, waveOutcomes, List.of(), List.of(), isCancelled, listener);
+                return;
+            }
+            runProbeTasksAsync(
+                fallback,
+                probeWindowBytes,
+                isCancelled,
+                fanOut,
+                ActionListener.wrap(
+                    fallbackOutcomes -> finishProbeAsync(wave, waveOutcomes, fallback, fallbackOutcomes, isCancelled, listener),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure));
+    }
+
+    private void finishProbeAsync(
+        List<ProbeTask> wave,
+        List<RecordBoundaryProbe.Outcome> waveOutcomes,
+        List<ProbeTask> fallback,
+        List<RecordBoundaryProbe.Outcome> fallbackOutcomes,
+        BooleanSupplier isCancelled,
+        ActionListener<Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>>> listener
+    ) {
+        splitDiscoveryProbes.addAndGet(wave.size() + fallback.size());
+        if (isCancelled.getAsBoolean()) {
+            listener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+            return;
+        }
+        listener.onResponse(groupProbeOutcomes(wave, waveOutcomes, fallback, fallbackOutcomes));
+    }
+
+    /**
+     * How many leading strided probe offsets a demand-limited scan may issue.
+     * {@code k} is how many stride-sized splits {@code rowLimit} 4 KiB rows would fill; the wave is at least
+     * {@link #splitDiscoveryConcurrency()} so one in-flight round-trip covers about a gigabyte of bounded
+     * splits at the default 64 MiB stride. Gated on {@code rowLimit !=} {@link FormatReader#NO_LIMIT}.
+     */
+    int probeWaveSize(int rowLimit, long strideBytes, int positionCount) {
+        if (rowLimit == FormatReader.NO_LIMIT || rowLimit <= 0 || positionCount <= 0 || strideBytes <= 0) {
+            return positionCount;
+        }
+        long k = Math.ceilDiv((long) rowLimit * 4096L, strideBytes);
+        long w = Math.max(k, (long) splitDiscoveryConcurrency());
+        return (int) Math.min((long) positionCount, w);
+    }
+
+    /**
+     * Cap on proven-walk starts (including the file start at 0) under the same formula as
+     * {@link #probeWaveSize}, without a position-count min because the walk does not know the grid
+     * in advance.
+     */
+    int provenBoundaryCap(int rowLimit, long strideBytes) {
+        if (rowLimit == FormatReader.NO_LIMIT || rowLimit <= 0 || strideBytes <= 0) {
+            return Integer.MAX_VALUE;
+        }
+        long k = Math.ceilDiv((long) rowLimit * 4096L, strideBytes);
+        long w = Math.max(k, (long) splitDiscoveryConcurrency());
+        return (int) Math.min(w, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Takes a listing-order prefix of strided offsets totalling {@link #probeWaveSize}, and rewrites files
+     * past that budget to whole-file splits with no probes. Partial files keep their leftover positions for
+     * {@link #fallbackProbeTasks}.
+     */
+    private List<ProbeTask> selectLeadingProbeTasks(
+        List<PlanResult> planResults,
+        int rowLimit,
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions
+    ) {
+        int totalPositions = 0;
+        long strideBytes = 0L;
+        for (PlanResult planResult : planResults) {
+            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
+                DeferredNewlineSplits deferred = needsProbing.deferred();
+                totalPositions += deferred.positions().size();
+                if (strideBytes == 0L) {
+                    strideBytes = deferred.strideBytes();
+                }
             }
         }
-        gatherAsync(probeTasks, (ProbeTask probe, ActionListener<RecordBoundaryProbe.Outcome> itemListener) -> {
+        int waveSize = probeWaveSize(rowLimit, strideBytes, totalPositions);
+        List<ProbeTask> wave = new ArrayList<>(waveSize);
+        int remainingBudget = waveSize;
+        for (int i = 0; i < planResults.size(); i++) {
+            if (planResults.get(i) instanceof PlanResult.NeedsProbing needsProbing) {
+                DeferredNewlineSplits deferred = needsProbing.deferred();
+                List<Long> positions = deferred.positions();
+                if (remainingBudget == 0) {
+                    planResults.set(i, new PlanResult.Splits(buildNewlineMacroSplits(deferred, List.of(0L))));
+                    continue;
+                }
+                int take = Math.min(remainingBudget, positions.size());
+                for (int p = 0; p < take; p++) {
+                    wave.add(new ProbeTask(deferred, positions.get(p)));
+                }
+                remainingBudget -= take;
+                if (take < positions.size()) {
+                    remainingPositions.put(deferred, positions.subList(take, positions.size()));
+                    demandTruncatedFiles.add(deferred);
+                }
+            }
+        }
+        assert wave.size() <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + wave.size() + "] above the ceiling";
+        return wave;
+    }
+
+    /**
+     * When a truncated file's wave found no boundary, probe the rest of that file's grid so a run of NONE
+     * cannot collapse it into a single whole-file split.
+     */
+    private List<ProbeTask> fallbackProbeTasks(
+        List<ProbeTask> wave,
+        List<RecordBoundaryProbe.Outcome> waveOutcomes,
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions
+    ) {
+        if (remainingPositions.isEmpty()) {
+            return List.of();
+        }
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> byFile = new IdentityHashMap<>();
+        for (int i = 0; i < wave.size(); i++) {
+            byFile.computeIfAbsent(wave.get(i).deferred(), k -> new ArrayList<>()).add(waveOutcomes.get(i));
+        }
+        List<ProbeTask> fallback = new ArrayList<>();
+        for (Map.Entry<DeferredNewlineSplits, List<Long>> entry : remainingPositions.entrySet()) {
+            DeferredNewlineSplits deferred = entry.getKey();
+            List<Long> starts = RecordBoundaryProbe.reduce(byFile.getOrDefault(deferred, List.of()));
+            if (starts.size() <= 1) {
+                demandTruncatedFiles.remove(deferred);
+                for (long position : entry.getValue()) {
+                    fallback.add(new ProbeTask(deferred, position));
+                }
+            }
+        }
+        return fallback;
+    }
+
+    private static Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> groupProbeOutcomes(
+        List<ProbeTask> wave,
+        List<RecordBoundaryProbe.Outcome> waveOutcomes,
+        List<ProbeTask> fallback,
+        List<RecordBoundaryProbe.Outcome> fallbackOutcomes
+    ) {
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>();
+        for (int i = 0; i < wave.size(); i++) {
+            outcomesByFile.computeIfAbsent(wave.get(i).deferred(), k -> new ArrayList<>()).add(waveOutcomes.get(i));
+        }
+        for (int i = 0; i < fallback.size(); i++) {
+            outcomesByFile.computeIfAbsent(fallback.get(i).deferred(), k -> new ArrayList<>()).add(fallbackOutcomes.get(i));
+        }
+        return outcomesByFile;
+    }
+
+    private List<RecordBoundaryProbe.Outcome> runProbeTasks(List<ProbeTask> tasks, long probeWindowBytes, BooleanSupplier isCancelled)
+        throws Exception {
+        if (executor == null) {
+            List<RecordBoundaryProbe.Outcome> outcomes = new ArrayList<>(tasks.size());
+            for (ProbeTask task : tasks) {
+                outcomes.add(runProbe(task, probeWindowBytes, isCancelled));
+            }
+            return outcomes;
+        }
+        return runGather(tasks, probe -> runProbe(probe, probeWindowBytes, isCancelled), splitDiscoveryConcurrency(), executor);
+    }
+
+    private void runProbeTasksAsync(
+        List<ProbeTask> tasks,
+        long probeWindowBytes,
+        BooleanSupplier isCancelled,
+        Executor fanOut,
+        ActionListener<List<RecordBoundaryProbe.Outcome>> listener
+    ) {
+        gatherAsync(tasks, (ProbeTask probe, ActionListener<RecordBoundaryProbe.Outcome> itemListener) -> {
             try {
                 fanOut.execute(() -> {
                     try {
@@ -2197,17 +2347,7 @@ public class FileSplitProvider implements SplitProvider {
             } catch (Exception e) {
                 itemListener.onFailure(e);
             }
-        }, splitDiscoveryConcurrency(), fanOut, ActionListener.<List<RecordBoundaryProbe.Outcome>>wrap(outcomes -> {
-            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
-            for (int i = 0; i < probeTasks.size(); i++) {
-                outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
-            }
-            if (isCancelled.getAsBoolean()) {
-                listener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
-                return;
-            }
-            listener.onResponse(outcomesByFile);
-        }, listener::onFailure));
+        }, splitDiscoveryConcurrency(), fanOut, listener);
     }
 
     private <T, R> List<R> runGather(List<T> items, CheckedFunction<T, R, Exception> task, int concurrency, Executor executor)
@@ -2737,7 +2877,7 @@ public class FileSplitProvider implements SplitProvider {
      * to a whole-file split upstream; if one arrives here that gate failed, so fail loud rather than emit
      * mis-aligned macro-splits that silently mis-count rows.
      */
-    private static RecordBoundaryProbe.ProvenWalk provenMacroSplitStarts(DeferredNewlineSplits deferred, BooleanSupplier isCancelled)
+    private RecordBoundaryProbe.ProvenWalk provenMacroSplitStarts(DeferredNewlineSplits deferred, BooleanSupplier isCancelled)
         throws IOException {
         RecordSplitter splitter = deferred.splitter();
         if (splitter.supportsProvenProbing() == false) {
@@ -2747,14 +2887,18 @@ public class FileSplitProvider implements SplitProvider {
                     + "] supports neither strided nor proven probing and cannot be macro-split"
             );
         }
-        return RecordBoundaryProbe.provenBoundaries(
+        int cap = provenBoundaryCap(discoveryRowLimit, deferred.strideBytes());
+        RecordBoundaryProbe.ProvenWalk walk = RecordBoundaryProbe.provenBoundaries(
             splitter,
             deferred.storageObject(),
             deferred.task().fileLength(),
             deferred.strideBytes(),
             deferred.minSegment(),
-            isCancelled
+            isCancelled,
+            cap
         );
+        splitDiscoveryProbes.addAndGet(walk.getsIssued());
+        return walk;
     }
 
     /**

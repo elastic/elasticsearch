@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -63,6 +64,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_ARITHMETIC = TransportVersion.fromName(
         "esql_promql_non_finite_arithmetic"
     );
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_ROUND = TransportVersion.fromName("esql_promql_non_finite_round");
 
     public void testSumNotReplacedWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);
@@ -198,6 +200,16 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertSame(pow, SubstituteTransportVersionAwareExpressions.rule(pow, newVersion));
     }
 
+    public void testNonFiniteRoundDowngradedWithOldVersion() {
+        assertNonFiniteMathDowngradedAndIdempotent(new Round(EMPTY, getFieldAttribute("f", DataType.DOUBLE), null, true));
+    }
+
+    public void testNonFiniteRoundNotChangedWithCurrentVersion() {
+        Expression lenient = new Round(EMPTY, getFieldAttribute("f", DataType.DOUBLE), null, true);
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_PROMQL_NON_FINITE_ROUND);
+        assertSame(lenient, SubstituteTransportVersionAwareExpressions.rule(lenient, newVersion));
+    }
+
     public void testNonFiniteArithmeticDowngradePreservesConfiguration() {
         Add add = new Add(EMPTY, getFieldAttribute("l", DataType.DOUBLE), getFieldAttribute("r", DataType.DOUBLE), TEST_CFG, true);
         TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
@@ -247,6 +259,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertVariantsDiffer(new Mul(EMPTY, f, g, true), new Mul(EMPTY, f, g, false));
         assertVariantsDiffer(new Div(EMPTY, f, g, DataType.DOUBLE, true), new Div(EMPTY, f, g, DataType.DOUBLE, false));
         assertVariantsDiffer(new Mod(EMPTY, f, g, true), new Mod(EMPTY, f, g, false));
+        assertVariantsDiffer(new Round(EMPTY, f, null, true), new Round(EMPTY, f, null, false));
     }
 
     /**

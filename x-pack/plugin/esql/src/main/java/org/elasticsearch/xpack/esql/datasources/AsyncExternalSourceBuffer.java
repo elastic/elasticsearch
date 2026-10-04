@@ -544,18 +544,15 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
-     * Adds {@code delta} to the committed total. This is the non-tracking path: it must not run
-     * while {@link #trackStorageObject} is following an object. Mixing the two would publish
-     * {@code object=null} and drop that object's live in-flight delta. Slice-queue and multi-file
-     * producers track; single-file producers also track now and fold via {@link #finishInFlightBytes}.
+     * Adds {@code delta} to the committed total without dropping a tracked object.
+     * COUNT(*) schema folds use this while {@link #trackStorageObject} is following the split.
      */
     public void addBytesRead(long delta) {
         if (delta <= 0) {
             return;
         }
         BytesView view = bytesView;
-        assert view.object() == null : "addBytesRead is the single-file path; it must not overlap tracking";
-        bytesView = new BytesView(view.committed() + delta, view.baseline(), null);
+        bytesView = new BytesView(view.committed() + delta, view.baseline(), view.object());
     }
 
     /**

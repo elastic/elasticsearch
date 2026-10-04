@@ -386,6 +386,17 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertNull(buffer.formatReaderStatus());
     }
 
+    public void testUntrackedBytesDoNotDropTrackedObject() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        MutableMetricsStorageObject object = new MutableMetricsStorageObject();
+        buffer.trackStorageObject(object);
+        object.setBytesRead(250);
+        buffer.addBytesRead(46);
+        assertEquals("schema fold plus live split bytes", 296L, buffer.bytesRead());
+        object.setBytesRead(300);
+        assertEquals("tracked object must still contribute live growth", 346L, buffer.bytesRead());
+    }
+
     public void testBytesReadAccumulatesPositiveDeltas() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(0L, buffer.bytesRead());

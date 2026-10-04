@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -66,6 +68,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1114,6 +1117,63 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         } finally {
             for (Page p : pages) {
                 p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
+    /**
+     * Empty-projection COUNT(*) on a non-leading record-aligned split binds schema from a second
+     * object. Folding those bytes must not drop the tracked split, so both reads appear in
+     * {@code bytes_read}.
+     */
+    public void testEmptyProjectionBindBytesAndSplitBytesBothCounted() throws Exception {
+        byte[] payload = new byte[200];
+        StoragePath path = StoragePath.of("s3://bucket/data/events.ndjson");
+        Map<String, Object> config = Map.of(
+            FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY,
+            "true",
+            FileSplitProvider.FIRST_SPLIT_KEY,
+            "false",
+            FileSplitProvider.LAST_SPLIT_KEY,
+            "true"
+        );
+        FileSplit split = FileSplit.withReadSchema("test", path, 100, 100, "ndjson", config, Map.of(), null, null);
+        FormatReader formatReader = new CountingBindAndSplitReader();
+        StorageProvider storageProvider = new MeteredPayloadStorageProvider(path, payload);
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            List.of(),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(List.of(split))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false) {
+                if (System.nanoTime() > deadline) {
+                    fail("operator did not finish");
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertThat(operator.status().bytesRead(), Matchers.equalTo(300L));
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
             }
             operator.close();
         }
@@ -4737,6 +4797,177 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Reads the object's stream in both {@code metadata} and {@code read} so schema-bind and
+     * split bytes are real received counts.
+     */
+    private static final class CountingBindAndSplitReader implements NoConfigFormatReader {
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            drain(object);
+            return new SimpleSourceMetadata(
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "n",
+                        new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                "ndjson",
+                object.path().toString()
+            );
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            drain(object);
+            Page page = new Page(1);
+            return new CloseableIterator<>() {
+                private boolean consumed;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        private static void drain(StorageObject object) {
+            try (InputStream in = object.newStream()) {
+                in.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public String formatName() {
+            return "ndjson";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".ndjson");
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class MeteredPayloadStorageProvider implements StorageProvider {
+        private final StoragePath path;
+        private final byte[] payload;
+
+        MeteredPayloadStorageProvider(StoragePath path, byte[] payload) {
+            this.path = path;
+            this.payload = payload;
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath requested) {
+            return new MeteredPayloadStorageObject(requested, payload);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath requested, long length) {
+            return new MeteredPayloadStorageObject(requested, payload);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath requested, long length, Instant lastModified) {
+            return new MeteredPayloadStorageObject(requested, payload);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath requested) {
+            return path.equals(requested);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class MeteredPayloadStorageObject extends AbstractMeteredStorageObject {
+        private final StoragePath path;
+        private final byte[] payload;
+
+        MeteredPayloadStorageObject(StoragePath path, byte[] payload) {
+            this.path = path;
+            this.payload = payload;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.unique();
+        }
+
+        @Override
+        public InputStream newStream() {
+            counters.addRequest(1L, 0L);
+            return metered(new ByteArrayInputStream(payload));
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            counters.addRequest(1L, 0L);
+            int from = Math.toIntExact(position);
+            int to = Math.toIntExact(Math.min(payload.length, position + length));
+            return metered(new ByteArrayInputStream(payload, from, Math.max(0, to - from)));
+        }
+
+        @Override
+        public long length() {
+            return payload.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
     }
 
     private static class StubMultiFileStorageProvider implements StorageProvider {

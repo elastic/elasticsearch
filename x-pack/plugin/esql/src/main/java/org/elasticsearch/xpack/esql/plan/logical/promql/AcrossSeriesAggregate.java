@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintExclude;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintSub;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnion;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnset;
@@ -181,6 +182,24 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     @Override
     public IntermediateResult translate(TranslationContext context) {
         List<String> keys = TranslationContext.asPromotedLabels(groupings());
+        if (grouping() == WITHOUT && keys.isEmpty() == false && context.supportsTimeSeriesUnset()) {
+            // One _timeseries per node: the child carries its series' whole _timeseries, and the keys are unset from it here,
+            // where the identity drops them. A raw child first collapses per series, by that _timeseries.
+            TranslationSchema childRequired = newConstraintUnion(newConstraintExclude(context.required(), keys), newConstraintUnset());
+            IntermediateResult ir = context.withRequired(childRequired).translate(child());
+            if (ir.kind().constant) {
+                return ir;
+            }
+            if (ir.kind().afterInitialAggregation == false) {
+                ir = ir.withCollapse(context, context.newConstraintForCollapse(ir, childRequired), ir.value());
+            }
+            TranslationSchema requirement = context.newConstraintForRegroupUnset(TranslationContext.newConstraintDeliveredBy(ir), keys);
+            ir = ir.withUnsetLabels(context, keys);
+            var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
+            return ir.withRegroup(context, requirement, true, buildEsqlFunction(ir.value(), promqlCtx));
+        }
+        // Otherwise - an older node somewhere, or nothing to unset - a without (K) asks its child for the _timeseries already
+        // excluding K, one _timeseries per exclusion set, and fuses with the per-series aggregate over a raw child.
         TranslationSchema childRequired = switch (grouping()) {
             case BY -> newConstraintWithPromoted(keys);
             // without () keeps the child's label set; without (K) declares its own and widens every pending one by K

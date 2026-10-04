@@ -120,8 +120,9 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
-     * received-body, so a close with no read books 0.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Close with
+     * leftover at or below {@link TransientTypingInputStream#MAX_TRAILING_DRAIN_BYTES} drains the
+     * remainder and books those received bytes.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -140,7 +141,7 @@ public class S3RequestCountingTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(0L, metrics.bytesRead());
+        assertEquals(rangeBytes, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
     }

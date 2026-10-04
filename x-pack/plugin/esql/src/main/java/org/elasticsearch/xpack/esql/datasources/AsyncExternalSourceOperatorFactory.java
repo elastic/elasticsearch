@@ -2937,7 +2937,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             case STREAM_ONLY_COMPRESSED -> {
                 // No open-segment cap here, unlike SEGMENTABLE_UNCOMPRESSED: a compressed file is read as a
-                // single serial decompressing stream in bounded (~1 MiB) chunks, so it has natural
+                // single serial decompressing stream in chunks clamped to the known object size (compressed
+                // size for gzip/zstd wrappers), else minimumSegmentSize(), so it has natural
                 // back-pressure and never fans out into many concurrent per-segment streams/buffers.
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -272,7 +275,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
-        assertTrue(description.contains("file:///data/test.csv"));
+        assertTrue(description.contains("test.csv"));
         assertTrue(description.contains("500"));
         assertTrue(description.contains("maxBufferBytes="));
     }
@@ -308,7 +311,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
-        assertTrue(description.contains("s3://bucket/data.parquet"));
+        assertTrue(description.contains("data.parquet"));
     }
 
     public void testAccessors() {
@@ -1225,8 +1228,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 }
             }
         });
-        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
-        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
+        assertNull("the read failure must not be chained to prevent caused_by leaks", readFailure.getCause());
+        assertTrue(readFailure.getMessage().contains("Simulated read error"));
 
         assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
@@ -1263,6 +1266,58 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(fileList, factory.fileList());
         assertTrue(factory.fileList().isResolved());
         assertEquals(2, factory.fileList().fileCount());
+    }
+
+    /**
+     * Each slice-queue page takes {@code _file.path} from that split. The factory path is the glob, so a
+     * page that showed it would mean the overlay used the source path instead of {@code fileSplit.path()}.
+     */
+    public void testSliceQueueFilePathComesFromEachSplit() throws Exception {
+        StoragePath factoryPath = StoragePath.of("s3://bucket/*.parquet");
+        StoragePath first = StoragePath.of("s3://bucket/f1.parquet");
+        StoragePath second = StoragePath.of("s3://bucket/f2.parquet");
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", first, 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", second, 0, 200, "parquet", Map.of(), Map.of())
+        );
+        FormatReader formatReader = new SinglePageReader(() -> new Page(1));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            factoryPath,
+            List.of(new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<String> paths = new ArrayList<>();
+        List<Page> pages = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page == null) {
+                    continue;
+                }
+                pages.add(page);
+                BytesRefBlock pathBlock = page.getBlock(0);
+                paths.add(pathBlock.getBytesRef(0, scratch).utf8ToString());
+            }
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
+            operator.close();
+        }
+        assertEquals(List.of(first.toString(), second.toString()), paths);
     }
 
     // ===== Slice Queue tests =====
@@ -1582,8 +1637,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             assertEquals(0, onCloseCalls.get());
 
             RuntimeException firstFailure = expectThrows(RuntimeException.class, first::getOutput);
-            assertThat(firstFailure.getCause(), Matchers.instanceOf(IOException.class));
-            assertTrue(firstFailure.getCause().getMessage().contains("injected first-read failure"));
+            assertNull("the read failure must not be chained to prevent caused_by leaks", firstFailure.getCause());
+            assertTrue(firstFailure.getMessage().contains("injected first-read failure"));
 
             while (second.isFinished() == false) {
                 Page page = second.getOutput();
@@ -2154,6 +2209,130 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             proceed.countDown();
             pool.shutdownNow();
             assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testRowLimitCompletionDoesNotWaitOnDrainLatch() throws Exception {
+        assertCompletionDoesNotWaitOnDrainLatch(true);
+    }
+
+    public void testExternalFinishCompletionDoesNotWaitOnDrainLatch() throws Exception {
+        assertCompletionDoesNotWaitOnDrainLatch(false);
+    }
+
+    /**
+     * {@code drainCurrentUnit} DONE closes the page iterator then fires the completion listener.
+     * Uncompressed CSV/NDJSON LIMIT (and external {@code finish()}) must abort leftover GETs so
+     * that close does not block on a drain latch. The slice-queue producer is the path that
+     * {@code drainCurrentUnit} actually runs; the whole-file {@code drainPagesAsync} rail reads
+     * until the buffer fills (or EOF) and would consume a small object before {@code finish()}.
+     */
+    private void assertCompletionDoesNotWaitOnDrainLatch(boolean rowLimit) throws Exception {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        // Wide rows so decoded pages exceed the 256 KiB buffer (maxBufferSize=1) before EOF.
+        // External finish() must run while the GET is still open; a short file is fully consumed
+        // on the producer thread before the test thread can call finish().
+        String pad = "n".repeat(256);
+        for (int i = 0; i < 8_000; i++) {
+            csv.append(i).append(',').append(pad).append('\n');
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        CountDownLatch drainLatch = new CountDownLatch(1);
+        tracking.drainLatch = drainLatch;
+
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(4, false));
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
+        int startPermits = limiter.availablePermits();
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        StorageProvider storageProvider = new QueryBudgetedStorageProvider(
+            new ConcurrencyLimitedStorageProvider(new DrainFixtureStorageProvider(payload, tracking, path), limiter),
+            budget
+        );
+        FileSplit split = new FileSplit("test", path, 0, payload.length, "csv", Map.of(), Map.of());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        ExecutorService exec = Executors.newSingleThreadExecutor();
+        SourceOperator operator = null;
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                new CsvFormatReader(TEST_BLOCK_FACTORY),
+                path,
+                attributes,
+                100,
+                1,
+                exec
+            ).sliceQueue(sliceQueue).parsingParallelism(1).rowLimit(rowLimit ? 5 : FormatReader.NO_LIMIT).build();
+            operator = factory.get(driverContext);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            int pages = 0;
+            long rows = 0;
+            while (tracking.aborted.get() == false || limiter.availablePermits() != startPermits || budget.inFlight() != 0) {
+                if (System.nanoTime() > deadline) {
+                    fail(
+                        "completion blocked on drain latch; rowLimit="
+                            + rowLimit
+                            + " consumed="
+                            + tracking.bytesConsumed.get()
+                            + "/"
+                            + payload.length
+                            + " closed="
+                            + tracking.closed.get()
+                            + " finished="
+                            + operator.isFinished()
+                    );
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages++;
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                    if (rowLimit == false && pages >= 1) {
+                        operator.finish();
+                    }
+                }
+            }
+            assertEquals("abort-on-close must not wait on the drain latch", 1, drainLatch.getCount());
+            assertEquals(startPermits, limiter.availablePermits());
+            assertEquals(0, budget.inFlight());
+            // Under LIMIT the producer buffers its first page and aborts the GET in the same task, so the loop
+            // above can exit before this thread polls that page. Drain the rest before counting what was delivered.
+            while (operator.isFinished() == false) {
+                if (System.nanoTime() > deadline) {
+                    fail("operator did not finish after abort; rowLimit=" + rowLimit + " pages=" + pages);
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages++;
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+            }
+            assertThat(pages, Matchers.greaterThan(0));
+            if (rowLimit) {
+                assertThat(rows, Matchers.greaterThanOrEqualTo(5L));
+            }
+        } finally {
+            drainLatch.countDown();
+            if (operator != null) {
+                operator.close();
+            }
+            exec.shutdownNow();
+            assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS));
         }
     }
 
@@ -3475,8 +3654,78 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * Parallel gzip rail, full read: the JDK gzip decoder reports end-of-stream without reading the raw body to
+     * {@code -1}, so the coordinator's {@code closeStream} abort used to arrive while HttpClient still held the
+     * connection and discard it. The raw body must reach end-of-body before the abort so S3 pools the connection.
+     */
+    public void testOpenWithParallelismGzipFullReadReachesEndOfBodyBeforeAbort() throws Exception {
+        ExecutorService exec = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+                dummyFormatReaderForOpenParallelismTests(),
+                exec
+            );
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER));
+            CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(
+                new NdJsonFormatReader(Settings.EMPTY, TEST_BLOCK_FACTORY, schema),
+                new GzipDecompressionCodec()
+            );
+            int rows = between(1, 50_000);
+            StringBuilder ndjson = new StringBuilder();
+            for (int i = 0; i < rows; i++) {
+                ndjson.append("{\"a\":").append(i).append("}\n");
+            }
+            byte[] gzipped = gzipCompress(ndjson.toString().getBytes(StandardCharsets.UTF_8));
+
+            S3ShapedAbortableStorageObject object = new S3ShapedAbortableStorageObject(gzipped);
+            CloseableIterator<Page> iterator = factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                ExternalReadCounters.NOOP,
+                null
+            );
+            assertNotNull(iterator);
+            long seen = 0;
+            try {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    try {
+                        seen += page.getPositionCount();
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }
+            } finally {
+                iterator.close();
+            }
+
+            assertEquals(rows, seen);
+            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
+            assertTrue(
+                "a fully read gzip body must reach end-of-body before the abort, or the connection is discarded",
+                object.endOfBodyReadBeforeAbort.get()
+            );
+            assertEquals("the full body is read exactly once", gzipped.length, object.bytesConsumed.get());
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    /**
      * Regression guard: if stream-only decompression fails after opening the raw object stream,
-     * cleanup must abort (not drain) the underlying connection.
+     * cleanup must abort (not drain) the underlying connection. Open now happens inside the
+     * admitted segmentator, so the failure surfaces on first {@code hasNext()}, not from
+     * {@code openWithParallelism} itself.
      */
     public void testOpenWithParallelismGzipDecompressFailureAbortsRawStream() throws IOException {
         AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
@@ -3492,50 +3741,42 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(gzipped, tracking);
 
-        IOException thrown = expectThrows(
-            IOException.class,
-            () -> factory.openWithParallelism(
-                cdr,
-                object,
-                List.of("a"),
-                ErrorPolicy.STRICT,
-                false,
-                true,
-                true,
-                null,
-                0L,
-                null,
-                null,
-                null,
-                ExternalReadCounters.NOOP,
-                null
-            )
+        CloseableIterator<Page> iterator = factory.openWithParallelism(
+            cdr,
+            object,
+            List.of("a"),
+            ErrorPolicy.STRICT,
+            false,
+            true,
+            true,
+            null,
+            0L,
+            null,
+            null,
+            null,
+            ExternalReadCounters.NOOP,
+            null
         );
+        assertNotNull(iterator);
+        IOException thrown = expectThrows(IOException.class, iterator::hasNext);
         assertEquals("decompress failed", thrown.getMessage());
+        iterator.close();
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
         assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
     }
 
     /**
-     * Regression guard: if {@code parallelRead} construction fails after the decompressing wrapper
-     * is created (e.g. the streaming iterator constructor throws), the wrapper must be
-     * closed to release codec-specific native handles (e.g. the {@code PanamaZstdInputStream}'s
-     * native {@code ZSTD_DStream} and {@code Arena.ofShared()} — resources with no JDK Cleaner
-     * fallback, unlike gzip's {@code Inflater}) and the raw stream must be aborted without a drain.
+     * If {@code parallelRead} construction fails before the opener runs (e.g. {@code minimumSegmentSize}
+     * throws), the raw stream must not be opened or aborted — there is no GET yet.
      */
     public void testOpenWithParallelismDecompressorReleasedOnParallelReadFailure() throws IOException {
         AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
             dummyFormatReaderForOpenParallelismTests(),
             Runnable::run
         );
-        // Force StreamingParallelIterator constructor to fail after the codec has successfully
-        // opened the decompressing stream — simulating an unexpected error mid-construction.
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         when(inner.minimumSegmentSize()).thenThrow(new RuntimeException("simulated parallelRead construction failure"));
 
-        // Codec that passes bytes through but tracks whether close() was called on its stream.
-        // The close-tracking stream is what DecompressingStorageObject.abortStream() must close
-        // first (before aborting raw) — this is the layer holding any codec-specific native handle.
         AtomicBoolean wrapperClosed = new AtomicBoolean(false);
         DecompressionCodec trackingPassThroughCodec = new DecompressionCodec() {
             @Override
@@ -3595,9 +3836,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
-        assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
-        assertTrue("raw stream must be aborted when parallelRead fails", tracking.aborted.get());
-        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+        assertFalse("opener must not run when parallelRead fails before admission", wrapperClosed.get());
+        assertFalse("raw stream must not be aborted if never opened", tracking.aborted.get());
+        assertEquals(0, tracking.abortCalls.get());
     }
 
     public void testOpenWithParallelismBareSegmentableReturnsIterator() throws IOException {
@@ -3631,6 +3872,117 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         } finally {
             exec.shutdownNow();
         }
+    }
+
+    /**
+     * Both streaming rails must not GET on the thread that invokes {@code openWithParallelism}:
+     * {@code newStream()} is the admitted segmentator's first action.
+     */
+    public void testOpenWithParallelismStreamingBranchesDoNotCallNewStreamOnOpenThread() throws Exception {
+        assertNewStreamNotCalledOnOpenThread(
+            new CompressionDelegatingFormatReader(mockInnerForParallelDescribeAndOpen(), new GzipDecompressionCodec()),
+            gzipCompress("{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8))
+        );
+        assertNewStreamNotCalledOnOpenThread(new NonStridedSegmentableFormatReader(), "\"a\nb\",c\nd,e\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void assertNewStreamNotCalledOnOpenThread(FormatReader reader, byte[] payload) throws Exception {
+        Thread openThread = Thread.currentThread();
+        AtomicBoolean calledOnOpenThread = new AtomicBoolean();
+        AtomicInteger newStreamCalls = new AtomicInteger();
+        StorageObject object = countingNewStream(bytesStorageObject(payload), openThread, calledOnOpenThread, newStreamCalls);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+                dummyFormatReaderForOpenParallelismTests(),
+                pool
+            );
+            CloseableIterator<Page> iterator = factory.openWithParallelism(
+                reader,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                ExternalReadCounters.NOOP,
+                null
+            );
+            assertNotNull(iterator);
+            assertFalse("newStream must not run on the openWithParallelism thread", calledOnOpenThread.get());
+            try {
+                iterator.hasNext();
+            } catch (Exception ignored) {
+                // Parse may fail; we only need the opener to have run on a pool thread.
+            }
+            assertThat("segmentator must GET after admission", newStreamCalls.get(), Matchers.greaterThan(0));
+            assertFalse("newStream must not run on the openWithParallelism thread", calledOnOpenThread.get());
+            iterator.close();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private static StorageObject countingNewStream(
+        StorageObject inner,
+        Thread openThread,
+        AtomicBoolean calledOnOpenThread,
+        AtomicInteger newStreamCalls
+    ) {
+        return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return inner.storageIdentity();
+            }
+
+            @Override
+            public InputStream newStream() throws IOException {
+                newStreamCalls.incrementAndGet();
+                if (Thread.currentThread() == openThread) {
+                    calledOnOpenThread.set(true);
+                }
+                return inner.newStream();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                newStreamCalls.incrementAndGet();
+                if (Thread.currentThread() == openThread) {
+                    calledOnOpenThread.set(true);
+                }
+                return inner.newStream(position, length);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return inner.length();
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return inner.lastModified();
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return inner.exists();
+            }
+
+            @Override
+            public StoragePath path() {
+                return inner.path();
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                inner.abortStream(stream);
+            }
+        };
     }
 
     /**
@@ -3865,6 +4217,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         final AtomicBoolean sawAbortable = new AtomicBoolean();
         final AtomicBoolean sawNonAbortable = new AtomicBoolean();
         final AtomicLong bytesConsumed = new AtomicLong();
+        /** Set when a read of the raw body returns {@code -1}, where Apache HttpClient pools the connection. */
+        final AtomicBoolean endOfBodyRead = new AtomicBoolean();
+        /** {@link #endOfBodyRead} as of the first abort: {@code false} means the abort discarded the connection. */
+        final AtomicBoolean endOfBodyReadBeforeAbort = new AtomicBoolean();
 
         S3ShapedAbortableStorageObject(byte[] bytes) {
             this.bytes = bytes;
@@ -3872,7 +4228,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public InputStream newStream() {
-            return new AbortableDrainStream(bytes, abortCalled, bytesConsumed);
+            return new AbortableDrainStream(bytes, abortCalled, bytesConsumed, endOfBodyRead, endOfBodyReadBeforeAbort);
         }
 
         @Override
@@ -3916,12 +4272,22 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         private final ByteArrayInputStream inner;
         private final AtomicBoolean abortCalled;
         private final AtomicLong bytesConsumed;
+        private final AtomicBoolean endOfBodyRead;
+        private final AtomicBoolean endOfBodyReadBeforeAbort;
         private boolean closed;
 
-        AbortableDrainStream(byte[] bytes, AtomicBoolean abortCalled, AtomicLong bytesConsumed) {
+        AbortableDrainStream(
+            byte[] bytes,
+            AtomicBoolean abortCalled,
+            AtomicLong bytesConsumed,
+            AtomicBoolean endOfBodyRead,
+            AtomicBoolean endOfBodyReadBeforeAbort
+        ) {
             this.inner = new ByteArrayInputStream(bytes);
             this.abortCalled = abortCalled;
             this.bytesConsumed = bytesConsumed;
+            this.endOfBodyRead = endOfBodyRead;
+            this.endOfBodyReadBeforeAbort = endOfBodyReadBeforeAbort;
         }
 
         @Override
@@ -3929,6 +4295,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             int b = inner.read();
             if (b >= 0) {
                 bytesConsumed.incrementAndGet();
+            } else {
+                endOfBodyRead.set(true);
             }
             return b;
         }
@@ -3938,13 +4306,17 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             int n = inner.read(buf, off, len);
             if (n > 0) {
                 bytesConsumed.addAndGet(n);
+            } else if (n < 0) {
+                endOfBodyRead.set(true);
             }
             return n;
         }
 
         @Override
         public void abort() {
-            abortCalled.set(true);
+            if (abortCalled.getAndSet(true) == false) {
+                endOfBodyReadBeforeAbort.set(endOfBodyRead.get());
+            }
         }
 
         @Override
@@ -5002,7 +5374,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             int call = callCount.incrementAndGet();
             if (call >= 2) {
-                throw new IOException("Simulated read error on file: " + object.path());
+                throw new IOException("Simulated read error on file: " + object.path().objectName());
             }
             Page page = createTestPage();
             return new CloseableIterator<>() {
@@ -5510,6 +5882,61 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public RecordSplitter recordSplitter(int maxRecordBytes) {
             return TestRecordSplitters.nonStridedSplitter(maxRecordBytes);
         }
+    }
+
+    /** Storage provider that serves one drain-simulating object for abort-on-close tests. */
+    private static class DrainFixtureStorageProvider implements StorageProvider {
+        private final byte[] payload;
+        private final DrainSimulatingStorageObject.Tracking tracking;
+        private final StoragePath objectPath;
+
+        DrainFixtureStorageProvider(byte[] payload, DrainSimulatingStorageObject.Tracking tracking, StoragePath objectPath) {
+            this.payload = payload;
+            this.tracking = tracking;
+            this.objectPath = objectPath;
+        }
+
+        private StorageObject object() {
+            return DrainSimulatingStorageObject.create(payload, tracking, objectPath);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return object();
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return object();
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return object();
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null;
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return true;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class LargeStorageProvider implements StorageProvider {

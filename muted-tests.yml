@@ -215,6 +215,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=security/authz/55_auto_configure/auto_configure privilege permits auto-create of indices}
   issue: https://github.com/elastic/elasticsearch/issues/160952
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=security/authz/20_get_doc/Test get a document when not allowed}
+  issue: https://github.com/elastic/elasticsearch/issues/160960
 
 # Examples:
 #

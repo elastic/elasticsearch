@@ -471,14 +471,19 @@ public final class ParallelParsingCoordinator {
         long minSegment = reader.minimumSegmentSize();
 
         // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. When this read includes the file-leading bytes (and therefore any
-        // header), bind the full on-disk schema before segment workers run. For non-leading macro
-        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        // against the file width. The coordinator pin is already physical file width; bind it in
+        // memory and skip execution metadata() (an unranged GET from byte 0). Null/empty pin
+        // (mixed-version coordinators; FileSplit collapse) still infers from the file. Non-leading
+        // macro-splits must not rebind via metadata: the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
         if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
-            var meta = parallelReader.metadata(storageObject);
-            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
-                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            if (readSchema != null && readSchema.isEmpty() == false) {
+                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(readSchema);
+            } else {
+                var meta = parallelReader.metadata(storageObject);
+                if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                    parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+                }
             }
         }
 

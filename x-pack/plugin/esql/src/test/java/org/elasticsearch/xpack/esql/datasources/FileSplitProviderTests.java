@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -86,7 +88,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -854,6 +859,120 @@ public class FileSplitProviderTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    // --- prefix / pattern prefilter on listing values (STARTS_WITH, LIKE, RLIKE) ---
+
+    public void testStartsWithOnFileName() {
+        Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), Literal.keyword(SRC, "a-"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("b-1.csv"))));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("year", "2024")));
+    }
+
+    public void testStartsWithOnFilePathAndDirectory() {
+        Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.PATH), Literal.keyword(SRC, "s3://b/a"));
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.PATH, new BytesRef("s3://b/a-1.csv")))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.PATH, new BytesRef("s3://b/b-1.csv")))
+        );
+
+        Expression dirFilter = new StartsWith(SRC, fileMeta(FileMetadataColumns.DIRECTORY), Literal.keyword(SRC, "s3://b"));
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(dirFilter, Map.of(FileMetadataColumns.DIRECTORY, new BytesRef("s3://b")))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(dirFilter, Map.of(FileMetadataColumns.DIRECTORY, new BytesRef("s3://other")))
+        );
+    }
+
+    public void testNotStartsWithPrunesPrefixFiles() {
+        Expression filter = new Not(SRC, new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), Literal.keyword(SRC, "a-")));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("b-1.csv"))));
+    }
+
+    public void testOrOfTwoStartsWithPrefixes() {
+        Expression filter = new Or(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), Literal.keyword(SRC, "a-")),
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), Literal.keyword(SRC, "b-"))
+        );
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("b-1.csv"))));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("c-1.csv"))));
+    }
+
+    public void testWildcardLikePrefixOnFileName() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("b-1.csv"))));
+    }
+
+    public void testWildcardLikeMixedPatternRejectsNonMatchingSuffix() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1z"))));
+    }
+
+    public void testRLikeOnFileName() {
+        Expression filter = new RLike(SRC, fileMeta(FileMetadataColumns.NAME), new RLikePattern("a-.*"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("b-1.csv"))));
+    }
+
+    public void testRLikeDotDoesNotBecomeAStringPrefixRange() {
+        // RLIKE "a.c.*" matches "abcX" ('.' is any char). A GTE/LT rewrite of the literal prefix "a" would also
+        // keep "a-1.csv", which this pattern must reject — proving evaluateFilter is exact, not a range.
+        Expression filter = new RLike(SRC, fileMeta(FileMetadataColumns.NAME), new RLikePattern("a.c.*"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("abcX"))));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.NAME, new BytesRef("a-1.csv"))));
+    }
+
+    public void testStartsWithOnStringPartition() {
+        Expression filter = new StartsWith(SRC, keywordField("year"), Literal.keyword(SRC, "20"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", "2024")));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", "1999")));
+        assertNull("integer hive year is not a string listing value", FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+    }
+
+    public void testSkipIfFilterOnMissingColumn_startsWithLikeRLike() {
+        assertTrue(
+            "STARTS_WITH on a missing data column should skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(
+                List.of(new StartsWith(SRC, keywordField("status"), Literal.keyword(SRC, "a"))),
+                Set.of("name")
+            )
+        );
+        assertTrue(
+            "LIKE on a missing data column should skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(
+                List.of(new WildcardLike(SRC, keywordField("status"), new WildcardPattern("a-*"))),
+                Set.of("name")
+            )
+        );
+        assertTrue(
+            "RLIKE on a missing data column should skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(
+                List.of(new RLike(SRC, keywordField("status"), new RLikePattern("a-.*"))),
+                Set.of("name")
+            )
+        );
+        // Unlike Equals, the prefix need not be a literal: STARTS_WITH(null, anything) is unknown,
+        // so a file missing the left column is still unread. That over-skips vs a two-column Equals.
+        assertTrue(
+            "STARTS_WITH on a missing column skips even when the prefix is another column",
+            FileSplitProvider.skipIfFilterOnMissingColumns(
+                List.of(new StartsWith(SRC, keywordField("status"), keywordField("name"))),
+                Set.of("name")
+            )
+        );
     }
 
     // --- multivalue comparison functions: what the out-of-band request filter translates into ---
@@ -1969,7 +2088,7 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     public void testDiscoverSplitsAsyncInvalidParquetDoesNotFallBackToWholeFile() {
         IllegalArgumentException invalid = new IllegalArgumentException(
-            "Could not read [s3://b/data-0.parquet] as a Parquet file: expected magic number at tail",
+            "Could not read the Parquet file: expected magic number at tail",
             new IOException("PARE")
         );
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(), () -> { throw invalid; });
@@ -1977,8 +2096,7 @@ public class FileSplitProviderTests extends ESTestCase {
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
         provider.discoverSplitsAsync(rangeAwareContext(1), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
         Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read"));
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("as a Parquet file"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read the Parquet file"));
     }
 
     /**
@@ -3402,8 +3520,8 @@ public class FileSplitProviderTests extends ESTestCase {
             executor.shutdown();
         }
 
-        assertThat(failure.getCause(), instanceOf(IOException.class));
-        assertEquals("connection reset", failure.getCause().getMessage());
+        assertNull("the read failure must not be chained to prevent caused_by leaks", failure.getCause());
+        assertThat(failure.getMessage(), containsString("connection reset"));
     }
 
     /**
@@ -6898,7 +7016,9 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.discoverSplits(handed));
-        assertThat(e.getMessage(), containsString("s3://b/b.parquet"));
+        // The object name only, never the bucket or full path: see FormatNameResolver.listedFormatConflictMessage.
+        assertThat(e.getMessage(), containsString("[b.parquet]"));
+        assertThat(e.getMessage(), not(containsString("s3://b/b.parquet")));
         assertThat(e.getMessage(), containsString("differs from the dataset format [csv]"));
     }
 
@@ -9514,6 +9634,14 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute keywordField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static Attribute fileMeta(String name) {
+        return new ExternalMetadataAttribute(SRC, name, DataType.KEYWORD);
     }
 
     private static Literal intLiteral(int value) {

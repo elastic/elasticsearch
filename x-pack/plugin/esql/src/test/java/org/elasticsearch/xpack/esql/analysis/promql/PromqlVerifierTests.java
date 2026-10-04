@@ -410,6 +410,80 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * An unmatched operator folds its two source-backed operands into one aggregate, which only works for operands aggregated
+     * alike. The other pairs failed later in planning with an error naming internals; each is rejected with what it is.
+     */
+    public void testUnmatchedOperandsMustAggregateAlike() {
+        String query = "PROMQL index=test step=5m ";
+        for (String rejected : List.of(
+            "sum(network.bytes_in) / network.connections",
+            "network.connections * max by (host) (network.bytes_in)",
+            "stddev(network.bytes_in) + network.connections"
+        )) {
+            tsdb.error(
+                query + rejected,
+                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
+            );
+        }
+        for (String rejected : List.of(
+            "scalar(sum(network.bytes_in)) * network.connections",
+            "network.connections / scalar(network.bytes_in)",
+            "network.connections * (scalar(network.bytes_in) + 1)",
+            "sum by (host) (network.bytes_in) * scalar(max(network.connections))",
+            "sum by (value) (label_replace(network.bytes_in, \"value\", \"$1\", \"host\", \"(.*)\")) "
+                + "* scalar(max(network.connections))"
+        )) {
+            tsdb.error(
+                query + rejected,
+                containsString("binary operations between scalar() of a vector and a vector with labels are not supported at this time")
+            );
+        }
+        for (String rejected : List.of(
+            "topk(1, network.bytes_in) / topk(1, network.connections)",
+            "bottomk(1, network.bytes_in) / bottomk(1, network.connections)",
+            "limitk(1, network.bytes_in) / limitk(1, network.connections)",
+            "topk(2, network.bytes_in) * network.connections",
+            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
+        )) {
+            tsdb.error(query + rejected, containsString("binary operations over topk, bottomk or limitk are not supported at this time"));
+        }
+        for (String rejected : List.of(
+            "bottomk(2, bottomk(1, network.bytes_in)) * network.connections",
+            "sum(network.bytes_in) / stdvar(topk(5, network.connections))",
+            "sum(network.bytes_in) / scalar(sum(network.connections))"
+        )) {
+            tsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
+        }
+        for (String accepted : List.of(
+            "network.bytes_in / network.connections",
+            "sum(network.bytes_in) / sum(network.connections)",
+            "sum by (host) (network.bytes_in) / sum by (host) (network.connections)",
+            "sum(network.bytes_in) * scalar(network.connections)",
+            "scalar(network.bytes_in) * scalar(network.connections)",
+            "scalar(sum(network.bytes_in)) * 2",
+            "topk(1, network.bytes_in) * 2",
+            "abs(topk(1, network.bytes_in))"
+        )) {
+            assertNotNull(accepted, tsdb.query(query + accepted));
+        }
+    }
+
+    /** A histogram function regroups by every label but {@code le}, which a reduction or a {@code without} already changed. */
+    public void testHistogramOverReductionOrWithoutIsRejected() {
+        for (String rejected : List.of(
+            "histogram_quantile(0.9, topk(3, network.bytes_in))",
+            "histogram_quantile(0.9, bottomk(3, network.bytes_in))",
+            "histogram_quantile(0.9, limitk(3, network.bytes_in))",
+            "histogram_quantile(0.9, sum without (host) (network.bytes_in))"
+        )) {
+            tsdb.error(
+                "PROMQL index=test step=5m " + rejected,
+                containsString("over topk, bottomk, limitk or a WITHOUT aggregate is not supported at this time")
+            );
+        }
+    }
+
     public void testNestedComparisons() {
         tsdb.error(
             "PROMQL index=test step=5m avg(foo > 5)",

@@ -496,3 +496,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/160951
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBFloat16VectorsFormatTests
+  method: testRandomWithUpdatesAndGraph
+  issue: https://github.com/elastic/elasticsearch/issues/160956

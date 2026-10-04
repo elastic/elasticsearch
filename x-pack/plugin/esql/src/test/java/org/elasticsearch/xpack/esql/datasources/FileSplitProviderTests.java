@@ -2710,45 +2710,94 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * {@code FROM ds | LIMIT n} probes one in-flight wave, not the whole stride grid. Production discovery is
-     * {@link FileSplitProvider#discoverSplitsAsync}.
+     * {@code FROM ds | LIMIT n} with a single driver (n ≤ page size) issues no probes. Production
+     * discovery is {@link FileSplitProvider#discoverSplitsAsync}.
      */
-    public void testASmallLimitProbesOneWaveOfPlainCsvOffsets() throws Exception {
-        assertLimitedTextProbesAtMostOneWave(10);
-        assertLimitedTextProbesAtMostOneWave(1000);
+    public void testASingleDriverLimitDoesNotProbePlainCsv() throws Exception {
+        assertSingleDriverLimitDoesNotProbe(10, false);
+        assertSingleDriverLimitDoesNotProbe(1000, false);
     }
 
-    private void assertLimitedTextProbesAtMostOneWave(int rowLimit) throws Exception {
-        long stride = 256 * 1024;
-        byte[] payload = repeatingCsv(40L * stride);
-        int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
-        assertThat("the fixture must have more offsets than one wave", positions, greaterThan(16));
-        StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, rowLimit);
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        int wave = provider.probeWaveSize(rowLimit, stride, positions);
-        assertThat("LIMIT " + rowLimit + " must not probe the whole grid", tracking.opens.get(), lessThanOrEqualTo(wave));
-        assertThat(tracking.opens.get(), greaterThan(0));
-        assertEquals("profile probes count issued GETs", tracking.opens.get(), result.splitDiscoveryProbes());
-        assertLimitedSplitsCoverFile(result.splits(), payload.length);
-        Set<Long> trueStarts = trueRecordStarts(stridedSplitter(), payload);
-        for (ExternalSplit split : result.splits()) {
-            FileSplit fileSplit = (FileSplit) split;
-            assertTrue("split at " + fileSplit.offset() + " must begin on a record start", trueStarts.contains(fileSplit.offset()));
-        }
+    public void testASingleDriverLimitDoesNotProbeQuotedCsv() throws Exception {
+        assertSingleDriverLimitDoesNotProbe(10, true);
+        assertSingleDriverLimitDoesNotProbe(1000, true);
     }
 
-    public void testASmallLimitProbesOneWaveOfNdjsonOffsets() throws Exception {
+    public void testASingleDriverLimitDoesNotProbeNdjson() throws Exception {
         long stride = 256 * 1024;
         byte[] payload = repeatingLines("{\"a\":1}\n", 40L * stride);
         int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
-        assertThat("the fixture must have more offsets than one wave", positions, greaterThan(16));
+        assertThat(positions, greaterThan(1));
         StreamTracking tracking = new StreamTracking(1);
         SplitDiscoveryResult result = discoverLimitedNdjson(Map.of("big.ndjson", payload), stride, tracking, 10);
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        int wave = provider.probeWaveSize(10, stride, positions);
-        assertThat(tracking.opens.get(), lessThanOrEqualTo(wave));
+        assertEquals("LIMIT 10 is one driver, so the file stays whole", 0, tracking.opens.get());
+        assertEquals(0, result.splitDiscoveryProbes());
+        assertEquals(1, result.splits().size());
+        assertLimitedSplitsCoverFile(result.splits(), payload.length);
+    }
+
+    public void testAHundredThousandLimitCutsToDrivers() throws Exception {
+        long stride = 256 * 1024;
+        byte[] payload = repeatingCsv(40L * stride);
+        int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
+        assertThat(positions, greaterThan(7));
+        StreamTracking tracking = new StreamTracking(1);
+        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, 100_000, 7);
+        int cuts = ExternalLimitSplits.demandCuts(
+            100_000,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            7,
+            1,
+            stride,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        assertEquals(6, cuts);
+        assertThat(tracking.opens.get(), lessThanOrEqualTo(cuts));
+        assertThat(result.splits().size(), lessThanOrEqualTo(cuts + 1));
         assertEquals(tracking.opens.get(), result.splitDiscoveryProbes());
+        assertLimitedSplitsCoverFile(result.splits(), payload.length);
+    }
+
+    public void testMultiFilePoolAtLeastAsManyAsDriversIssuesNoProbes() throws Exception {
+        long stride = 256 * 1024;
+        byte[] payload = repeatingCsv(40L * stride);
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 8; i++) {
+            files.put("f" + i + ".csv", payload);
+        }
+        StreamTracking tracking = new StreamTracking(1);
+        SplitDiscoveryResult result = discoverLimitedPlainCsv(files, stride, tracking, 100_000, 7);
+        assertEquals("eight files already cover seven drivers", 0, tracking.opens.get());
+        assertEquals(0, result.splitDiscoveryProbes());
+        assertEquals(8, result.splits().size());
+    }
+
+    public void testTaskConcurrencyOneIssuesNoProbes() throws Exception {
+        long stride = 256 * 1024;
+        byte[] payload = repeatingCsv(40L * stride);
+        for (int limit : new int[] { 10, 1000, 100_000 }) {
+            StreamTracking tracking = new StreamTracking(1);
+            SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, limit, 1);
+            assertEquals("task_concurrency 1 is one driver at LIMIT " + limit, 0, tracking.opens.get());
+            assertEquals(0, result.splitDiscoveryProbes());
+            assertEquals(1, result.splits().size());
+        }
+    }
+
+    public void testImplicitLimitOneThousandDoesNotProbe() throws Exception {
+        assertSingleDriverLimitDoesNotProbe(1000, false);
+    }
+
+    private void assertSingleDriverLimitDoesNotProbe(int rowLimit, boolean quoted) throws Exception {
+        long stride = 256 * 1024;
+        byte[] payload = quoted ? repeatingLines("1,\"embedded\nnewline\",ok\n", 40L * stride) : repeatingCsv(40L * stride);
+        StreamTracking tracking = new StreamTracking(1);
+        SplitDiscoveryResult result = quoted
+            ? discoverLimitedQuotedCsv(Map.of("big.csv", payload), stride, tracking, rowLimit)
+            : discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, rowLimit);
+        assertEquals("LIMIT " + rowLimit + " must not probe", 0, tracking.opens.get());
+        assertEquals(0, result.splitDiscoveryProbes());
+        assertEquals(1, result.splits().size());
         assertLimitedSplitsCoverFile(result.splits(), payload.length);
     }
 
@@ -2773,7 +2822,6 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testEvalAndKeepLimitsStillTruncateProbes() throws Exception {
         long stride = 256 * 1024;
         byte[] payload = repeatingCsv(40L * stride);
-        int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         ExternalRelation relation = demandRelation();
         LogicalPlan eval = new Limit(SRC, intLiteral(10), new Eval(SRC, relation, List.of(new Alias(SRC, "x", fieldAttr("year")))));
         LogicalPlan keep = new Limit(SRC, intLiteral(10), new Project(SRC, relation, List.of(fieldAttr("year"))));
@@ -2783,9 +2831,8 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(10, demandFrom(keep));
         StreamTracking tracking = new StreamTracking(1);
         SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("big.csv", payload), stride, tracking, demandFrom(eval));
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        int wave = provider.probeWaveSize(demandFrom(keep), stride, positions);
-        assertThat("EVAL/KEEP are Streaming, so the demand still truncates", tracking.opens.get(), lessThanOrEqualTo(wave));
+        assertEquals("EVAL/KEEP are Streaming, so a single-driver LIMIT still issues no probes", 0, tracking.opens.get());
+        assertEquals(1, result.splits().size());
         assertLimitedSplitsCoverFile(result.splits(), payload.length);
     }
 
@@ -2797,40 +2844,45 @@ public class FileSplitProviderTests extends ESTestCase {
         System.arraycopy(head, 0, payload, 0, head.length);
         System.arraycopy(tail, 0, payload, head.length, tail.length);
         int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
-        assertThat(positions, greaterThan(16));
+        assertThat(positions, greaterThan(7));
         StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("mixed.csv", payload), stride, tracking, 10);
+        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("mixed.csv", payload), stride, tracking, 100_000, 7);
         assertThat("a NONE at the first offset must not become a whole-file split", result.splits().size(), greaterThan(1));
         assertLimitedSplitsCoverFile(result.splits(), payload.length);
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        assertThat(tracking.opens.get(), lessThanOrEqualTo(provider.probeWaveSize(10, stride, positions)));
+        assertThat(tracking.opens.get(), greaterThan(0));
     }
 
     public void testAWaveThatFindsNothingFallsBackToTheRestOfTheGrid() throws Exception {
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         byte[] payload = oneRecordSpanning(40L * stride);
         int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
-        assertThat(positions, greaterThan(16));
+        assertThat(positions, greaterThan(7));
         StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("long.csv", payload), stride, tracking, 10);
+        SplitDiscoveryResult result = discoverLimitedPlainCsv(Map.of("long.csv", payload), stride, tracking, 100_000, 7);
         assertEquals("fallback must probe every offset when the wave finds nothing", positions, tracking.opens.get());
         assertEquals(1, result.splits().size());
         assertEquals(positions, result.splitDiscoveryProbes());
     }
 
-    public void testMultiFileDemandSpendsTheWaveInListingOrder() throws Exception {
+    public void testMultiFileDemandSpendsTheCutsInListingOrder() throws Exception {
         long stride = 256 * 1024;
         byte[] payload = repeatingCsv(40L * stride);
-        int positions = RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size();
         Map<String, byte[]> files = new LinkedHashMap<>();
         files.put("z.csv", payload);
         files.put("m.csv", payload);
         files.put("a.csv", payload);
         StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult result = discoverLimitedPlainCsv(files, stride, tracking, 10);
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        int wave = provider.probeWaveSize(10, stride, positions * files.size());
-        assertThat("later files must not be probed", tracking.opens.get(), lessThanOrEqualTo(wave));
+        SplitDiscoveryResult result = discoverLimitedPlainCsv(files, stride, tracking, 100_000, 7);
+        int cuts = ExternalLimitSplits.demandCuts(
+            100_000,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            7,
+            files.size(),
+            stride,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        assertEquals(4, cuts);
+        assertThat("later files must not be probed past the leftover cuts", tracking.opens.get(), lessThanOrEqualTo(cuts));
         Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
         for (ExternalSplit split : result.splits()) {
             FileSplit fileSplit = (FileSplit) split;
@@ -2838,36 +2890,31 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         assertEquals(3, byFile.size());
         assertThat("the first listed file is still cut", byFile.get("z.csv").size(), greaterThan(1));
-        assertEquals("files past the wave are one whole-file split", 1, byFile.get("m.csv").size());
-        assertEquals("files past the wave are one whole-file split", 1, byFile.get("a.csv").size());
+        assertEquals("files past the leftover cuts are one whole-file split", 1, byFile.get("a.csv").size());
         assertEquals(payload.length, byFile.get("a.csv").get(0).length());
     }
 
-    public void testALimitedQuotedCsvWalkStopsAfterTheWave() throws Exception {
+    public void testALimitedQuotedCsvWalkStopsAfterTheCuts() throws Exception {
         long stride = CSV_MIN_SEGMENT_BYTES;
         String quotedLine = "1,\"embedded\nnewline\",ok\n";
         byte[] payload = repeatingLines(quotedLine, 40L * stride);
         StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult limited = discoverCsvSplits(
-            Map.of("quoted.csv", payload),
+        SplitDiscoveryResult limited = discoverLimitedQuotedCsv(Map.of("quoted.csv", payload), stride, tracking, 100_000, 7);
+        int cuts = ExternalLimitSplits.demandCuts(
+            100_000,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            7,
+            1,
             stride,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            tracking,
-            Settings.EMPTY,
-            () -> false,
-            Map.of(),
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            true,
-            10
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
         );
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        int cap = provider.provenBoundaryCap(10, stride);
-        assertThat("quoted walk under LIMIT must stop after W starts", limited.splits().size(), lessThanOrEqualTo(cap));
+        assertEquals(6, cuts);
+        assertThat("quoted walk under LIMIT must stop after the leftover cuts", limited.splits().size(), lessThanOrEqualTo(cuts + 1));
         assertThat(limited.splits().size(), greaterThan(1));
         assertThat(
             "AMBIGUOUS steps issue at most two GETs per start after 0",
             tracking.opens.get(),
-            lessThanOrEqualTo(2 * Math.max(cap - 1, 1))
+            lessThanOrEqualTo(2 * Math.max(cuts, 1))
         );
         assertEquals("profile probes count issued GETs", tracking.opens.get(), limited.splitDiscoveryProbes());
         assertLimitedSplitsCoverFile(limited.splits(), payload.length);
@@ -2886,8 +2933,138 @@ public class FileSplitProviderTests extends ESTestCase {
         files.put("m.csv", payload);
         files.put("a.csv", payload);
         StreamTracking tracking = new StreamTracking(1);
-        SplitDiscoveryResult result = discoverCsvSplits(
-            files,
+        SplitDiscoveryResult result = discoverLimitedQuotedCsv(files, stride, tracking, 100_000, 7);
+        int cuts = ExternalLimitSplits.demandCuts(
+            100_000,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            7,
+            files.size(),
+            stride,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals(3, byFile.size());
+        assertThat("the first listed quoted file is still cut", byFile.get("z.csv").size(), greaterThan(1));
+        assertThat(byFile.get("z.csv").size(), lessThanOrEqualTo(cuts + 1));
+        assertEquals("quoted files past the leftover cuts are one whole-file split", 1, byFile.get("a.csv").size());
+        assertEquals(payload.length, byFile.get("a.csv").get(0).length());
+        assertThat("later quoted files must not walk", tracking.opens.get(), lessThanOrEqualTo(2 * Math.max(cuts, 1)));
+    }
+
+    public void testProbeWaveSizeIsDemandCutsNotConcurrencyFloor() {
+        FileSplitProvider provider = new FileSplitProvider();
+        long stride = 64L << 20;
+        assertEquals(0, provider.probeWaveSize(10, stride, 237));
+        assertEquals(0, provider.probeWaveSize(1000, stride, 237));
+        assertEquals(237, provider.probeWaveSize(FormatReader.NO_LIMIT, stride, 237));
+        assertEquals(0, provider.probeWaveSize(10, stride, 4));
+        assertEquals(6, provider.probeWaveSize(100_000, stride, 237, 7, 1));
+        assertEquals(0, provider.probeWaveSize(100_000, stride, 237, 7, 8));
+        assertEquals(1, provider.provenBoundaryCap(10, stride));
+        assertEquals(Integer.MAX_VALUE, provider.provenBoundaryCap(FormatReader.NO_LIMIT, stride));
+        assertEquals(7, provider.provenBoundaryCap(100_000, stride, 7, 1));
+    }
+
+    public void testSourceMetadataCarriesSampleWidth() {
+        SourceMetadata meta = new SimpleSourceMetadata(
+            List.of(),
+            "csv",
+            "s3://b/a.csv",
+            null,
+            null,
+            SourceMetadata.withSample(Map.of(), 46_600L, 10),
+            Map.of()
+        );
+        assertEquals(46_600L, meta.sampleBytes());
+        assertEquals(10, meta.sampleRows());
+        assertEquals(0L, new SimpleSourceMetadata(List.of(), "csv", "s3://b/a.csv").sampleBytes());
+        assertEquals(0, new SimpleSourceMetadata(List.of(), "csv", "s3://b/a.csv").sampleRows());
+    }
+
+    public void testRowBytesUsesInferredSampleWidth() {
+        SourceMetadata meta = new SimpleSourceMetadata(
+            List.of(),
+            "csv",
+            "s3://b/a.csv",
+            null,
+            null,
+            SourceMetadata.withSample(Map.of(), 46_600L, 10),
+            Map.of()
+        );
+        SplitDiscoveryContext inferred = sampleWidthContext(meta, DeclaredReadSpec.NONE);
+        assertEquals(4_660L, FileSplitProvider.rowBytes(inferred));
+        assertEquals(
+            0,
+            ExternalLimitSplits.demandCuts(
+                100_000,
+                ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+                19,
+                8,
+                64L << 20,
+                FileSplitProvider.rowBytes(inferred)
+            )
+        );
+    }
+
+    public void testRowBytesKeepsDefaultForDeclaredMapping() {
+        SourceMetadata meta = new SimpleSourceMetadata(
+            List.of(),
+            "csv",
+            "s3://b/a.csv",
+            null,
+            null,
+            SourceMetadata.withSample(Map.of(), 46_600L, 10),
+            Map.of()
+        );
+        SplitDiscoveryContext declared = sampleWidthContext(meta, DeclaredReadSpec.of(Map.of("col", "name")));
+        assertEquals(ExternalLimitSplits.DEFAULT_ROW_BYTES, FileSplitProvider.rowBytes(declared));
+        SplitDiscoveryContext missing = sampleWidthContext(null, DeclaredReadSpec.NONE);
+        assertEquals(ExternalLimitSplits.DEFAULT_ROW_BYTES, FileSplitProvider.rowBytes(missing));
+    }
+
+    private static SplitDiscoveryContext sampleWidthContext(SourceMetadata metadata, DeclaredReadSpec declaredReadSpec) {
+        return new SplitDiscoveryContext(
+            metadata,
+            FileList.EMPTY,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            declaredReadSpec,
+            Set.of(),
+            null,
+            100_000,
+            null,
+            7
+        );
+    }
+
+    private static SplitDiscoveryResult discoverLimitedQuotedCsv(
+        Map<String, byte[]> payloads,
+        long stride,
+        StreamTracking tracking,
+        int rowLimit
+    ) {
+        return discoverLimitedQuotedCsv(payloads, stride, tracking, rowLimit, 0);
+    }
+
+    private static SplitDiscoveryResult discoverLimitedQuotedCsv(
+        Map<String, byte[]> payloads,
+        long stride,
+        StreamTracking tracking,
+        int rowLimit,
+        int taskConcurrency
+    ) {
+        return discoverCsvSplits(
+            payloads,
             stride,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             tracking,
@@ -2896,35 +3073,9 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             true,
-            10
+            rowLimit,
+            taskConcurrency
         );
-        FileSplitProvider provider = new FileSplitProvider(stride);
-        int cap = provider.provenBoundaryCap(10, stride);
-        int waveCuts = cap == Integer.MAX_VALUE ? Integer.MAX_VALUE : cap - 1;
-        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
-        for (ExternalSplit split : result.splits()) {
-            FileSplit fileSplit = (FileSplit) split;
-            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
-        }
-        assertEquals(3, byFile.size());
-        assertThat("the first listed quoted file is still cut", byFile.get("z.csv").size(), greaterThan(1));
-        assertThat(byFile.get("z.csv").size(), lessThanOrEqualTo(cap));
-        assertEquals("quoted files past the walk budget are one whole-file split", 1, byFile.get("m.csv").size());
-        assertEquals("quoted files past the walk budget are one whole-file split", 1, byFile.get("a.csv").size());
-        assertEquals(payload.length, byFile.get("a.csv").get(0).length());
-        assertThat("later quoted files must not walk", tracking.opens.get(), lessThanOrEqualTo(2 * Math.max(waveCuts, 1)));
-    }
-
-    public void testProbeWaveSizeIsConcurrencyUnderSmallLimits() {
-        FileSplitProvider provider = new FileSplitProvider();
-        long stride = 64L << 20;
-        int concurrency = provider.splitDiscoveryConcurrency();
-        assertEquals(concurrency, provider.probeWaveSize(10, stride, 237));
-        assertEquals(concurrency, provider.probeWaveSize(1000, stride, 237));
-        assertEquals(237, provider.probeWaveSize(FormatReader.NO_LIMIT, stride, 237));
-        assertEquals(4, provider.probeWaveSize(10, stride, 4));
-        assertEquals(concurrency + 1, provider.provenBoundaryCap(10, stride));
-        assertEquals(Integer.MAX_VALUE, provider.provenBoundaryCap(FormatReader.NO_LIMIT, stride));
     }
 
     private static SplitDiscoveryResult discoverLimitedPlainCsv(
@@ -2932,6 +3083,16 @@ public class FileSplitProviderTests extends ESTestCase {
         long stride,
         StreamTracking tracking,
         int rowLimit
+    ) {
+        return discoverLimitedPlainCsv(payloads, stride, tracking, rowLimit, 0);
+    }
+
+    private static SplitDiscoveryResult discoverLimitedPlainCsv(
+        Map<String, byte[]> payloads,
+        long stride,
+        StreamTracking tracking,
+        int rowLimit,
+        int taskConcurrency
     ) {
         return discoverCsvSplits(
             payloads,
@@ -2943,7 +3104,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of("mode", "plain"),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             true,
-            rowLimit
+            rowLimit,
+            taskConcurrency
         );
     }
 
@@ -4155,6 +4317,34 @@ public class FileSplitProviderTests extends ESTestCase {
         boolean async,
         int rowLimit
     ) {
+        return discoverCsvSplits(
+            payloads,
+            targetStrideBytes,
+            executor,
+            tracking,
+            settings,
+            isCancelled,
+            csvConfig,
+            maxRecordBytes,
+            async,
+            rowLimit,
+            0
+        );
+    }
+
+    private static SplitDiscoveryResult discoverCsvSplits(
+        Map<String, byte[]> payloads,
+        long targetStrideBytes,
+        @Nullable Executor executor,
+        @Nullable StreamTracking tracking,
+        Settings settings,
+        BooleanSupplier isCancelled,
+        Map<String, Object> csvConfig,
+        int maxRecordBytes,
+        boolean async,
+        int rowLimit,
+        int taskConcurrency
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy(
             "csv",
@@ -4193,7 +4383,7 @@ public class FileSplitProviderTests extends ESTestCase {
             isCancelled,
             DeclaredReadSpec.NONE
         );
-        if (rowLimit != FormatReader.NO_LIMIT) {
+        if (rowLimit != FormatReader.NO_LIMIT || taskConcurrency > 0) {
             ctx = new SplitDiscoveryContext(
                 ctx.metadata(),
                 ctx.fileList(),
@@ -4209,7 +4399,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 ctx.metadataColumnNames(),
                 ctx.retainedPartitionKeys(),
                 rowLimit,
-                ctx.listingMemory()
+                ctx.listingMemory(),
+                taskConcurrency
             );
         }
         if (async) {
@@ -4505,7 +4696,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * start (its prefix sums are the true record starts), and the boundaries must be strictly increasing. The
      * payload carries {@code ""}-escaped quotes, embedded newlines, and CRLF rows inside quoted fields so a
      * naive strided scan would mis-split; the probe must not. Demand-truncated walks are
-     * {@link #testALimitedQuotedCsvWalkStopsAfterTheWave}; this case is the full scan #2131 still needs.
+     * {@link #testALimitedQuotedCsvWalkStopsAfterTheCuts}; this case is the full scan #2131 still needs.
      */
     public void testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();

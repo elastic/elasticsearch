@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
@@ -925,12 +926,12 @@ public class FileSplitProvider implements SplitProvider {
                 throw ExternalFailures.surface(e, "Failed to discover splits");
             }
 
-            // Phase 3: spend the listing-order quoted-walk budget, then probe strided offsets. Quoted files under
-            // demand share one W of cuts; files past that budget stay whole-file. Strided offsets share a separate
-            // W. Unlimited quoted files already walked in Phase 2.
+            // Phase 3: spend one demand-sized cut budget in listing order. Files past that budget stay
+            // whole-file. Unlimited quoted files already walked in Phase 2.
             List<PlanResult> planned = new ArrayList<>(planResults);
+            int remainingCuts = remainingDemandCuts(context, planned);
             try {
-                walkDeferredQuoted(planned, context.rowLimit(), isCancelled);
+                remainingCuts = walkDeferredQuoted(planned, remainingCuts, isCancelled);
             } catch (Exception e) {
                 throw ExternalFailures.surface(e, "Failed to discover splits");
             }
@@ -938,7 +939,7 @@ public class FileSplitProvider implements SplitProvider {
                 planned,
                 probeWindowBytes,
                 isCancelled,
-                context.rowLimit()
+                remainingCuts
             );
 
             // Phase 4: turn the plan results into splits, now that every boundary either was known at planning time
@@ -1092,8 +1093,10 @@ public class FileSplitProvider implements SplitProvider {
                 fanOut,
                 ActionListener.<List<PlanResult>>wrap(planResults -> {
                     List<PlanResult> planned = new ArrayList<>(planResults);
+                    int remainingCuts;
                     try {
-                        walkDeferredQuoted(planned, context.rowLimit(), isCancelled);
+                        remainingCuts = remainingDemandCuts(context, planned);
+                        remainingCuts = walkDeferredQuoted(planned, remainingCuts, isCancelled);
                     } catch (Exception e) {
                         completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                         return;
@@ -1103,7 +1106,7 @@ public class FileSplitProvider implements SplitProvider {
                         probeWindowBytes,
                         isCancelled,
                         fanOut,
-                        context.rowLimit(),
+                        remainingCuts,
                         ActionListener.wrap(probedOutcomes -> {
                             try {
                                 if (isCancelled.getAsBoolean()) {
@@ -2116,9 +2119,10 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * Probes the record boundaries of deferred files, keyed by the descriptor they belong to.
      * <p>
-     * Under a {@code rowLimit}, only a leading wave of offsets is probed, in listing order. Files past that
-     * budget become whole-file splits with no probes. If the wave finds no boundary for a file, the rest of
-     * that file's grid is probed (today's behaviour), so a run of NONE cannot collapse it.
+     * Under demand, only a leading prefix of offsets is probed, in listing order, from the leftover
+     * cut budget after quoted walks. Files past that budget become whole-file splits with no probes.
+     * If the wave finds no boundary for a file, the rest of that file's grid is probed so a run of
+     * NONE cannot collapse it.
      * <p>
      * With an executor, selected offsets share {@link #splitDiscoveryConcurrency()}. Without one, they run
      * serially. Both produce the same per-offset outcomes; the caller reduces them to split starts.
@@ -2129,10 +2133,10 @@ public class FileSplitProvider implements SplitProvider {
         List<PlanResult> planResults,
         long probeWindowBytes,
         BooleanSupplier isCancelled,
-        int rowLimit
+        int remainingCuts
     ) {
         Map<DeferredNewlineSplits, List<Long>> remainingPositions = new IdentityHashMap<>();
-        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, rowLimit, remainingPositions);
+        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, remainingCuts, remainingPositions);
         if (wave.isEmpty()) {
             return Map.of();
         }
@@ -2166,11 +2170,11 @@ public class FileSplitProvider implements SplitProvider {
         long probeWindowBytes,
         BooleanSupplier isCancelled,
         Executor fanOut,
-        int rowLimit,
+        int remainingCuts,
         ActionListener<Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>>> listener
     ) {
         Map<DeferredNewlineSplits, List<Long>> remainingPositions = new IdentityHashMap<>();
-        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, rowLimit, remainingPositions);
+        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, remainingCuts, remainingPositions);
         if (wave.isEmpty()) {
             listener.onResponse(Map.of());
             return;
@@ -2215,62 +2219,122 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * How many leading strided probe offsets a demand-limited scan may issue.
-     * {@code k} is how many stride-sized splits {@code rowLimit} 4 KiB rows would fill; the wave is at least
-     * {@link #splitDiscoveryConcurrency()} so one in-flight round-trip covers about a gigabyte of bounded
-     * splits at the default 64 MiB stride. Gated on {@code rowLimit !=} {@link FormatReader#NO_LIMIT}.
+     * Stride cuts a demand-limited scan may still issue, counting each planned file as a starting
+     * point. {@link FormatReader#NO_LIMIT} is unbounded. Zero means every file stays whole-file.
+     */
+    private int remainingDemandCuts(SplitDiscoveryContext context, List<PlanResult> planned) {
+        long stride = firstStride(planned);
+        return ExternalLimitSplits.demandCuts(
+            context.rowLimit(),
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            context.taskConcurrency(),
+            planned.size(),
+            stride > 0 ? stride : DEFAULT_TARGET_SPLIT_SIZE,
+            rowBytes(context)
+        );
+    }
+
+    private static long firstStride(List<PlanResult> planned) {
+        for (PlanResult planResult : planned) {
+            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
+                return needsProbing.deferred().strideBytes();
+            }
+            if (planResult instanceof PlanResult.NeedsWalk needsWalk) {
+                return needsWalk.deferred().strideBytes();
+            }
+        }
+        return 0L;
+    }
+
+    /**
+     * Bytes per row used to size {@code ceil(rowLimit * rowBytes / stride)}. Declared mappings keep
+     * {@link ExternalLimitSplits#DEFAULT_ROW_BYTES}; inferred schemas use the sample width when present.
+     */
+    static long rowBytes(SplitDiscoveryContext context) {
+        if (context.declaredReadSpec() != null && context.declaredReadSpec().isEmpty() == false) {
+            return ExternalLimitSplits.DEFAULT_ROW_BYTES;
+        }
+        SourceMetadata metadata = context.metadata();
+        if (metadata != null) {
+            long sampleBytes = metadata.sampleBytes();
+            int sampleRows = metadata.sampleRows();
+            if (sampleBytes > 0 && sampleRows > 0) {
+                return Math.max(1L, Math.ceilDiv(sampleBytes, (long) sampleRows));
+            }
+        }
+        return ExternalLimitSplits.DEFAULT_ROW_BYTES;
+    }
+
+    /**
+     * How many leading strided probe offsets a demand-limited scan may issue for one file.
+     * Under demand this is {@link ExternalLimitSplits#demandCuts}, not a concurrency floor:
+     * a single-driver LIMIT issues zero cuts. Gated on {@code rowLimit !=} {@link FormatReader#NO_LIMIT}.
      */
     int probeWaveSize(int rowLimit, long strideBytes, int positionCount) {
-        if (rowLimit == FormatReader.NO_LIMIT || rowLimit <= 0 || positionCount <= 0 || strideBytes <= 0) {
+        return probeWaveSize(rowLimit, strideBytes, positionCount, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+    }
+
+    int probeWaveSize(int rowLimit, long strideBytes, int positionCount, int taskConcurrency, int fileCount) {
+        if (positionCount <= 0) {
+            return 0;
+        }
+        int cuts = ExternalLimitSplits.demandCuts(
+            rowLimit,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            taskConcurrency,
+            fileCount,
+            strideBytes,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        if (cuts == Integer.MAX_VALUE) {
             return positionCount;
         }
-        long k = Math.ceilDiv((long) rowLimit * 4096L, strideBytes);
-        long w = Math.max(k, (long) splitDiscoveryConcurrency());
-        return (int) Math.min((long) positionCount, w);
+        return Math.min(positionCount, cuts);
     }
 
     /**
      * Cap on proven-walk starts under demand, including the file start at 0.
-     * {@link #probeWaveSize} counts W stride cuts (0 is implicit in {@link RecordBoundaryProbe#reduce}).
-     * The walk's {@code maxBoundaries} includes 0, so the cap is W+1: one start plus W cuts.
-     * Without the extra slot the walk would emit about W-1 cuts against a strided wave of W probes.
+     * {@link #probeWaveSize} counts remaining cuts (0 is implicit in {@link RecordBoundaryProbe#reduce}).
+     * The walk's {@code maxBoundaries} includes 0, so the cap is cuts+1.
      */
     int provenBoundaryCap(int rowLimit, long strideBytes) {
-        if (rowLimit == FormatReader.NO_LIMIT || rowLimit <= 0 || strideBytes <= 0) {
+        return provenBoundaryCap(rowLimit, strideBytes, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+    }
+
+    int provenBoundaryCap(int rowLimit, long strideBytes, int taskConcurrency, int fileCount) {
+        int cuts = ExternalLimitSplits.demandCuts(
+            rowLimit,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            taskConcurrency,
+            fileCount,
+            strideBytes,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        if (cuts == Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
         }
-        long k = Math.ceilDiv((long) rowLimit * 4096L, strideBytes);
-        long w = Math.max(k, (long) splitDiscoveryConcurrency());
-        return (int) Math.min(w + 1L, Integer.MAX_VALUE);
+        return cuts + 1;
     }
 
     /**
-     * Takes a listing-order prefix of strided offsets totalling {@link #probeWaveSize}, and rewrites files
+     * Takes a listing-order prefix of strided offsets totalling the leftover cut budget, and rewrites files
      * past that budget to whole-file splits with no probes. Partial files keep their leftover positions for
      * {@link #fallbackProbeTasks}. Files rewritten to whole-file never re-enter fallback: leftover offsets
      * on a later file would spend GETs the demand already decided not to spend, and would cut a file the
      * query will not read past the LIMIT (2174-safe).
-     * <p>
-     * The first deferred file's stride sizes W. {@link #strideBoundedByProbeBudget} is query-wide, so every
-     * file's stride is that same number.
      */
     private List<ProbeTask> selectLeadingProbeTasks(
         List<PlanResult> planResults,
-        int rowLimit,
+        int remainingCuts,
         Map<DeferredNewlineSplits, List<Long>> remainingPositions
     ) {
         int totalPositions = 0;
-        long strideBytes = 0L;
         for (PlanResult planResult : planResults) {
             if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
-                DeferredNewlineSplits deferred = needsProbing.deferred();
-                totalPositions += deferred.positions().size();
-                if (strideBytes == 0L) {
-                    strideBytes = deferred.strideBytes();
-                }
+                totalPositions += needsProbing.deferred().positions().size();
             }
         }
-        int waveSize = probeWaveSize(rowLimit, strideBytes, totalPositions);
+        int waveSize = remainingCuts == Integer.MAX_VALUE ? totalPositions : Math.min(totalPositions, Math.max(0, remainingCuts));
         List<ProbeTask> wave = new ArrayList<>(waveSize);
         int remainingBudget = waveSize;
         for (int i = 0; i < planResults.size(); i++) {
@@ -2920,28 +2984,22 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Spends one W of proven-walk cuts across quoted files in listing order. Files past the budget become
-     * whole-file splits and never walk, matching the strided path. Unlimited scans never reach here: they
-     * walk in Phase 2. Mixed strided+quoted queries spend a separate W on each path.
-     * <p>
-     * The first quoted file's stride sizes W. {@link #strideBoundedByProbeBudget} is query-wide, so every
-     * file's stride is that same number.
+     * Spends the leftover demand-sized cut budget across quoted files in listing order. Files past
+     * the budget become whole-file splits and never walk, matching the strided path. Unlimited scans
+     * never reach here: they walk in Phase 2. Mixed strided+quoted queries share one remainingCuts
+     * across this walk then the strided wave.
      */
-    private void walkDeferredQuoted(List<PlanResult> planResults, int rowLimit, BooleanSupplier isCancelled) throws IOException {
-        long strideBytes = 0L;
+    private int walkDeferredQuoted(List<PlanResult> planResults, int remainingCuts, BooleanSupplier isCancelled) throws IOException {
         boolean anyWalk = false;
         for (PlanResult planResult : planResults) {
-            if (planResult instanceof PlanResult.NeedsWalk needsWalk) {
+            if (planResult instanceof PlanResult.NeedsWalk) {
                 anyWalk = true;
-                if (strideBytes == 0L) {
-                    strideBytes = needsWalk.deferred().strideBytes();
-                }
+                break;
             }
         }
         if (anyWalk == false) {
-            return;
+            return remainingCuts;
         }
-        int remainingCuts = probeWaveSize(rowLimit, strideBytes, Integer.MAX_VALUE);
         for (int i = 0; i < planResults.size(); i++) {
             if (planResults.get(i) instanceof PlanResult.NeedsWalk needsWalk) {
                 DeferredNewlineSplits deferred = needsWalk.deferred();
@@ -2958,6 +3016,7 @@ public class FileSplitProvider implements SplitProvider {
                 planResults.set(i, new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile()));
             }
         }
+        return remainingCuts;
     }
 
     /**

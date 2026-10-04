@@ -296,8 +296,31 @@ public final class SplitDiscoveryPhase {
         int seedRowLimit,
         PlanningMemory listingMemory
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency
+    ) {
         ScanStats stats = new ScanStats();
-        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory);
+        Traversal traversal = new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency);
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
         try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
@@ -353,6 +376,33 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0,
+            executor,
+            listener
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers. */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
@@ -360,7 +410,7 @@ public final class SplitDiscoveryPhase {
                 plan,
                 seedFilters,
                 seedRowLimit,
-                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory),
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency),
                 wrapPlanningIo(executor, planningIo),
                 l.map(
                     resolved -> new Result(
@@ -403,7 +453,8 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
-        PlanningMemory listingMemory
+        PlanningMemory listingMemory,
+        int taskConcurrency
     ) {}
 
     private static void resolveRecursiveAsync(
@@ -576,7 +627,8 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            traversal.listingMemory()
+            traversal.listingMemory(),
+            traversal.taskConcurrency()
         );
 
         SplitDiscoveryResult result;
@@ -630,7 +682,8 @@ public final class SplitDiscoveryPhase {
             metadataColumnNames,
             PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
             rowLimit,
-            traversal.listingMemory()
+            traversal.listingMemory(),
+            traversal.taskConcurrency()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFact
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
+import org.elasticsearch.xpack.esql.datasources.ExternalLimitSplits;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -272,7 +273,7 @@ public class LocalExecutionPlanner {
      * Default rows per page for external file sources when {@link ExternalSourceExec#estimatedRowSize()} is unknown
      * or non-positive. Used by {@link #planExternalSource} as the batch size passed to format readers (including NDJSON).
      */
-    public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = 1000;
+    public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS;
 
     /**
      * Minimum pages of work each pushed-LIMIT driver must have. One page per driver
@@ -280,7 +281,7 @@ public class LocalExecutionPlanner {
      * exactly {@code N / pageSize} pages, so a driver that delivers a second page leaves
      * a sibling with nothing. Eval saw no idle drivers at 5 or more pages per driver.
      */
-    static final int MIN_PAGES_PER_LIMIT_DRIVER = 5;
+    static final int MIN_PAGES_PER_LIMIT_DRIVER = ExternalLimitSplits.MIN_PAGES_PER_LIMIT_DRIVER;
 
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
@@ -2581,11 +2582,7 @@ public class LocalExecutionPlanner {
         if (pushedLimit == FormatReader.NO_LIMIT) {
             return capped;
         }
-        if (pushedLimit <= pageSize) {
-            return 1;
-        }
-        int fromBudget = (int) Math.ceilDiv((long) pushedLimit, (long) MIN_PAGES_PER_LIMIT_DRIVER * pageSize);
-        return Math.min(Math.max(fromBudget, 1), capped);
+        return Math.min(ExternalLimitSplits.driverCount(pushedLimit, pageSize, taskConcurrency), capped);
     }
 
     /**

@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 160947
-summary: Probe only a leading wave of text splits under LIMIT
+summary: Size text split probes to the drivers a LIMIT will run
 type: enhancement

@@ -293,13 +293,37 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
+     * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
+     * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
+     * <p>
+     * Not a cap and not a correctness setting: how many rows a file holds is only known from its footer, after the
+     * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower
+     * it and a query whose demand the prefix cannot cover pays two listings; raise it and the first attempt costs more
+     * pages. Either way the answer is the same.
+     * <p>
+     * Not dynamic, unlike the caps below. They are read live because a cap lowered at runtime has to start refusing;
+     * this is read from the settings the split provider was built with, so marking it dynamic would accept a change
+     * that then did nothing.
+     */
+    public static final Setting<Integer> FIRST_ATTEMPT_LISTING_FILES = Setting.intSetting(
+        "esql.external.first_attempt_listing_files",
+        1000,
+        1,
+        1000000,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
      * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
+     * Default: 25,000 — generous for legitimate use, catches truly degenerate cases. Planning memory for
+     * the kept files is charged to the request breaker, so raising this cap fails a query that does not
+     * fit with a circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
-        10000,
+        25_000,
         1,
         1000000,
         Setting.Property.NodeScope,
@@ -339,6 +363,88 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Default maximum decompression ratio for stream-only compressed text objects (CSV, TSV, NDJSON with gzip
+     * or zstd). A read fails with {@code 400} once the decompressed bytes exceed this multiple of the
+     * object's compressed size (checked from 1 MiB on). {@code 0} disables the check. The actual limit is the
+     * per-codec setting ({@link #MAX_DECOMPRESSION_RATIO_ZSTD} for zstd), falling back to this value.
+     * <p>
+     * Default 200 sits above the 65:1 that DuckDB's 3 GB genome CSV reaches with gzip, while typical
+     * highly compressible repeated input reaches 515:1 or more. Upper bound 100,000 keeps a hostile
+     * near-{@link Integer#MAX_VALUE} ratio from overflowing the limit multiplication.
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO = Setting.intSetting(
+        "esql.external.max_decompression_ratio",
+        200,
+        0,
+        100_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum decompression ratio for zstd-compressed objects; overrides {@link #MAX_DECOMPRESSION_RATIO}
+     * for zstd. Default 2000: zstd can legitimately reach 583:1 on the DuckDB genome CSV at ultra compression,
+     * while highly compressible repeated input reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
+     * Same upper bound as {@link #MAX_DECOMPRESSION_RATIO}.
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO_ZSTD = Setting.intSetting(
+        "esql.external.max_decompression_ratio.zstd",
+        2000,
+        0,
+        100_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 sits well above any
+     * legitimate schema while staying far below the widths that exhaust a small heap. Long names are still bounded
+     * only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
+     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        MAX_SCHEMA_MAX_FIELDS,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+        } catch (NumberFormatException e) {
+            // Setting.parseInt rethrows the JDK's message, which does not name the key, when the value is not a number.
+            throw new IllegalArgumentException(
+                "[" + key + "] must be an integer between 1 and " + MAX_SCHEMA_MAX_FIELDS + ", got [" + value + "]",
+                e
+            );
+        }
+    }
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
@@ -527,9 +633,13 @@ public final class ExternalSourceSettings {
             MAX_CONCURRENT_REQUESTS,
             MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
+            FIRST_ATTEMPT_LISTING_FILES,
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,
             MAX_GLOB_EXPANSION,
+            MAX_DECOMPRESSION_RATIO,
+            MAX_DECOMPRESSION_RATIO_ZSTD,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

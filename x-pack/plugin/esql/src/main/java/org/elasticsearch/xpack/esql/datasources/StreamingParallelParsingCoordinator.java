@@ -22,12 +22,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -35,12 +37,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -109,6 +113,18 @@ public final class StreamingParallelParsingCoordinator {
     }
 
     /**
+     * Opens the sequential decompressed stream. Production passes {@code storageObject::newStream} (or
+     * {@code decompressing::newStream}) so the GET and its storage permit are acquired only after
+     * {@link StreamingSegmentatorAdmission} has handed the segmentator a pool thread that can finish
+     * the read and release the permit. Tests that already hold an {@link InputStream} wrap
+     * {@code () -> stream}.
+     */
+    @FunctionalInterface
+    public interface StreamOpener {
+        InputStream open() throws IOException;
+    }
+
+    /**
      * Creates a parallel-parsing iterator over a sequential decompressed stream.
      *
      * @param reader              the segmentable format reader (provides record boundary semantics)
@@ -131,7 +147,7 @@ public final class StreamingParallelParsingCoordinator {
     ) throws IOException {
         return parallelRead(
             reader,
-            decompressedStream,
+            () -> decompressedStream,
             null,
             projectedColumns,
             batchSize,
@@ -212,7 +228,7 @@ public final class StreamingParallelParsingCoordinator {
     ) throws IOException {
         return parallelRead(
             reader,
-            decompressedStream,
+            () -> decompressedStream,
             storageObject,
             projectedColumns,
             batchSize,
@@ -239,6 +255,11 @@ public final class StreamingParallelParsingCoordinator {
      * {@link StreamingSegmentatorAdmission}). Production always threads the per-node admission gate;
      * the overload above supplies {@link StreamingSegmentatorAdmission#unbounded()} for tests and
      * benchmarks running on an isolated, generously-sized pool where segmentator saturation cannot arise.
+     * <p>
+     * Tests that already hold a live {@link InputStream} use this overload; it wraps the stream as a
+     * {@link StreamOpener} so the iterator still admits before any further read. Production callers
+     * that would acquire a storage permit on {@code newStream()} must use the {@link StreamOpener}
+     * overload below so the GET happens on the admitted segmentator thread.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -261,6 +282,63 @@ public final class StreamingParallelParsingCoordinator {
         ExternalReadCounters readCounters,
         @Nullable FormatReadCounters formatCounters
     ) throws IOException {
+        return parallelRead(
+            reader,
+            () -> decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            admission,
+            breaker,
+            readCounters,
+            formatCounters
+        );
+    }
+
+    /**
+     * Production streaming path: at {@code parallelism > 1}, {@code opener} is invoked as the admitted
+     * segmentator's first action, so a storage permit is held only by a task that already runs on the
+     * shared I/O pool and can finish the stream on that same thread. Unadmitted work holds zero permits
+     * and zero pool threads.
+     * <p>
+     * {@code parallelism <= 1} is the single-pass fallback used by tests and benchmarks: it calls
+     * {@code opener.open()} on the caller, then {@code reader.read}. That does not invert permits
+     * against the I/O pool (same thread acquires, reads, closes, releases). Production
+     * {@link AsyncExternalSourceOperatorFactory#openWithParallelism} returns {@code null} when
+     * {@code parsingParallelism <= 1} and never reaches this overload for that case.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StreamOpener opener,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
+    ) throws IOException {
+        Objects.requireNonNull(opener, "opener");
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "streaming parallelRead: readSchema={}, parallelism={}, projection={}",
@@ -272,11 +350,10 @@ public final class StreamingParallelParsingCoordinator {
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {
-            // Single-pass fallback reads the whole decompressed stream in one shot starting at
-            // baseFileOffset, so per-stripe stats attribution applies exactly as in the parallel branch and
-            // its trailing stripe is always file-final. Thread .stats(...) here too — mirrors the sibling
-            // ParallelParsingCoordinator's single-segment fallback — so a streaming read at parallelism 1
-            // still harvests per-stripe stats instead of silently dropping the capture.
+            // Test/benchmark single-pass fallback: open on this thread, then read the whole stream.
+            // AESOF never takes this path (openWithParallelism returns null at parsingParallelism<=1).
+            // Same thread acquires, reads, closes, and releases, so this is not the permit×pool cycle.
+            // Thread .stats(...) here too — mirrors ParallelParsingCoordinator's single-segment fallback.
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
@@ -289,12 +366,12 @@ public final class StreamingParallelParsingCoordinator {
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
-            return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
+            return reader.read(new InputStreamStorageObject(opener.open()), ctx);
         }
 
         return new StreamingParallelIterator(
             reader,
-            decompressedStream,
+            opener,
             storageObject,
             projectedColumns,
             batchSize,
@@ -320,6 +397,9 @@ public final class StreamingParallelParsingCoordinator {
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
 
         private static final Page POISON = new Page(0);
+        private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
+        /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
+        private static final int POOL_CLOSED_MARKER = -1;
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
 
         /**
@@ -368,16 +448,21 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
-        /**
-         * Node-level gate bounding how many segmentators occupy the shared {@code esql_external_io} pool at once,
-         * so parser tasks are never starved of a thread (see {@link StreamingSegmentatorAdmission}). Never
-         * {@code null}: production threads the per-node controller; tests/benchmarks on an isolated, generously-sized
-         * pool pass {@link StreamingSegmentatorAdmission#unbounded()}, which dispatches immediately.
-         */
-        private final StreamingSegmentatorAdmission admission;
 
-        private final ArrayBlockingQueue<byte[]> bufferPool;
+        private final ArrayBlockingQueue<PoolBuffer> bufferPool;
+        /**
+         * Pool buffers charged to {@link #breaker}, or {@link #POOL_CLOSED_MARKER} once {@link #close()} has
+         * refunded them. Marking it closed rather than resetting it to 0 is what lets an allocation that
+         * races a close that stopped waiting early (timeout or interrupt) see the refund and undo its own
+         * charge instead of leaking it.
+         */
         private final AtomicInteger buffersAllocated;
+        /**
+         * Arrays the grow loop allocated for a record larger than {@link #chunkSize}, each charged to
+         * {@link #breaker} at its length. Identity-keyed: membership makes {@link GrowBuffer#release()} single-shot
+         * against {@link #close()}, which releases whatever is still here.
+         */
+        private final Set<GrowBuffer> growBuffers = ConcurrentHashMap.newKeySet();
         private final CircuitBreaker breaker;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
         /** Capacity of {@link #bufferPool} (one pooled buffer per possible in-flight chunk-sized slice). */
@@ -442,13 +527,13 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final AtomicBoolean closed = new AtomicBoolean(false);
         /**
-         * Set when a non-strict {@link ErrorPolicy} converts a {@code external_max_record_size} cap-hit into a
-         * graceful stop instead of a hard failure (see {@link #runSegmentator}). A truncated read is
-         * <em>not</em> a clean completion: the records emitted so far are a partial prefix and any
-         * captured stats are an under-count, so {@link #close()} must poison them rather than cache
-         * them as the file's full contribution.
+         * Set by the segmentator once it has read the stream to its end and dispatched every chunk. A segmentator
+         * that stops earlier without an error, on a close (LIMIT, cancellation) or because a non-strict
+         * {@link ErrorPolicy} turned an {@code external_max_record_size} cap-hit into a graceful stop, has dispatched
+         * only a prefix of the file. Its captured stats are an under-count even when the consumer has drained every
+         * chunk, so {@link #close()} must poison them rather than cache them as the file's full contribution.
          */
-        private volatile boolean truncated = false;
+        private volatile boolean reachedEof = false;
         /**
          * Async-ready signal. {@code null} when no consumer is waiting. When the consumer's
          * {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
@@ -459,13 +544,27 @@ public final class StreamingParallelParsingCoordinator {
         private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
 
         /**
-         * The sequential decompressed stream being segmented. Closed exactly once by whichever path
-         * gets there first: {@link #runSegmentator}'s {@code finally}, {@link #onSegmentatorLaunchRejected}
-         * on a pool rejection, or {@link #close()} as a backstop for the segmentator-still-queued case.
-         * The {@link #streamClosed} CAS ensures only one caller's {@code close()} runs.
+         * Opens the sequential stream as the admitted segmentator's first action. Never invoked for
+         * work cancelled while still pending in {@link StreamingSegmentatorAdmission}.
          */
-        private final InputStream decompressedStream;
+        private final StreamOpener opener;
+        /**
+         * The sequential decompressed stream being segmented, assigned after {@link #opener} succeeds.
+         * {@code null} until then. Closed exactly once by whichever path gets there first
+         * ({@link #runSegmentator}'s {@code finally}, {@link #onSegmentatorLaunchRejected} on a pool
+         * rejection, or {@link #close()} as a backstop for the segmentator-still-queued case).
+         * The {@link #streamClosed} CAS ensures only one caller's close runs once a stream exists.
+         */
+        private volatile InputStream decompressedStream;
+        /**
+         * Failure from {@link StreamOpener#open()}, stored separately from parse-time {@link #firstError}
+         * so {@link #checkError()} can rethrow it unwrapped — 403/404 type and message must match the
+         * pre-lazy-open path where {@code newStream()} threw on the opener thread.
+         */
+        private final AtomicReference<Throwable> openFailure = new AtomicReference<>();
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
+        /** Cancels still-pending admission so {@link #close()} of a never-started iterator is prompt. */
+        private final StreamingSegmentatorAdmission.Handle admissionHandle;
         private final ExternalReadCounters readCounters;
         @Nullable
         private final FormatReadCounters formatCounters;
@@ -496,7 +595,7 @@ public final class StreamingParallelParsingCoordinator {
         ) {
             this(
                 reader,
-                decompressedStream,
+                () -> decompressedStream,
                 storageObject,
                 projectedColumns,
                 batchSize,
@@ -519,7 +618,7 @@ public final class StreamingParallelParsingCoordinator {
 
         StreamingParallelIterator(
             SegmentableFormatReader reader,
-            InputStream decompressedStream,
+            StreamOpener opener,
             @Nullable StorageObject storageObject,
             List<String> projectedColumns,
             int batchSize,
@@ -538,7 +637,6 @@ public final class StreamingParallelParsingCoordinator {
             ExternalReadCounters readCounters,
             @Nullable FormatReadCounters formatCounters
         ) {
-            this.admission = admission;
             this.breaker = breaker;
             this.originalReader = reader;
             this.reader = reader;
@@ -580,18 +678,43 @@ public final class StreamingParallelParsingCoordinator {
             // where producer-loop drivers and sub-tasks of other iterators competed for the same slots.
             this.tasksOutstanding = new AtomicInteger(1);
 
-            this.decompressedStream = decompressedStream;
+            this.opener = opener;
             this.readCounters = readCounters;
             this.formatCounters = formatCounters;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
             // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
-            // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
+            // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded). Admission happens before
+            // opener.open() so unadmitted work holds no storage permit and no pool thread.
             Runnable segmentatorTask = () -> {
                 try {
-                    readCounters.meteredCpu(() -> runSegmentator(this.decompressedStream, this.chunkSize), false);
+                    // Already-dispatched close vs a not-yet-started task can still GET after close()
+                    // if the runnable sits in the pool FIFO. finally aborts. One extra GET, not the
+                    // permit×pool cycle — leave unless soak shows cancel-during-admit storms.
+                    if (closed.get()) {
+                        return;
+                    }
+                    InputStream stream;
+                    try {
+                        stream = Objects.requireNonNull(this.opener.open(), "opener");
+                    } catch (Throwable t) {
+                        openFailure.compareAndSet(null, t);
+                        // Do not signalReady here: finally decrements tasksOutstanding and signals
+                        // when it hits 0. Signaling now would wake the consumer into close() before
+                        // that decrement, burning a 50ms poll for a task microseconds from exit.
+                        return;
+                    }
+                    this.decompressedStream = stream;
+                    if (closed.get()) {
+                        return;
+                    }
+                    readCounters.meteredCpu(() -> runSegmentator(stream, this.chunkSize), false);
                 } finally {
+                    // Backstop if opener succeeded but runSegmentator was never entered (closed after
+                    // open, or meteredCpu threw before the lambda). runSegmentator's own finally also
+                    // calls closeStream; the CAS makes a double call a no-op.
+                    closeStream();
                     // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
                     // and exit on their own after processing. Segmentator's done; decrement and signal
                     // so the consumer wakes if it's the last task standing (EOF condition is
@@ -601,7 +724,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
             };
-            admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
+            this.admissionHandle = admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
         }
 
         /**
@@ -611,8 +734,8 @@ public final class StreamingParallelParsingCoordinator {
          */
         private void onSegmentatorLaunchRejected(RejectedExecutionException e) {
             firstError.compareAndSet(null, e);
-            // The segmentator never ran, so its finally block never closed the stream. Release it
-            // promptly here; close() provides a backstop for any racing path.
+            // The segmentator never ran, so opener was never invoked. closeStream is a no-op (never opened);
+            // close() provides a backstop for any racing path.
             closeStream();
             if (tasksOutstanding.decrementAndGet() == 0) {
                 signalReady();
@@ -624,15 +747,21 @@ public final class StreamingParallelParsingCoordinator {
          * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
          * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
          * available, so providers such as S3 can discard the underlying HTTP connection without draining
-         * the remaining response body.
+         * the remaining response body. A no-op when the opener never ran ({@code decompressedStream} is
+         * still null) — does not CAS {@link #streamClosed} in that case so a racing segmentator can still
+         * close the stream it is about to assign.
          */
         private void closeStream() {
+            InputStream stream = decompressedStream;
+            if (stream == null) {
+                return;
+            }
             if (streamClosed.compareAndSet(false, true)) {
                 try {
                     if (storageObject != null) {
-                        storageObject.abortStream(decompressedStream);
+                        storageObject.abortStream(stream);
                     } else {
-                        decompressedStream.close();
+                        stream.close();
                     }
                 } catch (IOException e) {
                     logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
@@ -699,9 +828,7 @@ public final class StreamingParallelParsingCoordinator {
          * this is a one-shot truncation event, not a per-row skip stream.
          */
         private void emitTruncationWarning(long recordStartByte, String causeMessage) {
-            String record = storageObject == null
-                ? "Record "
-                : "Record in [" + ExternalFailures.redactHttpUrl(storageObject.path().toString()) + "] ";
+            String record = storageObject == null ? "Record " : "Record in [" + storageObject.path().objectName() + "] ";
             String warning = record + exceedsRecordLimit() + "; results are partial";
             Consumer<String> partialResultsWarningSink = warningSinks.partialResultsWarningSink();
             if (partialResultsWarningSink != null) {
@@ -729,13 +856,17 @@ public final class StreamingParallelParsingCoordinator {
 
             try {
                 while (closed.get() == false && firstError.get() == null) {
-                    byte[] buf;
+                    PoolBuffer pooled;
                     try {
-                        buf = takeOrAllocateBuffer();
+                        pooled = takeOrAllocateBuffer();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         break;
                     }
+                    if (pooled == null) {
+                        break;
+                    }
+                    byte[] buf = pooled.bytes();
 
                     int offset = 0;
                     if (carry != null) {
@@ -747,7 +878,8 @@ public final class StreamingParallelParsingCoordinator {
 
                     int bytesRead = readFromStream(stream, buf, offset, buf.length - offset);
                     if (bytesRead <= 0 && offset == 0) {
-                        recycleBuffer(buf);
+                        pooled.release();
+                        reachedEof = true;
                         break;
                     }
 
@@ -759,7 +891,7 @@ public final class StreamingParallelParsingCoordinator {
                         // Return the pool buffer before unwinding: under a non-strict policy the segmentator
                         // stops here but the iterator keeps draining already-dispatched chunks, so the pool
                         // must not permanently lose a slot.
-                        recycleBuffer(buf);
+                        pooled.release();
                         throw recordTooLargeException();
                     }
 
@@ -768,15 +900,15 @@ public final class StreamingParallelParsingCoordinator {
                             if (chunkIndex == 0) {
                                 prepareFromFirstChunk(buf, totalBytes);
                             }
-                            if (dispatchChunk(chunkIndex, coverageStart, buf, totalBytes, true)) {
+                            if (dispatchChunk(chunkIndex, coverageStart, pooled, totalBytes, true)) {
                                 chunkIndex++;
                                 coverageStart += totalBytes;
                             } else {
-                                recycleBuffer(buf);
+                                pooled.release();
                                 break;
                             }
                         } else {
-                            // Single record larger than chunk size — grow a temporary buffer.
+                            // A record larger than the chunk size needs a temporary buffer.
                             // {@link #growUntilRecordBoundary} only copies from {@code buf}; the original pool
                             // buffer is independent of {@code grown}, so recycle it in a finally. The grow loop
                             // can throw RecordTooLargeException (cap-hit) — the dominant path for an oversized
@@ -786,35 +918,38 @@ public final class StreamingParallelParsingCoordinator {
                             try {
                                 result = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
                             } finally {
-                                recycleBuffer(buf);
+                                pooled.release();
                             }
-                            byte[] grown = result.buffer();
-                            int grownNewline = result.boundary();
-                            if (grownNewline < 0) {
-                                if (chunkIndex == 0) {
-                                    prepareFromFirstChunk(grown, grown.length);
-                                }
-                                if (dispatchChunk(chunkIndex, coverageStart, grown, grown.length, true)) {
-                                    chunkIndex++;
-                                    coverageStart += grown.length;
-                                } else {
-                                    recycleBuffer(grown);
+                            if (result == null) {
+                                // close() began mid-grow: stop like the other closed checks, not as a failure.
+                                break;
+                            }
+                            GrowBuffer grown = result.buffer();
+                            byte[] grownBytes = grown.bytes();
+                            boolean dispatched = false;
+                            try {
+                                if (closed.get()) {
                                     break;
                                 }
-                            } else {
-                                int validLen = grownNewline + 1;
-                                carryLen = grown.length - validLen;
-                                carry = new byte[carryLen];
-                                System.arraycopy(grown, validLen, carry, 0, carryLen);
-                                if (chunkIndex == 0) {
-                                    prepareFromFirstChunk(grown, validLen);
+                                int grownNewline = result.boundary();
+                                int validLen = grownNewline < 0 ? grownBytes.length : grownNewline + 1;
+                                if (grownNewline >= 0) {
+                                    carryLen = grownBytes.length - validLen;
+                                    carry = new byte[carryLen];
+                                    System.arraycopy(grownBytes, validLen, carry, 0, carryLen);
                                 }
-                                if (dispatchChunk(chunkIndex, coverageStart, grown, validLen, false)) {
-                                    chunkIndex++;
-                                    coverageStart += validLen;
-                                } else {
-                                    recycleBuffer(grown);
+                                if (chunkIndex == 0) {
+                                    prepareFromFirstChunk(grownBytes, validLen);
+                                }
+                                dispatched = dispatchChunk(chunkIndex, coverageStart, grown, validLen, grownNewline < 0);
+                                if (dispatched == false) {
                                     break;
+                                }
+                                chunkIndex++;
+                                coverageStart += validLen;
+                            } finally {
+                                if (dispatched == false) {
+                                    grown.release();
                                 }
                             }
                         }
@@ -833,12 +968,12 @@ public final class StreamingParallelParsingCoordinator {
                     if (chunkIndex == 0) {
                         prepareFromFirstChunk(buf, validLen);
                     }
-                    if (dispatchChunk(chunkIndex, coverageStart, buf, validLen, isEof)) {
+                    if (dispatchChunk(chunkIndex, coverageStart, pooled, validLen, isEof)) {
                         chunkIndex++;
                         coverageStart += validLen;
                         if (isEof) break;
                     } else {
-                        recycleBuffer(buf);
+                        pooled.release();
                         break;
                     }
                 }
@@ -854,7 +989,7 @@ public final class StreamingParallelParsingCoordinator {
                     firstError.compareAndSet(null, e);
                     signalReady();
                 } else {
-                    truncated = true;
+                    // reachedEof stays false, so close() poisons the partial stats.
                     emitTruncationWarning(coverageStart, e.getMessage());
                     // Fall through to finally: already-dispatched chunks drain and the consumer reaches EOF.
                 }
@@ -950,11 +1085,12 @@ public final class StreamingParallelParsingCoordinator {
          * Waits for {@link #dispatchPermits}, then enqueues a chunk for parsers unless the coordinator
          * is closed or the calling thread is interrupted.
          *
-         * @return {@code true} if the chunk was queued; {@code false} if dispatch aborted. On {@code false},
-         *         {@link #chunksDispatched} is unchanged and the caller must {@link #recycleBuffer(byte[])}
-         *         when {@code buffer} is pool-sized (oversized temporary buffers are simply dropped).
+         * @return {@code true} if its parser was submitted; {@code false} if dispatch aborted.
+         *         On {@code false}, the caller must {@link ChunkBuffer#release()} {@code buffer}. After an executor
+         *         rejection the chunk is already queued, so close's drain releases it again; that is harmless
+         *         because the segmentator stops on {@code false}.
          */
-        private boolean dispatchChunk(int index, long coverageStart, byte[] buffer, int length, boolean last) {
+        private boolean dispatchChunk(int index, long coverageStart, ChunkBuffer buffer, int length, boolean last) {
             try {
                 dispatchPermits.acquire();
             } catch (InterruptedException e) {
@@ -992,6 +1128,9 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 return false;
             }
+            if (last) {
+                reachedEof = true;
+            }
             return true;
         }
 
@@ -1019,7 +1158,7 @@ public final class StreamingParallelParsingCoordinator {
                 int queueSlot = chunk.index % pageQueueRingSize;
                 queue = pageQueues[queueSlot];
                 var finalQueue = queue;
-                ByteArrayStorageObject chunkObj = chunkStorageObject(chunk.index, chunk.buffer, 0, chunk.length);
+                ByteArrayStorageObject chunkObj = chunkStorageObject(chunk.index, chunk.buffer.bytes(), 0, chunk.length);
                 // - firstSplit: only chunk 0 carries the file's leading bytes (header for CSV).
                 // - lastSplit: every chunk is aligned to a record boundary by the segmentator, so
                 // line-oriented readers (NDJSON) can skip TrimLastPartialLineInputStream.
@@ -1067,7 +1206,7 @@ public final class StreamingParallelParsingCoordinator {
                 signalReady();
             } finally {
                 if (chunk != null) {
-                    recycleBuffer(chunk.buffer);
+                    chunk.buffer.release();
                     if (queue != null) {
                         putPoisonAndSignal(queue);
                     }
@@ -1096,38 +1235,131 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
-        private byte[] takeOrAllocateBuffer() throws InterruptedException {
-            byte[] buf = bufferPool.poll();
+        /**
+         * Returns a pooled buffer, or a newly charged one while the pool is below capacity, or {@code null}
+         * once {@link #close()} has begun.
+         */
+        private PoolBuffer takeOrAllocateBuffer() throws InterruptedException {
+            PoolBuffer buf = bufferPool.poll();
             if (buf != null) {
                 return buf;
             }
-            // Claim the slot atomically before charging, closing the check-then-act window a plain
-            // get()-then-increment leaves open. The claim is rolled back if the charge throws or if
-            // the increment revealed we were already at capacity, so the tally always equals the
-            // number of successful charges — close() refunds exactly that and no more. Rolling back
-            // in a finally (rather than catching CircuitBreakingException) keeps the invariant even
-            // if the breaker fails some other way; the flag is set only once the charge has landed,
-            // so an allocation failure after it leaves the charge in place for close() to refund.
-            if (buffersAllocated.incrementAndGet() <= bufferPoolSize) {
-                boolean charged = false;
-                try {
-                    breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
-                    charged = true;
-                    return new byte[chunkSize];
-                } finally {
-                    if (charged == false) {
-                        buffersAllocated.decrementAndGet();
-                    }
+            // Charge first, then claim the slot with a CAS, so the tally only ever counts charges that
+            // landed: a breaker trip leaves nothing to roll back, and close() refunds exactly the tally.
+            // A failed CAS means close() swapped in POOL_CLOSED_MARKER (or another allocator claimed the slot),
+            // so the charge is undone and the state re-read. An allocation failure after a successful
+            // claim leaves the charge counted for close() to refund.
+            while (true) {
+                int allocated = buffersAllocated.get();
+                if (allocated == POOL_CLOSED_MARKER) {
+                    return null;
                 }
+                if (allocated >= bufferPoolSize) {
+                    return bufferPool.take();
+                }
+                breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
+                if (buffersAllocated.compareAndSet(allocated, allocated + 1)) {
+                    return new PoolBuffer();
+                }
+                breaker.addWithoutBreaking(-chunkSize);
             }
-            buffersAllocated.decrementAndGet();
-            return bufferPool.take();
         }
 
-        private void recycleBuffer(byte[] buf) {
-            if (buf.length <= chunkSize) {
-                bufferPool.offer(buf);
+        /**
+         * A chunk's backing array. Whoever finishes with it calls {@link #release()}; the buffer itself knows
+         * whether that means returning it to the pool or refunding its breaker charge, so callers never need to.
+         */
+        private sealed interface ChunkBuffer permits PoolBuffer, GrowBuffer {
+            byte[] bytes();
+
+            void release();
+        }
+
+        /** A {@link #chunkSize} array from {@link #bufferPool}; its charge is counted in {@link #buffersAllocated}. */
+        private final class PoolBuffer implements ChunkBuffer {
+            private final byte[] bytes = new byte[chunkSize];
+
+            @Override
+            public byte[] bytes() {
+                return bytes;
             }
+
+            /**
+             * Returns this buffer for reuse, also after close: a release after close (a parser's {@code finally}
+             * or close's drain) is what wakes a segmentator parked in {@code bufferPool.take()}.
+             */
+            @Override
+            public void release() {
+                bufferPool.offer(this);
+            }
+        }
+
+        /** An array the grow loop allocated for a record larger than {@link #chunkSize}, charged to {@link #breaker}. */
+        private final class GrowBuffer implements ChunkBuffer {
+            private final byte[] bytes;
+
+            private GrowBuffer(byte[] bytes) {
+                this.bytes = bytes;
+            }
+
+            @Override
+            public byte[] bytes() {
+                return bytes;
+            }
+
+            /** Refunds the charge; a no-op if {@link #close()} or an earlier release already did. */
+            @Override
+            public void release() {
+                if (growBuffers.remove(this)) {
+                    breaker.addWithoutBreaking(-bytes.length);
+                }
+            }
+        }
+
+        /**
+         * Allocates a grow buffer of {@code length} bytes holding a copy of the first {@code copyLen}
+         * bytes of {@code from}. The array is charged to {@link #breaker} before it is allocated and stays
+         * charged until {@link GrowBuffer#release()} or {@link #close()} releases it. The breaker sees the grow
+         * loop's peak: the old and the new array are both live while one is copied into the other.
+         * Returns {@code null} once {@link #close()} has begun, refunding an allocation that raced it.
+         */
+        private GrowBuffer newGrowBuffer(byte[] from, int copyLen, int length) {
+            if (closed.get()) {
+                return null;
+            }
+            breaker.addEstimateBytesAndMaybeBreak(length, GROW_BUFFER_BREAKER_LABEL);
+            byte[] bytes;
+            try {
+                bytes = new byte[length];
+                System.arraycopy(from, 0, bytes, 0, copyLen);
+            } catch (Throwable t) {
+                breaker.addWithoutBreaking(-length);
+                throw t;
+            }
+            GrowBuffer buf = new GrowBuffer(bytes);
+            growBuffers.add(buf);
+            // Register before checking closed so either close's sweep or this allocator releases the charge.
+            if (closed.get()) {
+                buf.release();
+                return null;
+            }
+            return buf;
+        }
+
+        /**
+         * Replaces grow buffer {@code buf} with a new one of {@code length} bytes carrying its first
+         * {@code copyLen} bytes, releasing {@code buf}. On failure, or a {@code null} return once
+         * {@link #close()} has begun, {@code buf} is left charged for the caller to release.
+         */
+        private GrowBuffer resizeGrowBuffer(GrowBuffer buf, int copyLen, int length) {
+            if (length == buf.bytes().length) {
+                return buf;
+            }
+            GrowBuffer resized = newGrowBuffer(buf.bytes(), copyLen, length);
+            if (resized != null) {
+                buf.release();
+            }
+            return resized;
         }
 
         private static int readFromStream(InputStream stream, byte[] buf, int offset, int length) throws IOException {
@@ -1142,78 +1374,137 @@ public final class StreamingParallelParsingCoordinator {
             return totalRead;
         }
 
-        private static byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
-            byte[] grown = new byte[existingLen + growBy];
-            System.arraycopy(existing, 0, grown, 0, existingLen);
-
-            int offset = existingLen;
-            while (true) {
-                int n = stream.read(grown, offset, grown.length - offset);
-                if (n < 0) {
-                    if (offset == existingLen) {
-                        return Arrays.copyOf(existing, existingLen);
+        /**
+         * Reads from {@code stream} into a grow buffer seeded with the first {@code existingLen} bytes of
+         * {@code existing} until a raw {@code \n}, {@code \r}, EOF, or {@link #maxRecordBytes}, growing by
+         * {@code growBy} each time it fills. Growth is clamped to the cap so the caller can check the
+         * format-aware boundary before deciding whether a full buffer holds an oversized record.
+         * The returned array is a grow buffer, trimmed to the bytes read, or {@code null} once {@link #close()} has begun.
+         */
+        private GrowBuffer growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+            GrowBuffer grown = newGrowBuffer(existing, existingLen, (int) Math.min((long) existingLen + growBy, maxRecordBytes));
+            if (grown == null) {
+                return null;
+            }
+            boolean success = false;
+            try {
+                int offset = existingLen;
+                while (true) {
+                    byte[] bytes = grown.bytes();
+                    int n = stream.read(bytes, offset, bytes.length - offset);
+                    if (n < 0) {
+                        GrowBuffer result = resizeGrowBuffer(grown, offset, offset);
+                        if (result == null) {
+                            return null;
+                        }
+                        success = true;
+                        return result;
                     }
-                    return Arrays.copyOf(grown, offset);
-                }
-                for (int i = offset; i < offset + n; i++) {
-                    if (grown[i] == '\n') {
-                        return Arrays.copyOf(grown, offset + n);
+                    for (int i = offset; i < offset + n; i++) {
+                        if (bytes[i] == '\n' || bytes[i] == '\r') {
+                            GrowBuffer result = resizeGrowBuffer(grown, offset + n, offset + n);
+                            if (result == null) {
+                                return null;
+                            }
+                            success = true;
+                            return result;
+                        }
+                    }
+                    offset += n;
+                    if (offset >= bytes.length) {
+                        if (bytes.length >= maxRecordBytes) {
+                            success = true;
+                            return grown;
+                        }
+                        GrowBuffer resized = resizeGrowBuffer(grown, offset, (int) Math.min((long) bytes.length + growBy, maxRecordBytes));
+                        if (resized == null) {
+                            return null;
+                        }
+                        grown = resized;
                     }
                 }
-                offset += n;
-                if (offset >= grown.length) {
-                    grown = Arrays.copyOf(grown, grown.length + growBy);
+            } finally {
+                if (success == false) {
+                    grown.release();
                 }
             }
         }
 
-        private record GrowResult(byte[] buffer, int boundary) {}
+        private record GrowResult(GrowBuffer buffer, int boundary) {}
 
         /**
          * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
          * least one record boundary (as determined by {@link RecordSplitter#findLastRecordBoundary}).
-         * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
+         * Multi-line quoted fields may contain {@code \n} or {@code \r} bytes that are not record boundaries; this
          * method avoids splitting in the middle of such a field.
          * <p>
-         * The inner loop uses {@link #growUntilNewline} (raw {@code \n} scan) intentionally: a
-         * record boundary always coincides with a {@code \n}, so growing to the next raw
-         * {@code \n} is the minimum I/O needed before re-checking with the quote-aware SPI method.
-         * For quoted fields with embedded {@code \n}, the raw scan stops too early and the
-         * boundary check returns {@code -1}, causing another growth iteration — correct, just
-         * not single-pass.
+         * The inner loop uses {@link #growUntilNewline} to stop at raw line endings, then the
+         * format-aware splitter decides whether they terminate a record. Embedded line endings in
+         * quoted fields cause the boundary check to return {@code -1} and growth to continue.
+         * At the cap, one additional byte distinguishes an oversized record from a record ending
+         * at EOF exactly at the cap.
+         * <p><strong>Note on memory:</strong> no grow buffer exceeds {@code maxRecordBytes}: the pre-check
+         * rejects an oversized initial record and {@link #growUntilNewline} clamps each allocation. Every grow buffer
+         * is charged to {@link #breaker}; the returned one stays charged until {@link GrowBuffer#release()} drops
+         * it after the chunk it backs is parsed.
          *
          * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
-         *         index, so callers can avoid a redundant boundary rescan
-         *
-         * <p><strong>Note on memory:</strong> {@code maxRecordBytes} bounds record <em>acceptance</em>,
-         * not transient allocation. The {@link #growUntilNewline} step below reads to the next raw
-         * {@code \n} (or EOF) before the cap pre-check fires, so a record with no newline for N bytes can
-         * buffer up to ~N bytes (one {@code growBy} chunk past the cap) before being rejected. Bounding
-         * peak buffer growth to {@code maxRecordBytes} itself would be a separate follow-up (#835).
+         *         index, so callers can avoid a redundant boundary rescan, or {@code null} once {@link #close()} has begun
          */
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
-            byte[] buf = existing;
+            // existing is the caller's pool buffer; buf is the latest grow buffer, which this method owns until it
+            // returns it, or null while nothing has been grown yet.
+            GrowBuffer buf = null;
             int len = existingLen;
-            // Bound the grow loop: a record past maxRecordBytes means the scanner won't find a boundary
-            // (a format/quoting mismatch), so fail rather than read the input without bound.
-            while (true) {
-                if (len + growBy > maxRecordBytes) {
-                    throw recordTooLargeException();
+            boolean success = false;
+            try {
+                while (true) {
+                    if (closed.get()) {
+                        return null;
+                    }
+                    // A pool buffer can exceed the record cap; reject it before copying into a grow buffer.
+                    if (len > maxRecordBytes) {
+                        throw recordTooLargeException();
+                    }
+                    if (len == maxRecordBytes) {
+                        if (stream.read() >= 0) {
+                            throw recordTooLargeException();
+                        }
+                        GrowBuffer last = buf == null ? newGrowBuffer(existing, len, len) : buf;
+                        if (last == null) {
+                            return null;
+                        }
+                        success = true;
+                        return new GrowResult(last, -1);
+                    }
+                    GrowBuffer grown = growUntilNewline(stream, buf == null ? existing : buf.bytes(), len, growBy);
+                    if (grown == null) {
+                        return null;
+                    }
+                    if (buf != null) {
+                        buf.release();
+                    }
+                    buf = grown;
+                    byte[] bytes = grown.bytes();
+                    if (bytes.length == len) {
+                        success = true;
+                        return new GrowResult(grown, -1);
+                    }
+                    // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
+                    int boundary = recordSplitter().findLastRecordBoundary(bytes, 0, bytes.length);
+                    if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
+                        throw recordTooLargeException();
+                    }
+                    if (boundary >= 0) {
+                        success = true;
+                        return new GrowResult(grown, boundary);
+                    }
+                    len = bytes.length;
                 }
-                byte[] grown = growUntilNewline(stream, buf, len, growBy);
-                if (grown.length == len) {
-                    return new GrowResult(grown, -1);
+            } finally {
+                if (success == false && buf != null) {
+                    buf.release();
                 }
-                // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
-                int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
-                if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
-                    throw recordTooLargeException();
-                }
-                if (boundary >= 0) {
-                    return new GrowResult(grown, boundary);
-                }
-                buf = grown;
-                len = grown.length;
             }
         }
 
@@ -1271,6 +1562,8 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Override
         public boolean hasNext() {
+            // Closed short-circuits before checkError, so close-then-hasNext swallows openFailure.
+            // Production drain uses tryAdvance first (which throws). Do not assert 403/404 via this path.
             if (closed.get()) {
                 return false;
             }
@@ -1329,7 +1622,11 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public Page tryAdvance() {
+            // Errors first: a concurrent close must not hide opener 403/404 as silent EOF.
+            // Production drain (AESOF) uses tryAdvance; hasNext still short-circuits on closed.
+            checkError();
             if (closed.get()) {
+                checkError();
                 return null;
             }
             if (buffered != null) {
@@ -1337,7 +1634,6 @@ public final class StreamingParallelParsingCoordinator {
                 buffered = null;
                 return result;
             }
-            checkError();
             skipDrainedPoison();
             if (currentChunk >= chunksDispatched.get()) {
                 return null;
@@ -1368,7 +1664,7 @@ public final class StreamingParallelParsingCoordinator {
          * blocking, and resumes via {@link #signalReady()} when the next chunk's first page lands.
          */
         private boolean isReadyNow() {
-            if (closed.get() || buffered != null || firstError.get() != null) {
+            if (closed.get() || buffered != null || firstError.get() != null || openFailure.get() != null) {
                 return true;
             }
             skipDrainedPoison();
@@ -1485,10 +1781,37 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void checkError() {
+            Throwable open = openFailure.get();
+            if (open != null) {
+                // Open 403/404 must surface with the same type and message as the pre-lazy-open path,
+                // where newStream() threw on the opener thread — not wrapped as "Streaming parallel
+                // parsing failed".
+                throw rethrowOpenFailure(open);
+            }
             Throwable t = firstError.get();
             if (t != null) {
                 throw ExternalFailures.surface(t, "Streaming parallel parsing failed");
             }
+        }
+
+        /**
+         * Rethrows an opener failure unchanged: RuntimeException and Error as-is, checked exceptions
+         * sneaked so {@link java.util.Iterator} callers still see {@link IOException} rather than a
+         * status-rewriting wrapper.
+         */
+        private static RuntimeException rethrowOpenFailure(Throwable t) {
+            if (t instanceof Error error) {
+                throw error;
+            }
+            if (t instanceof RuntimeException re) {
+                throw re;
+            }
+            throw sneakyThrow(t);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T extends Throwable> RuntimeException sneakyThrow(Throwable t) throws T {
+            throw (T) t;
         }
 
         /**
@@ -1555,48 +1878,62 @@ public final class StreamingParallelParsingCoordinator {
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
             drainAllQueues();
-            // Poll tasksOutstanding instead of waiting on a fixed CountDownLatch — the number of
-            // outstanding tasks is dynamic (one per dispatched chunk) so we can't precompute it.
-            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
-            try {
-                while (tasksOutstanding.get() > 0 && System.nanoTime() < deadlineNanos) {
-                    Thread.sleep(50);
-                    drainAllQueues();
+            boolean neverStarted = admissionHandle.cancel();
+            if (neverStarted) {
+                // Still in the admission queue: opener never ran, no permit is held, skip the 60s poll.
+                tasksOutstanding.decrementAndGet();
+            } else {
+                // Poll tasksOutstanding instead of waiting on a fixed CountDownLatch — the number of
+                // outstanding tasks is dynamic (one per dispatched chunk) so we can't precompute it.
+                long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
+                try {
+                    while (tasksOutstanding.get() > 0 && System.nanoTime() < deadlineNanos) {
+                        Thread.sleep(50);
+                        drainAllQueues();
+                    }
+                    if (tasksOutstanding.get() > 0) {
+                        logger.warn(
+                            "Timed out waiting for streaming parallel parsing tasks to finish after [{}]s; "
+                                + "any pages published by still-running parsers after this point will leak their blocks",
+                            CLOSE_TIMEOUT_SECONDS
+                        );
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
-                if (tasksOutstanding.get() > 0) {
-                    logger.warn(
-                        "Timed out waiting for streaming parallel parsing tasks to finish after [{}]s; "
-                            + "any pages published by still-running parsers after this point will leak their blocks",
-                        CLOSE_TIMEOUT_SECONDS
-                    );
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                drainAllQueues();
             }
-            drainAllQueues();
-            // Backstop: if the segmentator was never promoted from the admission queue (still pending
-            // when the timeout fired) or if any code path did not call closeStream() themselves,
-            // release the stream now. In the timeout and interrupt paths tasksOutstanding may still
-            // be above 0, meaning the segmentator (or parsers) can be concurrently executing — the
-            // CAS in streamClosed is the safety mechanism that prevents a double-release race with a
-            // still-running segmentator's own closeStream() call.
+            // Backstop for never-started (no-op while the stream is still null) and for any path that
+            // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close
+            // a stream it assigns after this read.
             closeStream();
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
-            // is fixed. Clean = no error, the read was not truncated, and the consumer drained every
+            // is fixed. Clean = no error, the segmentator reached EOF, and the consumer drained every
             // dispatched chunk. An early close (LIMIT, cancellation) leaves chunks unconsumed — and a
             // parser cut off mid-chunk records a partial row count under that chunk's full byte range,
             // which the coverage tiling would otherwise accept as complete and cache as an under-count.
-            // A non-strict truncation (external_max_record_size cap-hit) likewise emits only a prefix of the
-            // file's records, so it must not be cached as the file's full contribution. Either way a
-            // non-clean scan poisons the file's contributions: the reconciler discards them.
-            boolean cleanCompletion = firstError.get() == null && truncated == false && currentChunk >= chunksDispatched.get();
+            // A segmentator stopped before EOF covers only a prefix of the file even when the consumer is
+            // caught up: a close (not an error) or a non-strict truncation (external_max_record_size cap-hit).
+            // Either way a non-clean scan poisons the file's contributions: the reconciler discards them.
+            // Never-started work is unclean so a cancelled iterator cannot cache empty stats.
+            boolean cleanCompletion = neverStarted == false
+                && firstError.get() == null
+                && openFailure.get() == null
+                && reachedEof
+                && currentChunk >= chunksDispatched.get();
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
             }
-            long trackedBytes = (long) buffersAllocated.getAndSet(0) * chunkSize;
-            if (trackedBytes > 0) {
-                breaker.addWithoutBreaking(-trackedBytes);
+            int allocated = buffersAllocated.getAndSet(POOL_CLOSED_MARKER);
+            if (allocated > 0) {
+                breaker.addWithoutBreaking(-(long) allocated * chunkSize);
+            }
+            // Grow buffers still held by the segmentator or a parser when the wait above ended early (timeout or
+            // interrupt); queued chunks were already released by drainAllQueues(). GrowBuffer#release() is
+            // single-shot against a concurrent release.
+            for (GrowBuffer buf : growBuffers) {
+                buf.release();
             }
         }
 
@@ -1610,7 +1947,7 @@ public final class StreamingParallelParsingCoordinator {
             // Drain chunk queue
             Chunk chunk;
             while ((chunk = chunkQueue.poll()) != null) {
-                recycleBuffer(chunk.buffer);
+                chunk.buffer.release();
             }
             // Drain page queues
             for (ArrayBlockingQueue<Page> queue : pageQueues) {
@@ -1624,7 +1961,7 @@ public final class StreamingParallelParsingCoordinator {
         }
     }
 
-    private record Chunk(int index, long coverageStart, byte[] buffer, int length, boolean last) {}
+    private record Chunk(int index, long coverageStart, StreamingParallelIterator.ChunkBuffer buffer, int length, boolean last) {}
 
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.
@@ -1637,6 +1974,11 @@ public final class StreamingParallelParsingCoordinator {
      */
     private static final class InputStreamStorageObject implements StorageObject {
         private final InputStream stream;
+        /**
+         * Equal only to itself: every instance reports the same synthetic path, so an identity shared with
+         * the source object would make all decompressed streams under one credential collide on one key.
+         */
+        private final StorageIdentity identity = StorageIdentity.unique();
         private final AtomicBoolean handedOut = new AtomicBoolean(false);
 
         InputStreamStorageObject(InputStream stream) {
@@ -1676,6 +2018,11 @@ public final class StreamingParallelParsingCoordinator {
         @Override
         public org.elasticsearch.xpack.esql.datasources.spi.StoragePath path() {
             return StoragePath.of("stream://decompressed");
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return identity;
         }
     }
 }

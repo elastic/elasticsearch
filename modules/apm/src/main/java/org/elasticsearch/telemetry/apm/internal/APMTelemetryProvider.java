@@ -17,7 +17,9 @@ import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.apm.internal.instrumentation.APMHttpServerInstrumentation;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.HttpServerInstrumentations;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.HttpServerTracing;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.RestRequestMetrics;
 import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
@@ -33,7 +35,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
     private final APMLoggingService loggingService;
-    private final APMHttpServerInstrumentation apmHttpServerInstrumentation;
+    private final HttpServerInstrumentation httpServerInstrumentation;
 
     public APMTelemetryProvider(
         Settings settings,
@@ -46,7 +48,9 @@ public class APMTelemetryProvider implements TelemetryProvider {
         apmMeterService = new APMMeterService(settings, diskBufferPath, metricReaderProvider);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(settings, configDir, filterProviders, logResourceProvider);
-        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
+        httpServerInstrumentation = new HttpServerInstrumentations(
+            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
+        );
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
@@ -54,7 +58,9 @@ public class APMTelemetryProvider implements TelemetryProvider {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
         this.loggingService = loggingService;
-        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
+        httpServerInstrumentation = new HttpServerInstrumentations(
+            List.of(new HttpServerTracing(apmTracer), new RestRequestMetrics(apmMeterService.getMeterRegistry()))
+        );
     }
 
     @Override
@@ -73,7 +79,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     @Override
     public HttpServerInstrumentation getHttpServerInstrumentation() {
-        return apmHttpServerInstrumentation;
+        return httpServerInstrumentation;
     }
 
     @Override

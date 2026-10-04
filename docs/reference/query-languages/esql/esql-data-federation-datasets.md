@@ -78,7 +78,7 @@ Click **Add dataset** to open a flyout where you define the dataset:
 
 - **Data source**: the connected data source to read through.
 - **Name**: a unique name for use in queries. Names must be lowercase and cannot begin with `-`, `_`, or `+`. A dataset cannot share a name with any existing index, data stream, alias, or view.
-- **Description**: an optional description.
+- **Description**: an optional description (up to 1,000 characters).
 - **Resource**: the URI and glob pattern that selects the files to read. Refer to [resource patterns](esql-data-federation-patterns.md) for the pattern language.
 - **Format**: the file format. This selection is required in the {{kib}} UI. The API can omit `settings.format` when the resource pattern implies exactly one format. Extensionless or mixed patterns require `format`. Refer to [supported file formats](#supported-file-formats).
 
@@ -104,6 +104,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 :::{important}
 A dataset cannot have the same name as an existing index, data stream, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
 :::
+
+The optional `description` can be at most 1,000 characters long.
 
 $$$s3-resource-requirements$$$
 :::{dropdown} S3 bucket names an `s3` dataset cannot use
@@ -294,7 +296,7 @@ The following settings apply to all file-based data sources:
 | Setting | Default | Description |
 |---|---|---|
 | `format` | Inferred from the resource pattern when that pattern implies exactly one format; otherwise required | Override or supply format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. Required for extensionless prefixes and mixed patterns. Forces unrecognized extensions through this reader, but rejects objects that map to a different registered format. |
-| `region` (S3 only) | Auto-detected | The AWS region of the bucket, for example `eu-central-1`. Omit it for standard AWS S3 — the SDK redirects automatically. Set it explicitly when using a custom `endpoint` override (such as MinIO or Scaleway) to skip the `HeadBucket` probe that discovers the region on the first request; once discovered the region is cached for the lifetime of the data source, so setting it is an optimization, not a requirement. |
+| `region` (S3 only) | Auto-detected | The AWS region of the bucket, for example `eu-central-1`. Omit it for standard AWS S3 — the SDK redirects automatically. Set it explicitly when using a custom `endpoint` override (such as MinIO or Scaleway) to skip the `HeadBucket` probe that discovers the region on the first request; once discovered the region is cached for the lifetime of the data source, so setting it is an optimization, not a requirement. For `auth: federated_identity`, this setting also determines which STS regional endpoint is used for role assumption (unless `sts_region` is set on the data source). If omitted, STS falls back to `us-east-1`, which works for standard commercial AWS but may fail if your bucket is in a different AWS partition. |
 | `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_sample_size` {applies_to}`stack: experimental 9.6+` | `1000` | File paths sampled to infer partition columns and their types. Determines whether late-appearing partition values get a column. `union_by_name` and `strict` list every file regardless. |
@@ -447,6 +449,7 @@ A file that starts with two prose lines then `state,ip,user_agent` is read with 
 |---|---|---|
 | `segment_size` | `4mb` | The unit a file is divided into for parallel reading. Minimum 64 KiB. |
 | `datetime_format` | `strict_date_optional_time` | The pattern used to infer and parse date and time values. |
+| `schema_max_fields` {applies_to}`stack: experimental 9.6+` | `1000` | The maximum number of fields schema inference can create, counting objects as well as leaf fields. Each segment of a dotted key counts as a field. If a file's inferred schema exceeds this limit, the query fails. Range 1–100,000. The default comes from the `esql.external.schema_max_fields` node setting. |
 
 ### Parquet
 
@@ -463,7 +466,7 @@ Because federated data does not live in {{es}}, the system discovers schemas bef
 
 When a dataset spans multiple files, the files might have different schemas. Set `schema_resolution` in the dataset's `settings` object to choose a strategy:
 
-- `first_file_wins` (default for new datasets and for `FROM EXTERNAL` queries that omit the setting from `WITH`): After files are discovered, they are ordered, and the schema is taken from **the first file in that order**. Later files are read using that schema. For Parquet datasets with the same schema in every file, schema discovery reads only one footer. If a later Parquet file has a physical type that cannot be read as the corresponding type in the first file, {{es}} returns null values for that column and issues a warning. For CSV, TSV, and NDJSON, `error_mode` determines how parse and decode failures are handled according to the `fail_fast`, `skip_row`, or `null_field` setting. It does not apply to this Parquet type mismatch. Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose the first file. {applies_to}`stack: experimental 9.6+`
+- `first_file_wins` (default for new datasets and for `FROM EXTERNAL` queries that omit the setting from `WITH`): After files are discovered (including any partition filters that prune the listing), they stay in **listing order** unless you set [`file_sort_by`](#first-file-wins-file-order). On S3, Azure, and GCS a glob's LIST is already lexicographic by key. A comma-separated `resource` keeps the order you wrote. Other stores keep whatever order the provider returns. The schema is taken from **the first file in that order**. Later files are read using that schema. A column that exists only in a later file is not part of the schema, so a filter that changes which file is first can change which columns that query sees. For Parquet datasets with the same schema in every file, schema discovery reads only one footer. If a later Parquet file has a physical type that cannot be read as the corresponding type in the first file, {{es}} returns null values for that column and issues a warning. For CSV, TSV, and NDJSON, `error_mode` determines how parse and decode failures are handled according to the `fail_fast`, `skip_row`, or `null_field` setting. It does not apply to this Parquet type mismatch. Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose the first file. {applies_to}`stack: experimental 9.6+`
 `file_sort_by` and `file_order` are rejected when `schema_resolution` is explicitly set to `union_by_name` or `strict`. When a PUT request for a new dataset omits `schema_resolution`, the dataset stores `"first_file_wins"`. A subsequent GET request therefore includes the setting, and `file_sort_by` is valid. A PUT request that replaces a legacy dataset is a full replacement and also stores `"first_file_wins"` when `schema_resolution` is omitted.
 - `union_by_name`: Merges schemas from all files by column name. Columns that exist in some files but not others are filled with nulls. Types are widened where possible: when two files define the same column with incompatible types, the column type defaults to `keyword`. If you want type conflicts to produce an error, use `strict` instead. This is safer when files can vary, at the cost of reading and merging more file metadata. Existing datasets created before `first_file_wins` became the default continue to use `union_by_name` when no `schema_resolution` value is stored.
 - `strict`: Requires every file to have the same schema, apart from nullability, and returns an error when they differ. Use this when schema drift must fail explicitly.
@@ -476,7 +479,7 @@ stack: experimental 9.6+
 
 `file_sort_by` and `file_order` apply when the effective value of `schema_resolution` is `first_file_wins`, including for a new dataset or a `FROM EXTERNAL` query that omits `schema_resolution`. The dataset API and the query `WITH` clause reject these settings when `schema_resolution` is explicitly set to `union_by_name` or `strict`.
 
-After files are discovered (glob, comma list, or mix), they are ordered, then the schema is taken from **the first file in that order**.
+After files are discovered (glob, comma list, or mix — including any partition filters that prune the listing), they stay in listing order unless you set `file_sort_by`. On S3, Azure, and GCS that LIST is lexicographic by key. Then the schema is taken from **the first file in that order**. A column that exists only in a later file is not part of the schema.
 
 | Setting | Default (when FFW) | Values | Meaning |
 | --- | --- | --- | --- |

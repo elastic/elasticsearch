@@ -463,22 +463,34 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         );
         FormatReadContext ctx = FormatReadContext.of(null, 1024);
         // Tiny cap: the first empty-queue admit is the node-wide overshoot. The sliding window is
-        // not charged until a read, so this must not be sized around a reserved window.
+        // not charged until a read, so this must not be sized around a reserved window. Look-ahead
+        // fill must not block; a second iterator's 50ms PER_GET is a hang-breaker versus the 60s
+        // default if the first lease still owns the overshoot slot.
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
             CloseableIterator<Page> second = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
-                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor) {
+                    @Override
+                    public long admissionWaitTimeoutMs() {
+                        return 50L;
+                    }
+                }, ctx)
         ) {
             OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
             OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
+            assertTrue("first iterator must queue the current group", opi1.pendingPrefetchCount() >= 1);
+            int firstQueued = opi1.pendingPrefetchCount();
+            int secondQueued = opi2.pendingPrefetchCount();
             growPrefetchDepth(opi1, 3);
             growPrefetchDepth(opi2, 3);
+            long startNanos = System.nanoTime();
             opi1.fillLookaheadPrefetches();
             opi2.fillLookaheadPrefetches();
-            int combined = opi1.pendingPrefetchCount() + opi2.pendingPrefetchCount();
-            assertEquals("empty-queue overrun stays one node, not one per iterator: " + combined, 1, combined);
+            assertTrue("next-group fill must not block on PER_GET", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos) < 1_000L);
+            assertEquals("look-ahead must not queue extra groups over the cap", firstQueued, opi1.pendingPrefetchCount());
+            assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
         try (

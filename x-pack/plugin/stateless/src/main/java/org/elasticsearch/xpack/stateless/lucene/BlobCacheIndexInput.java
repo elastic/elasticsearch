@@ -266,7 +266,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
                 break;
             } catch (Exception ex) {
                 if (retries < 2 && ExceptionsHelper.unwrap(ex, ResourceAlreadyUploadedException.class) != null) {
-                    logger.debug(() -> this + " already uploaded, retrying", ex);
+                    logger.info(() -> this + " already uploaded, retrying", ex);
                     assert b.position() == positionBeforeRetry : b.position() + " != " + positionBeforeRetry;
                     assert b.limit() == limitBeforeRetry : b.limit() + " != " + limitBeforeRetry;
                 } else {

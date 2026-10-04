@@ -207,5 +207,6 @@ public class SearchEngineTransientReadFailureIT extends AbstractStatelessPluginI
             "expected a suppressed NoSuchFileException",
             Arrays.stream(failure.getSuppressed()).anyMatch(e -> ExceptionsHelper.unwrap(e, NoSuchFileException.class) != null)
         );
+        throw new AssertionError("Show logs");
     }
 }

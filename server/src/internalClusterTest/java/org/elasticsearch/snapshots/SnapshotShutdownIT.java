@@ -212,7 +212,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         updateIndexSettings(Settings.builder().putNull(REQUIRE_NODE_NAME_SETTING), indexName);
         putShutdownForRemovalMetadata(originalNode, clusterService);
-        unblockAllDataNodes(repoName);
+        unblockAllDataNodes(repoName); // lets the shard snapshot pause, which frees up the shard so it can move
         safeAwait(snapshotPausedListener);
 
         assertEquals(SnapshotState.SUCCESS, safeGet(snapshotFuture).getSnapshotInfo().state());

@@ -380,7 +380,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock");
+        // the abort is seen while reading the data to upload, and some repositories wrap that exception
+        createRepository(repoName, "mock", randomRepositorySettings().put("wrap_write_exceptions", randomBoolean()));
         final String firstIndex = "index-one";
         createIndexWithContent(firstIndex);
 

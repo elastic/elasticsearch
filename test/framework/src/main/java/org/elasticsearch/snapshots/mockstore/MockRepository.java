@@ -132,7 +132,8 @@ public class MockRepository extends FsRepository {
     private volatile boolean useLuceneCorruptionException;
 
     /**
-     * Wrap any exception from writing a blob in an {@link IOException}, as some repositories (e.g. Azure) do.
+     * Wrap any exception from writing a data blob from a stream in an {@link IOException}, as some repositories (e.g. Azure) do. Only
+     * applies to {@code writeBlob} with an input stream, not to metadata or atomic writes.
      */
     private final boolean wrapWriteExceptions;
 
@@ -655,14 +656,13 @@ public class MockRepository extends FsRepository {
                 boolean failIfAlreadyExists
             ) throws IOException {
                 beforeWrite(blobName);
-                if (wrapWriteExceptions) {
-                    try {
-                        super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                    } catch (Exception e) {
+                try {
+                    super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                } catch (Exception e) {
+                    if (wrapWriteExceptions) {
                         throw new IOException("Unable to write blob " + blobName, e);
                     }
-                } else {
-                    super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    throw e;
                 }
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still

@@ -48,6 +48,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.PausedSnapshotException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -451,6 +452,52 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
+    }
+
+    /**
+     * A shard snapshot is paused by an exception thrown while the data to upload is read. The Azure client wraps it, so check that it
+     * stays in the cause chain for both single and multipart uploads, where the snapshot code looks for it.
+     */
+    public void testWriteBlobKeepsPausedSnapshotExceptionInTheCauses() {
+        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(0, 3));
+        final boolean multipart = randomBoolean();
+        final byte[] data = randomBytes(
+            multipart
+                ? ByteSizeUnit.MB.toIntBytes(3) + randomIntBetween(0, ByteSizeUnit.MB.toIntBytes(1))
+                : randomIntBetween(1, ByteSizeUnit.KB.toIntBytes(512))
+        );
+        final int pauseAt = randomIntBetween(0, data.length - 1);
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_paused_blob"), exchange -> {
+            Streams.readFully(exchange.getRequestBody());
+            exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+            exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+            exchange.close();
+        });
+
+        final Exception e = expectThrows(Exception.class, () -> {
+            try (InputStream stream = new ByteArrayInputStream(data) {
+                @Override
+                public synchronized int read() {
+                    maybePause();
+                    return super.read();
+                }
+
+                @Override
+                public synchronized int read(byte[] b, int off, int len) {
+                    maybePause();
+                    return super.read(b, off, Math.min(len, Math.max(1, pauseAt - pos)));
+                }
+
+                private void maybePause() {
+                    if (pos >= pauseAt) {
+                        throw new PausedSnapshotException();
+                    }
+                }
+            }) {
+                blobContainer.writeBlob(randomPurpose(), "write_paused_blob", stream, data.length, false);
+            }
+        });
+        assertNotNull(e.toString(), ExceptionsHelper.unwrap(e, PausedSnapshotException.class));
     }
 
     public void testWriteLargeBlobStreaming() throws Exception {

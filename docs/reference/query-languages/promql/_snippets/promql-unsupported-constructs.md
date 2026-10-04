@@ -1,5 +1,6 @@
 % Included in both the PromQL limitations page and the ES|QL PROMQL command page. The command page
-% is synced to Kibana's ES|QL generation docs (esql_docs/esql-promql.txt).
+% is copied verbatim into the context of agents: Kibana's ES|QL generation docs (esql_docs/esql-promql.txt)
+% and the elasticsearch-esql agent skill (references/promql-command.md).
 
 The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):

@@ -658,7 +658,7 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
         assertBinopRangeValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
         assertBinopRangeValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
-        assertBinopRangeValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(rx{host=~\"nope\"}[5m])");
+        assertBinopRangeValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
     }
 
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantUnmatchedPairsNeverReachTheEnclosingCount}. */

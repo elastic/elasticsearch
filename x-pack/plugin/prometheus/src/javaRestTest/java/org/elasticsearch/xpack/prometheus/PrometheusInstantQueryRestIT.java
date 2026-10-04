@@ -712,7 +712,7 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
         assertBinopInstantValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
         assertBinopInstantValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
-        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(rx{host=~\"nope\"}[5m])");
+        assertBinopInstantValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
     }
 
     /**

@@ -97,7 +97,7 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      * admitting the tails of larger ones, where terms seen once cover almost nothing and widen the ordinal
      * every value pays for.
      */
-    public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
+    public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.9, 0.2);
 
     /**
      * Values a read takes as one unit. Larger trades more bytes read on random access for fewer, larger

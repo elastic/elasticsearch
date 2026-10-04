@@ -84,7 +84,7 @@ public class ExternalCountStarUsesShippedSchemaIT extends AbstractExternalDataSo
         assertCountStar("ndjson", registerDataset("count_ndjson", StoragePath.fileUri(ndjson), MACRO_SPLITS), ndjsonRows);
     }
 
-    public void testCountStarErrorModesOnShortRows() throws Exception {
+    public void testCountStarErrorModesOnExtraColumnRows() throws Exception {
         int goodRows = 20;
         int extraColumnRows = 3;
         Path file = createTempDir().resolve("extra-column-rows.csv");
@@ -108,18 +108,20 @@ public class ExternalCountStarUsesShippedSchemaIT extends AbstractExternalDataSo
 
     public void testCountStarEqualsFilteredCountOnFirstFileWinsGlob() throws Exception {
         Path dir = createTempDir();
-        int firstRows = writeHeaderedCsv(dir.resolve("a.csv"), 256);
-        // Wider header than the FFW pin; data rows stay 3 fields so they match a.csv's width and are counted.
-        int secondRows = writeWiderHeaderSameWidthDataCsv(dir.resolve("b.csv"), 256);
+        int firstRows = writeHeaderedCsv(dir.resolve("a.csv"), CSV_MIN_BYTES);
+        // 4-field data vs a 3-col FFW pin: extra-column rows are structural drops. Empty-projection
+        // COUNT(*) without the pin would re-infer b.csv as 4-col and keep those rows; WHERE a IS NOT
+        // NULL still uses the pin. skip_row so fail_fast does not abort the query.
+        int secondRows = writeWiderCsv(dir.resolve("b.csv"), CSV_MIN_BYTES);
+        assertThat(secondRows, greaterThan(0));
         String dataset = registerDataset(
             "count_ffw",
             globUri(dir, "*.csv"),
-            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name")
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name", "error_mode", "skip_row", "target_split_size", "1kb")
         );
-        long expected = firstRows + secondRows;
-        assertCountStar("ffw count(*)", dataset, expected);
+        assertCountStar("ffw count(*) drops later-file extra-column rows", dataset, firstRows);
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE a IS NOT NULL | STATS c = COUNT(*)"), COUNT_TIMEOUT)) {
-            assertThat("ffw WHERE a IS NOT NULL", countValue(response), equalTo(expected));
+            assertThat("ffw WHERE a IS NOT NULL", countValue(response), equalTo((long) firstRows));
         }
     }
 
@@ -219,12 +221,12 @@ public class ExternalCountStarUsesShippedSchemaIT extends AbstractExternalDataSo
         Files.writeString(file, sb, StandardCharsets.UTF_8);
     }
 
-    private static int writeWiderHeaderSameWidthDataCsv(Path file, int minBytes) throws Exception {
+    private static int writeWiderCsv(Path file, int minBytes) throws Exception {
         StringBuilder sb = new StringBuilder(minBytes + 64);
         sb.append("a,b,c,d\n");
         int rows = 0;
         while (sb.length() < minBytes) {
-            sb.append(rows).append(',').append(rows).append(',').append(rows).append('\n');
+            sb.append(rows).append(',').append(rows).append(',').append(rows).append(',').append(rows).append('\n');
             rows++;
         }
         Files.writeString(file, sb, StandardCharsets.UTF_8);

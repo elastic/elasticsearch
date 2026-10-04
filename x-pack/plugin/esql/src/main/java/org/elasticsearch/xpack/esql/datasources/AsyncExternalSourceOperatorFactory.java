@@ -2092,8 +2092,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // pin is already on the split; bind it in memory and skip execution metadata() (an
                     // unranged GET from byte 0). Translate to physical names — same as FormatReadContext
                     // below. Do not seed lastBoundSchema from the pin; that cache is metadata()-only.
-                    // Unpinned splits still infer from the file.
-                    if (perFileReadSchema != null) {
+                    // Unpinned / empty pin still infers from the file (matches PPC; FileSplit empty→null,
+                    // but a deserialized empty list must not withSchema(width 0)).
+                    if (perFileReadSchema != null && perFileReadSchema.isEmpty() == false) {
                         fileReader = fileReader.withSchema(PhysicalNames.translateSchema(perFileReadSchema, renames));
                     } else {
                         // Cache per file path to avoid redundant metadata fetches across splits of the same file.

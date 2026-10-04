@@ -72,7 +72,7 @@ public class ExternalWideCsvCountStarIT extends AbstractExternalDataSourceIT {
         long fileBytes = Files.size(file);
         assertThat("CSV minimumSegmentSize is 1 MiB; smaller files never form extra FileSplits", fileBytes, greaterThan(1024L * 1024));
         assertThat(
-            "1kb target_split_size must produce more than 12 splits past the 1 MiB floor",
+            "proven-split arithmetic (fileBytes - 1MiB) / 1kb, not an observed FileSplit list",
             (fileBytes - 1024L * 1024) / 1024,
             greaterThan(12L)
         );

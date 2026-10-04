@@ -1413,9 +1413,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * COUNT(*) on a file-leading split already carries the coordinator pin. Execution must bind that
-     * pin via {@code withSchema} and must not call {@code metadata()} (CsvFormatReader.metadata opens
-     * no-arg {@code newStream()}).
+     * COUNT(*) on a file-leading split already carries the coordinator pin. Execution must not call
+     * {@code metadata()} (CsvFormatReader.metadata opens no-arg {@code newStream()}). File width then
+     * comes from {@code FormatReadContext.readSchema}; this test does not wrap the reader to observe
+     * {@code withSchema} separately.
      */
     public void testParallelReadEmptyProjectionWithReadSchemaSkipsLeaderMetadata() throws Exception {
         String header = "a,b,c\n";

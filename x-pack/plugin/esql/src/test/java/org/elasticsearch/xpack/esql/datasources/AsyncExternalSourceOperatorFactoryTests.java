@@ -4436,9 +4436,19 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class CountingBindAndSplitReader implements NoConfigFormatReader {
         static final List<Attribute> INFERRED_SCHEMA = List.of(ref("inferred_a", DataType.KEYWORD), ref("inferred_b", DataType.LONG));
 
-        private final AtomicInteger metadataCalls = new AtomicInteger();
-        private final AtomicInteger readCalls = new AtomicInteger();
+        private final AtomicInteger metadataCalls;
+        private final AtomicInteger readCalls;
         private volatile List<Attribute> withSchemaReceived;
+        private volatile boolean replaced;
+
+        CountingBindAndSplitReader() {
+            this(new AtomicInteger(), new AtomicInteger());
+        }
+
+        CountingBindAndSplitReader(AtomicInteger metadataCalls, AtomicInteger readCalls) {
+            this.metadataCalls = metadataCalls;
+            this.readCalls = readCalls;
+        }
 
         int metadataCalls() {
             return metadataCalls.get();
@@ -4476,11 +4486,19 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
             withSchemaReceived = schema;
-            return this;
+            // A distinct instance: production must assign fileReader = withSchema(...). Returning this
+            // would let a dropped assignment still pass, because the original would both record and read.
+            CountingBindAndSplitReader next = new CountingBindAndSplitReader(metadataCalls, readCalls);
+            next.withSchemaReceived = schema;
+            replaced = true;
+            return next;
         }
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            if (replaced) {
+                throw new AssertionError("read() after withSchema must use the returned instance");
+            }
             readCalls.incrementAndGet();
             Page page = createTestPage();
             return new CloseableIterator<>() {

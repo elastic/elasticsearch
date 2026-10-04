@@ -582,12 +582,14 @@ public class ExternalSourceResolver {
         this.restorableContext = threadContext == null ? null : threadContext.newRestorableContext(true);
         // Restore the captured request ThreadContext and install cancellation on every metadata-read
         // task so footer-load waiters and per-file continuations see the caller's headers, and so a
-        // pool rejection still reaches AbstractRunnable.onRejection. Planning I/O stays pinned so
-        // native-async completions still count after activate() restores.
-        ExternalPlanningIo planningIo = planningReservation != null ? planningReservation.planningIo() : ExternalPlanningIo.current();
+        // pool rejection still reaches AbstractRunnable.onRejection. Planning I/O is resolved when
+        // the task runs: the resolver is built in PlanExecutor before EsqlSession.execute binds
+        // the reservation, so a ctor-time capture is always null.
         this.metadataReadExecutor = ExternalIoExecutors.preserving(
             ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled),
             command -> {
+                ExternalPlanningReservation reservation = planningReservation;
+                ExternalPlanningIo planningIo = reservation != null ? reservation.planningIo() : ExternalPlanningIo.current();
                 try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
                     command.run();
                 }

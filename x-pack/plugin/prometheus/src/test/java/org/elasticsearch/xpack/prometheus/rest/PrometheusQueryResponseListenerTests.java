@@ -158,6 +158,45 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         }
     }
 
+    // A union of a closed branch (`sum by (cluster) (tx)`) and an open one (`rx`) carries both label columns and the packed
+    // `_timeseries` identity, each row filling one side: every row renders its own labels, and `_timeseries` is no label.
+    public void testConvertRangeQueryWithLabelColumnsAndTimeseriesColumn() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("cluster", "keyword"),
+            col("_timeseries", "keyword"),
+            col("step", "long")
+        );
+
+        List<List<Object>> rows = Arrays.asList(
+            Arrays.asList(List.of(40.0), "prod", null, List.of(1735689600000L)),
+            Arrays.asList(
+                List.of(2.0),
+                null,
+                "{\"labels\":{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"a\"}}",
+                List.of(1735689600000L)
+            )
+        );
+
+        List<Page> pages = pagesOf(rows);
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(
+                pages,
+                columns,
+                ZoneOffset.UTC,
+                "matrix",
+                QueryMode.RANGE
+            )
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+
+            assertThat(path.evaluate("data.result"), hasSize(2));
+            assertThat(path.evaluate("data.result.0.metric"), equalTo(Map.of("cluster", "prod")));
+            assertThat(path.evaluate("data.result.1.metric"), equalTo(Map.of("__name__", "rx", "cluster", "prod", "host", "a")));
+        }
+    }
+
     public void testConvertRangeQueryWithTimeseriesColumnAttributesNamespace() throws IOException {
         // _timeseries JSON with an "attributes" namespace containing a nested object.
         // All non-"labels" namespaces are flattened recursively with dot-separated paths, so

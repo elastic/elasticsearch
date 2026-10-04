@@ -235,6 +235,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
     private final int maxConcurrentOpenSegments;
+    /**
+     * In-split open-segment window for filtered LIMIT (observed limiter, no pushed source
+     * limiter). A match in segment 0 must not fan out the rest of the split. Pushed LIMIT
+     * skips parallel parse; STATS / full scans keep {@link #maxConcurrentOpenSegments}.
+     */
+    static final int FILTERED_LIMIT_SEGMENT_WINDOW = 2;
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
@@ -1533,6 +1539,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return FormatReader.NO_LIMIT;
         }
         return sourceLimiter.remaining();
+    }
+
+    /**
+     * Open-segment window for this operator. Filtered LIMIT uses
+     * {@link #FILTERED_LIMIT_SEGMENT_WINDOW}; everything else uses the configured cap.
+     */
+    private int parallelParseWindow() {
+        if (sourceLimiter == null && observedLimiter != null) {
+            return Math.min(FILTERED_LIMIT_SEGMENT_WINDOW, maxConcurrentOpenSegments);
+        }
+        return maxConcurrentOpenSegments;
     }
 
     private FormatReader readerWithDynamicThreshold(FormatReader reader) {
@@ -2898,7 +2915,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     splitIncludesFileLeader,
                     perFileReadSchema,
                     baseFileOffset,
-                    maxConcurrentOpenSegments,
+                    parallelParseWindow(),
                     captureSink,
                     maxRecordBytes,
                     statsStripeSize,
@@ -2907,7 +2924,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     externalSourceMetrics,
                     warningSink,
                     readCounters,
-                    formatCounters
+                    formatCounters,
+                    this::noFurtherCandidates
                 );
             }
             case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
@@ -2938,7 +2956,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         splitIncludesFileLeader,
                         perFileReadSchema,
                         baseFileOffset,
-                        maxConcurrentOpenSegments,
+                        parallelParseWindow(),
                         captureSink,
                         maxRecordBytes,
                         statsStripeSize,
@@ -2947,7 +2965,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         externalSourceMetrics,
                         warningSink,
                         readCounters,
-                        formatCounters
+                        formatCounters,
+                        this::noFurtherCandidates
                     );
                 }
                 // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is
@@ -2993,7 +3012,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         streamingSegmentatorAdmission,
                         producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
                         readCounters,
-                        formatCounters
+                        formatCounters,
+                        this::noFurtherCandidates
                     );
                 } catch (Exception e) {
                     try {
@@ -3051,7 +3071,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         streamingSegmentatorAdmission,
                         streamingBreaker,
                         readCounters,
-                        formatCounters
+                        formatCounters,
+                        this::noFurtherCandidates
                     );
                 } catch (Exception e) {
                     try {

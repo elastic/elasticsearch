@@ -102,6 +102,57 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    public void testStopSupplierStopsFurtherChunkDispatch() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        AtomicBoolean stop = new AtomicBoolean(false);
+        LineFormatReader reader = new LineFormatReader(512);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            try (
+                CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                    StreamingSegmentatorAdmission.unbounded(),
+                    new NoopCircuitBreaker("test"),
+                    ExternalReadCounters.NOOP,
+                    null,
+                    stop::get
+                )
+            ) {
+                assertTrue(iter.hasNext());
+                Page first = iter.next();
+                int rows = first.getPositionCount();
+                first.releaseBlocks();
+                stop.set(true);
+                while (iter.hasNext()) {
+                    Page page = iter.next();
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(rows, Matchers.greaterThan(0));
+                assertThat(rows, Matchers.lessThan(lineCount));
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+
     public void testSingleLineFallback() throws Exception {
         String content = "line-0000\n";
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));

@@ -88,6 +88,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -2104,6 +2105,53 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             p.releaseBlocks();
         }
         operator.close();
+    }
+
+    public void testObservedLimiterStopsParallelParseMidWindow() throws Exception {
+        CountDownLatch entered = new CountDownLatch(AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_SEGMENT_WINDOW);
+        CountDownLatch proceed = new CountDownLatch(1);
+        LatchedSmallSegmentReader formatReader = new LatchedSmallSegmentReader(entered, proceed);
+        LargeStorageProvider storageProvider = new LargeStorageProvider(3 * 1024 * 1024);
+
+        StoragePath path = StoragePath.of("file:///data/large.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        ExecutorService pool = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                10,
+                pool
+            ).parsingParallelism(8).maxConcurrentOpenSegments(8).build();
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+
+            DriverContext driverContext = mockLimitBudgetDriverContext();
+            SourceOperator operator = factory.get(driverContext);
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            observed.tryAccumulateHits(1);
+            proceed.countDown();
+            drainRemaining(operator);
+            operator.close();
+
+            assertThat(formatReader.readCount.get(), lessThanOrEqualTo(AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_SEGMENT_WINDOW));
+            assertThat(formatReader.readCount.get(), greaterThan(0));
+            assertThat("parallel parsing still used under observed LIMIT", formatReader.readWithFirstSplitFalseCount.get(), greaterThan(0));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
+        }
     }
 
     public void testParallelParsingSkippedForNonSegmentableReader() throws Exception {
@@ -5232,6 +5280,38 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
+     */
+    private static class LatchedSmallSegmentReader extends TrackingSegmentableFormatReader {
+        private final CountDownLatch entered;
+        private final CountDownLatch proceed;
+
+        LatchedSmallSegmentReader(CountDownLatch entered, CountDownLatch proceed) {
+            this.entered = entered;
+            this.proceed = proceed;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return 1024;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            entered.countDown();
+            try {
+                if (proceed.await(30, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("timed out waiting to proceed");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            return super.read(object, context);
+        }
     }
 
     /**

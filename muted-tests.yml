@@ -499,3 +499,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBFloat16VectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160956
+- class: org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormatTests
+  method: testRandomWithUpdatesAndGraph
+  issue: https://github.com/elastic/elasticsearch/issues/160957

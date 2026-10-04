@@ -32,11 +32,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -92,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -367,6 +371,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 case HistogramFunctionCall histogramFunction -> doTranslateHistogramFunction(histogramFunction);
                 case ScalarConversionFunction scalar -> doTranslateScalarConvertion(scalar);
                 case MetadataManipulationFunction relabel -> doTranslateMetadataManipulation(relabel);
+                case WithinSeriesAggregate absent when absent.isAbsentOverTime() -> doTranslateAbsentOverTime(absent);
                 case PromqlFunctionCall functionCall -> doTranslateFunc(functionCall);
                 case ScalarFunction scalarFunction -> doTranslateScalarFunc(scalarFunction);
                 case VectorBinaryOperator binaryOp -> doTranslateBinaryOp(binaryOp);
@@ -726,6 +731,80 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
             var promqlCtx = new PromqlContext(time, window, child.step(), configuration());
             return doTranslateAddValueEval(child, functionCall.buildEsqlFunction(child.value(), promqlCtx));
+        }
+
+        /**
+         * Translates {@code absent_over_time}: one {@code {labels} 1} row per step at which no series has a sample in the
+         * window, the labels those of the selector's equality matchers, and nothing otherwise. The query's steps, tagged 1,
+         * are unioned with the steps at which any series is present, tagged 0, and regrouped per step on the lowest tag, so a
+         * step with a present series drops out. Without a time range there are no steps to list: only the steps the data
+         * has a row at count.
+         */
+        private IntermediateResult doTranslateAbsentOverTime(WithinSeriesAggregate absent) {
+            Source source = absent.source();
+            // The presence aggregates under its own step bucket: this translation's step is the absent table's, defined below.
+            Alias presenceStep = stepBucketAlias != null ? emitStepBucketExpression(new NameId(), time) : null;
+            Translation presenceTranslation = new Translation(cmd, analyzer, presenceStep, Header.EMPTY, time);
+            IntermediateResult perSeries = presenceTranslation.doTranslateFunc(absent);
+            IntermediateResult presence = null;
+            if (perSeries.kind().constant == false) {
+                // per series, 1 where the window holds a sample and null where it does not; per step, 1 where any series does
+                Expression present = new Case(source, perSeries.value(), List.of(Literal.NULL, Literal.fromDouble(source, 1.0)));
+                presence = presenceTranslation.collapse(perSeries, Header.EMPTY, new Max(source, present));
+            }
+
+            LogicalPlan plan;
+            Attribute step;
+            if (cmd.hasTimeRange()) {
+                // the query's steps, the list under its own id: the command's step attribute is the final projection's, and
+                // a range filter over it must not fold the whole list in
+                LogicalPlan steps = PromqlLogicalPlanBuilder.buildLocalRelation(cmd, new NameId());
+                plan = steps;
+                step = steps.output().getFirst();
+                if (presence != null) {
+                    LogicalPlan present = new Filter(source, presence.plan(), new IsNotNull(source, presence.valueColumn()));
+                    var branches = List.of(emitTaggedSteps(steps, step, 1), emitTaggedSteps(present, presence.step(), 0));
+                    List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branches);
+                    step = find(unionOutput, cmd.stepColumnName());
+                    // per step, the lowest tag: 0 where a series is present, 1 where none is
+                    Alias lowest = new Alias(source, cmd.branchColumnName(), new Min(source, find(unionOutput, cmd.branchColumnName())));
+                    plan = new Aggregate(source, new UnionAll(source, branches, unionOutput), List.of(step), List.of(lowest, step));
+                    plan = new Filter(source, plan, new Equals(source, lowest.toAttribute(), new Literal(source, 1, DataType.INTEGER)));
+                }
+            } else if (presence != null) {
+                // no steps to list: the steps the data has a row at, where no series is present
+                plan = new Filter(source, presence.plan(), new IsNull(source, presence.valueColumn()));
+                step = presence.step();
+            } else {
+                // neither steps nor a source: nothing
+                return perSeries;
+            }
+
+            // the steps left carry the value 1 and the matchers' labels, under this translation's step
+            Alias value = new Alias(source, cmd.valueColumnName(), Literal.fromDouble(source, 1.0));
+            var fields = new ArrayList<Alias>(List.of(value));
+            var projections = new ArrayList<NamedExpression>(List.of(value.toAttribute()));
+            projections.add(new Alias(source, cmd.stepColumnName(), step, stepAttr().id()));
+            absent.absentLabels().forEach((name, text) -> {
+                Alias label = new Alias(source, name, Literal.keyword(source, text));
+                fields.add(label);
+                projections.add(label.toAttribute());
+            });
+            plan = new Project(source, new Eval(source, plan, fields), projections);
+            return new IntermediateResult(
+                plan,
+                finite(absent.absentLabels().keySet()),
+                value.toAttribute(),
+                stepAttr(),
+                presence != null ? presence.pendingFilter() : null,
+                Kind.AFTER_INITIAL_AGGREGATE
+            );
+        }
+
+        /** The step column of {@code plan} with a constant {@code tag} beside it, as one branch of a union. */
+        private LogicalPlan emitTaggedSteps(LogicalPlan plan, Attribute step, int tag) {
+            Alias branch = new Alias(cmd.source(), cmd.branchColumnName(), new Literal(cmd.source(), tag, DataType.INTEGER));
+            return new Project(cmd.source(), new Eval(cmd.source(), plan, List.of(branch)), List.of(step, branch.toAttribute()));
         }
 
         /**

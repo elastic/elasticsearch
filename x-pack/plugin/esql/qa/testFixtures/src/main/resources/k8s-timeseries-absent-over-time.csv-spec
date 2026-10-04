@@ -53,20 +53,12 @@ false             | staging         | 2024-05-10T00:20:00.000Z
 absent_over_time_of_long_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_presence_over_time
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.bytes_in[10m])))
 | SORT cluster, step | LIMIT 10;
 
 is_absent:double | step:datetime            | cluster:keyword
-0.0              | 2024-05-10T00:10:00.000Z | prod
-0.0              | 2024-05-10T00:20:00.000Z | prod
-0.0              | 2024-05-10T00:30:00.000Z | prod
-0.0              | 2024-05-10T00:10:00.000Z | qa
-0.0              | 2024-05-10T00:20:00.000Z | qa
-0.0              | 2024-05-10T00:30:00.000Z | qa
-0.0              | 2024-05-10T00:10:00.000Z | staging
-0.0              | 2024-05-10T00:20:00.000Z | staging
-0.0              | 2024-05-10T00:30:00.000Z | staging
 ;
 
 absent_over_time_of_long_promql_collapsed
@@ -74,15 +66,15 @@ required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: promql_presence_over_time
 
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" is_absent=(max by (cluster) (absent_over_time(network.bytes_in[10m])))
 | TS_COLLAPSE
 | SORT cluster;
 
-is_absent:double  | step:datetime                                                                                  | cluster:keyword
-[0.0, 0.0]       | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | prod
-[0.0, 0.0]       | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | qa
-[0.0, 0.0]       | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | staging
+// the data starts at 00:00:29: no series has a sample in the first step's window, so the metric is absent there
+is_absent:double | step:datetime            | cluster:keyword
+1.0              | 2024-05-10T00:00:00.000Z | null
 ;
 
 absent_over_time_of_boolean
@@ -104,20 +96,12 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 absent_over_time_of_boolean_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_presence_over_time
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_absent:double | step:datetime            | cluster:keyword
-0.0              | 2024-05-10T00:10:00.000Z | prod
-0.0              | 2024-05-10T00:10:00.000Z | qa
-0.0              | 2024-05-10T00:10:00.000Z | staging
-0.0              | 2024-05-10T00:20:00.000Z | prod
-0.0              | 2024-05-10T00:20:00.000Z | qa
-0.0              | 2024-05-10T00:20:00.000Z | staging
-0.0              | 2024-05-10T00:30:00.000Z | prod
-0.0              | 2024-05-10T00:30:00.000Z | qa
-0.0              | 2024-05-10T00:30:00.000Z | staging
 ;
 
 absent_over_time_of_date_nanos
@@ -187,20 +171,12 @@ false                  | staging         | 2024-05-10T00:20:00.000Z
 absent_over_time_of_integer_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_presence_over_time
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.eth0.currently_connected_clients[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_absent:double | step:datetime            | cluster:keyword
-0.0              | 2024-05-10T00:10:00.000Z | prod
-0.0              | 2024-05-10T00:10:00.000Z | qa
-0.0              | 2024-05-10T00:10:00.000Z | staging
-0.0              | 2024-05-10T00:20:00.000Z | prod
-0.0              | 2024-05-10T00:20:00.000Z | qa
-0.0              | 2024-05-10T00:20:00.000Z | staging
-0.0              | 2024-05-10T00:30:00.000Z | prod
-0.0              | 2024-05-10T00:30:00.000Z | qa
-0.0              | 2024-05-10T00:30:00.000Z | staging
 ;
 
 absent_over_time_of_text
@@ -335,20 +311,12 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 absent_over_time_with_filtering_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: promql_presence_over_time
 
 PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.bytes_in{pod!="three"}[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_absent:double | step:datetime            | cluster:keyword
-0.0              | 2024-05-10T00:10:00.000Z | prod
-0.0              | 2024-05-10T00:10:00.000Z | qa
-0.0              | 2024-05-10T00:10:00.000Z | staging
-0.0              | 2024-05-10T00:20:00.000Z | prod
-0.0              | 2024-05-10T00:20:00.000Z | qa
-0.0              | 2024-05-10T00:20:00.000Z | staging
-0.0              | 2024-05-10T00:30:00.000Z | prod
-0.0              | 2024-05-10T00:30:00.000Z | qa
-0.0              | 2024-05-10T00:30:00.000Z | staging
 ;
 
 absent_over_time_older_than_10d

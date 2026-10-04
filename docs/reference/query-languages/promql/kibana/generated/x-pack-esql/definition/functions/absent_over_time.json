@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "within_series",
   "name" : "absent_over_time",
-  "description" : "Returns `1` if the range vector has no elements, and `0` otherwise.",
+  "description" : "Returns an empty vector if the range vector has any elements and a 1-element vector with the value `1`, labelled after the selector's equality matchers, if it has none.",
   "signatures" : [
     {
       "params" : [

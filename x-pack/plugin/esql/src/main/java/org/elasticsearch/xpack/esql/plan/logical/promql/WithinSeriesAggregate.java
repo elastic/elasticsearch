@@ -10,13 +10,25 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a PromQL aggregate function call that operates on range vectors.
@@ -59,10 +71,62 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         if (output == null) {
+            // absent_over_time is one series carrying the selector's equality matchers as labels; every other function
             // returns values grouped per time series
-            output = List.of(FieldAttribute.timeSeriesAttribute(source()));
+            output = isAbsentOverTime()
+                ? absentLabels().keySet().stream().<Attribute>map(name -> new ReferenceAttribute(source(), name, DataType.KEYWORD)).toList()
+                : List.of(FieldAttribute.timeSeriesAttribute(source()));
         }
         return output;
+    }
+
+    /**
+     * {@code present_over_time} is {@code 1} for a series with a sample in the window and nothing otherwise, never {@code 0}:
+     * an absent series maps to null and drops out like any sample without a value.
+     */
+    @Override
+    public Expression buildEsqlFunction(Expression target, PromqlContext ctx) {
+        Expression function = super.buildEsqlFunction(target, ctx);
+        if (isPresentOverTime() == false) {
+            return function;
+        }
+        return new Case(source(), function, List.of(Literal.fromDouble(source(), 1.0), Literal.NULL));
+    }
+
+    /**
+     * Whether this is {@code absent_over_time}: one {@code {labels} 1} row per step at which no series has a sample in the
+     * window, the labels those of {@link #absentLabels()}, and nothing otherwise. It is not a per-series function.
+     */
+    public boolean isAbsentOverTime() {
+        return functionName().equals(AbsentOverTime.PROMQL_DEFINITION.name());
+    }
+
+    private boolean isPresentOverTime() {
+        return functionName().equals(PresentOverTime.PROMQL_DEFINITION.name());
+    }
+
+    /**
+     * The labels of an absent series, as Prometheus derives them from the selector: each label with exactly one equality
+     * matcher, the metric name aside; a label matched twice, or in any other way, is left out, and so is an empty value.
+     */
+    public Map<String, String> absentLabels() {
+        var labels = new LinkedHashMap<String, String>();
+        if (child() instanceof Selector selector) {
+            var equal = new HashSet<String>();
+            for (LabelMatcher matcher : selector.labelMatchers().matchers()) {
+                if (LabelMatcher.NAME.equals(matcher.name())) {
+                    continue;
+                }
+                if (matcher.matcher() == LabelMatcher.Matcher.EQ && matcher.isMultiValue() == false && equal.add(matcher.name())) {
+                    if (matcher.getFirstValue().isEmpty() == false) {
+                        labels.put(matcher.name(), matcher.getFirstValue());
+                    }
+                } else {
+                    labels.remove(matcher.name());
+                }
+            }
+        }
+        return labels;
     }
 
     @Override

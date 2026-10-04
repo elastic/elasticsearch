@@ -545,4 +545,24 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
             .addSamples(RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build())
             .build();
     }
+
+    /**
+     * {@code present_over_time} is {@code 1} for a series with a sample in the range, never {@code 0}. {@code absent_over_time}
+     * is one {@code {labels} 1} series where no series has a sample, the labels those of the selector's equality matchers,
+     * and nothing where one does.
+     */
+    public void testInstantPresenceOverTime() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("present_over_time(tx[5m])", 1, 1, 1);
+        assertBinopInstantValues("absent_over_time(tx[5m])");
+        assertBinopInstantValues("absent_over_time(tx{host=\"a\"}[5m])");
+        assertThat(
+            PromqlResponseSeries.ofInstant(executeBinopInstantQuery("absent_over_time(tx{host=~\"nope\"}[5m])")),
+            equalTo(List.of(new PromqlResponseSeries(Map.of(), 1.0)))
+        );
+        assertThat(
+            PromqlResponseSeries.ofInstant(executeBinopInstantQuery("absent_over_time(tx{host=\"a\",cluster=~\"nope\"}[5m])")),
+            equalTo(List.of(new PromqlResponseSeries(Map.of("host", "a"), 1.0)))
+        );
+    }
 }

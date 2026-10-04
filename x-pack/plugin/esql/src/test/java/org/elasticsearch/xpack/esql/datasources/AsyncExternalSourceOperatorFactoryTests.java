@@ -20,7 +20,9 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +51,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -70,6 +74,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -87,6 +92,10 @@ import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -2154,6 +2163,53 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             p.releaseBlocks();
         }
         operator.close();
+    }
+
+    public void testObservedLimiterStopsParallelParseMidWindow() throws Exception {
+        CountDownLatch entered = new CountDownLatch(AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_SEGMENT_WINDOW);
+        CountDownLatch proceed = new CountDownLatch(1);
+        LatchedSmallSegmentReader formatReader = new LatchedSmallSegmentReader(entered, proceed);
+        LargeStorageProvider storageProvider = new LargeStorageProvider(3 * 1024 * 1024);
+
+        StoragePath path = StoragePath.of("file:///data/large.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        ExecutorService pool = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                10,
+                pool
+            ).parsingParallelism(8).maxConcurrentOpenSegments(8).build();
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+
+            DriverContext driverContext = mockLimitBudgetDriverContext();
+            SourceOperator operator = factory.get(driverContext);
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            observed.tryAccumulateHits(1);
+            proceed.countDown();
+            drainRemaining(operator);
+            operator.close();
+
+            assertThat(formatReader.readCount.get(), lessThanOrEqualTo(AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_SEGMENT_WINDOW));
+            assertThat(formatReader.readCount.get(), greaterThan(0));
+            assertThat("parallel parsing still used under observed LIMIT", formatReader.readWithFirstSplitFalseCount.get(), greaterThan(0));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
+        }
     }
 
     public void testRowLimitCompletionDoesNotWaitOnDrainLatch() throws Exception {
@@ -4332,8 +4388,665 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertEquals(List.of("name", "age", "city"), result);
     }
 
+    public void testPushedLimitSharedAcrossTwoProducers() throws Exception {
+        int splitCount = 20;
+        int limit = 3;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        CountDownLatch bothEnteredRead = new CountDownLatch(2);
+        CountDownLatch startDeliver = new CountDownLatch(1);
+        LatchedPageReader formatReader = new LatchedPageReader(readCount, bothEnteredRead, startDeliver, 1);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "limit-budget"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, pool, limit, 10);
+            assertNotNull(factory.sourceLimiter());
+            assertEquals(limit, factory.sourceLimiter().limit());
+
+            DriverContext ctx1 = mockLimitBudgetDriverContext();
+            DriverContext ctx2 = mockLimitBudgetDriverContext();
+            CountDownLatch bothDone = new CountDownLatch(2);
+            doAnswer(inv -> {
+                bothDone.countDown();
+                return null;
+            }).when(ctx1).removeAsyncAction();
+            doAnswer(inv -> {
+                bothDone.countDown();
+                return null;
+            }).when(ctx2).removeAsyncAction();
+
+            SourceOperator op1 = factory.get(ctx1);
+            SourceOperator op2 = factory.get(ctx2);
+            assertTrue(bothEnteredRead.await(30, TimeUnit.SECONDS));
+            startDeliver.countDown();
+            assertTrue(bothDone.await(30, TimeUnit.SECONDS));
+
+            int rows = drainRemaining(op1) + drainRemaining(op2);
+            op1.close();
+            op2.close();
+
+            assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+            assertThat(readCount.get(), lessThanOrEqualTo(4));
+            assertThat(sliceQueue.remaining(), equalTo(splitCount - readCount.get()));
+            assertThat(rows, equalTo(limit));
+        } finally {
+            startDeliver.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSkipRowDropsStillReachLimit() throws Exception {
+        int limit = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        List<Integer> seenRowLimits = Collections.synchronizedList(new ArrayList<>());
+        DroppingPageReader formatReader = new DroppingPageReader(seenRowLimits, 3, 1);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/f0.parquet"),
+            limitBudgetAttributes(),
+            100,
+            10,
+            Runnable::run
+        ).sliceQueue(sliceQueue).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        op.close();
+
+        assertFalse("reader must be opened", seenRowLimits.isEmpty());
+        for (int seen : seenRowLimits) {
+            assertEquals("slice-queue text path must not cap the reader; producer limiter is the cap", FormatReader.NO_LIMIT, seen);
+        }
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat(rows, equalTo(limit));
+    }
+
+    public void testSkipRowLenientMultiFileReaderNotCappedByRemaining() throws Exception {
+        int limit = 10;
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH)),
+            "s3://bucket/data/*.parquet"
+        );
+        List<Integer> seenRowLimits = Collections.synchronizedList(new ArrayList<>());
+        DroppingPageReader formatReader = new DroppingPageReader(seenRowLimits, 20, 1);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/data/f1.parquet"),
+            limitBudgetAttributes(),
+            100,
+            10,
+            Runnable::run
+        ).fileList(fileList).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+
+        assertEquals(FormatReader.NO_LIMIT, factory.sourceReaderRowLimit());
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        op.close();
+
+        assertFalse(seenRowLimits.isEmpty());
+        for (int seen : seenRowLimits) {
+            assertEquals("lenient reader must not prefetch-clip at remaining()", FormatReader.NO_LIMIT, seen);
+        }
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat(rows, equalTo(limit));
+    }
+
+    public void testSkipRowLenientRangeReaderNotCappedByRemaining() throws Exception {
+        int limit = 10;
+        FileSplit rangeSplit = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/f0.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(FileSplitProvider.RANGE_SPLIT_KEY, "true"),
+            Map.of()
+        );
+        List<Integer> seenRowLimits = Collections.synchronizedList(new ArrayList<>());
+        RecordingRangeReader formatReader = new RecordingRangeReader(seenRowLimits, 20);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/f0.parquet"),
+            limitBudgetAttributes(),
+            100,
+            10,
+            Runnable::run
+        )
+            .sliceQueue(new ExternalSliceQueue(List.of(rangeSplit)))
+            .rowLimit(limit)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .producerBlockFactory(TEST_BLOCK_FACTORY)
+            .build();
+
+        assertEquals(FormatReader.NO_LIMIT, factory.sourceReaderRowLimit());
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        op.close();
+
+        assertFalse("range path must call readRange", seenRowLimits.isEmpty());
+        for (int seen : seenRowLimits) {
+            assertEquals("lenient range reader must not prefetch-clip at remaining()", FormatReader.NO_LIMIT, seen);
+        }
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat("source may over-deliver a page; LimitOperator clips to N", rows, greaterThanOrEqualTo(limit));
+    }
+
+    public void testStrictPushedLimitPrefetchClipsReaderRemaining() {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of())
+        );
+        AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(
+            new PageCountingFormatReader(new AtomicInteger()),
+            new ExternalSliceQueue(splits),
+            Runnable::run,
+            4,
+            10
+        );
+        assertEquals(4, factory.sourceReaderRowLimit());
+    }
+
+    public void testLimitStopRemovesAsyncActionWithoutCancelling() throws Exception {
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, Runnable::run, 1, 10);
+
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        AtomicInteger removeCount = new AtomicInteger();
+        doAnswer(inv -> {
+            removeCount.incrementAndGet();
+            return null;
+        }).when(ctx).removeAsyncAction();
+
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        assertThat(removeCount.get(), equalTo(1));
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat(rows, equalTo(1));
+        assertThat(readCount.get(), equalTo(1));
+        op.close();
+        assertThat(removeCount.get(), equalTo(1));
+    }
+
+    public void testParkWithPageReleasesWhenRemainingZero() throws Exception {
+        AtomicInteger nextCalls = new AtomicInteger();
+        CountDownLatch enteredSecondNext = new CountDownLatch(1);
+        TwoPageHugeReader formatReader = new TwoPageHugeReader(nextCalls, enteredSecondNext);
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/f0.parquet"),
+            limitBudgetAttributes(),
+            100,
+            1,
+            Runnable::run
+        ).sliceQueue(sliceQueue).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+        Limiter observed = new Limiter(100);
+        factory.setObservedLimiter(observed);
+
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        assertTrue(enteredSecondNext.await(30, TimeUnit.SECONDS));
+        observed.tryAccumulateHits(observed.remaining());
+        int rows = drainRemaining(op);
+        op.close();
+        assertThat(nextCalls.get(), equalTo(2));
+        assertThat("parked second page must be released, not delivered", rows, equalTo(TwoPageHugeReader.ROWS));
+    }
+
+    public void testObservedLimiterStopsClaimingSplits() throws Exception {
+        int splitCount = 12;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        LatchedPageReader formatReader = new LatchedPageReader(readCount, entered, proceed, 1);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "observed-limit"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, pool, FormatReader.NO_LIMIT, 10);
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+            assertNull(factory.sourceLimiter());
+
+            DriverContext ctx = mockLimitBudgetDriverContext();
+            CountDownLatch done = new CountDownLatch(1);
+            doAnswer(inv -> {
+                done.countDown();
+                return null;
+            }).when(ctx).removeAsyncAction();
+
+            SourceOperator op = factory.get(ctx);
+            assertTrue(entered.await(30, TimeUnit.SECONDS));
+            observed.tryAccumulateHits(1);
+            proceed.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            drainRemaining(op);
+            op.close();
+            assertThat(readCount.get(), equalTo(1));
+            assertThat(sliceQueue.remaining(), equalTo(splitCount - 1));
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testPushedLimiterIgnoresObservedLimiter() throws Exception {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 100, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, Runnable::run, 3, 10);
+        Limiter observed = new Limiter(1);
+        observed.tryAccumulateHits(1);
+        factory.setObservedLimiter(observed);
+
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        op.close();
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat(rows, equalTo(3));
+        assertThat(readCount.get(), equalTo(3));
+    }
+
+    public void testPushedLimitDeliversFullPageWithoutSlicing() throws Exception {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        AtomicInteger readCount = new AtomicInteger();
+        FormatReader formatReader = new LatchedPageReader(readCount, new CountDownLatch(1), null, 5);
+        AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, Runnable::run, 3, 10);
+
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        op.close();
+        assertThat("source must forward the full page; LimitOperator slices overflow", rows, equalTo(5));
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat(readCount.get(), equalTo(1));
+    }
+
+    private static List<Attribute> limitBudgetAttributes() {
+        return List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+    }
+
+    private static AsyncExternalSourceOperatorFactory limitBudgetFactory(
+        FormatReader formatReader,
+        ExternalSliceQueue sliceQueue,
+        Executor executor,
+        int rowLimit,
+        int maxBufferSize
+    ) {
+        return AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/f0.parquet"),
+            limitBudgetAttributes(),
+            100,
+            maxBufferSize,
+            executor
+        ).sliceQueue(sliceQueue).rowLimit(rowLimit).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+    }
+
+    private static DriverContext mockLimitBudgetDriverContext() {
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        return driverContext;
+    }
+
+    private static int drainRemaining(SourceOperator operator) {
+        int rows = 0;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (true) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+                continue;
+            }
+            if (operator.isFinished()) {
+                return rows;
+            }
+            Thread.yield();
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("timed out draining operator");
+            }
+        }
+    }
+
     private static Attribute attr(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static class LatchedPageReader implements NoConfigFormatReader {
+        private final AtomicInteger readCount;
+        private final CountDownLatch entered;
+        @Nullable
+        private final CountDownLatch proceed;
+        private final int rows;
+
+        LatchedPageReader(AtomicInteger readCount, CountDownLatch entered, @Nullable CountDownLatch proceed, int rows) {
+            this.readCount = readCount;
+            this.entered = entered;
+            this.proceed = proceed;
+            this.rows = rows;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            readCount.incrementAndGet();
+            entered.countDown();
+            if (proceed != null) {
+                try {
+                    if (proceed.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to emit page");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            int[] values = new int[rows];
+            Page page = new Page(TEST_BLOCK_FACTORY.newIntArrayVector(values, rows).asBlock());
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "latched-page";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Emits {@code rawRows} then keeps only every other row, simulating skip_row adapter drops
+     * after the reader. Honours {@link FormatReadContext#rowLimit()} so a factory that caps the
+     * reader with remaining rows cannot reach N survivors.
+     */
+    private static class DroppingPageReader implements NoConfigFormatReader {
+        private final List<Integer> seenRowLimits;
+        private final int rawRows;
+        private final int keepEvery;
+
+        DroppingPageReader(List<Integer> seenRowLimits, int rawRows, int keepEvery) {
+            this.seenRowLimits = seenRowLimits;
+            this.rawRows = rawRows;
+            this.keepEvery = keepEvery;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            seenRowLimits.add(context.rowLimit());
+            int cap = context.rowLimit() == FormatReader.NO_LIMIT ? rawRows : Math.min(rawRows, Math.max(0, context.rowLimit()));
+            int kept = 0;
+            for (int i = 0; i < cap; i++) {
+                if (i % (keepEvery + 1) == 0) {
+                    kept++;
+                }
+            }
+            int[] values = new int[kept];
+            Page page = new Page(TEST_BLOCK_FACTORY.newIntArrayVector(values, kept).asBlock());
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "dropping-page";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Range-aware reader that records {@link RangeReadContext#rowLimit()} so skip_row can
+     * assert the range rail gets {@link FormatReader#NO_LIMIT}, not remaining().
+     */
+    private static class RecordingRangeReader implements RangeAwareFormatReader, NoConfigFormatReader {
+        private final List<Integer> seenRowLimits;
+        private final int rawRows;
+
+        RecordingRangeReader(List<Integer> seenRowLimits, int rawRows) {
+            this.seenRowLimits = seenRowLimits;
+            this.rawRows = rawRows;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public List<SplitRange> discoverSplitRanges(StorageObject object) {
+            return List.of();
+        }
+
+        @Override
+        public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+            seenRowLimits.add(context.rowLimit());
+            int cap = context.rowLimit() == FormatReader.NO_LIMIT ? rawRows : Math.min(rawRows, Math.max(0, context.rowLimit()));
+            Page page = new Page(TEST_BLOCK_FACTORY.newIntArrayVector(new int[cap], cap).asBlock());
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new AssertionError("range split must use readRange, not read");
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * One iterator, two huge pages. With {@code maxBufferSize=1} the second {@code next()}
+     * fills the park-with-page path once the first page occupies the buffer.
+     */
+    private static class TwoPageHugeReader implements NoConfigFormatReader {
+        static final int ROWS = 80_000;
+        private final AtomicInteger nextCalls;
+        private final CountDownLatch enteredSecondNext;
+
+        TwoPageHugeReader(AtomicInteger nextCalls, CountDownLatch enteredSecondNext) {
+            this.nextCalls = nextCalls;
+            this.enteredSecondNext = enteredSecondNext;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new CloseableIterator<>() {
+                private int emitted = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return emitted < 2;
+                }
+
+                @Override
+                public Page next() {
+                    if (emitted >= 2) {
+                        throw new NoSuchElementException();
+                    }
+                    int n = nextCalls.incrementAndGet();
+                    if (n == 2) {
+                        enteredSecondNext.countDown();
+                    }
+                    emitted++;
+                    int[] values = new int[ROWS];
+                    return new Page(TEST_BLOCK_FACTORY.newIntArrayVector(values, ROWS).asBlock());
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "two-page-huge";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**
@@ -5058,6 +5771,38 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
+     */
+    private static class LatchedSmallSegmentReader extends TrackingSegmentableFormatReader {
+        private final CountDownLatch entered;
+        private final CountDownLatch proceed;
+
+        LatchedSmallSegmentReader(CountDownLatch entered, CountDownLatch proceed) {
+            this.entered = entered;
+            this.proceed = proceed;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return 1024;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            entered.countDown();
+            try {
+                if (proceed.await(30, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("timed out waiting to proceed");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            return super.read(object, context);
+        }
     }
 
     /**

@@ -54,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -164,6 +165,7 @@ public final class StreamingParallelParsingCoordinator {
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
             ExternalReadCounters.NOOP,
+            null,
             null
         );
     }
@@ -245,6 +247,7 @@ public final class StreamingParallelParsingCoordinator {
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
             ExternalReadCounters.NOOP,
+            null,
             null
         );
     }
@@ -280,7 +283,8 @@ public final class StreamingParallelParsingCoordinator {
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
         ExternalReadCounters readCounters,
-        @Nullable FormatReadCounters formatCounters
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable BooleanSupplier stop
     ) throws IOException {
         return parallelRead(
             reader,
@@ -301,7 +305,8 @@ public final class StreamingParallelParsingCoordinator {
             admission,
             breaker,
             readCounters,
-            formatCounters
+            formatCounters,
+            stop
         );
     }
 
@@ -336,7 +341,8 @@ public final class StreamingParallelParsingCoordinator {
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
         ExternalReadCounters readCounters,
-        @Nullable FormatReadCounters formatCounters
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable BooleanSupplier stop
     ) throws IOException {
         Objects.requireNonNull(opener, "opener");
         if (logger.isDebugEnabled()) {
@@ -388,7 +394,106 @@ public final class StreamingParallelParsingCoordinator {
             admission,
             breaker,
             readCounters,
-            formatCounters
+            formatCounters,
+            stop
+        );
+    }
+
+    /**
+     * Compatibility overload without a stop supplier. Tests and callers that do not observe a
+     * downstream LIMIT use this; production filtered LIMIT passes {@code noFurtherCandidates}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StreamOpener opener,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            opener,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            admission,
+            breaker,
+            readCounters,
+            formatCounters,
+            null
+        );
+    }
+
+    /**
+     * Compatibility overload without a stop supplier. Tests and callers that do not observe a
+     * downstream LIMIT use this; production filtered LIMIT passes {@code noFurtherCandidates}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            decompressedStream,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            admission,
+            breaker,
+            readCounters,
+            formatCounters,
+            null
         );
     }
 
@@ -554,6 +659,11 @@ public final class StreamingParallelParsingCoordinator {
          */
         private volatile boolean reachedEof = false;
         /**
+         * True when a downstream LIMIT stop aborted further chunk dispatch. Close must poison
+         * captured stats rather than cache a prefix as the file's full contribution.
+         */
+        private volatile boolean stoppedEarly = false;
+        /**
          * Async-ready signal. {@code null} when no consumer is waiting. When the consumer's
          * {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
          * the producers (segmentator, parser, error-path) fire it on every event that can transition
@@ -587,6 +697,12 @@ public final class StreamingParallelParsingCoordinator {
         private final ExternalReadCounters readCounters;
         @Nullable
         private final FormatReadCounters formatCounters;
+        /**
+         * When true, the segmentator stops dispatching further chunks. Filtered LIMIT wires
+         * {@code noFurtherCandidates}; {@code null} means never stop early.
+         */
+        @Nullable
+        private final BooleanSupplier stop;
         /** The reader as supplied by the caller; {@link #reader} may be swapped by {@link #bindInferredSchema}. */
         private final SegmentableFormatReader originalReader;
 
@@ -631,6 +747,7 @@ public final class StreamingParallelParsingCoordinator {
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
                 ExternalReadCounters.NOOP,
+                null,
                 null
             );
         }
@@ -654,7 +771,8 @@ public final class StreamingParallelParsingCoordinator {
             StreamingSegmentatorAdmission admission,
             CircuitBreaker breaker,
             ExternalReadCounters readCounters,
-            @Nullable FormatReadCounters formatCounters
+            @Nullable FormatReadCounters formatCounters,
+            @Nullable BooleanSupplier stop
         ) {
             this.breaker = breaker;
             this.originalReader = reader;
@@ -700,6 +818,7 @@ public final class StreamingParallelParsingCoordinator {
             this.opener = opener;
             this.readCounters = readCounters;
             this.formatCounters = formatCounters;
+            this.stop = stop;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
@@ -875,6 +994,10 @@ public final class StreamingParallelParsingCoordinator {
 
             try {
                 while (closed.get() == false && firstError.get() == null) {
+                    if (stop != null && stop.getAsBoolean()) {
+                        stoppedEarly = true;
+                        break;
+                    }
                     PoolBuffer pooled;
                     try {
                         pooled = takeOrAllocateBuffer();
@@ -1131,7 +1254,10 @@ public final class StreamingParallelParsingCoordinator {
                 firstError.compareAndSet(null, e);
                 return false;
             }
-            if (closed.get()) {
+            if (closed.get() || (stop != null && stop.getAsBoolean())) {
+                if (closed.get() == false) {
+                    stoppedEarly = true;
+                }
                 dispatchPermits.release();
                 return false;
             }
@@ -1947,13 +2073,15 @@ public final class StreamingParallelParsingCoordinator {
             // parser cut off mid-chunk records a partial row count under that chunk's full byte range,
             // which the coverage tiling would otherwise accept as complete and cache as an under-count.
             // A segmentator stopped before EOF covers only a prefix of the file even when the consumer is
-            // caught up: a close (not an error) or a non-strict truncation (external_max_record_size cap-hit).
-            // Either way a non-clean scan poisons the file's contributions: the reconciler discards them.
-            // Never-started work is unclean so a cancelled iterator cannot cache empty stats.
+            // caught up: a close (not an error), a LIMIT stop, or a non-strict truncation
+            // (external_max_record_size cap-hit). Either way a non-clean scan poisons the file's
+            // contributions: the reconciler discards them. Never-started work is unclean so a cancelled
+            // iterator cannot cache empty stats.
             boolean cleanCompletion = neverStarted == false
                 && firstError.get() == null
                 && openFailure.get() == null
                 && reachedEof
+                && stoppedEarly == false
                 && currentChunk >= chunksDispatched.get();
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());

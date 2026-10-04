@@ -87,15 +87,14 @@ public class MockSearchService extends SearchService {
             .append(heldFor);
         try {
             final ShardRouting routing = context.indexShard().routingEntry();
-            final long creatorTaskId = context.creatorTaskId();
+            // ReaderContext#creatorTaskId is not available on this branch, so the creator task cannot be
+            // reported here.
             details.append(" on shard ")
                 .append(context.indexShard().shardId())
                 .append(" of node ")
                 .append(routing == null ? "unassigned" : routing.currentNodeId())
                 .append(", id=")
                 .append(context.id())
-                .append(", creatorTask=")
-                .append(creatorTaskId == 0L ? "unknown" : Long.toString(creatorTaskId))
                 .append(", singleSession=")
                 .append(context.singleSession())
                 .append(", keepAlive=")

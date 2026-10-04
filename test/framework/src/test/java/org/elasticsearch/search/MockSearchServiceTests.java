@@ -30,7 +30,7 @@ public class MockSearchServiceTests extends ESTestCase {
      * locally and are usually only ever seen once, in a CI log.
      */
     public void testAssertNoInFlightContext() {
-        final ReaderContext reader = stubbedReaderContext(7L);
+        final ReaderContext reader = stubbedReaderContext();
         MockSearchService.addActiveContext(reader);
         try {
             Throwable e = expectThrows(AssertionError.class, () -> MockSearchService.assertNoInFlightContext());
@@ -42,17 +42,9 @@ public class MockSearchServiceTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("on shard [test-index][0] of node test-node"));
             assertThat(e.getMessage(), containsString("id=[test-session][42]"));
-            assertThat(e.getMessage(), containsString("creatorTask=7"));
             assertThat(e.getMessage(), containsString("singleSession=false"));
             assertThat(e.getMessage(), containsString("keepAlive=5m"));
             assertThat(e.getMessage(), containsString("held for"));
-
-            // relocated point in time contexts do not carry the id of the task that opened them
-            when(reader.creatorTaskId()).thenReturn(0L);
-            assertThat(
-                expectThrows(AssertionError.class, () -> MockSearchService.assertNoInFlightContext()).getMessage(),
-                containsString("creatorTask=unknown")
-            );
 
             e = e.getCause();
             assertEquals(MockSearchService.class.getName(), e.getStackTrace()[0].getClassName());
@@ -82,7 +74,7 @@ public class MockSearchServiceTests extends ESTestCase {
      * A real ReaderContext needs a started IndexShard and an open searcher, which is far more setup than a test
      * covering how a leak is reported needs, so only the fields that reach the message are stubbed.
      */
-    private static ReaderContext stubbedReaderContext(long creatorTaskId) {
+    private static ReaderContext stubbedReaderContext() {
         final ShardId shardId = new ShardId("test-index", "_na_", 0);
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
@@ -90,7 +82,6 @@ public class MockSearchServiceTests extends ESTestCase {
         final ReaderContext reader = mock(ReaderContext.class);
         when(reader.indexShard()).thenReturn(indexShard);
         when(reader.id()).thenReturn(new ShardSearchContextId("test-session", 42L));
-        when(reader.creatorTaskId()).thenReturn(creatorTaskId);
         when(reader.singleSession()).thenReturn(false);
         when(reader.keepAlive()).thenReturn(TimeValue.timeValueMinutes(5).millis());
         return reader;

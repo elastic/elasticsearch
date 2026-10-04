@@ -43,10 +43,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS;
+import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.MIN_PAGES_PER_LIMIT_DRIVER;
 import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.canObserveExternalLimit;
 import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.capInstanceCountByCoveringSplits;
 import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.coveringSplitCount;
 import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.externalSourceBufferSize;
+import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.limitDriverCount;
 import static org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.observeExternalLimit;
 
 /**
@@ -81,6 +83,34 @@ public class LocalExecutionPlannerLimitBudgetTests extends ESTestCase {
         Map<String, Object> skipRow = Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "skip_row");
         assertEquals(5, capInstanceCountByCoveringSplits(5, 10_000, splits, skipRow));
         assertEquals(2, capInstanceCountByCoveringSplits(5, 10_000, splits, Map.of()));
+    }
+
+    public void testLimitDriverCountFivePagesPerDriver() {
+        int page = DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS;
+        assertEquals(5, MIN_PAGES_PER_LIMIT_DRIVER);
+        assertEquals(2, limitDriverCount(10_000, page, 16, 19));
+        assertEquals(16, limitDriverCount(100_000, page, 16, 19));
+        assertEquals(1, limitDriverCount(1_000, page, 16, 19));
+        assertEquals(1, limitDriverCount(3_000, page, 16, 19));
+        assertEquals(1, limitDriverCount(10_000, page, 16, 1));
+        assertEquals(4, limitDriverCount(10_000, 500, 16, 19));
+        assertEquals(16, limitDriverCount(FormatReader.NO_LIMIT, page, 16, 19));
+        // Plan uses ceil, so leftover pages still start one more driver (not floor).
+        assertEquals(2, limitDriverCount(6_000, page, 16, 19));
+        assertEquals(3, limitDriverCount(11_000, page, 16, 19));
+    }
+
+    public void testLimitDriverCountThenCoveringSplitCap() {
+        int page = DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS;
+        int drivers = limitDriverCount(10_000, page, 16, 19);
+        assertEquals(2, drivers);
+        List<ExternalSplit> hugePrefix = new ArrayList<>();
+        hugePrefix.add(splitWithRowCount("big", 1_000_000));
+        for (int i = 1; i < 16; i++) {
+            hugePrefix.add(splitWithRowCount("f" + i, 5_000));
+        }
+        assertEquals(1, capInstanceCountByCoveringSplits(drivers, 10_000, hugePrefix, Map.of()));
+        assertEquals(2, capInstanceCountByCoveringSplits(drivers, 10_000, splitsWithRowCounts(5_000, 5_000, 5_000, 5_000), Map.of()));
     }
 
     public void testExternalSourceBufferSizeAfterFinalInstanceCount() {

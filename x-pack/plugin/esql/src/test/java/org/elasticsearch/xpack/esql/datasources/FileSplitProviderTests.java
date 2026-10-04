@@ -4291,9 +4291,9 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testSerialStridedProbesDrainBoundedProbeWindows() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
-        // A stride at the drain threshold caps every window there too, so no probe has more than
-        // MAX_DRAIN_BYTES left to transfer and all of them drain.
-        long stride = RecordBoundaryProbe.MAX_DRAIN_BYTES;
+        // A stride at the S3 close-drain threshold caps every window there too, so leftover after
+        // the first row is still drained by close() (not abort-on-close) and all probes pool.
+        long stride = DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES;
         byte[] payload = stridesOfRows(stride, 32);
         long fileLength = payload.length;
 

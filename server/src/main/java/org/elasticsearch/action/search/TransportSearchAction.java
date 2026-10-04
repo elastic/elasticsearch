@@ -1080,10 +1080,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchCoordinatorContext,
                 circuitBreaker
             );
+            // The shared source is widened for outgoing subsearches, so snapshot mergers must reuse the requested page.
+            final int originalFrom = searchResponseMerger.from;
+            final int originalSize = searchResponseMerger.size;
+            final int originalTrackTotalHitsUpTo = searchResponseMerger.trackTotalHitsUpTo;
             // Partial results merge responses that searchResponseMerger already holds and charges, so their merger gets no breaker.
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(
-                    searchRequest.source(),
+                () -> new SearchResponseMerger(
+                    originalFrom,
+                    originalSize,
+                    originalTrackTotalHitsUpTo,
                     timeProvider,
                     aggReduceContextBuilder,
                     searchCoordinatorContext,

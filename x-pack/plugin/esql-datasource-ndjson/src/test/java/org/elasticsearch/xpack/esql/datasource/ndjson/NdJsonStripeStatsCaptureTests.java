@@ -463,7 +463,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of());
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
@@ -552,7 +552,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", "", Map.of());
             List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
             service.getOrComputeSchema(
                 key,

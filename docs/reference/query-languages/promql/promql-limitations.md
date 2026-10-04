@@ -60,15 +60,15 @@ For now, a series stops appearing in results only once all its samples fall outs
 {{es}} provides basic support for Prometheus native histograms (the `exponential_histogram` type in {{es}}).
 The following query patterns work today:
 
-- `histogram_quantile` on native histograms, including after aggregation: `histogram_quantile(0.9, sum by (job) (increase(metric[10m])))`
+- `histogram_quantile` on native histograms, including after aggregation: `histogram_quantile(0.9, sum by (job) (increase(metric)))`
 - `histogram_count`, `histogram_sum`, `histogram_avg`, and `histogram_fraction` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` on native histograms
 - `increase` on native histograms
 - `sum` aggregation on native histograms to aggregate across series
 
 In particular, the following features are not available yet for native histograms:
 
-- `rate`: If possible, use `increase` instead. The `rate` function produces fractional bucket counts that native histograms do not support yet. Most queries that use `rate` can be rewritten with `increase` (for example, `histogram_quantile(0.99, sum by (job) (increase(metric[5m])))` instead of using `rate`).
-- Native histograms as direct result types: Queries that return a raw native histogram (such as a bare selector `my_histogram` or `increase(my_histogram[5m])` without wrapping in a histogram function) are not supported. Wrap selectors in `histogram_quantile`, `histogram_count`, `histogram_sum`, `histogram_avg`, or `histogram_fraction` to obtain scalar results.
+- `rate`: If possible, use `increase` instead. The `rate` function produces fractional bucket counts that native histograms do not support yet. Most queries that use `rate` can be rewritten with `increase` (for example, `histogram_quantile(0.99, sum by (job) (increase(metric)))` instead of using `rate`).
+- Native histograms as direct result types: Queries that return a raw native histogram (such as a bare selector `my_histogram` or `increase(my_histogram)` without wrapping in a histogram function) are not supported. Wrap selectors in `histogram_quantile`, `histogram_count`, `histogram_sum`, `histogram_avg`, or `histogram_fraction` to obtain scalar results.
 - `irate` and `delta`
 - Arithmetic operators on native histograms: `+`, `-`, `*`, `/`
 - `histogram_stddev`

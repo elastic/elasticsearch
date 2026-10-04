@@ -2224,6 +2224,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             operator = factory.get(driverContext);
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             int pages = 0;
+            long rows = 0;
             while (tracking.aborted.get() == false || limiter.availablePermits() != startPermits || budget.inFlight() != 0) {
                 if (System.nanoTime() > deadline) {
                     fail(
@@ -2242,16 +2243,33 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 Page page = operator.getOutput();
                 if (page != null) {
                     pages++;
+                    rows += page.getPositionCount();
                     page.releaseBlocks();
                     if (rowLimit == false && pages >= 1) {
                         operator.finish();
                     }
                 }
             }
-            assertThat(pages, Matchers.greaterThan(0));
             assertEquals("abort-on-close must not wait on the drain latch", 1, drainLatch.getCount());
             assertEquals(startPermits, limiter.availablePermits());
             assertEquals(0, budget.inFlight());
+            // Under LIMIT the producer buffers its first page and aborts the GET in the same task, so the loop
+            // above can exit before this thread polls that page. Drain the rest before counting what was delivered.
+            while (operator.isFinished() == false) {
+                if (System.nanoTime() > deadline) {
+                    fail("operator did not finish after abort; rowLimit=" + rowLimit + " pages=" + pages);
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages++;
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+            }
+            assertThat(pages, Matchers.greaterThan(0));
+            if (rowLimit) {
+                assertThat(rows, Matchers.greaterThanOrEqualTo(5L));
+            }
         } finally {
             drainLatch.countDown();
             if (operator != null) {

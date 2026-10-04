@@ -40,9 +40,12 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -86,6 +89,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -116,6 +126,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -2315,13 +2326,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A {@code _file.*} filter prunes no folder, so it is not a partition-pruning hint - but it decides which entry
-     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. So a
-     * schema answered from one file must be answered from a listing the filter never touched, or the dataset's
-     * columns become a function of the query that asked for them. The bound stands; the filters are withheld.
+     * A {@code _file.*} filter decides which files the query reads, so it also decides which file
+     * {@code first_file_wins} pins the schema to — the first of the files that remain.
      */
-
-    public void testAFileMetadataHintDoesNotDecideWhichFileDefinesTheSchema() throws Exception {
+    public void testAFileMetadataHintNarrowsTheFfwListingAndItsSchemaAnchor() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/a.parquet", 100),
             entry("s3://bucket/data/b.parquet", 200),
@@ -2336,9 +2344,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PartitionFilterHintExtractor.Operator.EQUALS,
             List.of("c.parquet")
         );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
         // Large enough to hold all three files. At one key the listing stops before c.parquet exists to be
         // chosen, so the anchor is a.parquet whether the hint was withheld or not and the test proves nothing.
-        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
         config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 3);
 
         ExternalSourceResolver resolver = createResolver(schemas, Map.of("s3://bucket/data/", listing));
@@ -2347,19 +2355,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolved = future.actionGet();
 
         ExternalSourceResolution.ResolvedSource source = resolved.resolvedSource(GLOB);
+        assertEquals(1, source.fileList().fileCount());
+        assertEquals("s3://bucket/data/c.parquet", source.fileList().path(0).toString());
         assertEquals(
-            "the schema comes from the dataset's first file, whatever the query filters on",
-            List.of("from_a"),
+            "FFW schema follows the files the query reads",
+            List.of("from_c"),
             source.metadata().schema().stream().map(Attribute::name).toList()
         );
     }
 
     /**
-     * A partition-pruning hint would narrow the listing to the folders it admits, while an unhinted listing keeps
-     * the first keys of the whole dataset. Under FIRST_FILE_WINS that is a different first file and so a different
-     * schema, which is why the filters are withheld from this listing rather than the bound being declined.
+     * A partition hint narrows the listing even under {@code first_file_wins}: the files the query
+     * reads are the ones discovery must charge, and the schema pin is the first of those files.
      */
-    public void testAPartitionHintDoesNotPruneTheSchemasListing() throws Exception {
+    public void testAPartitionHintNarrowsTheFfwListingAndItsSchemaAnchor() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/year=2024/a.parquet", 100),
             entry("s3://bucket/data/year=2025/b.parquet", 200)
@@ -2376,20 +2385,152 @@ public class ExternalSourceResolverTests extends ESTestCase {
         config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1);
 
         String glob = PREFIX + "year=*/*.parquet";
-        ExternalSourceResolver resolver = createResolver(schemas, Map.of(PREFIX, listing));
+        ExternalSourceResolver resolver = createResolver(
+            schemas,
+            Map.of(PREFIX, listing, "s3://bucket/data/year=2025/", List.of(entry("s3://bucket/data/year=2025/b.parquet", 200)))
+        );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, config), Map.of(glob, List.of(hint)), null, Set.of(), Set.of(glob), future);
 
         ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
-        // partition_sample_size is 1 here, and the schema's listing is bounded by the dataset's mode whatever the
-        // query asked for - so one key, and it is the dataset's first, not the hinted subtree's.
-        assertEquals("the schema's listing is bounded by the mode", 1, source.fileList().fileCount());
-        assertTrue(source.fileList().isTruncated());
-        assertEquals(
-            "and it is the front of the dataset, not the folder the hint selects",
-            "s3://bucket/data/year=2024/a.parquet",
-            source.fileList().path(0).toString()
+        assertEquals(1, source.fileList().fileCount());
+        assertEquals("s3://bucket/data/year=2025/b.parquet", source.fileList().path(0).toString());
+        assertThat(source.metadata().schema().stream().map(Attribute::name).toList(), hasItem("from_2025"));
+        assertThat(source.metadata().schema().stream().map(Attribute::name).toList(), not(hasItem("from_2024")));
+    }
+
+    /**
+     * #160485 withheld hints from the declared-mapping rail. A partition hint must still
+     * narrow that listing: schema comes from the mapping, but the files charged and the
+     * coercibility file are the query's.
+     */
+    public void testAPartitionHintNarrowsTheDeclaredMappingListing() throws Exception {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2025/b.parquet", 200)
         );
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2025)
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 2);
+
+        String glob = PREFIX + "year=*/*.parquet";
+        ExternalSourceResolver resolver = createResolver(
+            schemas,
+            Map.of(PREFIX, listing, "s3://bucket/data/year=2025/", List.of(entry("s3://bucket/data/year=2025/b.parquet", 200)))
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(glob),
+            Map.of(glob, config),
+            Map.of(glob, List.of(hint)),
+            Map.of(glob, mapping),
+            Set.of(),
+            Set.of(),
+            future
+        );
+
+        ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
+        assertEquals("declared mapping must still list only the matching folder", 1, source.fileList().fileCount());
+        assertEquals("s3://bucket/data/year=2025/b.parquet", source.fileList().path(0).toString());
+    }
+
+    /**
+     * Production VPC: default {@code first_file_wins} plus dashboard {@code DATE_EXTRACT} filters on
+     * hive {@code year}/{@code month}/{@code day}. GlobExpander already keeps 24 hourly files; the
+     * resolver must hand those hints to listing or the charge stays on the whole year.
+     */
+    public void testVpcHourlyHiveFoldedHintsListTwentyFourFilesOnDefaultFfw() throws Exception {
+        String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
+        List<StorageEntry> files = GlobExpanderTests.hourlyHiveYear(2026, "f.parquet");
+        assertEquals(365 * 24, files.size());
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>(files.size());
+        for (StorageEntry file : files) {
+            schemas.put(file.path().toString(), schema);
+        }
+
+        LogicalPlan plan = vpcDashboardFilterPlan(glob);
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(plan, TEST_CFG, new EsqlFunctionRegistry())
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = hints.get(glob);
+        assertNotNull("folded DATE_EXTRACT filters must become listing hints", pathHints);
+        assertEquals(3, pathHints.size());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertEquals(List.of(7L), pathHints.get(1).values());
+        assertEquals(List.of(13L), pathHints.get(2).values());
+
+        CircuitBreaker wide = requestBreaker("1gb");
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolver resolver = planningResolver(schemas, Map.of("s3://bucket/data/", files), wide, metadataReads);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
+
+        // null pathsRequiringStats is legacy eager-all (unbounded). The soak billed the year on that rail.
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, null, future);
+        FileList listing = future.actionGet().resolvedSource(glob).fileList();
+        assertEquals("default FFW must list the hinted day, not the year", 24, listing.fileCount());
+        for (int i = 0; i < listing.fileCount(); i++) {
+            assertTrue(listing.path(i).toString().startsWith("s3://bucket/data/year=2026/month=07/day=13/"));
+        }
+
+        // planningBytes of the 24-file listing, vs the year listing's per-entry credit. Avoids
+        // SCHEMA_MAP_BYTES_PER_FILE (private) and the stub's ~6.1 MB walk leftover on queryHeld.
+        assertThat(listing.planningBytes(), lessThan(2_000_000L));
+        assertThat(listing.planningBytes() * 50, lessThan(365L * 24 * FileList.LISTING_BYTES_PER_ENTRY));
+        assertThat(reservation.queryHeld(), greaterThan(0L));
+        assertThat(metadataReads.get(), greaterThan(0));
+
+        // Production EsqlSession always passes a non-null set. LIMIT panels are bounded
+        // (sampleSize=1000); 24 still fits. Lock that rail separately so a cache hit on the
+        // eager listing cannot stand in for it.
+        ExternalSourceResolver bounded = createResolver(schemas, Map.of("s3://bucket/data/", files));
+        PlainActionFuture<ExternalSourceResolution> boundedFuture = new PlainActionFuture<>();
+        bounded.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, Set.of(), boundedFuture);
+        assertEquals(
+            "bounded FFW (no eager stats) must still list the hinted day",
+            24,
+            boundedFuture.actionGet().resolvedSource(glob).fileList().fileCount()
+        );
+    }
+
+    private static LogicalPlan vpcDashboardFilterPlan(String path) {
+        Source src = Source.EMPTY;
+        Literal ts = new Literal(src, Instant.parse("2026-07-13T00:00:00Z").toEpochMilli(), DataType.DATETIME);
+        Expression condition = new And(
+            src,
+            new And(
+                src,
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "year"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "YEAR"), ts))
+                ),
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "month"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "MONTH_OF_YEAR"), ts))
+                )
+            ),
+            new Equals(
+                src,
+                new UnresolvedAttribute(src, "day"),
+                new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "DAY_OF_MONTH"), ts))
+            )
+        );
+        return new Filter(src, new UnresolvedExternalRelation(src, Literal.keyword(src, path), Map.of()), condition);
     }
 
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
@@ -2503,14 +2644,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an implicit-nulls (footer) format must not carry a row-count-only dataset aggregate",
-            resolver.datasetAggregateKey(parquetListing, Map.of())
+            resolver.datasetAggregateKey(parquetListing, "", Map.of())
         );
 
         FileList textListing = GlobExpander.fileListOf(
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, Map.of());
+        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, "", Map.of());
         assertNotNull("a text-format listing must qualify (positive control)", textKey);
         assertEquals(
             "formatType is the registry name, not a last-dot suffix",
@@ -2533,7 +2674,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an unregistered extension must refuse the aggregate, not throw",
-            resolver.datasetAggregateKey(unknownListing, Map.of())
+            resolver.datasetAggregateKey(unknownListing, "", Map.of())
         );
     }
 
@@ -2550,7 +2691,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
-            resolver.datasetAggregateKey(ndjsonNamed, Map.of("format", "parquet"))
+            resolver.datasetAggregateKey(ndjsonNamed, "", Map.of("format", "parquet"))
         );
     }
 
@@ -2568,8 +2709,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("s3://bucket/data/a.csv", csvThenGz.path(0).toString());
         assertEquals("s3://bucket/data/b.csv.gz", gzThenCsv.path(0).toString());
         assertEquals(csvThenGz.fileSetFingerprint(), gzThenCsv.fileSetFingerprint());
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, Map.of());
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, Map.of());
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, "", Map.of());
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", Map.of());
         assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
         assertEquals(keyA, keyB);
         assertEquals("csv" + SchemaCacheKey.DATASET_AGGREGATE_MARKER, keyA.formatType());
@@ -2591,10 +2732,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("parquet", resolver.detectFormatType(parquetThenParq.path(0), Map.of()));
         assertEquals("parquet", resolver.detectFormatType(parqThenParquet.path(0), Map.of()));
         assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
-        assertEquals(resolver.datasetAggregateKey(parquetThenParq, Map.of()), resolver.datasetAggregateKey(parqThenParquet, Map.of()));
+        assertEquals(
+            resolver.datasetAggregateKey(parquetThenParq, "", Map.of()),
+            resolver.datasetAggregateKey(parqThenParquet, "", Map.of())
+        );
         assertNull(
             "parquet (including .parq) still refuses the row-count-only aggregate",
-            resolver.datasetAggregateKey(parquetThenParq, Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, "", Map.of())
         );
     }
 
@@ -2615,12 +2759,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "s3://b/file.parq",
             1L,
             resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()),
+            "",
             Map.of()
         );
         SchemaCacheKey parquetKey = SchemaCacheKey.build(
             "s3://b/file.parquet",
             1L,
             resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()),
+            "",
             Map.of()
         );
         assertNotEquals(parqKey, parquetKey);
@@ -2642,7 +2788,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String path = "s3://bucket/data/a.ndjson";
             FileList duplicated = GlobExpander.fileListOf(List.of(entry(path, 100), entry(path, 100)), path + "," + path);
-            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, Map.of());
+            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", Map.of());
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
                 null,
@@ -2659,7 +2805,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, "", Map.of());
             resolver.applyDatasetAggregate(
                 null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
@@ -2688,7 +2834,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
@@ -2736,7 +2882,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(
@@ -2807,9 +2953,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 // the dataset reader. Lookup keys must use that same map.
                 Map<String, Object> effectiveConfig = new HashMap<>(config);
                 effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
-                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), effectiveConfig);
+                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
-                String fingerprint = SchemaCacheKey.buildFormatConfig(effectiveConfig);
+                // Derived the one way production derives it, by asking the reader. Computing it a second way here
+                // would let the two drift and the test would pass while the warm path was dead.
+                String fingerprint = resolver.formatConfigIdentity(
+                    GlobExpander.fileListOf(listing, glob).path(0).objectName(),
+                    effectiveConfig
+                );
 
                 // Counts harvested under a different resolved read configuration measured a different set of rows;
                 // summing them for this dataset would be a wrong COUNT(*). Mtime and config fingerprint both match
@@ -4912,7 +5063,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             schemas.put(path, schema);
         }
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", config);
+            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", "", config);
             SchemaCacheEntry sentinel = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://other/keep.parquet"));
             cacheService.putSchema(sentinelKey, sentinel);
             ExternalSourceResolver resolver = createResolver(
@@ -4933,7 +5084,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             for (int i = 0; i < files; i++) {
                 String path = String.format(Locale.ROOT, "s3://bucket/data/part-%02d.parquet", i);
-                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", config);
+                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
                 assertNull("oversized fan-out must not retain " + path, cacheService.getSchemaIfPresent(key));
             }
             assertEquals(1, cacheService.usageStats().get("schema_cache.count"));
@@ -5006,7 +5157,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Loops {@link #MULTI_FILE_STRATEGIES}: file-count is the assertion the IT cannot make, and default
      * UNION_BY_NAME is the product rail.
      */
-    public void testAHintNarrowsTheSchemasListingOnlyWhereTheSchemaFoldsOverIt() throws Exception {
+    public void testAHintNarrowsTheListingWithoutPoisoningTheUnfilteredCache() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
         Map<String, List<Attribute>> schemas = new HashMap<>();
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -5029,22 +5180,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-                // Whether a hint may narrow the schema's listing turns on where the schema comes from. Under
-                // FIRST_FILE_WINS one file defines it, so a hint that chose that file would make the dataset's
-                // columns a function of the query: the listing stays whole and split discovery finds what the
-                // query reads. Under UNION_BY_NAME the schema is a fold over the files listed, which are the files
-                // this query reads, so narrowing it changes no answer and saves a footer read per excluded file.
-                int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 3 : 1;
+                // Hints narrow the listing in every inferred mode: the files the query reads are what
+                // discovery charges. Cache keys still include the hints, so the unfiltered follow-up
+                // is not served the filtered subset.
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
                 assertEquals(
-                    "[" + strategy + "] the schema's listing is narrowed only where the schema folds over it",
-                    expected,
+                    "[" + strategy + "] a file-name hint keeps only the matching file",
+                    1,
                     filtered.resolvedSource(glob).fileList().fileCount()
                 );
 
                 ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
                 assertEquals(
-                    "[" + strategy + "] and the unfiltered query sees the same",
+                    "[" + strategy + "] the unfiltered query must see every file, not the filtered query's cached subset",
                     3,
                     unfiltered.resolvedSource(glob).fileList().fileCount()
                 );
@@ -5057,7 +5205,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * folder, so the cached listing enumerates only that folder. An unfiltered follow-up must not be served that
      * narrowed listing.
      */
-    public void testAPartitionHintPrunesTheSchemasListingOnlyWhereTheSchemaFoldsOverIt() throws Exception {
+    public void testAPartitionHintPrunesTheListingWithoutPoisoningTheUnfilteredCache() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -5080,14 +5228,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-                // Same rule as the file-metadata hint above: a partition hint prunes the schema's listing only
-                // where the schema is a fold over what it lists. Under FIRST_FILE_WINS it must not, or the folder
-                // the query filtered to would decide the dataset's columns.
-                int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 2 : 1;
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
                 assertEquals(
-                    "[" + strategy + "] the schema's listing is pruned only where the schema folds over it",
-                    expected,
+                    "[" + strategy + "] a partition hint keeps only the matching folder",
+                    1,
                     filtered.resolvedSource(glob).fileList().fileCount()
                 );
 
@@ -5105,7 +5249,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
      * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
      * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
-     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate.
+     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate. Inferred
+     * {@code first_file_wins} now passes the same hints, so it must take the same fallback.
      */
     public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
@@ -5126,13 +5271,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
-            ExternalSourceResolution resolution = resolveWith(
-                resolver,
-                glob,
-                Map.of(glob, List.of(hint)),
-                FormatReader.SchemaResolution.UNION_BY_NAME
-            );
-            assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+                ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
+                assertEquals(
+                    "[" + strategy + "] a rewrite to a missing folder must fall back to the full listing",
+                    1,
+                    resolution.resolvedSource(glob).fileList().fileCount()
+                );
+            }
         }
     }
 
@@ -6293,7 +6439,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         Map<String, List<StorageEntry>> listings = Map.of("s3://bucket/data/", List.of(entry(file1, 100), entry(file2, 200)));
         Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
-        long oneList = SchemaInterner.privateListBytes(1);
+        long oneList = SchemaInterner.privateListBytes(List.of(attr("id", DataType.INTEGER)));
         long bothLists = oneList * 2;
 
         CircuitBreaker wide = requestBreaker("1gb");
@@ -6509,6 +6655,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /** esql-planning#2143: the retained per-file schema is charged by its column names, not only by its column count. */
+    public void testGatheredFileBytesChargesColumnNames() {
+        String location = "s3://bucket/data/f0.ndjson";
+        SourceMetadata shortNamed = new SimpleSourceMetadata(
+            List.of(attr("a", DataType.INTEGER)),
+            "ndjson",
+            location,
+            null,
+            null,
+            null,
+            null
+        );
+        String longName = "a.".repeat(1_000);
+        SourceMetadata longNamed = new SimpleSourceMetadata(
+            List.of(attr(longName, DataType.INTEGER)),
+            "ndjson",
+            location,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertEquals(
+            2L * (longName.length() - 1),
+            ExternalSourceResolver.gatheredFileBytes(longNamed, true) - ExternalSourceResolver.gatheredFileBytes(shortNamed, true)
+        );
+        // The reconcile path charges the schema on its own run, so the results run must not charge it twice.
+        assertEquals(
+            ExternalSourceResolver.gatheredFileBytes(shortNamed, false),
+            ExternalSourceResolver.gatheredFileBytes(longNamed, false)
+        );
+    }
+
     /**
      * The FIRST_FILE_WINS stats gather keeps every file's own schema list in the results array until it completes,
      * with no interner and no private-list run. Each file's column statistics are folded away and only a slim record
@@ -6538,7 +6718,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertEquals(3, held.size());
         // Every fixture path has the same length, so the shell and location weigh the same for each file.
-        long perFileFloor = 64L + HeapEstimates.stringBytes(fixture.paths().get(0)) + SchemaInterner.privateListBytes(columns);
+        long perFileFloor = 64L + HeapEstimates.stringBytes(fixture.paths().get(0)) + SchemaInterner.privateListBytes(
+            fixture.schemas().get(fixture.paths().get(0))
+        );
         long previous = 0L;
         for (long total : held) {
             assertThat(total - previous, greaterThanOrEqualTo(perFileFloor));
@@ -6944,7 +7126,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 if (config == null || config.isEmpty()) {
                     return Configured.empty(provider);
                 }
-                return new Configured<>(provider, Set.copyOf(config.keySet()));
+                // A storage provider identifies itself by the settings that name the store it reads, never by
+                // the coordinator's. Claiming every key here put schema_resolution and file_sort_by into the
+                // storage identity and fragmented the listing cache, which no real configuration can do.
+                return new Configured<>(
+                    provider,
+                    Set.copyOf(config.keySet()),
+                    Configured.identityOf(config, Set.of("endpoint", "region")),
+                    ""
+                );
             }
         };
     }
@@ -8641,21 +8831,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The resolver-level test ({@link #testDatasetAggregateKeyIsolatedByEndpointInDatasource}) pins the
      * end-to-end contract through {@link ExternalSourceResolver#datasetAggregateKey}.
      */
-    public void testListingCacheKeyDifferentiatesByDatasetCredentials() {
+    /**
+     * A listing is isolated by credential, and the value that isolates it comes from the provider rather than from
+     * this key reading the config. Both halves are asserted, because the second is the behavioural change: a key
+     * that scans a config for credential names is guessing which names those are, and the list it guessed with
+     * carried {@code access_key} but not {@code session_token}.
+     */
+    public void testListingCacheKeyDifferentiatesByTheCredentialIdentityTheProviderReports() {
         Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
         Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // Builder walks _datasource directly → credential difference visible even from raw config.
-        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", configA, "");
-        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", configB, "");
-        assertNotEquals("key builder walks _datasource directly → distinct credential hashes from raw config", rawA, rawB);
+        String secretsA = Configured.secretIdentityOf(ExternalSourceResolver.storageConfig(configA), Set.of("access_key"));
+        String secretsB = Configured.secretIdentityOf(ExternalSourceResolver.storageConfig(configB), Set.of("access_key"));
+        assertNotEquals("two credentials must not derive one secret identity", secretsA, secretsB);
+        assertNotEquals(
+            "distinct credential identities must address distinct listings",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", secretsA, configA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", secretsB, configB, "")
+        );
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configA), "");
-        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configB), "");
-        assertNotEquals("flattened config also exposes credentials → listing keys must differ", flatA, flatB);
+        assertEquals(
+            "this key must not derive a credential identity from the config itself: only the provider knows which "
+                + "of its fields are secret, and a list written here omitted session_token, role_arn and auth",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", configA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", configB, "")
+        );
     }
 
     public void testListingCacheKeyDifferentiatesByDatasetEndpoint() {
@@ -8664,15 +8866,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", configA, "");
-        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", configB, "");
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+        // Two things separate these listings now, and neither is this key reading the config for an endpoint.
+        // The provider reports what identifies the store it lists, and the definition version covers every stored
+        // setting including the endpoint — so they stay separated even when the provider reports nothing.
+        ListingCacheKey byProvider = ListingCacheKey.build(
+            "s3",
+            "bucket",
+            "prefix/",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            "",
+            configA,
+            ""
+        );
+        ListingCacheKey byOtherProvider = ListingCacheKey.build(
+            "s3",
+            "bucket",
+            "prefix/",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            "",
+            configB,
+            ""
+        );
+        assertNotEquals("distinct storage identities must address distinct listings", byProvider, byOtherProvider);
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configA), "");
-        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configB), "");
-        assertNotEquals("flattened config also exposes endpoint → listing keys must differ", flatA, flatB);
+        Map<String, Object> versionedA = new HashMap<>(configA);
+        versionedA.put(DefinitionVersion.CONFIG_KEY, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        Map<String, Object> versionedB = new HashMap<>(configB);
+        versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        assertNotEquals(
+            "two definitions differing in their endpoint must address distinct listings even with no provider report",
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", versionedA, ""),
+            ListingCacheKey.build("s3", "bucket", "prefix/", "", "", versionedB, "")
+        );
     }
 
     public void testSchemaCacheKeyDifferentiatesByDatasetEndpoint() {
@@ -8682,15 +8907,26 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
         long mtime = 1000L;
 
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configA);
-        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configB);
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+        // The endpoint reaches this key by two routes, and neither is the key reading the config for it: the
+        // provider reports what identifies the object, and the definition version covers every stored setting.
+        String identityA = Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint"));
+        String identityB = Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint"));
+        assertNotEquals("two endpoints must not report one identity", identityA, identityB);
+        assertNotEquals(
+            "distinct storage identities must address distinct schema entries",
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityA, configA),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityB, configB)
+        );
 
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        SchemaCacheKey flatA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configA));
-        SchemaCacheKey flatB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configB));
-        assertNotEquals("flattened config also exposes endpoint → schema keys must differ", flatA, flatB);
+        Map<String, Object> versionedA = new HashMap<>(configA);
+        versionedA.put(DefinitionVersion.CONFIG_KEY, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        Map<String, Object> versionedB = new HashMap<>(configB);
+        versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        assertNotEquals(
+            "two definitions differing in their endpoint must separate even with no provider report",
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedA),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedB)
+        );
     }
 
     public void testSchemaCacheKeyIgnoresDatasetCredentials() {
@@ -8703,31 +8939,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long mtime = 1000L;
 
         // Raw config: credentials in _datasource are still ignored (schema is user-independent).
-        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configA);
-        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configB);
+        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configA);
+        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configB);
         assertEquals("schema keys differing only in _datasource credentials must be equal — cache is shared across users", rawA, rawB);
 
         // Same invariant holds after storageConfig flattening.
-        SchemaCacheKey flatA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configA));
-        SchemaCacheKey flatB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configB));
+        SchemaCacheKey flatA = SchemaCacheKey.build(
+            "s3://bucket/file.csv",
+            mtime,
+            "csv",
+            "",
+            ExternalSourceResolver.storageConfig(configA)
+        );
+        SchemaCacheKey flatB = SchemaCacheKey.build(
+            "s3://bucket/file.csv",
+            mtime,
+            "csv",
+            "",
+            ExternalSourceResolver.storageConfig(configB)
+        );
         assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
     }
 
-    public void testFileMetadataCacheKeyDifferentiatesByDatasetEndpoint() {
-        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
-        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
-        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
-        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
-
-        // Builder walks _datasource directly → endpoint difference visible even from raw config.
-        FileMetadataCacheKey rawA = FileMetadataCacheKey.build("s3://bucket/file.csv", configA);
-        FileMetadataCacheKey rawB = FileMetadataCacheKey.build("s3://bucket/file.csv", configB);
-        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
-
-        // storageConfig (belt-and-suspenders) also exposes the difference.
-        FileMetadataCacheKey flatA = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configA));
-        FileMetadataCacheKey flatB = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configB));
-        assertNotEquals("flattened config also exposes endpoint → file-metadata keys must differ", flatA, flatB);
+    public void testFileMetadataCacheKeyDifferentiatesByStorageIdentity() {
+        // The endpoint reaches this key one way, and it is not the key reading the config for it: the provider
+        // reports what identifies the objects it reads, and an endpoint is one of the settings it names.
+        FileMetadataCacheKey rawA = new FileMetadataCacheKey(
+            "s3://bucket/file.csv",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint"))
+        );
+        FileMetadataCacheKey rawB = new FileMetadataCacheKey(
+            "s3://bucket/file.csv",
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint"))
+        );
+        assertNotEquals("distinct storage identities must address distinct file-metadata entries", rawA, rawB);
     }
 
     /**
@@ -8749,8 +8994,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(listing, configA);
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(listing, configB);
+        // The resolver folds the provider's report into the aggregate key, so give the two resolves the identities
+        // two providers over different endpoints would report.
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(
+            listing,
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            configA
+        );
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(
+            listing,
+            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            configB
+        );
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyA);
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyB);
         assertNotEquals("datasetAggregateKey must produce different keys for different _datasource.endpoint values", keyA, keyB);

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -2213,6 +2214,130 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             p.releaseBlocks();
         }
         operator.close();
+    }
+
+    public void testRowLimitCompletionDoesNotWaitOnDrainLatch() throws Exception {
+        assertCompletionDoesNotWaitOnDrainLatch(true);
+    }
+
+    public void testExternalFinishCompletionDoesNotWaitOnDrainLatch() throws Exception {
+        assertCompletionDoesNotWaitOnDrainLatch(false);
+    }
+
+    /**
+     * {@code drainCurrentUnit} DONE closes the page iterator then fires the completion listener.
+     * Uncompressed CSV/NDJSON LIMIT (and external {@code finish()}) must abort leftover GETs so
+     * that close does not block on a drain latch. The slice-queue producer is the path that
+     * {@code drainCurrentUnit} actually runs; the whole-file {@code drainPagesAsync} rail reads
+     * until the buffer fills (or EOF) and would consume a small object before {@code finish()}.
+     */
+    private void assertCompletionDoesNotWaitOnDrainLatch(boolean rowLimit) throws Exception {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        // Wide rows so decoded pages exceed the 256 KiB buffer (maxBufferSize=1) before EOF.
+        // External finish() must run while the GET is still open; a short file is fully consumed
+        // on the producer thread before the test thread can call finish().
+        String pad = "n".repeat(256);
+        for (int i = 0; i < 8_000; i++) {
+            csv.append(i).append(',').append(pad).append('\n');
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        CountDownLatch drainLatch = new CountDownLatch(1);
+        tracking.drainLatch = drainLatch;
+
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(4, false));
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
+        int startPermits = limiter.availablePermits();
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        StorageProvider storageProvider = new QueryBudgetedStorageProvider(
+            new ConcurrencyLimitedStorageProvider(new DrainFixtureStorageProvider(payload, tracking, path), limiter),
+            budget
+        );
+        FileSplit split = new FileSplit("test", path, 0, payload.length, "csv", Map.of(), Map.of());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        ExecutorService exec = Executors.newSingleThreadExecutor();
+        SourceOperator operator = null;
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                new CsvFormatReader(TEST_BLOCK_FACTORY),
+                path,
+                attributes,
+                100,
+                1,
+                exec
+            ).sliceQueue(sliceQueue).parsingParallelism(1).rowLimit(rowLimit ? 5 : FormatReader.NO_LIMIT).build();
+            operator = factory.get(driverContext);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            int pages = 0;
+            long rows = 0;
+            while (tracking.aborted.get() == false || limiter.availablePermits() != startPermits || budget.inFlight() != 0) {
+                if (System.nanoTime() > deadline) {
+                    fail(
+                        "completion blocked on drain latch; rowLimit="
+                            + rowLimit
+                            + " consumed="
+                            + tracking.bytesConsumed.get()
+                            + "/"
+                            + payload.length
+                            + " closed="
+                            + tracking.closed.get()
+                            + " finished="
+                            + operator.isFinished()
+                    );
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages++;
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                    if (rowLimit == false && pages >= 1) {
+                        operator.finish();
+                    }
+                }
+            }
+            assertEquals("abort-on-close must not wait on the drain latch", 1, drainLatch.getCount());
+            assertEquals(startPermits, limiter.availablePermits());
+            assertEquals(0, budget.inFlight());
+            // Under LIMIT the producer buffers its first page and aborts the GET in the same task, so the loop
+            // above can exit before this thread polls that page. Drain the rest before counting what was delivered.
+            while (operator.isFinished() == false) {
+                if (System.nanoTime() > deadline) {
+                    fail("operator did not finish after abort; rowLimit=" + rowLimit + " pages=" + pages);
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages++;
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+            }
+            assertThat(pages, Matchers.greaterThan(0));
+            if (rowLimit) {
+                assertThat(rows, Matchers.greaterThanOrEqualTo(5L));
+            }
+        } finally {
+            drainLatch.countDown();
+            if (operator != null) {
+                operator.close();
+            }
+            exec.shutdownNow();
+            assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
     public void testParallelParsingSkippedForNonSegmentableReader() throws Exception {
@@ -5243,6 +5368,61 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public RecordSplitter recordSplitter(int maxRecordBytes) {
             return TestRecordSplitters.nonStridedSplitter(maxRecordBytes);
         }
+    }
+
+    /** Storage provider that serves one drain-simulating object for abort-on-close tests. */
+    private static class DrainFixtureStorageProvider implements StorageProvider {
+        private final byte[] payload;
+        private final DrainSimulatingStorageObject.Tracking tracking;
+        private final StoragePath objectPath;
+
+        DrainFixtureStorageProvider(byte[] payload, DrainSimulatingStorageObject.Tracking tracking, StoragePath objectPath) {
+            this.payload = payload;
+            this.tracking = tracking;
+            this.objectPath = objectPath;
+        }
+
+        private StorageObject object() {
+            return DrainSimulatingStorageObject.create(payload, tracking, objectPath);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return object();
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return object();
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return object();
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null;
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return true;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class LargeStorageProvider implements StorageProvider {

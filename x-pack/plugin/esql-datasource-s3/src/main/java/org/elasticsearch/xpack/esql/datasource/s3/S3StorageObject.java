@@ -578,6 +578,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             ResponseInputStream<GetObjectResponse> response = getObject(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
+            // contentLength of this response body (the range size), or -1 if unknown.
             long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
             TransientTypingInputStream typed = new TransientTypingInputStream(
                 response,

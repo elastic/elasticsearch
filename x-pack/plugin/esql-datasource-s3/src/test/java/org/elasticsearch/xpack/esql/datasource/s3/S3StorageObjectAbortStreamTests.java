@@ -128,6 +128,23 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         obj.abortStream(stream);
     }
 
+    public void testAbortStreamOnTransientTypingInputStreamCallsAbortNotClose() throws IOException {
+        AtomicBoolean abortCalled = new AtomicBoolean(false);
+        AtomicBoolean closeCalled = new AtomicBoolean(false);
+        AbortableInputStream inner = new AbortableInputStream(
+            new ByteArrayInputStream("partial".getBytes(StandardCharsets.UTF_8)),
+            abortCalled,
+            closeCalled
+        );
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, 1000);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        obj.abortStream(wrapped);
+
+        assertTrue("abortStream on the wrapped stream must call abort(), not Apache close()", abortCalled.get());
+        assertFalse("close() must not be called when abort() is available — close would drain", closeCalled.get());
+    }
+
     public void testCloseDrainCountsRemainderAtOrBelow64KiB() throws IOException {
         int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES;
         int read = 8;

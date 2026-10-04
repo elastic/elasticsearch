@@ -43,7 +43,8 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     /**
      * Leftover GET bytes at or below this still drain on {@code close()} so Apache can return the
      * connection to the pool. Larger leftover (or unknown length) aborts the connection instead.
-     * Keep in sync with {@code DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES} (64 KiB).
+     * Keep in sync with {@code DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES} (64 KiB) and
+     * Hadoop S3A readahead. Different package; do not import that package-private field.
      */
     static final int MAX_TRAILING_DRAIN_BYTES = 64 * 1024;
 
@@ -148,6 +149,9 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     @Override
     public void close() throws IOException {
         long leftover = expectedLength < 0 ? Long.MAX_VALUE : expectedLength - bytesRead;
+        // Unknown length always aborts, including leftover 0: without Content-Length we cannot
+        // treat EOF as a complete window. S3 almost always sends length; callers that need pool
+        // reuse on a fully-read window must pass expectedLength.
         if (expectedLength < 0 || leftover > MAX_TRAILING_DRAIN_BYTES) {
             abort();
             return;
@@ -168,6 +172,9 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
                 abortable.abort();
             } else {
                 try {
+                    // Production S3 inner is AWS Abortable (drop conn). A non-Abortable test
+                    // double falls through to close(), which may drain — keep S3 unit tests on
+                    // Abortable inners.
                     in.close();
                 } catch (IOException ignored) {
                     // abort is best-effort; a noisy close must not fail the caller

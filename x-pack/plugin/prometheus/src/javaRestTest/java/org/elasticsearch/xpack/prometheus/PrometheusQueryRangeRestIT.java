@@ -494,4 +494,9 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFusedOperandKeepsItsMatchers}. */
+    public void testRangeFusedOperandKeepsItsMatchers() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx) - sum by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 38.0));
+    }
 }

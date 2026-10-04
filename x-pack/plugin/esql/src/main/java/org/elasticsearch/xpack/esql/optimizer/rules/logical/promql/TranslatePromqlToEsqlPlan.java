@@ -958,8 +958,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 }
 
                 var uniqueAggregates = new LinkedHashSet<Expression>();
-                uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
-                uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
+                uniqueAggregates.addAll(withSeriesFilter(leftAgg.aggregates(), left.pendingFilter()));
+                uniqueAggregates.addAll(withSeriesFilter(rightAgg.aggregates(), right.pendingFilter()));
 
                 // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
                 // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
@@ -1203,6 +1203,26 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return range.foldable()
             && range.fold(FoldContext.small()) instanceof Duration duration
             && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
+    }
+
+    /**
+     * Attaches an operand's pending filter to the time-series functions of its aggregates. The selector matchers reference
+     * source fields, which exist in the per-series first phase of the time-series aggregate but not in its second phase:
+     * a filter on the outer aggregate ({@code count} of {@code count by (k) (m{l="v"})}) would reference vanished
+     * columns. Filtering the per-series value leaves the outer aggregate over the matching series only. An aggregate
+     * without a time-series function keeps the filter on its own functions.
+     */
+    private static List<? extends Expression> withSeriesFilter(List<? extends Expression> aggregates, Expression filter) {
+        if (filter == null) {
+            return aggregates;
+        }
+        return aggregates.stream()
+            .map(
+                e -> e.anyMatch(TimeSeriesAggregateFunction.class::isInstance)
+                    ? e.transformDown(TimeSeriesAggregateFunction.class, function -> function.withFilter(filter))
+                    : withFilter(e, filter)
+            )
+            .toList();
     }
 
     /**

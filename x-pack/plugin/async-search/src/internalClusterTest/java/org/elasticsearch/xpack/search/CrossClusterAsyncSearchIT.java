@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
@@ -810,6 +811,87 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertFalse(statusResponse.isPartial());
 
         assertClusterDetailsSuccessful(statusResponse.getClusters(), localNumShards, remoteNumShards, true);
+    }
+
+    public void testCcsMinimizeRoundtripsIntermediateResultsUseRequestedPage() throws Exception {
+        String localIndex = "local";
+        String remoteIndex = "remote";
+        createRankedIndex(LOCAL_CLUSTER, localIndex, "local-", 0);
+        createRankedIndex(REMOTE_CLUSTER, remoteIndex, "remote-", 1);
+
+        List<String> expectedLocalPage = searchPageHitIds(localIndex);
+        List<String> expectedCrossClusterPage = searchPageHitIds(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+
+        // The control searches above also pass through the listener plugin; reset its start latches before gating the async search.
+        SearchListenerPlugin.reset();
+        SearchListenerPlugin.blockLocalQueryPhase();
+        SearchListenerPlugin.blockRemoteQueryPhase();
+
+        String responseId = null;
+        try {
+            SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+            request.setCcsMinimizeRoundtrips(true);
+            request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+            request.setKeepOnCompletion(true);
+            request.getSearchRequest()
+                .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).from(3).size(2).sort("rank", SortOrder.ASC));
+
+            AsyncSearchResponse initialResponse = submitAsyncSearch(request);
+            try {
+                responseId = initialResponse.getId();
+                assertTrue(initialResponse.isRunning());
+            } finally {
+                initialResponse.decRef();
+            }
+            assertNotNull(responseId);
+            final String asyncSearchId = responseId;
+
+            SearchListenerPlugin.waitLocalSearchStarted();
+            SearchListenerPlugin.waitRemoteSearchStarted();
+            SearchListenerPlugin.allowLocalQueryPhase();
+
+            assertBusy(() -> {
+                AsyncStatusResponse statusResponse = getAsyncStatus(asyncSearchId);
+                assertNotNull(statusResponse.getClusters());
+                assertThat(
+                    statusResponse.getClusters().getCluster(LOCAL_CLUSTER).getStatus(),
+                    equalTo(SearchResponse.Cluster.Status.SUCCESSFUL)
+                );
+                assertThat(
+                    statusResponse.getClusters().getCluster(REMOTE_CLUSTER).getStatus(),
+                    equalTo(SearchResponse.Cluster.Status.RUNNING)
+                );
+            });
+
+            AtomicReference<List<String>> interimHitIds = new AtomicReference<>();
+            assertBusy(() -> {
+                AsyncSearchResponse interimResponse = getAsyncSearch(asyncSearchId, true);
+                try {
+                    assertTrue(interimResponse.isRunning());
+                    assertTrue(interimResponse.isPartial());
+                    assertNotNull(interimResponse.getSearchResponse());
+                    List<String> hits = hitIds(interimResponse.getSearchResponse());
+                    assertThat("wait until local hits are published to async search", hits, not(empty()));
+                    interimHitIds.set(hits);
+                } finally {
+                    interimResponse.decRef();
+                }
+            });
+            assertThat("interim cross-cluster hits must use the requested from and size", interimHitIds.get(), equalTo(expectedLocalPage));
+        } finally {
+            SearchListenerPlugin.allowRemoteQueryPhase();
+            SearchListenerPlugin.allowLocalQueryPhase();
+            waitForSearchTasksToFinish();
+        }
+
+        AsyncSearchResponse finishedResponse = getAsyncSearch(responseId);
+        try {
+            assertFalse(finishedResponse.isRunning());
+            assertFalse(finishedResponse.isPartial());
+            assertThat(hitIds(finishedResponse.getSearchResponse()), equalTo(expectedCrossClusterPage));
+        } finally {
+            finishedResponse.decRef();
+        }
     }
 
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
@@ -2136,6 +2218,38 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         clusterInfo.put("remote.index", remoteIndex);
         clusterInfo.put("remote.skip_unavailable", skipUnavailable);
         return clusterInfo;
+    }
+
+    private void createRankedIndex(String clusterAlias, String index, String idPrefix, int firstRank) {
+        assertAcked(
+            client(clusterAlias).admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(indexSettings(1, 0).build())
+                .setMapping("rank", "type=integer")
+        );
+        for (int i = 0; i < 8; i++) {
+            client(clusterAlias).prepareIndex(index).setId(idPrefix + i).setSource("rank", firstRank + 2 * i).get();
+        }
+        client(clusterAlias).admin().indices().prepareRefresh(index).get();
+    }
+
+    private List<String> searchPageHitIds(String... indices) {
+        SearchResponse response = client(LOCAL_CLUSTER).prepareSearch(indices)
+            .setQuery(new MatchAllQueryBuilder())
+            .setFrom(3)
+            .setSize(2)
+            .addSort("rank", SortOrder.ASC)
+            .get();
+        try {
+            return hitIds(response);
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static List<String> hitIds(SearchResponse response) {
+        return Arrays.stream(response.getHits().getHits()).map(hit -> hit.getId()).toList();
     }
 
     private int indexDocs(Client client, String index) {

@@ -128,6 +128,45 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         obj.abortStream(stream);
     }
 
+    public void testCloseDrainCountsRemainderAtOrBelow64KiB() throws IOException {
+        int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES;
+        int read = 8;
+        byte[] payload = new byte[read + leftover];
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        TransientTypingInputStream typed = new TransientTypingInputStream(
+            new ByteArrayInputStream(payload),
+            PATH,
+            payload.length,
+            leftoverBytes -> counters.addBytes(leftoverBytes)
+        );
+        MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
+        assertEquals(read, metered.read(new byte[read]));
+        metered.close();
+        assertEquals(payload.length, counters.snapshot().bytesRead());
+    }
+
+    public void testCloseAbortsRemainderAbove64KiB() throws IOException {
+        int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES + 1;
+        int read = 8;
+        byte[] payload = new byte[read + leftover];
+        AtomicBoolean abortCalled = new AtomicBoolean();
+        AtomicBoolean closeCalled = new AtomicBoolean();
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        AbortableInputStream inner = new AbortableInputStream(new ByteArrayInputStream(payload), abortCalled, closeCalled);
+        TransientTypingInputStream typed = new TransientTypingInputStream(
+            inner,
+            PATH,
+            payload.length,
+            leftoverBytes -> counters.addBytes(leftoverBytes)
+        );
+        MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
+        assertEquals(read, metered.read(new byte[read]));
+        metered.close();
+        assertEquals(read, counters.snapshot().bytesRead());
+        assertTrue(abortCalled.get());
+        assertFalse(closeCalled.get());
+    }
+
     /**
      * An {@link InputStream} that also implements {@link Abortable}, mimicking the shape of
      * the real S3 {@code ResponseInputStream}. The {@code abortCalled} / {@code closeCalled}

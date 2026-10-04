@@ -239,7 +239,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             observeResponse(metadata, 0L, false);
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
-            TransientTypingInputStream typed = new TransientTypingInputStream(response, path);
+            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover
+            // and count a small drain.
+            long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
+            TransientTypingInputStream typed = new TransientTypingInputStream(
+                response,
+                path,
+                expectedLength,
+                leftover -> counters.addBytes(leftover)
+            );
             return metered(typed, typed::abort);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
@@ -570,7 +578,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             ResponseInputStream<GetObjectResponse> response = getObject(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
-            TransientTypingInputStream typed = new TransientTypingInputStream(response, path);
+            long expectedLength = metadata.contentLength() != null ? metadata.contentLength() : -1L;
+            TransientTypingInputStream typed = new TransientTypingInputStream(
+                response,
+                path,
+                expectedLength,
+                leftover -> counters.addBytes(leftover)
+            );
             return metered(typed, typed::abort);
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {

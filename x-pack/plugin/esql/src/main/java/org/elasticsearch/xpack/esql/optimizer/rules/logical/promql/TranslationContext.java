@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -132,7 +134,10 @@ public final class TranslationContext {
         /* The translator tracks what it built instead of inspecting the plan. */
         Kind kind
     ) {
-        /** The lifecycle of an intermediate result. A constant is always a finished (aggregation-free) local relation. */
+        /**
+         * The lifecycle of an intermediate result. A constant is a finished compile-time relation over the query's steps,
+         * independent of the source: a local relation, possibly regrouped ({@code sum(vector(1))}).
+         */
         enum Kind {
             BEFORE_INITIAL_AGGREGATE(false, false),
             AFTER_INITIAL_AGGREGATE(true, false),
@@ -163,6 +168,11 @@ public final class TranslationContext {
         /** The value as a defined column; only valid on a finished table. */
         Attribute valueColumn() {
             return (Attribute) value;
+        }
+
+        /** A table with no rows at all - the relation of a query over no matching index; there is nothing to compute over it. */
+        boolean isEmpty() {
+            return plan instanceof LocalRelation local && local.supplier() == EmptyLocalSupplier.EMPTY;
         }
 
         /** The attribute carrying a label in this table's plan, or null when the table lacks it. */

@@ -502,4 +502,17 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantConstantVector}. */
+    public void testRangeConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(vector(1))", 1);
+        assertBinopRangeValues("count(vector(5))", 1);
+        assertBinopRangeValues("vector(1) + vector(2)", 3);
+        assertBinopRangeValues("sum(tx) + vector(1)", 53);
+        assertBinopRangeValues("sum by (cluster) (tx) + vector(1)");
+        ResponseException error = expectThrows(ResponseException.class, () -> executeBinopRangeQuery("tx * vector(2)"));
+        assertThat(error.getMessage(), containsString("binary operations between vector() and a vector without a concrete label set"));
+        assertBinopRangeValues("vector(1) > 2");
+        assertBinopRangeValues("vector(3) > 2", 3);
+    }
 }

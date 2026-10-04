@@ -31,12 +31,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -414,9 +417,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             var promqlCtx = new PromqlContext(time, AggregateFunction.NO_WINDOW, ir.step(), configuration());
             Expression function = agg.buildEsqlFunction(ir.value(), promqlCtx);
             // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
-            return ir.kind().afterInitialAggregation
+            IntermediateResult result = ir.kind().afterInitialAggregation
                 ? regroup(ir, header, agg.grouping() == WITHOUT, function)
                 : collapse(ir, header, function);
+            // A count is at least 1 for an element. A group none of whose series has a value - every series of an operator
+            // left without a partner, say - is no element in Prometheus, not a count of 0.
+            if (function instanceof Count) {
+                result = doTranslateAddValueEval(result, zeroCountAsNull(result.valueColumn()));
+            }
+            return result;
         }
 
         /**
@@ -875,6 +884,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
             IntermediateResult right = doTranslateNode(binaryOp.right());
             Expression rightExpr = new ToDouble(right.value().source(), right.value());
+            boolean seriesPair = left.kind().afterInitialAggregation == false
+                && right.kind().afterInitialAggregation == false
+                && getType(binaryOp.left()) != SCALAR
+                && getType(binaryOp.right()) != SCALAR;
+            if (seriesPair) {
+                // Two range functions over one series pair sample by sample; a side that counts no sample has no element.
+                leftExpr = new ToDouble(left.value().source(), emptySampleCountAsNull(left.value()));
+                rightExpr = new ToDouble(right.value().source(), emptySampleCountAsNull(right.value()));
+            }
             Expression binaryExpr = binaryOp.binaryOp().asFunction().create(binaryOp.source(), leftExpr, rightExpr, configuration());
 
             LogicalPlan plan;
@@ -1197,6 +1215,21 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     /** PromQL drops series with missing data: filter out rows whose value is null (null label columns are valid). */
     private static LogicalPlan emitNullsFilter(Source source, LogicalPlan plan, Attribute value) {
         return new Filter(source, plan, new IsNotNull(value.source(), value));
+    }
+
+    /**
+     * A count is at least 1 for an element: {@code count} counts a group's series, {@code count_over_time} a series'
+     * samples in the window, and a group or series with none is no element. Maps a count of 0 to null so the element
+     * drops like any other without a value.
+     */
+    private static Expression zeroCountAsNull(Expression count) {
+        Expression empty = new Equals(count.source(), count, new Literal(count.source(), 0L, DataType.LONG));
+        return new Case(count.source(), empty, List.of(Literal.NULL, count));
+    }
+
+    /** {@link #zeroCountAsNull} for every {@code count_over_time} of a per-series value. */
+    private static Expression emptySampleCountAsNull(Expression value) {
+        return value.transformUp(CountOverTime.class, TranslatePromqlToEsqlPlan::zeroCountAsNull);
     }
 
     private static boolean isImplicitRangePlaceholder(Expression range) {

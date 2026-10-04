@@ -725,4 +725,13 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
         assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
     }
+
+    /**
+     * Fused with the other operand's aggregate, a selector's matchers filter its own series: {@code rx{host="a"}} has only
+     * a {@code prod} element, so the operator pairs {@code prod} alone, (10 + 30) - 2.
+     */
+    public void testInstantFusedOperandKeepsItsMatchers() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx) - sum by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 38.0));
+    }
 }

@@ -668,4 +668,10 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
         assertBinopRangeValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFusedOperandKeepsItsMatchers}. */
+    public void testRangeFusedOperandKeepsItsMatchers() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx) - sum by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 38.0));
+    }
 }

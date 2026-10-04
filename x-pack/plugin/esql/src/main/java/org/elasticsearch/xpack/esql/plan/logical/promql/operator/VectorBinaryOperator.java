@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -613,8 +614,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             }
 
             var uniqueAggregates = new LinkedHashSet<Expression>();
-            uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
-            uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
+            uniqueAggregates.addAll(withSeriesFilter(leftAgg.aggregates(), left.pendingFilter()));
+            uniqueAggregates.addAll(withSeriesFilter(rightAgg.aggregates(), right.pendingFilter()));
 
             // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
             // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
@@ -644,5 +645,25 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             }
             return false;
         });
+    }
+
+    /**
+     * Attaches an operand's pending filter to the time-series functions of its aggregates. The selector matchers reference
+     * source fields, which exist in the per-series first phase of the time-series aggregate but not in its second phase:
+     * a filter on the outer aggregate ({@code count} of {@code count by (k) (m{l="v"})}) would reference vanished
+     * columns. Filtering the per-series value leaves the outer aggregate over the matching series only. An aggregate
+     * without a time-series function keeps the filter on its own functions.
+     */
+    private static List<? extends Expression> withSeriesFilter(List<? extends Expression> aggregates, Expression filter) {
+        if (filter == null) {
+            return aggregates;
+        }
+        return aggregates.stream()
+            .map(
+                e -> e.anyMatch(TimeSeriesAggregateFunction.class::isInstance)
+                    ? e.transformDown(TimeSeriesAggregateFunction.class, function -> function.withFilter(filter))
+                    : withFilter(e, filter)
+            )
+            .toList();
     }
 }

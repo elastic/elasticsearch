@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -2157,7 +2158,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Cache per file path to avoid redundant metadata fetches across splits of the same file.
                     List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
                     if (cachedSchema == null) {
-                        SourceMetadata meta = fileReader.metadata(FileSplitProvider.newObjectForFile(storageProvider, fileSplit));
+                        StorageObject schemaObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
+                        attachStorageMetrics(schemaObj);
+                        SourceMetadata meta = fileReader.metadata(schemaObj);
+                        foldObjectMetrics(state.buffer, schemaObj);
                         if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                             cachedSchema = meta.schema();
                         }
@@ -2497,6 +2501,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             obj.attachMetrics(externalSourceMetrics, obj.path().scheme());
         } catch (Exception e) {
             logger.trace(() -> "telemetry: attachMetrics failed for " + obj, e);
+        }
+    }
+
+    /**
+     * Folds an untracked object's full snapshot into the buffer. Used for COUNT(*) schema
+     * probes that must not {@link AsyncExternalSourceBuffer#trackStorageObject} the schema
+     * object (the file object is already tracked).
+     */
+    private static void foldObjectMetrics(AsyncExternalSourceBuffer buffer, StorageObject obj) {
+        try {
+            StorageObjectMetrics metrics = obj == null ? null : obj.metrics();
+            if (metrics == null) {
+                return;
+            }
+            buffer.addBytesRead(metrics.bytesRead());
+            buffer.addRequestCount(metrics.requestCount());
+            buffer.addRetryCount(metrics.retryCount());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: foldObjectMetrics failed for " + obj, e);
         }
     }
 

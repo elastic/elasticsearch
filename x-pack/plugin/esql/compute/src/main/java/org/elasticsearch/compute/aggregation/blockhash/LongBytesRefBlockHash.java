@@ -142,6 +142,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
                         builder.appendInt(Math.toIntExact(hashOrdToGroup(bytesHash.add(b))));
                     }
                     default -> {
+                        // handling multi-valued
                         builder.beginPositionEntry();
                         for (int v = start; v < end; v++) {
                             var b = bytesBlock.getBytesRef(v, scratch);
@@ -228,6 +229,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
                         builder.appendInt(Math.toIntExact(bytesHash.find(b)));
                     }
                     default -> {
+                        // handling multi-valued
                         builder.beginPositionEntry();
                         for (int v = start; v < end; v++) {
                             var b = bytes.getBytesRef(v, scratch);

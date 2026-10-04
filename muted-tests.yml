@@ -217,6 +217,9 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpAfterIndicesAreDeleted
   issue: https://github.com/elastic/elasticsearch/issues/160715
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/160950
 
 # Examples:
 #

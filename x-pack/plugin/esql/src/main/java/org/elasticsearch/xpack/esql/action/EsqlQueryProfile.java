@@ -42,6 +42,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String SPLIT_DISCOVERY_CPU = "split_discovery_cpu_nanos";
     public static final String PLANNING_BYTES_READ = "planning_bytes_read";
     public static final String PLANNING_REQUESTS = "planning_requests";
+    public static final String RESOLUTION_BYTES_READ = "external_resolution_bytes_read";
+    public static final String RESOLUTION_REQUESTS = "external_resolution_requests";
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -78,6 +80,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final AtomicLong externalPlanningBytesRead;
     /** Storage requests issued during coordinator schema resolution and split-discovery probes. */
     private final AtomicLong externalPlanningRequests;
+    /** First planning-I/O fold: schema resolution only, before split-discovery probes. */
+    private final AtomicLong externalResolutionBytesRead;
+    /** Requests in the first planning-I/O fold. */
+    private final AtomicLong externalResolutionRequests;
     /** The query-level unmapped field resolution mode. */
     private volatile UnmappedResolution unmappedResolution;
     /**
@@ -179,6 +185,57 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long externalPlanningBytesRead,
         long externalPlanningRequests
     ) {
+        this(
+            query,
+            planning,
+            parsing,
+            viewResolution,
+            datasetResolution,
+            preAnalysis,
+            indicesResolution,
+            enrichResolution,
+            inferenceResolution,
+            analysis,
+            fieldCapsCalls,
+            filesScanned,
+            splitsScanned,
+            bytesScanned,
+            unmappedResolution,
+            externalWarmAggregates,
+            splitDiscoveryNanos,
+            splitDiscoveryCpuNanos,
+            externalPlanningBytesRead,
+            externalPlanningRequests,
+            0L,
+            0L
+        );
+    }
+
+    // For testing
+    public EsqlQueryProfile(
+        TimeSpan query,
+        TimeSpan planning,
+        TimeSpan parsing,
+        TimeSpan viewResolution,
+        TimeSpan datasetResolution,
+        TimeSpan preAnalysis,
+        TimeSpan indicesResolution,
+        TimeSpan enrichResolution,
+        TimeSpan inferenceResolution,
+        TimeSpan analysis,
+        int fieldCapsCalls,
+        int filesScanned,
+        int splitsScanned,
+        long bytesScanned,
+        UnmappedResolution unmappedResolution,
+        int externalWarmAggregates,
+        long splitDiscoveryNanos,
+        long splitDiscoveryCpuNanos,
+        long externalPlanningBytesRead,
+        long externalPlanningRequests,
+        long externalResolutionBytesRead,
+        long externalResolutionRequests
+    ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
@@ -199,6 +256,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.splitDiscoveryCpuNanos = new AtomicLong(splitDiscoveryCpuNanos);
         this.externalPlanningBytesRead = new AtomicLong(externalPlanningBytesRead);
         this.externalPlanningRequests = new AtomicLong(externalPlanningRequests);
+        this.externalResolutionBytesRead = new AtomicLong(externalResolutionBytesRead);
+        this.externalResolutionRequests = new AtomicLong(externalResolutionRequests);
     }
 
     public static EsqlQueryProfile readFrom(StreamInput in) throws IOException {
@@ -258,9 +317,13 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         }
         long externalPlanningBytesRead = 0L;
         long externalPlanningRequests = 0L;
+        long externalResolutionBytesRead = 0L;
+        long externalResolutionRequests = 0L;
         if (in.getTransportVersion().supports(ESQL_EXTERNAL_PLANNING_IO)) {
             externalPlanningBytesRead = in.readVLong();
             externalPlanningRequests = in.readVLong();
+            externalResolutionBytesRead = in.readVLong();
+            externalResolutionRequests = in.readVLong();
         }
         return new EsqlQueryProfile(
             query,
@@ -282,7 +345,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             splitDiscoveryNanos,
             splitDiscoveryCpuNanos,
             externalPlanningBytesRead,
-            externalPlanningRequests
+            externalPlanningRequests,
+            externalResolutionBytesRead,
+            externalResolutionRequests
         );
     }
 
@@ -337,6 +402,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_PLANNING_IO)) {
             out.writeVLong(externalPlanningBytesRead.get());
             out.writeVLong(externalPlanningRequests.get());
+            out.writeVLong(externalResolutionBytesRead.get());
+            out.writeVLong(externalResolutionRequests.get());
         }
     }
 
@@ -363,7 +430,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && unmappedResolution == that.unmappedResolution
             && externalWarmAggregates.get() == that.externalWarmAggregates.get()
             && externalPlanningBytesRead.get() == that.externalPlanningBytesRead.get()
-            && externalPlanningRequests.get() == that.externalPlanningRequests.get();
+            && externalPlanningRequests.get() == that.externalPlanningRequests.get()
+            && externalResolutionBytesRead.get() == that.externalResolutionBytesRead.get()
+            && externalResolutionRequests.get() == that.externalResolutionRequests.get();
     }
 
     @Override
@@ -388,7 +457,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             unmappedResolution,
             externalWarmAggregates.get(),
             externalPlanningBytesRead.get(),
-            externalPlanningRequests.get()
+            externalPlanningRequests.get(),
+            externalResolutionBytesRead.get(),
+            externalResolutionRequests.get()
         );
     }
 
@@ -435,6 +506,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + externalPlanningBytesRead.get()
             + ", externalPlanningRequests="
             + externalPlanningRequests.get()
+            + ", externalResolutionBytesRead="
+            + externalResolutionBytesRead.get()
+            + ", externalResolutionRequests="
+            + externalResolutionRequests.get()
             + '}';
     }
 
@@ -586,6 +661,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         return externalPlanningRequests.get();
     }
 
+    public long externalResolutionBytesRead() {
+        return externalResolutionBytesRead.get();
+    }
+
+    public long externalResolutionRequests() {
+        return externalResolutionRequests.get();
+    }
+
     /**
      * Adds coordinator planning I/O (schema resolution + split-discovery probes). Distinct from
      * estimated {@code bytes_scanned}.
@@ -597,6 +680,31 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (requests > 0) {
             externalPlanningRequests.addAndGet(requests);
         }
+    }
+
+    /**
+     * Adds the end-of-planning fold (schema resolution) next to the running planning totals.
+     */
+    public void addExternalResolutionIo(long bytes, long requests) {
+        if (bytes > 0) {
+            externalResolutionBytesRead.addAndGet(bytes);
+        }
+        if (requests > 0) {
+            externalResolutionRequests.addAndGet(requests);
+        }
+    }
+
+    /**
+     * End-of-planning fold: records resolution I/O and adds the same snapshot to planning totals,
+     * then resets the holder so later split-discovery probes do not double-count.
+     */
+    public void foldResolutionIo(ExternalPlanningReservation reservation) {
+        if (reservation == null) {
+            return;
+        }
+        long[] snap = reservation.planningIo().snapshotAndReset();
+        addExternalResolutionIo(snap[0], snap[1]);
+        addExternalPlanningIo(snap[0], snap[1]);
     }
 
     /** Snapshots and folds query-scoped planning I/O from {@code reservation} into this profile. */
@@ -686,6 +794,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long planningRequests = externalPlanningRequests.get();
         if (planningRequests > 0) {
             builder.field(PLANNING_REQUESTS, planningRequests);
+        }
+        long resolutionBytes = externalResolutionBytesRead.get();
+        if (resolutionBytes > 0) {
+            builder.field(RESOLUTION_BYTES_READ, resolutionBytes);
+        }
+        long resolutionRequests = externalResolutionRequests.get();
+        if (resolutionRequests > 0) {
+            builder.field(RESOLUTION_REQUESTS, resolutionRequests);
         }
         return builder;
     }

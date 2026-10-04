@@ -342,7 +342,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.queryProfile().planning().stop();
-        execInfo.queryProfile().foldPlanningIo(execInfo.externalPlanning());
+        execInfo.queryProfile().foldResolutionIo(execInfo.externalPlanning());
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);

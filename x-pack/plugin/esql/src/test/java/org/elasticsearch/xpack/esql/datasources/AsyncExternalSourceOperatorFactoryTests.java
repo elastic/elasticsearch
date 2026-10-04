@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -89,6 +91,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -4128,6 +4131,48 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertThat(rows, equalTo(limit));
     }
 
+    public void testSkipRowLenientRangeReaderNotCappedByRemaining() throws Exception {
+        int limit = 10;
+        FileSplit rangeSplit = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/f0.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(FileSplitProvider.RANGE_SPLIT_KEY, "true"),
+            Map.of()
+        );
+        List<Integer> seenRowLimits = Collections.synchronizedList(new ArrayList<>());
+        RecordingRangeReader formatReader = new RecordingRangeReader(seenRowLimits, 20);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/f0.parquet"),
+            limitBudgetAttributes(),
+            100,
+            10,
+            Runnable::run
+        )
+            .sliceQueue(new ExternalSliceQueue(List.of(rangeSplit)))
+            .rowLimit(limit)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .producerBlockFactory(TEST_BLOCK_FACTORY)
+            .build();
+
+        assertEquals(FormatReader.NO_LIMIT, factory.sourceReaderRowLimit());
+        DriverContext ctx = mockLimitBudgetDriverContext();
+        SourceOperator op = factory.get(ctx);
+        int rows = drainRemaining(op);
+        op.close();
+
+        assertFalse("range path must call readRange", seenRowLimits.isEmpty());
+        for (int seen : seenRowLimits) {
+            assertEquals("lenient range reader must not prefetch-clip at remaining()", FormatReader.NO_LIMIT, seen);
+        }
+        assertThat(factory.sourceLimiter().remaining(), equalTo(0));
+        assertThat("source may over-deliver a page; LimitOperator clips to N", rows, greaterThanOrEqualTo(limit));
+    }
+
     public void testStrictPushedLimitPrefetchClipsReaderRemaining() {
         List<ExternalSplit> splits = List.of(
             new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of())
@@ -4480,6 +4525,80 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public String formatName() {
             return "dropping-page";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Range-aware reader that records {@link RangeReadContext#rowLimit()} so skip_row can
+     * assert the range rail gets {@link FormatReader#NO_LIMIT}, not remaining().
+     */
+    private static class RecordingRangeReader implements RangeAwareFormatReader, NoConfigFormatReader {
+        private final List<Integer> seenRowLimits;
+        private final int rawRows;
+
+        RecordingRangeReader(List<Integer> seenRowLimits, int rawRows) {
+            this.seenRowLimits = seenRowLimits;
+            this.rawRows = rawRows;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public List<SplitRange> discoverSplitRanges(StorageObject object) {
+            return List.of();
+        }
+
+        @Override
+        public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) {
+            seenRowLimits.add(context.rowLimit());
+            int cap = context.rowLimit() == FormatReader.NO_LIMIT ? rawRows : Math.min(rawRows, Math.max(0, context.rowLimit()));
+            Page page = new Page(TEST_BLOCK_FACTORY.newIntArrayVector(new int[cap], cap).asBlock());
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new AssertionError("range split must use readRange, not read");
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
         }
 
         @Override

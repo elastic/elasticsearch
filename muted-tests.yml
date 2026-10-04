@@ -140,12 +140,6 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/159150
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/159451
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testSearchPhaseFailure
-  issue: https://github.com/elastic/elasticsearch/issues/159452
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/159529

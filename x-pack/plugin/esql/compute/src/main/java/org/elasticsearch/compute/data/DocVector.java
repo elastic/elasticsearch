@@ -644,6 +644,14 @@ public final class DocVector extends AbstractVector implements Vector {
             return this;
         }
 
+        /**
+         * Make the vector adopt shard refs that the caller already took rather than take its own.
+         * The vector releases them when its own ref count drops to zero, so the caller must take
+         * exactly one ref per position, or a single ref if {@code shards} is a
+         * {@link ConstantIntVector}. The vector owns the refs only once it is built. If the
+         * constructor, {@link DocBlock.Builder#build(Config)} or {@link FixedBuilder#build(Config)}
+         * throws then the caller still owns the refs and must release them.
+         */
         public Config dontIncrementShardRefCounts() {
             this.incrementShardRefCounts = false;
             return this;

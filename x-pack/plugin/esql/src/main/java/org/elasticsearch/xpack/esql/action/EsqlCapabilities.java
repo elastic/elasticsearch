@@ -4245,6 +4245,15 @@ public class EsqlCapabilities {
          */
         EXTERNAL_SOURCE_SCORE_FIX,
 
+        /**
+         * PromQL {@code without} over any child with a concrete label set - a label-less vector such as {@code vector(1)},
+         * or a function or {@code topk} over a {@code by} aggregate - projects that label set minus the excluded labels,
+         * instead of declaring a {@code _timeseries} column the plan never produces, which failed the query. An aggregate
+         * over a label-less vector also reduces that one series rather than one copy per source series, so
+         * {@code sum(vector(1))} is {@code 1} instead of the number of series in the index.
+         */
+        FIX_PROMQL_WITHOUT_CONCRETE_CHILD,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

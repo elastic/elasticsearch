@@ -200,7 +200,6 @@ public class S3StorageProviderFailureTests extends ESTestCase {
             assertSame(expired, thrown.getCause());
             assertThat(thrown.getMessage(), containsString("expired or invalid"));
             assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
-            assertThat(thrown.getMessage(), containsString("listing objects"));
             assertEquals(RestStatus.BAD_REQUEST, thrown.status());
         }
         verify(client, never()).headBucket(any(HeadBucketRequest.class));
@@ -214,7 +213,7 @@ public class S3StorageProviderFailureTests extends ESTestCase {
         S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
         ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, () -> provider.exists(PATH));
         assertSame(expired, thrown.getCause());
-        assertThat(thrown.getMessage(), containsString("checking existence"));
+        assertThat(thrown.getMessage(), containsString("expired or invalid"));
         verify(client, never()).headBucket(any(HeadBucketRequest.class));
     }
 

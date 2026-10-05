@@ -32,6 +32,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,11 +79,29 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
      * to FRAMEWORK_KEYS (for the storage-side strip step) but forgets the coordinator side, the
      * validator silently rejects every query that uses it. This unit-time check catches that
      * drift before it ships.
+     * <p>
+     * Restricted to keys a user can write. A framework-injected key is {@code _}-prefixed, and
+     * {@code ConfigKeyValidator} never reports one, so the rejection this pin guards against cannot
+     * happen for it and there is nothing for the coordinator side to declare.
      */
     public void testFrameworkKeysAreSubsetOfCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(StorageProviderRegistry.FRAMEWORK_KEYS);
+        missing.removeIf(key -> key.startsWith("_"));
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
         assertTrue("FRAMEWORK_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
+    }
+
+    /**
+     * The provider cache keys on the whole config map, so a framework-injected key left in it
+     * fragments the cloud-client pool. With the definition version that is per dataset: every
+     * dataset over one bucket would build its own client, and past
+     * {@code StorageProviderCache.MAX_TOTAL_ENTRIES} concurrent ones the query fails outright.
+     */
+    public void testFrameworkKeysStripTheDefinitionVersion() {
+        assertTrue(
+            "the definition version must not reach a storage provider configuration",
+            StorageProviderRegistry.FRAMEWORK_KEYS.contains(DefinitionVersion.CONFIG_KEY)
+        );
     }
 
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
@@ -351,4 +370,35 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         assertTrue(clazz.getSimpleName() + " CONFIG_* constants missing from CONFIG_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
         assertTrue(clazz.getSimpleName() + " CONFIG_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
     }
+
+    /**
+     * The coordinator vends its own identity, so this pins it behaviourally: every key it owns moves the value,
+     * and every key it declares inert does not. A set-membership assertion cannot see a derivation that dropped
+     * a key; this can.
+     */
+    public void testTheCoordinatorIdentityMovesWithEveryKeyItOwnsAndNoInertOne() {
+        Map<String, Object> base = new HashMap<>();
+        for (String key : FileSourceFactory.COORDINATOR_KEYS) {
+            base.put(key, "a");
+        }
+        String baseIdentity = FileSourceFactory.coordinatorIdentity(base);
+        for (String key : FileSourceFactory.COORDINATOR_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, "b");
+            String identity = FileSourceFactory.coordinatorIdentity(altered);
+            if (FileSourceFactory.COORDINATOR_IDENTITY_INERT_KEYS.contains(key)) {
+                assertEquals("inert coordinator key [" + key + "] must not move the identity", baseIdentity, identity);
+            } else {
+                assertNotEquals("coordinator key [" + key + "] must move the identity", baseIdentity, identity);
+            }
+        }
+    }
+
+    /** A key declared inert that the coordinator no longer owns is a dangling justification. */
+    public void testCoordinatorInertKeysAreStillCoordinatorKeys() {
+        Set<String> stale = new TreeSet<>(FileSourceFactory.COORDINATOR_IDENTITY_INERT_KEYS);
+        stale.removeAll(FileSourceFactory.COORDINATOR_KEYS);
+        assertTrue("inert entries that are no longer coordinator keys: " + stale, stale.isEmpty());
+    }
+
 }

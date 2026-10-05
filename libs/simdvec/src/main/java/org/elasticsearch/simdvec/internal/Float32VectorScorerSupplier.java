@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.FloatToFloatFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
@@ -121,7 +122,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
     abstract float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes);
 
     /** Normalizes {@code numNodes} values from {@code segment} into {@code scores}, returning the max. */
-    private static float readScores(MemorySegment segment, float[] scores, int numNodes, FloatUnaryOperator normalize) {
+    private static float readScores(MemorySegment segment, float[] scores, int numNodes, FloatToFloatFunction normalize) {
         float max = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < numNodes; ++i) {
             float normalized = normalize.apply(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
@@ -129,11 +130,6 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
             max = Math.max(max, normalized);
         }
         return max;
-    }
-
-    @FunctionalInterface
-    private interface FloatUnaryOperator {
-        float apply(float v);
     }
 
     @Override

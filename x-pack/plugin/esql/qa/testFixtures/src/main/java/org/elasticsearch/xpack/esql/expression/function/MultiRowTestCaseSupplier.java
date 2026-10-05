@@ -469,6 +469,26 @@ public final class MultiRowTestCaseSupplier {
         );
     }
 
+    /**
+     * Like {@link #geoShapeCasesWithoutCircle(int, int, IncludingAltitude)}, but every shape has at most {@code maxPoints} points.
+     * Unbounded shapes can be very large, which matters for aggregations that keep a copy of each value per group.
+     */
+    public static List<TypedDataSupplier> geoShapeCasesWithoutCircle(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        int maxPoints
+    ) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.GEO_SHAPE,
+            b -> GeometryTestUtils.randomGeometryWithoutCircle(b, maxPoints)
+        );
+    }
+
     public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
         return spatialCases(
             minRows,
@@ -477,6 +497,26 @@ public final class MultiRowTestCaseSupplier {
             "geo_shape",
             DataType.CARTESIAN_SHAPE,
             b -> ShapeTestUtils.randomGeometryWithoutCircle(0, b)
+        );
+    }
+
+    /**
+     * Like {@link #cartesianShapeCasesWithoutCircle(int, int, IncludingAltitude)}, but every shape has at most {@code maxPoints} points.
+     * Unbounded shapes can be very large, which matters for aggregations that keep a copy of each value per group.
+     */
+    public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        int maxPoints
+    ) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.CARTESIAN_SHAPE,
+            b -> ShapeTestUtils.randomGeometryWithoutCircle(b, maxPoints)
         );
     }
 

@@ -529,6 +529,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
             // older nodes know the element type but can't read it
             throw new IllegalStateException("can't send documents to a node on [" + out.getTransportVersion() + "]");
         }
+        if (block instanceof DocRefBlock && out.getTransportVersion().supports(DocRefBlock.ESQL_DOC_REF) == false) {
+            // the planner only plans document references when every node can read them, so this is a planner bug
+            throw new IllegalStateException("can't send document references to a node on [" + out.getTransportVersion() + "]");
+        }
         if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }

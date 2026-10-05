@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
  * This first cut covers the object-store read layer. The per-{@code StorageObject}
  * {@link StorageObjectMetricsCounters} already tracks request count, request nanos, bytes read and
  * retries for the query profile; this holder bridges those same events to the registry. The counters
- * call {@link #recordRequest} / {@link #recordRetry} once a metrics holder is attached to them (see
- * {@code StorageObject#attachMetrics}); when none is attached they use {@link #NOOP}.
+ * call {@link #recordRequest} / {@link #recordRetry} / {@link #recordBytes} once a metrics holder is
+ * attached to them (see {@code StorageObject#attachMetrics}); when none is attached they use {@link #NOOP}.
  */
 public final class ExternalSourceMetrics {
 
@@ -41,7 +41,7 @@ public final class ExternalSourceMetrics {
     /** Wall time of a single object-store read request, in milliseconds. */
     public static final String STORAGE_REQUESTS_DURATION = "es.esql.datasources.storage.requests.duration.histogram";
 
-    /** Bytes returned by object-store reads, before decompression. */
+    /** Physical bytes received from object-store reads, before outer decompression. */
     public static final String STORAGE_BYTES_READ_TOTAL = "es.esql.datasources.storage.bytes_read.total";
 
     /** Automatic retries issued by the cross-provider retry decorator. */
@@ -389,6 +389,10 @@ public final class ExternalSourceMetrics {
      * observes the request duration. {@code scheme} is the raw storage scheme, folded to {@link #TYPE_ATTRIBUTE}
      * via {@link Type#fromScheme(String)}.
      * <p>
+     * Pass filled-buffer size when this event is the only byte source. Pass {@code bytes = 0} and
+     * publish received bytes separately via {@link #recordBytes} so a later stream close cannot
+     * mint a second request.
+     * <p>
      * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
      * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
      */
@@ -406,6 +410,28 @@ public final class ExternalSourceMetrics {
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordRequest failed", e);
+        }
+    }
+
+    /**
+     * Records received bytes for an already-counted request. Increments
+     * {@link #STORAGE_BYTES_READ_TOTAL} and phone-home {@code storageBytesRead} only — does not
+     * increment {@code storage.requests.total}. Used once at stream close after {@code addRequest}
+     * booked the GET with {@code bytes = 0}. Best-effort (self-guarded).
+     */
+    public void recordBytes(long bytes, String scheme) {
+        if (bytes <= 0) {
+            return;
+        }
+        try {
+            Type type = Type.fromScheme(scheme);
+            Map<String, Object> attributes = typeAttrsForToken(type.key());
+            bytesReadTotal.incrementBy(bytes, attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordBytes(type, bytes);
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: recordBytes failed", e);
         }
     }
 

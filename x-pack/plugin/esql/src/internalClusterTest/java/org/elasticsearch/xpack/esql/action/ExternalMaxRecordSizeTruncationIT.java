@@ -18,6 +18,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -59,6 +61,17 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourceIT {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // The oversized record is one repeated character gzip-compressed at ~1000:1, which exceeds the default
+            // decompression ratio limit of 200 before the record-size cap fires. Disable the ratio guard so this
+            // test exercises the record-size cap path it was designed to test.
+            .put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey(), 0)
+            .build();
+    }
+
     private static final int LEADING_ROWS = 5;
     /** {@code external_max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */
     private static final String MAX_RECORD_SIZE = "1mb";
@@ -72,7 +85,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(CsvDataSourcePlugin.class, GzipDataSourcePlugin.class);
+        return List.of(CsvDataSourcePlugin.class, GzipDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     /**
@@ -106,10 +119,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE)).allowPartialResults(false);
             Exception e = expectThrows(Exception.class, () -> run(request, TimeValue.timeValueMinutes(2)).close());
             String trace = ExceptionsHelper.stackTrace(e);
-            assertTrue(
-                "strict policy must hard-fail on the cap-hit, got: " + trace,
-                trace.contains("record exceeded external_max_record_size")
-            );
+            assertTrue("strict policy must hard-fail on the cap-hit, got: " + trace, trace.contains("record exceeds [1mb]"));
         } finally {
             Files.deleteIfExists(file);
         }
@@ -170,11 +180,42 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             assertThat("non-strict read must return only the rows parsed before the cap-hit", count.get(), equalTo((long) LEADING_ROWS));
             assertTrue(
                 "client must receive a prominent partial-results truncation Warning, got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("truncated at byte"))
+                warnings.stream().anyMatch(w -> w.contains("Record in [") && w.contains("; results are partial"))
             );
             assertTrue("a truncated lenient read must flip the response is_partial flag", partial.get());
         } finally {
             Files.deleteIfExists(file);
+        }
+    }
+
+    public void testCrDelimitedRecordsBelowTheCapAreAccepted() throws Exception {
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        String payload = randomAlphaOfLength(128 * 1024);
+        QueryPragmas pragmas = pragmas(2, "256kb");
+        for (Map.Entry<String, String> terminator : Map.of("lf", "\n", "cr", "\r", "crlf", "\r\n").entrySet()) {
+            StringBuilder content = new StringBuilder();
+            for (int i = 0; i < 3; i++) {
+                content.append("{\"id\":").append(i).append(",\"name\":\"").append(payload).append("\"}").append(terminator.getValue());
+            }
+            for (String mode : List.of("fail_fast", "skip_row")) {
+                String label = terminator.getKey() + "_" + mode;
+                Path file = writeGzipped(createTempDir().resolve(label + ".ndjson.gz"), content.toString());
+                try {
+                    String dataset = registerDataset(label, StoragePath.fileUri(file), Map.of("segment_size", "64kb", "error_mode", mode));
+                    EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)").pragmas(pragmas)
+                        .allowPartialResults(false)
+                        .profile(true);
+                    try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(2))) {
+                        List<List<Object>> rows = getValuesList(response);
+                        assertThat(rows.size(), equalTo(1));
+                        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+                        assertThat(response.documentsFound(), greaterThan(0L));
+                        assertFalse(response.isPartial());
+                    }
+                } finally {
+                    Files.deleteIfExists(file);
+                }
+            }
         }
     }
 

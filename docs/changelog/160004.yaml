@@ -1,0 +1,5 @@
+area: Geo
+issues: []
+pr: 160004
+summary: Bound geometry nesting depth at construction
+type: bug

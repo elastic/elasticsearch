@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -182,7 +183,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(50, actual.stream().mapToInt(Page::getPositionCount).sum());
-            assertEquals(1, failing.failedChunkReads.get());
+            // Sync storage does not seed the prefetch queue; the injected async
+            // failure is never hit and the scan stays on the stream path.
+            assertEquals(0, failing.failedChunkReads.get());
         } finally {
             expected.forEach(Page::releaseBlocks);
             actual.forEach(Page::releaseBlocks);
@@ -1689,16 +1692,13 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         CountingStorageObject obj = new CountingStorageObject(parquetData, true);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetReaderCounters counters = (ParquetReaderCounters) reader.newReadCounters();
 
-        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).readCounters(counters).build())) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
             }
-            assertThat(
-                "rows emitted must be > 0 as drainEmptyTwoPhaseBatches() performs real decode work",
-                reader.statusSnapshot().rowsEmitted(),
-                greaterThan(0L)
-            );
+            assertThat("filter id < 10 out of 5000 rows must emit some matching rows", counters.snapshot().rowsEmitted(), greaterThan(0L));
         }
     }
 
@@ -1952,7 +1952,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * {@link StorageObject#supportsNativeAsync()} as true so two-phase activates; otherwise it
      * stays on the single-phase path.
      */
-    private static class CountingStorageObject implements StorageObject {
+    private static class CountingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final boolean nativeAsync;
         final AtomicLong totalBytesRead = new AtomicLong();

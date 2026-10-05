@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,11 +21,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -36,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -62,7 +68,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldNames;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -2631,6 +2640,48 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
     }
 
+    public void testEvalAliasKeepsFileSizeOnExternalRelation() {
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(size, other));
+        Alias computed = new Alias(EMPTY, "x", size);
+        LogicalPlan plan = new Project(EMPTY, new Eval(EMPTY, ext, List.of(computed)), List.of(computed.toAttribute()));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var prunedExt = as(eval.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains(FileMetadataColumns.SIZE));
+    }
+
+    public void testArithmeticWhereKeepsFileSizeOnExternalRelation() {
+        Attribute value = extAttr("a", LONG);
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        ExternalRelation ext = externalRelation(List.of(value, size));
+        Expression scaled = new Add(EMPTY, new Div(EMPTY, size, new Literal(EMPTY, 39L, LONG)), new Literal(EMPTY, 49L, LONG), null);
+        Filter filter = new Filter(EMPTY, ext, new GreaterThan(EMPTY, value, scaled, null));
+        LogicalPlan result = new PruneColumns().apply(new Project(EMPTY, filter, List.of(value)));
+
+        var project = as(result, Project.class);
+        var resultFilter = as(project.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("a", FileMetadataColumns.SIZE));
+    }
+
+    public void testWhereBeforeCountKeepsPartitionColumn() {
+        Attribute year = extAttr("year", INTEGER);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(year, other));
+        Filter filter = new Filter(EMPTY, ext, new Equals(EMPTY, year, new Literal(EMPTY, 2024, INTEGER)));
+        Alias count = new Alias(EMPTY, "count", new Count(EMPTY, Literal.keyword(EMPTY, "*")));
+        LogicalPlan result = new PruneColumns().apply(new Aggregate(EMPTY, filter, List.of(), List.of(count)));
+
+        var aggregate = as(result, Aggregate.class);
+        var resultFilter = as(aggregate.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("year"));
+    }
+
     /**
      * Ensures that PruneColumns does not drop a column used by LIMIT BY even when a subsequent DROP removes it from the output.
      * <pre>{@code
@@ -3323,5 +3374,78 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
         assertThat(Expressions.names(dv.fields()), contains("keyword_copy"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_copy_dense_vector"));
+    }
+
+    public void testHighlightPrunesUnusedGeneratedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP highlight_first_name
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name")));
+    }
+
+    public void testHighlightRemovedWhenNoGeneratedColumnUsed() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP emp_no
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        assertFalse("HIGHLIGHT is purely additive, so an unused node should be dropped", plan.anyMatch(p -> p instanceof Highlight));
+    }
+
+    public void testHighlightPruneKeepsQstrQualifiedOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT QSTR("first_name:x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneKeepsMatchFieldWhenGeneratedColumnUnused() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT MATCH(first_name, "x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    // A `field:term` literal translates as query_string, so it still names first_name after KEEP drops highlight_first_name.
+    public void testHighlightPruneKeepsFieldQualifiedLiteralOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "first_name:x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneDropsUnusedOnFieldForColonFreeLiteral() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_last_name")));
     }
 }

@@ -154,18 +154,47 @@ public interface FileList {
 
     /**
      * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
-     * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
+     * list is a prefix of the files the pattern (and any partition filters) matches and {@link #fileCount()} is
+     * a floor, not a total.
      * <p>
-     * Only a schema discovery resolution ever asks for a bound. Two invariants keep a truncated list away from
-     * everything else: it is never written to the shared listing cache, where a reading query would later find
-     * it and scan a fraction of the dataset, and it is never built for a query that reads rows. Both are
-     * {@code ExternalSourceResolver#listingBoundFor}'s alone — the cache itself does not check, and omitting the
-     * fingerprint and refusing to compact do not prevent caching. A new call site asking for a bound must
-     * establish both for itself; nothing downstream catches a mistake, and a reader reached by a truncated list
-     * returns silently wrong results. Correctness invariants, not optimisations.
+     * Only resolution ever asks for a bound. Under inferred {@code first_file_wins} and a declared mapping
+     * that prefix is of the files this query's filters keep, large enough for one file to define the schema
+     * (or, for a declaration, to count files and derive partition columns). Turning a truncated listing into
+     * the query's own file set is split discovery's job
+     * ({@code FileSplitProvider#overTheQuerysFileSet}), and everything resolution derived per file from the bounded
+     * listing — partition values, per-file read schemas — moves with the file set when it does
+     * ({@code SplitDiscoveryContext#withScanFileSet}).
+     * <p>
+     * One invariant is absolute, and nothing downstream catches its breach: a truncated list is never written to the
+     * shared listing cache, where a later query would find it and read a fraction of the dataset while believing
+     * it read all of it. That is {@code ExternalSourceResolver#listingExtentsFor}'s to keep — the cache itself
+     * does not check, the expander honours whatever extents it is handed, and omitting the fingerprint and
+     * refusing to compact do not prevent caching. A new call site asking for a bound must establish it for
+     * itself. A correctness invariant, not an optimisation.
      */
     default boolean isTruncated() {
         return false;
+    }
+
+    /**
+     * Heap one listed entry occupies: the path String, an Instant and a long. Shared so the walk that reserves for
+     * an entry, the list that reports what it holds, and the resolution that tops that up cannot drift apart.
+     */
+    long LISTING_BYTES_PER_ENTRY = 700L;
+
+    /**
+     * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight
+     * (paths / sizes / mtimes) and does not include partition value arrays. When
+     * {@link #partitionMetadata()} is present and non-empty, this adds {@link PartitionMetadata#planningBytes()}
+     * so planning can charge columnar (and optionally directory-shared) partition values before the schema
+     * map is built. Not a measured deep size of interned value objects.
+     */
+    default long planningBytes() {
+        PartitionMetadata metadata = partitionMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return estimatedBytes();
+        }
+        return estimatedBytes() + metadata.planningBytes();
     }
 
     /**
@@ -175,8 +204,8 @@ public interface FileList {
      * or size) yields a different one. This makes the fingerprint a content-addressed cache key for
      * dataset-level derived state (e.g. the warm COUNT(*) aggregate): keys derived from it are
      * correct-or-miss by construction, with no separate invalidation protocol — and they survive listing
-     * refreshes (the 30s listing TTL) as long as the underlying files are unchanged, because the
-     * fingerprint derives from listing CONTENT, not listing object identity.
+     * refreshes (the listing TTL, five minutes by default) as long as the underlying files are unchanged,
+     * because the fingerprint derives from listing CONTENT, not listing object identity.
      * <p>
      * {@code null} for the sentinels and for implementations that do not compute one.
      */
@@ -186,9 +215,10 @@ public interface FileList {
     }
 
     /**
-     * Notices raised while this listing was built: {@code file_exclusions} drops and reserved partition-name
-     * renames. Empty when neither happened. Nothing is emitted from here; cached listings carry these so a cache
-     * hit hands the resolver the same notices as a cold expand.
+     * Notices raised while this listing was built: reserved partition-name renames, and {@code file_exclusions} drops from
+     * a glob segment that listed nothing (a comma-separated resource gathers every segment's notices). Empty when neither
+     * happened. Nothing is emitted from here; cached listings carry these so a cache hit hands the resolver the same
+     * notices as a cold expand.
      */
     default List<String> listingWarnings() {
         return List.of();

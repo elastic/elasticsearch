@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -46,7 +47,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
     @Rule
     public RetryRule retryRule = new RetryRule(3, TimeValue.timeValueSeconds(1));
 
-    public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
+    public InferenceRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

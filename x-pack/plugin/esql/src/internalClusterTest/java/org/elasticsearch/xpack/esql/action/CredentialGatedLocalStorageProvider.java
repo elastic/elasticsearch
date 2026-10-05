@@ -11,6 +11,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -128,7 +129,7 @@ final class CredentialGatedLocalStorageProvider implements StorageProvider {
         return PathUtils.get(path.localPath());
     }
 
-    private static final class GatedLocalObject implements StorageObject {
+    private static final class GatedLocalObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Path file;
         private final Object credentialSeen;

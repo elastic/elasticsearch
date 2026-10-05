@@ -26,7 +26,6 @@ import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
@@ -344,7 +343,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                 QUEUED_RECOVERY_LATENCY,
                 "The maximum time any recovery currently on the queue has been there",
                 "ms",
-                () -> new LongWithAttributes(queueLatencyMillis.getAsLong())
+                queueLatencyMillis
             )
         );
         asyncGauges.add(
@@ -352,7 +351,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                 RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
                 "Whether recovery dispatch is currently blocked by recovery gates",
                 "unit",
-                () -> new LongWithAttributes(blockedState.get() == null ? 0L : 1L)
+                () -> blockedState.get() == null ? 0L : 1L
             )
         );
         asyncGauges.add(
@@ -364,7 +363,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                     final BlockedState state = blockedState.get();
                     final long blockedTimeMillis = state == null ? 0L : relativeTimeInMillis.getAsLong() - state.sinceRelativeMillis();
                     assert blockedTimeMillis >= 0L;
-                    return new LongWithAttributes(blockedTimeMillis);
+                    return blockedTimeMillis;
                 }
             )
         );

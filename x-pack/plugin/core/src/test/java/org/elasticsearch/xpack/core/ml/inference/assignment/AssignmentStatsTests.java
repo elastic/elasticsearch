@@ -133,7 +133,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomNonNegativeLong(),
                     null,
                     1L,
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    null
                 ),
                 AssignmentStats.NodeStats.forStartedState(
                     DiscoveryNodeUtils.create("node_started_2"),
@@ -153,7 +154,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomNonNegativeLong(),
                     null,
                     1L,
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    null
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
                     DiscoveryNodeUtils.create("node_not_started_3"),

@@ -346,6 +346,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
+        this.pageDecoder.setReportAbsentDeclaredColumns(statsFileFinal);
         if (this.statsStripeSize > 0) {
             // Tell the decoder to record each record's own file-global start offset into a per-page array,
             // so the iterator can attribute the page's rows to canonical stripes by the byte-range cover

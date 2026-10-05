@@ -403,7 +403,11 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     private interface AutomatonProvider {
-        ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker);
+        Automaton getAutomaton(String field);
+
+        default ByteRunAutomaton getRunAutomaton(String field) {
+            return new ByteRunAutomaton(getAutomaton(field));
+        }
     }
 
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
@@ -442,7 +446,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
     private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
-        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+        public Automaton getAutomaton(String field) {
+            throw new UnsupportedOperationException("Call getRunAutomaton instead");
+        }
+
+        @Override
+        public ByteRunAutomaton getRunAutomaton(String field) {
             return fuzzyQuery.getAutomata().runAutomaton;
         }
     }

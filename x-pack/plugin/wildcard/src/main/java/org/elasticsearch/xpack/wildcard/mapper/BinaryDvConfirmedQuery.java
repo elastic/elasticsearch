@@ -468,7 +468,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         @Override
         public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
-            return new ByteRunAutomaton(supplier.get());
+            return AutomatonQueries.toByteRunAutomaton(supplier.get(), breaker, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
         }
 
         @Override

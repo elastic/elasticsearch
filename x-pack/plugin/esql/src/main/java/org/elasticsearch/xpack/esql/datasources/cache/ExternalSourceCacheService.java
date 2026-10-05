@@ -844,8 +844,9 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a 7-component record (path, mtime, formatType, formatConfig, endpoint,
-        // region, fileSetFingerprint), so a contribution path alone does not reconstruct a key, and forEach
+        // get()s: SchemaCacheKey is a multi-component record (path, mtime, formatType, formatConfig, endpoint,
+        // region, fileSetFingerprint, definitionVersion), so a contribution path alone does not reconstruct a
+        // key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
@@ -865,14 +866,22 @@ public class ExternalSourceCacheService implements Closeable {
      * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
      * sibling path's earlier commit weight-evicted this path's entry out of the cache before its stats
      * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
-     * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
-     * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
-     * its delta just because another twin survived. A live entry always wins over its snapshot
+     * {@code (path, mtime, fingerprint)} can live under several keys (the identity each participant
+     * reports is a key component but not a fingerprint input), and a partial sweep evicting one twin
+     * must not forfeit its delta just because another twin survived. A live entry always wins over its snapshot
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
      * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
      * revive a live match already gets. Must run holding the
      * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
      * this method returns.
+     * <p>
+     * <b>Returns nothing when the matches disagree about what they were derived from.</b> A contribution says which
+     * path, at which mtime, under which format config — never which store. Two data sources over different stores
+     * serving one bucket and key agree on all three, because object-store {@code Last-Modified} is second-granular,
+     * so both their entries match and whichever harvest arrives would be written into both: one store's row count
+     * read back as the other's. Nothing here can tell which of them the contribution came from, so it enriches
+     * neither and both reads re-scan. A safe miss, like every other gate on this path, and it costs warmth only in
+     * the case that would otherwise be wrong — a single store's twins share an identity and are unaffected.
      */
     private List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> collectMatchingEntries(
         String path,
@@ -907,6 +916,22 @@ public class ExternalSourceCacheService implements Closeable {
             }
             if (recovered > 0) {
                 logger.debug("recovering [{}] cache entries for [{}] swept by a sibling commit", recovered, path);
+            }
+        }
+        if (matches.size() > 1) {
+            Set<String> identities = new HashSet<>();
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matches) {
+                identities.add(match.getKey().identity());
+            }
+            if (identities.size() > 1) {
+                logger.debug(
+                    "refusing to enrich [{}] entries for [{}]: they were derived under [{}] different identities "
+                        + "and a contribution does not say which",
+                    matches.size(),
+                    path,
+                    identities.size()
+                );
+                return List.of();
             }
         }
         return matches;
@@ -962,6 +987,11 @@ public class ExternalSourceCacheService implements Closeable {
      * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
      * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
      * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
+     * <p>
+     * <b>It does not compare the key's identity or its definition version</b>, because a contribution carries
+     * neither. On its own that makes every entry for this path at this mtime under this format config a match,
+     * whichever store it describes. {@link #collectMatchingEntries} is where that is caught: it discards an
+     * ambiguous match rather than writing one store's harvest into another store's record.
      */
     private static boolean matchesContribution(
         SchemaCacheKey key,
@@ -1600,13 +1630,12 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             long mtimeMillis = ((Number) mtimeObj).longValue();
-            // Enrich the schema entry whose config matches the contribution. SchemaCacheKey is keyed on
-            // path + mtime + formatType + formatConfig + endpoint + region, so the SAME file can have
-            // several entries — one per (formatType, formatConfig) tuple (e.g. header_row=true vs
-            // header_row=false count rows differently). The config fingerprint disambiguates
-            // them, and it is node-stable: both the data node's contribution and the coordinator's entry
-            // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
-            // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
+            // Enrich the schema entry whose config matches the contribution. A schema key carries the identities
+            // its participants report, so the SAME file can have several entries — one per way of reading it (e.g.
+            // header_row=true vs header_row=false count rows differently). The config fingerprint disambiguates
+            // them, and it is node-stable because both sides ask the same reader for it: the data node's
+            // contribution and the coordinator's entry derive it from one place, so the guard holds across JVMs
+            // (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
             // Serialize the read-modify-write per file path with the same lock commitStripeDelta uses:
             // this method and applyStripeDelta both collect matching entries under forEach, then enrich

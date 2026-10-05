@@ -460,6 +460,26 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@code absent_over_time} is a table over the query's steps, labelled by its matchers: a scalar reading no series applies to
+     * its value, but another vector or a selector cannot share its aggregate or join it, and a {@code without} over it would
+     * declare a {@code _timeseries} it does not carry.
+     */
+    public void testAbsentOverTimeComposition() {
+        String absent = "absent_over_time(network.connections{host=\"a\"}[5m])";
+        String message = "binary expressions with absent_over_time and another vector or selector are not supported at this time";
+        tsdb.error("PROMQL index=test step=5m " + absent + " + sum(network.connections)", containsString(message));
+        tsdb.error("PROMQL index=test step=5m scalar(network.connections) * " + absent, containsString(message));
+        tsdb.error("PROMQL index=test step=5m vector(1) + " + absent, containsString(message));
+        tsdb.error("PROMQL index=test step=5m " + absent + " - " + absent, containsString(message));
+        tsdb.error(
+            "PROMQL index=test step=5m sum without (host) (" + absent + ")",
+            containsString("WITHOUT over absent_over_time is not supported at this time")
+        );
+        assertTrue(tsdb.query("PROMQL index=test step=5m time() - " + absent + " * 2").resolved());
+        assertTrue(tsdb.query("PROMQL index=test step=5m max without (host) (sum by (host) (" + absent + "))").resolved());
+    }
+
     public void testRangeVectorExpectedRejectsNonSelectorInstantVectors() {
         // rate() requires a range vector; avg() returns an instant vector, so rate(avg(...)) is invalid
         tsdb.error(

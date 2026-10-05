@@ -3970,6 +3970,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_TOPK_OVER_AGGREGATE,
 
         /**
+         * PromQL {@code present_over_time} is {@code 1} for a series with a sample in the range and nothing otherwise, never
+         * {@code 0}; {@code absent_over_time} is one {@code {labels} 1} row at the steps no series has a sample at, the
+         * labels those of the selector's equality matchers, and nothing otherwise.
+         */
+        PROMQL_PRESENCE_OVER_TIME(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code label_replace} and {@code label_join} metadata-manipulation functions, when the
          * derived destination label is consumed by an enclosing {@code by(...)} aggregation. The destination may be a new
          * label or may overwrite a stored label (a dimension or {@code __name__}).

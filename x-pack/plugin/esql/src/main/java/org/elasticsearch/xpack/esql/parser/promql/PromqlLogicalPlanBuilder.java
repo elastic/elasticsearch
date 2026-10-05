@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
@@ -149,6 +150,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     public static LogicalPlan buildLocalRelation(PromqlCommand command) {
+        return buildLocalRelation(command, command.stepId());
+    }
+
+    /** The query's steps as a relation of one row each, the step list aliased under {@code stepListId}. */
+    public static LogicalPlan buildLocalRelation(PromqlCommand command, NameId stepListId) {
         Source source = command.source();
 
         long start = ((Number) command.start().value()).longValue();
@@ -179,7 +185,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
         }
 
-        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME), command.stepId());
+        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME), stepListId);
         var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
 
         return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);

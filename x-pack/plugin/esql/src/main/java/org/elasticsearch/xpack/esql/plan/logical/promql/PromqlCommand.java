@@ -461,6 +461,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
                         failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
                     }
+                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT
+                        && agg.child() instanceof AcrossSeriesAggregate == false
+                        && usesAbsentOverTime(agg.child())) {
+                        // The result declares a `_timeseries` the absent series, labelled by its matchers, does not carry.
+                        failures.add(fail(agg, "WITHOUT over absent_over_time is not supported at this time [{}]", agg.sourceText()));
+                    }
                     // Reject labels whose name collides with the built-in step column.
                     // If this proves too restrictive, we could add an option to rename the built-in step column.
                     for (Attribute grouping : agg.groupings()) {
@@ -579,6 +585,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         // https://github.com/elastic/elasticsearch/issues/158183
                         failures.add(
                             fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
+                        );
+                    }
+                    if (binaryOperator instanceof VectorBinarySet == false && combinesAbsentOverTime(binaryOperator)) {
+                        // absent_over_time is a table over the query's steps, not an aggregate over the source: a scalar that
+                        // reads no series applies to its value, but another vector or a selector cannot share its aggregate or
+                        // join it.
+                        failures.add(
+                            fail(
+                                lp,
+                                "binary expressions with absent_over_time and another vector or selector are not supported "
+                                    + "at this time [{}]",
+                                lp.sourceText()
+                            )
                         );
                     }
                     // Arithmetic/comparison binary operators merge both source-backed operands into a single
@@ -737,6 +756,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static boolean usesNestedAcrossSeriesAggregation(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.child().anyMatch(AcrossSeriesAggregate.class::isInstance));
+    }
+
+    private static boolean usesAbsentOverTime(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof WithinSeriesAggregate function && function.isAbsentOverTime());
+    }
+
+    /** Whether an operand of {@code op} contains {@code absent_over_time} and the other is anything but a scalar reading no series. */
+    private static boolean combinesAbsentOverTime(VectorBinaryOperator op) {
+        boolean left = usesAbsentOverTime(op.left());
+        boolean right = usesAbsentOverTime(op.right());
+        if (left == right) {
+            return left;
+        }
+        LogicalPlan other = left ? op.right() : op.left();
+        return hasSourceBackedExpression(other) || PromqlPlan.returnsScalar(other) == false;
     }
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {

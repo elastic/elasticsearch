@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -1231,6 +1232,47 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
             assertThat(where, inner, instanceOf(WildcardQueryBuilder.class));
             assertThat(where, ((WildcardQueryBuilder) inner).fieldName(), equalTo("gender"));
+        }
+    }
+
+    /**
+     * RLIKE, equality, IN and the string comparisons answer over the value too, and travel as the expression that
+     * builds the query on the shard - the field type says there how its values are framed.
+     */
+    public void testTheRestOfTheFamilyOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        for (String where : List.of(
+            "gender rlike \"F.*\"",
+            "gender == \"F\"",
+            "gender in (\"F\", \"M\")",
+            "gender > \"F\"",
+            "gender <= \"M\""
+        )) {
+            var plan = plannerOptimizer.plan("from test | where " + where, stats);
+            assertThat(where, plan.anyMatch(FilterExec.class::isInstance), is(false));
+            var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+            assertThat(where, inner, instanceOf(ExpressionQueryBuilder.class));
+            assertThat(where, ((ExpressionQueryBuilder) inner).fieldName(), equalTo("gender"));
+        }
+    }
+
+    /** An inequality is the same query, negated by the one that wraps it. */
+    public void testNotEqualsOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        var plan = plannerOptimizer.plan("from test | where gender != \"F\"", stats);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+        assertThat(inner, instanceOf(BoolQueryBuilder.class));
+        var mustNot = ((BoolQueryBuilder) inner).mustNot();
+        assertThat(mustNot, hasSize(1));
+        assertThat(mustNot.get(0), instanceOf(ExpressionQueryBuilder.class));
+    }
+
+    /** Without values none of them is pushed, which is where they all were before. */
+    public void testTheRestOfTheFamilyWithoutValuesIsNotPushed() {
+        for (String where : List.of("gender rlike \"F.*\"", "gender == \"F\"", "gender in (\"F\", \"M\")", "gender > \"F\"")) {
+            var plan = plannerOptimizer.plan("from test | where " + where, new TestConfigurableSearchStats());
+            assertThat(where, plan.anyMatch(FilterExec.class::isInstance), is(true));
         }
     }
 

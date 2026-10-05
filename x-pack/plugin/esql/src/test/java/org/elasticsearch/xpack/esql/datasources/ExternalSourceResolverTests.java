@@ -3966,16 +3966,153 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(List.of("year"), escaped.metadata().schema().stream().map(Attribute::name).toList());
     }
 
+    /**
+     * The non-strict overlay is the second way this rail reaches the collision guard: {@code applyNonStrictOverlay}
+     * reads partition metadata off the resolved file list, which was null here before and is not now. A dataset
+     * declaring a colliding column over a concrete key therefore stops resolving, which is a behaviour change on
+     * stored datasets and the reason the capability exists — so it is pinned, not left to be discovered.
+     */
+    public void testNonStrictOverlayOnConcreteResourceRejectsDeclaredPartitionCollision() throws Exception {
+        String key = "s3://bucket/data/region=east/file.parquet";
+        List<Attribute> physical = List.of(attr("region", DataType.KEYWORD), attr("value", DataType.DOUBLE));
+        Map<String, DatasetFieldMapping> colliding = Map.of("region", new DatasetFieldMapping("keyword", null));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveConcreteKeyWithMapping(key, physical, colliding, DatasetMapping.Dynamic.TRUE, Map.of())
+        );
+        assertThat(
+            ExceptionsHelper.unwrapCause(e).getMessage(),
+            containsString("declared column [region] collides with a partition column")
+        );
+
+        // The escape hatch, and the only way back to the pre-change behaviour for such a dataset.
+        ExternalSourceResolution.ResolvedSource escaped = resolveConcreteKeyWithMapping(
+            key,
+            physical,
+            colliding,
+            DatasetMapping.Dynamic.TRUE,
+            Map.of("partition_detection", "none")
+        ).resolvedSource(key);
+        assertNotNull(escaped);
+        assertEquals(List.of("region", "value"), escaped.metadata().schema().stream().map(Attribute::name).toList());
+        assertNull(escaped.fileList().partitionMetadata());
+    }
+
+    /**
+     * Enrichment happens after the schema cache is consulted, so what the cache holds must stay the PHYSICAL
+     * schema: the key does not discriminate partition settings, and one entry is shared by datasets that set them
+     * differently. Writing an enriched schema back would serve {@code year} as the path-derived INTEGER to a
+     * dataset that asked for {@code none} and must read the file's own KEYWORD.
+     * <p>
+     * The probe count is what makes this test about the cache rather than about three independent resolves: a
+     * non-cacheable provider, or a cache the resolves never reach, probes three times and fails here.
+     */
+    public void testWarmSchemaCacheKeepsThePhysicalSchemaAcrossPartitionSettings() throws Exception {
+        String key = "s3://bucket/data/year=2024/file.parquet";
+        List<Attribute> physical = List.of(attr("year", DataType.KEYWORD), attr("value", DataType.DOUBLE));
+        Map<String, List<Attribute>> schemasByPath = Map.of(key, physical);
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            ExternalSourceResolution.ResolvedSource hive = resolveOn(resolver, key, Map.of("partition_detection", "hive")).resolvedSource(
+                key
+            );
+            assertEquals(List.of("value", "year"), hive.metadata().schema().stream().map(Attribute::name).toList());
+            assertEquals("the path-derived type", DataType.INTEGER, hive.metadata().schema().get(1).dataType());
+            assertEquals("cold resolve probes the object exactly once", 1, provider.metadataProbeCount.get());
+
+            ExternalSourceResolution.ResolvedSource none = resolveOn(resolver, key, Map.of("partition_detection", "none")).resolvedSource(
+                key
+            );
+            assertEquals(
+                "none must be served the physical schema, never the enriched one the previous resolve built",
+                List.of("year", "value"),
+                none.metadata().schema().stream().map(Attribute::name).toList()
+            );
+            assertEquals("the file's own type", DataType.KEYWORD, none.metadata().schema().get(0).dataType());
+            assertNull(none.fileList().partitionMetadata());
+            assertTrue(none.schemaMap().get(StoragePath.of(key)).mapping().isIdentity());
+
+            ExternalSourceResolution.ResolvedSource again = resolveOn(resolver, key, Map.of("partition_detection", "hive")).resolvedSource(
+                key
+            );
+            assertEquals(List.of("value", "year"), again.metadata().schema().stream().map(Attribute::name).toList());
+            SchemaReconciliation.FileSchemaInfo info = again.schemaMap().get(StoragePath.of(key));
+            // Names and types, not the attributes themselves: SchemaCacheEntry.toAttributes mints fresh NameIds on
+            // every call by design, so identity says nothing about what the cache holds.
+            assertEquals(
+                "the cached entry is still the physical schema",
+                List.of("year", "value"),
+                info.fileSchema().attributes().stream().map(Attribute::name).toList()
+            );
+            assertEquals(
+                "with the file's own types",
+                List.of(DataType.KEYWORD, DataType.DOUBLE),
+                info.fileSchema().attributes().stream().map(Attribute::dataType).toList()
+            );
+            assertEquals("and the mapping still narrows", 1, info.mapping().width());
+            assertEquals("every resolve after the first is served warm", 1, provider.metadataProbeCount.get());
+        }
+    }
+
+    /**
+     * A detector notice raised over one concrete key must reach the response. The single-file rail drains
+     * {@code FileList#listingWarnings()} for exactly this; nothing else does, so dropping that drain is invisible
+     * without this case. A reserved metadata name is the detector's one notice-raising path: {@code _index} cannot
+     * be claimed by a partition key, so the column is surfaced under {@code _partition.} and the rename is reported.
+     */
+    public void testConcreteResourcePartitionDetectionNoticeReachesTheResponse() throws Exception {
+        String key = "s3://bucket/data/_index=foo/file.parquet";
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            key,
+            Map.of(key, List.of(attr("value", DataType.DOUBLE))),
+            Map.of(),
+            Map.of("partition_detection", "hive")
+        );
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(key);
+
+        assertNotNull(resolved);
+        assertEquals(List.of("value", "_partition._index"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertThat("the rename is reported, not silent", resolution.warnings(), not(empty()));
+    }
+
+    /** Resolves one concrete key with a declared mapping at the given dynamic mode, and a config. */
+    private ExternalSourceResolution resolveConcreteKeyWithMapping(
+        String key,
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic,
+        Map<String, Object> config
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolver(Map.of(key, fileSchema), Map.of());
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(key), Map.of(key, new HashMap<>(config)), null, Map.of(key, mapping), null, future);
+        return future.actionGet();
+    }
+
     /** Resolves one concrete key under a strict (dynamic=false) declaration, so the strict single-file path is taken. */
     private ExternalSourceResolution resolveStrictConcreteKey(
         String key,
         Map<String, DatasetFieldMapping> properties,
         Map<String, Object> config
     ) throws Exception {
-        ExternalSourceResolver resolver = createResolver(Map.of(key, List.of(attr("value", DataType.DOUBLE))), Map.of());
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        return resolveConcreteKeyWithMapping(
+            key,
+            List.of(attr("value", DataType.DOUBLE)),
+            properties,
+            DatasetMapping.Dynamic.FALSE,
+            config
+        );
+    }
+
+    /** Resolves one concrete key on an existing resolver, so repeated calls share its caches. */
+    private ExternalSourceResolution resolveOn(ExternalSourceResolver resolver, String key, Map<String, Object> config) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(key), Map.of(key, new HashMap<>(config)), null, Map.of(key, mapping), null, future);
+        resolver.resolve(List.of(key), Map.of(key, new HashMap<>(config)), future);
         return future.actionGet();
     }
 

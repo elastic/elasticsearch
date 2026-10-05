@@ -57,6 +57,66 @@ import static org.hamcrest.Matchers.not;
 
 public class GlobExpanderTests extends ESTestCase {
 
+    /**
+     * {@code fileListWithDetectedPartitions} is what gives a resource naming concrete keys its partition columns:
+     * it detects over the entries it is handed instead of taking metadata a caller already holds. Pinned directly,
+     * because the resolver reaches it through two rails and neither would say which half broke.
+     */
+    public void testFileListWithDetectedPartitionsDetectsOverTheEntriesItIsHanded() {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/month=01/file.parquet");
+        List<StorageEntry> one = List.of(new StorageEntry(path, 100, Instant.EPOCH));
+
+        FileList hive = GlobExpander.fileListWithDetectedPartitions(
+            one,
+            path.toString(),
+            new PartitionConfig(PartitionConfig.Strategy.HIVE, null)
+        );
+        assertNotNull(hive.partitionMetadata());
+        assertEquals(Set.of("year", "month"), hive.partitionMetadata().partitionColumns().keySet());
+
+        // The default strategy is AUTO, so a dataset that set no partition settings gets the same answer.
+        FileList auto = GlobExpander.fileListWithDetectedPartitions(one, path.toString(), PartitionConfig.DEFAULT);
+        assertEquals(hive.partitionMetadata().partitionColumns(), auto.partitionMetadata().partitionColumns());
+
+        // And none still means none.
+        FileList off = GlobExpander.fileListWithDetectedPartitions(
+            one,
+            path.toString(),
+            new PartitionConfig(PartitionConfig.Strategy.NONE, null)
+        );
+        assertNull(off.partitionMetadata());
+    }
+
+    /**
+     * A presigned URL carries {@code =} in its query string, and for {@code http}/{@code https}
+     * {@link GlobExpander#isMultiFile} is the pattern test alone — so such a URL takes the single-file rail, which
+     * now detects. The query string must not become a partition column. {@link StoragePath#path()} strips it and the
+     * detectors read that, which is the mechanism this pins: a detector taught to read the raw location instead
+     * would invent a column named for a signing parameter.
+     */
+    public void testAPresignedUrlQueryStringIsNotAPartitionColumn() {
+        String signed = "https://host.example/bucket/data/file.parquet?X-Amz-Credential=AKIA&region=east/x=1";
+        assertEquals("/bucket/data/file.parquet", StoragePath.of(signed).path());
+        assertFalse("a presigned URL is one file, not a pattern", GlobExpander.isMultiFile(signed));
+
+        FileList resolved = GlobExpander.fileListWithDetectedPartitions(
+            List.of(new StorageEntry(StoragePath.of(signed), 100, Instant.EPOCH)),
+            signed,
+            PartitionConfig.DEFAULT
+        );
+        assertNull("nothing in a query string is a partition column", resolved.partitionMetadata());
+
+        // The same URL whose PATH does carry a Hive segment binds that one, and only that one.
+        String withPartition = "https://host.example/bucket/year=2024/file.parquet?X-Amz-Credential=AKIA&region=east";
+        FileList pathDerived = GlobExpander.fileListWithDetectedPartitions(
+            List.of(new StorageEntry(StoragePath.of(withPartition), 100, Instant.EPOCH)),
+            withPartition,
+            PartitionConfig.DEFAULT
+        );
+        assertNotNull(pathDerived.partitionMetadata());
+        assertEquals(Set.of("year"), pathDerived.partitionMetadata().partitionColumns().keySet());
+    }
+
     /** No partition settings: the default, which resolves to AUTO and behaves as Hive detection did. */
     private static final Map<String, Object> HIVE_ON = Map.of();
 

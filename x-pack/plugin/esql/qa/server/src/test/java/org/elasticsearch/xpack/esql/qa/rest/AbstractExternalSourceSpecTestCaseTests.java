@@ -444,6 +444,34 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         assertTrue("expected glob to be preserved in URI, was: " + uri, uri.endsWith("/hive-partitioned/**/*.csv"));
     }
 
+    /**
+     * The HTTP skip is an {@code assumeTrue}, so getting it wrong does not fail anything — the affected cases
+     * stop running and the suite stays green. This is the only thing that can catch that, so it enumerates
+     * both answers rather than only the one the current rule gives.
+     */
+    public void testOnlyAGlobResourceTemplateNeedsADirectoryListing() {
+        for (String glob : List.of(
+            "{{employees_multifile}}",
+            "{{employees_multifile_ubn}}",
+            "{{employees_multifile_split}}",
+            "{{employees_hive}}",
+            "{{employees_hive_shadow}}"
+        )) {
+            assertTrue(
+                glob + " expands to a glob, which HTTP cannot resolve",
+                AbstractExternalSourceSpecTestCase.needsDirectoryListing(glob)
+            );
+        }
+        // A Hive template naming one concrete key. Its name EXTENDS "_hive", which is what a bare
+        // contains(HIVE_SUFFIX) could not tell from the glob templates above — and HTTP is the backend whose
+        // single-file rail this case exists to exercise, so skipping it there loses the coverage silently.
+        assertFalse(
+            "a Hive template naming one concrete key needs no listing",
+            AbstractExternalSourceSpecTestCase.needsDirectoryListing("{{employees_hive_one_file}}")
+        );
+        assertFalse(AbstractExternalSourceSpecTestCase.needsDirectoryListing("{{employees}}"));
+    }
+
     public void testResolveLocalUriHandlesGlobInFirstSegment() {
         Path base = Paths.get("/tmp/fixtures").toAbsolutePath();
         String uri = AbstractExternalSourceSpecTestCase.resolveLocalUri(base, "*.csv");

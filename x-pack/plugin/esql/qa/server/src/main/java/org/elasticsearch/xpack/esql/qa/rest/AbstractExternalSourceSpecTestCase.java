@@ -992,15 +992,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             "FROM <dataset> requires the [dataset_in_from_command] capability",
             hasCapabilities(client(), List.of(EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName()))
         );
-        // HTTP cannot list a directory, so multi-file/Hive-partitioned glob datasets cannot be resolved
-        // over it; skip those on the HTTP backend (the glob lives in the dataset's resource template).
-        // The Hive suffixes are matched on suffix + "}}", as the raw-EXTERNAL path above does: a Hive
-        // template that expands to one concrete key needs no listing and must not be skipped here, and a
-        // bare contains() cannot tell it from the glob templates whose name it extends.
         for (DatasetSource source : testCase.datasetSources) {
-            if (source.resource().contains(MULTIFILE_SUFFIX)
-                || source.resource().contains(HIVE_SUFFIX + "}}")
-                || source.resource().contains(HIVE_SHADOW_SUFFIX + "}}")) {
+            if (needsDirectoryListing(source.resource())) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
         }
@@ -1367,6 +1360,23 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * listing.
      */
     private static final String HIVE_ONE_FILE_SUFFIX = "_hive_one_file";
+
+    /**
+     * Whether a dataset's resource template expands to something only a directory listing can resolve, which is
+     * what the HTTP backend cannot do. The Hive suffixes are matched on {@code suffix + "}}"}, as the
+     * raw-EXTERNAL sibling in {@code runCurrentVersion} does, because {@link #HIVE_ONE_FILE_SUFFIX} extends
+     * {@link #HIVE_SUFFIX} while expanding to one concrete key that needs no listing. A bare
+     * {@code contains(HIVE_SUFFIX)} cannot tell the two apart, and silently skipped the one-key cases on HTTP —
+     * the one backend where {@link org.elasticsearch.xpack.esql.datasources.glob.GlobExpander#isMultiFile} is
+     * the pattern test alone, so the backend those cases most need to run on. Package-private for
+     * {@code AbstractExternalSourceSpecTestCaseTests}, which pins exactly that distinction: a skip is silent,
+     * so nothing else can catch it coming back.
+     */
+    static boolean needsDirectoryListing(String resourceTemplate) {
+        return resourceTemplate.contains(MULTIFILE_SUFFIX)
+            || resourceTemplate.contains(HIVE_SUFFIX + "}}")
+            || resourceTemplate.contains(HIVE_SHADOW_SUFFIX + "}}");
+    }
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.

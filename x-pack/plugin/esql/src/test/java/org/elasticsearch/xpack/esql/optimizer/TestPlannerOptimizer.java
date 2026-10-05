@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -59,6 +60,11 @@ public class TestPlannerOptimizer {
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
         mapper = new Mapper();
 
+    }
+
+    /** The fetch phase decisions of every plan optimized so far. */
+    public FetchPhaseOutcomes fetchPhaseOutcomes() {
+        return physicalPlanOptimizer.fetchPhaseOutcomes();
     }
 
     public PhysicalPlan plan(String query) {

@@ -224,7 +224,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
-        private EsqlFlags flags = EsqlFlags.withRemoteFetchTopN(false);
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(false);
 
         private TestBuilder(
             String esqlQuery,

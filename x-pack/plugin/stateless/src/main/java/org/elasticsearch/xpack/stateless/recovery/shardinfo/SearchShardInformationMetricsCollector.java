@@ -27,11 +27,14 @@ public class SearchShardInformationMetricsCollector {
     public static final String REQUESTS_SUCCESS_TOTAL = "es.search.shards.information.retrieval.requests.success.total";
     public static final String REQUESTS_ERRORS_TOTAL = "es.search.shards.information.retrieval.requests.errors.total";
     public static final String REQUESTS_SHARD_MOVED_TOTAL = "es.search.shards.information.retrieval.requests.shard_moved.total";
+    public static final String WARM_VOLUMES_FETCH_TOTAL = "es.blob_cache_warming.warm_volumes.fetch.total";
+    public static final String WARM_VOLUMES_FETCH_OUTCOME_ATTRIBUTE_KEY = "es_warm_volumes_fetch_outcome";
 
     private final LongHistogram histogram;
     private final LongCounter successes;
     private final LongCounter errors;
     private final LongCounter shardMoved;
+    private final LongCounter warmVolumeFetches;
 
     public SearchShardInformationMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -40,6 +43,15 @@ public class SearchShardInformationMetricsCollector {
         this.successes = meterRegistry.registerLongCounter(REQUESTS_SUCCESS_TOTAL, "successful requests", "count");
         this.errors = meterRegistry.registerLongCounter(REQUESTS_ERRORS_TOTAL, "failed requests", "count");
         this.shardMoved = meterRegistry.registerLongCounter(REQUESTS_SHARD_MOVED_TOTAL, "shard moved requests", "count");
+        this.warmVolumeFetches = meterRegistry.registerLongCounter(
+            WARM_VOLUMES_FETCH_TOTAL,
+            "Warm-volume fetches from a draining search node, broken down by [" + WARM_VOLUMES_FETCH_OUTCOME_ATTRIBUTE_KEY + "]",
+            "count"
+        );
+    }
+
+    public void recordWarmVolumeFetch(String outcome) {
+        this.warmVolumeFetches.incrementBy(1, Map.of(WARM_VOLUMES_FETCH_OUTCOME_ATTRIBUTE_KEY, outcome));
     }
 
     public void recordSuccess(long duration, Map<String, Object> attributes) {

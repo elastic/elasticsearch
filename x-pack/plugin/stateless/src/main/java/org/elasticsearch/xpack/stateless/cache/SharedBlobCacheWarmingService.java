@@ -167,6 +167,9 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
         "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
     public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_FORMULA_DELTA_METRIC =
+        "es.blob_cache_warming.search_recovery.drain_timeout_formula_delta.histogram";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_VOLUMES_PRESENT_ATTRIBUTE_KEY = "es_warm_volumes_present";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -484,6 +487,7 @@ public class SharedBlobCacheWarmingService {
     private volatile double searchRecoveryWarmingCacheRatio;
     private volatile ShardWarmVolumes shardWarmVolumes;
     private final LongCounter drainTimeoutHeuristicTotalMetric;
+    private final DoubleHistogram drainTimeoutFormulaDeltaMetric;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -617,6 +621,15 @@ public class SharedBlobCacheWarmingService {
                     + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
                     + "] heuristic that produced the timeout",
                 "count"
+            );
+        this.drainTimeoutFormulaDeltaMetric = telemetryProvider.getMeterRegistry()
+            .registerDoubleHistogram(
+                SEARCH_RECOVERY_DRAIN_TIMEOUT_FORMULA_DELTA_METRIC,
+                "Chosen drain warming timeout minus the timeout from the equal-share and data-volume formulas alone, "
+                    + "broken down by whether warm volumes were ["
+                    + SEARCH_RECOVERY_DRAIN_TIMEOUT_VOLUMES_PRESENT_ATTRIBUTE_KEY
+                    + "]",
+                "s"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -1379,7 +1392,8 @@ public class SharedBlobCacheWarmingService {
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
         // Warm-volume shares use the source's current-commit prefixes; they can differ from this target's WarmTarget plan.
-        final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, shardId, remaining);
+        final WarmVolumeShare warmVolume = warmVolumeShare(state, sourceNodeId, shardId, remaining);
+        final double warmVolumeMs = warmVolume.shareMs();
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
         if (ongoingRelocations <= 0) {
@@ -1407,24 +1421,48 @@ public class SharedBlobCacheWarmingService {
             heuristic = "equal_share";
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
+        final double previousHeuristicMs = Math.max(equalShareMs, dataVolumeMs);
+        final long previousTimeoutMs = Math.round(Math.min(remaining, previousHeuristicMs * ongoingRelocations));
+        final long chosenTimeoutMs = Math.round(Math.min(remaining, timeoutHeuristicMs * ongoingRelocations));
         drainTimeoutHeuristicTotalMetric.incrementBy(1, Map.of(SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY, heuristic));
-        return new SearchRecoveryTimeout(
-            TimeValue.timeValueMillis(Math.round(Math.min(remaining, timeoutHeuristicMs * ongoingRelocations))),
-            context
+        drainTimeoutFormulaDeltaMetric.record(
+            (chosenTimeoutMs - previousTimeoutMs) / 1000.0,
+            Map.of(SEARCH_RECOVERY_DRAIN_TIMEOUT_VOLUMES_PRESENT_ATTRIBUTE_KEY, Boolean.toString(warmVolume.present()))
         );
+        logger.info(
+            "drain warming timeout shard [{}] source [{}] equalShareMs [{}] dataVolumeMs [{}] warmVolumeMs [{}] "
+                + "previousTimeoutMs [{}] chosenTimeoutMs [{}] deltaMs [{}] heuristic [{}] shardWarmBytes [{}] "
+                + "sourceWarmBytes [{}] volumesPresent [{}] ongoingRelocations [{}] remainingMs [{}]",
+            shardId,
+            sourceNodeId,
+            Math.round(equalShareMs),
+            Math.round(dataVolumeMs),
+            Math.round(warmVolumeMs),
+            previousTimeoutMs,
+            chosenTimeoutMs,
+            chosenTimeoutMs - previousTimeoutMs,
+            heuristic,
+            warmVolume.shardBytes(),
+            warmVolume.sourceBytes(),
+            warmVolume.present(),
+            ongoingRelocations,
+            remaining
+        );
+        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(chosenTimeoutMs), context);
     }
 
     /**
-     * Per-shard warm-volume share of {@code remaining}, or {@code 0} when the map cannot be used for this shard.
+     * Per-shard warm-volume share of {@code remaining}. {@code shareMs} is 0 when the map cannot be used for this shard.
+     * {@code present} is true when a completed volume snapshot exists for the source, even if this shard is missing from it.
      */
-    private double warmVolumeShareMs(ClusterState state, String sourceNodeId, ShardId shardId, long remaining) {
+    private WarmVolumeShare warmVolumeShare(ClusterState state, String sourceNodeId, ShardId shardId, long remaining) {
         var entry = shardWarmVolumes.get(state, sourceNodeId);
         if (entry == null) {
-            return 0;
+            return new WarmVolumeShare(0, false, 0L, 0L);
         }
         final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
         if (sourceNode == null) {
-            return 0;
+            return new WarmVolumeShare(0, true, 0L, 0L);
         }
         long sourceWarmVolumeSum = 0L;
         Long thisShardVolume = null;
@@ -1440,10 +1478,17 @@ public class SharedBlobCacheWarmingService {
             }
         }
         if (thisShardVolume == null || sourceWarmVolumeSum <= 0L) {
-            return 0;
+            return new WarmVolumeShare(0, true, thisShardVolume == null ? 0L : thisShardVolume, sourceWarmVolumeSum);
         }
-        return (thisShardVolume / (double) sourceWarmVolumeSum) * remaining;
+        return new WarmVolumeShare(
+            (thisShardVolume / (double) sourceWarmVolumeSum) * remaining,
+            true,
+            thisShardVolume,
+            sourceWarmVolumeSum
+        );
     }
+
+    private record WarmVolumeShare(double shareMs, boolean present, long shardBytes, long sourceBytes) {}
 
     /**
      * Counts ongoing relocations whose source is {@code sourceNodeId} and whose target is {@code targetNodeId} (i.e. shards relocating

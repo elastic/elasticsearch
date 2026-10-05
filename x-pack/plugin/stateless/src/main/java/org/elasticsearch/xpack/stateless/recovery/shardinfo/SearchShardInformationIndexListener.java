@@ -136,6 +136,18 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             if (fetchVolumes) {
                 final String sourceNodeId = relocatingNodeId;
                 ActionListener<TransportFetchShardWarmVolumesAction.Response> volumeListener = ActionListener.wrap(response -> {
+                    long bytes = 0L;
+                    for (long volume : response.volumes().values()) {
+                        bytes += volume;
+                    }
+                    logger.info(
+                        "fetched warm volumes from [{}] generation [{}] shards [{}] bytes [{}]",
+                        response.respondingNodeId(),
+                        response.volumesGeneration(),
+                        response.volumes().size(),
+                        bytes
+                    );
+                    collector.recordWarmVolumeFetch("received");
                     shardWarmVolumes.completeFetch(
                         clusterService.state(),
                         sourceNodeId,
@@ -145,8 +157,12 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                     );
                 }, e -> {
                     shardWarmVolumes.releaseClaim(sourceNodeId);
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ActionNotFoundTransportException == false) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ActionNotFoundTransportException) {
+                        logger.info("warm volume fetch skipped, node [{}] does not have the action", sourceNodeId);
+                        collector.recordWarmVolumeFetch("not_found");
+                    } else {
                         logger.warn("could not retrieve warm volumes from node [" + sourceNodeId + "]", e);
+                        collector.recordWarmVolumeFetch("error");
                     }
                 });
                 try {

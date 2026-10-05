@@ -61,6 +61,9 @@ public final class Vocabulary {
      * @param coverage        the share of the column's values these terms name, as a lower bound
      * @param dictionaryBytes the term bytes the kept terms occupy
      * @param columnBytes     the value bytes the whole column occupies
+     * @param numValues       the non-null values the column holds
+     * @param bestCoverage    the most a dictionary could name here, or {@link BestCoverage#UNKNOWN}
+     *                        where none could be taken
      * @param counts          how often each id was seen, as a lower bound, or null when unknown
      */
     public record Terms(
@@ -71,10 +74,12 @@ public final class Vocabulary {
         double coverage,
         long dictionaryBytes,
         long columnBytes,
+        long numValues,
+        BestCoverage bestCoverage,
         long[] counts
     ) {
-        /** Whether this vocabulary knows how often it saw each of its terms. */
-        public boolean counted() {
+        /** Whether counts were recorded for these terms. */
+        public boolean hasCounts() {
             return counts != null;
         }
 
@@ -83,7 +88,8 @@ public final class Vocabulary {
             return counts[dictionaryIds[ordinal]];
         }
 
-        public int size() {
+        /** How many terms the dictionary holds, which is neither the term table nor the summary. */
+        public int dictionarySize() {
             return dictionaryIds.length;
         }
 
@@ -102,6 +108,34 @@ public final class Vocabulary {
             // not make equal sets: a budget spent on a term held once leaves less for the ones held often.
             return Arrays.equals(summaryIds, dictionaryIds);
         }
+
+        /** What this column summarised about the most a dictionary could name on it. */
+        public BestCoverage bestCoverage() {
+            return bestCoverage;
+        }
+
+        /**
+         * These terms under a bound tighter than their own counts give. A merge that admits a dictionary
+         * has already weighed what its inputs recorded against what it recomputed, and the merged column
+         * records the better of the two rather than losing it to the dictionary it ended up building.
+         *
+         * @param tighter a bound that also holds on this column
+         * @return the same terms carrying {@code tighter}
+         */
+        public Terms withBestCoverage(BestCoverage tighter) {
+            return new Terms(
+                terms,
+                dictionaryIds,
+                summaryIds,
+                ordinalOfId,
+                coverage,
+                dictionaryBytes,
+                columnBytes,
+                numValues,
+                tighter,
+                counts
+            );
+        }
     }
 
     /**
@@ -110,10 +144,19 @@ public final class Vocabulary {
      * discover what they contain.
      *
      * @param sortedTerms the vocabulary, in term order
+     * @param numValues   the values the merged column holds
+     * @param bestCoverage what the merged column summarises about the most a dictionary could name on it
      * @param coverage    the share of the merged column's values these terms name; one for a union of
      *                    dictionaries that let nothing escape, and otherwise an under-estimate
      */
-    public static Terms known(List<BytesRef> sortedTerms, long columnBytes, double coverage, long[] countsPerTerm) {
+    public static Terms known(
+        List<BytesRef> sortedTerms,
+        long columnBytes,
+        double coverage,
+        long numValues,
+        BestCoverage bestCoverage,
+        long[] countsPerTerm
+    ) {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         final int[] dictionaryIds = new int[sortedTerms.size()];
         final int[] ordinalOfId = new int[sortedTerms.size()];
@@ -131,7 +174,18 @@ public final class Vocabulary {
                 counts[id] = countsPerTerm[ordinal];
             }
         }
-        return new Terms(terms, dictionaryIds, dictionaryIds, ordinalOfId, coverage, dictionaryBytes, columnBytes, counts);
+        return new Terms(
+            terms,
+            dictionaryIds,
+            dictionaryIds,
+            ordinalOfId,
+            coverage,
+            dictionaryBytes,
+            columnBytes,
+            numValues,
+            bestCoverage,
+            counts
+        );
     }
 
     /**
@@ -165,18 +219,60 @@ public final class Vocabulary {
         }
         final TermSelection selection = new TermSelection(terms, occurrences);
         final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
-        final int[] summaryIds = selection.thatFit(TermQuota.forMergedSummary(summaryPolicy));
-        if (dictionaryIds.length == 0 && summaryIds.length == 0) {
-            return null;
-        }
-        return selected(selection, dictionaryIds, summaryIds, columnBytes, numValues);
+        // NOTE: counts are summed across the inputs, so a term counted once was seen by one input and by no
+        // other. It may still turn out to repeat: a later merge can bring a segment holding it too, but only
+        // if this merge records it now. Its own budget keeps it from displacing a term that already repeats.
+        final int[] summaryIds = selection.thatFit(
+            TermQuota.forMergedSummary(summaryPolicy),
+            TermQuota.forMergedSummaryTail(dictionaryPolicy, columnBytes)
+        );
+        return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
     }
 
-    private static Terms selected(TermSelection selection, int[] dictionaryIds, int[] summaryIds, long columnBytes, long numValues) {
+    /**
+     * The same vocabulary with its dictionary given up, keeping the terms it summarised. A merge that
+     * refuses a dictionary still passes its inputs' terms on, or the next merge reads a column that holds
+     * nothing and has to go to the values.
+     *
+     * @param combined the vocabulary summed from the inputs' summaries, or null where there was none
+     * @param bestCoverage the best coverage the refusal was reached with, which the merged column records
+     * @return a vocabulary naming no terms but carrying the summary and the bound
+     */
+    public static Terms withoutDictionary(Terms combined, BestCoverage bestCoverage) {
+        if (combined == null) {
+            return known(List.of(), 0, 0.0, bestCoverage.numValues(), bestCoverage, new long[0]);
+        }
+        final int[] ordinalOfId = new int[combined.terms().size()];
+        Arrays.fill(ordinalOfId, DROPPED);
+        return new Terms(
+            combined.terms(),
+            new int[0],
+            combined.summaryIds(),
+            ordinalOfId,
+            0.0,
+            0,
+            combined.columnBytes(),
+            combined.numValues(),
+            bestCoverage,
+            combined.counts()
+        );
+    }
+
+    private static Terms selected(
+        TermSelection selection,
+        int[] dictionaryIds,
+        int[] summaryIds,
+        DictionaryPolicy dictionaryPolicy,
+        long columnBytes,
+        long numValues
+    ) {
         final BytesRefHash terms = selection.terms();
         // Indexed by id, so a term the survey saw but did not keep is told apart from ordinal zero.
         final int[] ordinalOfId = new int[terms.size()];
         Arrays.fill(ordinalOfId, DROPPED);
+        final BestCoverage bestCoverage = dictionaryPolicy.enabled()
+            ? BestCoverage.of(selection.bestCoverage(dictionaryPolicy.maxBytes(), numValues), numValues, dictionaryPolicy.maxBytes())
+            : BestCoverage.UNKNOWN;
         long coveredValues = 0;
         long dictionaryBytes = 0;
         final BytesRef scratch = new BytesRef();
@@ -195,8 +291,128 @@ public final class Vocabulary {
             share(coveredValues, numValues),
             dictionaryBytes,
             columnBytes,
+            numValues,
+            bestCoverage,
             selection.occurrences()
         );
+    }
+
+    /**
+     * A push-style Misra-Gries accumulator: the caller feeds values one at a time and calls
+     * {@link #finish()} when done. Equivalent to the pull-loop in {@link #survey}, but decoupled from
+     * the cursor so the same walk can serve two purposes at once (e.g. writing a presence structure while
+     * accumulating the vocabulary).
+     */
+    static final class Surveyor {
+
+        private final DictionaryPolicy dictionaryPolicy;
+        private final SummaryPolicy summaryPolicy;
+        private final long tableBound;
+        private final BytesRefHash terms;
+        private long[] counts;
+        private long tableBytes;
+        private long numValues;
+        private long columnBytes;
+        // A column that arrives in term order repeats each value in a run, so the term a value takes is
+        // almost always the one before it. Comparing against that costs a length check and settles it
+        // without a hash probe; only a run boundary pays for one.
+        private final BytesRefBuilder previous;
+        private int previousId;
+        private boolean hasPrevious;
+
+        private Surveyor(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
+            this.dictionaryPolicy = dictionaryPolicy;
+            this.summaryPolicy = summaryPolicy;
+            this.tableBound = summaryPolicy.surveyBudgetBytes(dictionaryPolicy);
+            this.terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
+            this.counts = new long[64];
+            this.tableBytes = 0;
+            this.numValues = 0;
+            this.columnBytes = 0;
+            this.previous = new BytesRefBuilder();
+            this.previousId = ABSENT;
+            this.hasPrevious = false;
+        }
+
+        /**
+         * Offers one slot's value. A null slot is ignored — it is named by an ordinal of its own and its
+         * bytes are not bytes the column would otherwise store.
+         */
+        void accept(BytesRef value) {
+            if (value == null) {
+                // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
+                // and its bytes are not bytes the column would otherwise store. Counting it would credit
+                // the empty term with occurrences it does not have, and could win it an entry — or
+                // displace a real term — on the strength of values that are not empty strings.
+                return;
+            }
+            // NOTE: a null gets an ordinal of its own in every layout, so it is not a value a dictionary names.
+            numValues++;
+            // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
+            // as one virtual byte to keep the denominator positive and the metric meaningful.
+            columnBytes += TermQuota.cost(value);
+            if (hasPrevious && previous.get().bytesEquals(value)) {
+                if (previousId != ABSENT) {
+                    counts[previousId]++;
+                }
+                return;
+            }
+            int id = terms.find(value);
+            if (id < 0) {
+                if (tableBytes + value.length > tableBound) {
+                    if (terms.size() > 0) {
+                        final long[] freed = { 0 };
+                        counts = evictLeastFrequent(terms, counts, freed);
+                        tableBytes -= freed[0];
+                    }
+                    if (tableBytes + value.length > tableBound) {
+                        // Nothing could be displaced: either every term held occurs at least as often as
+                        // this one, or the table is empty and the value alone is larger than the bound.
+                        // Remembered as absent, so the rest of its run is turned away as cheaply.
+                        previous.copyBytes(value);
+                        previousId = ABSENT;
+                        hasPrevious = true;
+                        return;
+                    }
+                }
+                id = terms.add(value);
+                if (id < 0) {
+                    id = -1 - id;
+                }
+                counts = ArrayUtil.grow(counts, id + 1);
+                tableBytes += value.length;
+            }
+            counts[id]++;
+            // Copied only here, so a run costs one copy rather than one per value.
+            previous.copyBytes(value);
+            previousId = id;
+            hasPrevious = true;
+        }
+
+        /**
+         * Returns the terms worth a dictionary entry or a summary entry, or null when the column holds
+         * nothing worth naming. Must be called exactly once, after all values have been {@link #accept accepted}.
+         */
+        Terms finish() {
+            if (terms.size() == 0) {
+                return null;
+            }
+            final TermSelection selection = new TermSelection(terms, counts);
+            final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
+            final int[] summaryIds = selection.thatFit(TermQuota.forSummary(summaryPolicy));
+            // NOTE: a column where nothing repeats earns no dictionary entry but still has terms worth leaving
+            // for a merge, which may hold them often enough across segments. Returning null here would put the
+            // merge back to reading values, which is what the summary exists to avoid.
+            if (dictionaryIds.length == 0 && summaryIds.length == 0) {
+                return null;
+            }
+            return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
+        }
+    }
+
+    /** Returns a fresh {@link Surveyor} governed by {@code dictionaryPolicy} and {@code summaryPolicy}. */
+    static Surveyor surveyor(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
+        return new Surveyor(dictionaryPolicy, summaryPolicy);
     }
 
     /**
@@ -205,85 +421,14 @@ public final class Vocabulary {
      */
     public static Terms survey(StringColumnValues values, DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy)
         throws IOException {
-        final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
-        long[] counts = new long[64];
-        final long tableBound = Math.max(dictionaryPolicy.maxBytes(), summaryPolicy.maxBytes());
-        long tableBytes = 0;
-        long numValues = 0;
-        long columnBytes = 0;
-        // A column that arrives in term order repeats each value in a run, so the term a value takes is
-        // almost always the one before it. Comparing against that costs a length check and settles it
-        // without a hash probe; only a run boundary pays for one.
-        final BytesRefBuilder previous = new BytesRefBuilder();
-        int previousId = ABSENT;
-        boolean hasPrevious = false;
+        final Surveyor surveyor = new Surveyor(dictionaryPolicy, summaryPolicy);
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
-                final BytesRef value = values.value();
-                if (value == null) {
-                    // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
-                    // and its bytes are not bytes the column would otherwise store. Counting it would credit
-                    // the empty term with occurrences it does not have, and could win it an entry — or
-                    // displace a real term — on the strength of values that are not empty strings.
-                    continue;
-                }
-                // NOTE: a null gets an ordinal of its own in every layout, so it is not a value a dictionary names.
-                numValues++;
-                // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
-                // as one virtual byte to keep the denominator positive and the metric meaningful.
-                columnBytes += TermQuota.cost(value);
-                if (hasPrevious && previous.get().bytesEquals(value)) {
-                    if (previousId != ABSENT) {
-                        counts[previousId]++;
-                    }
-                    continue;
-                }
-                int id = terms.find(value);
-                if (id < 0) {
-                    if (tableBytes + value.length > tableBound) {
-                        if (terms.size() > 0) {
-                            final long[] freed = { 0 };
-                            counts = evictLeastFrequent(terms, counts, freed);
-                            tableBytes -= freed[0];
-                        }
-                        if (tableBytes + value.length > tableBound) {
-                            // Nothing could be displaced: either every term held occurs at least as often as
-                            // this one, or the table is empty and the value alone is larger than the bound.
-                            // Remembered as absent, so the rest of its run is turned away as cheaply.
-                            previous.copyBytes(value);
-                            previousId = ABSENT;
-                            hasPrevious = true;
-                            continue;
-                        }
-                    }
-                    id = terms.add(value);
-                    if (id < 0) {
-                        id = -1 - id;
-                    }
-                    counts = ArrayUtil.grow(counts, id + 1);
-                    tableBytes += value.length;
-                }
-                counts[id]++;
-                // Copied only here, so a run costs one copy rather than one per value.
-                previous.copyBytes(value);
-                previousId = id;
-                hasPrevious = true;
+                surveyor.accept(values.value());
             }
         }
-        if (terms.size() == 0) {
-            return null;
-        }
-        final TermSelection selection = new TermSelection(terms, counts);
-        final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
-        final int[] summaryIds = selection.thatFit(TermQuota.forSummary(summaryPolicy));
-        // NOTE: a column where nothing repeats earns no dictionary entry but still has terms worth leaving
-        // for a merge, which may hold them often enough across segments. Returning null here would put the
-        // merge back to reading values, which is what the summary exists to avoid.
-        if (dictionaryIds.length == 0 && summaryIds.length == 0) {
-            return null;
-        }
-        return selected(selection, dictionaryIds, summaryIds, columnBytes, numValues);
+        return surveyor.finish();
     }
 
     /**

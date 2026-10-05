@@ -23,13 +23,14 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
  * acquires a permit before executing and releases it when the operation completes.
  * For stream-returning methods, the permit is released when the stream is closed.
  */
-class ConcurrencyLimitedStorageObject implements StorageObject {
+class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final ConcurrencyLimiter limiter;
@@ -126,6 +127,16 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         // Not a stream we produced — should be unreachable since the SPI contract requires
         // the exact instance returned from newStream(). Fall back to the SPI default.
         stream.close();
+    }
+
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        return ResumeBypassingStorageObject.withoutResumeThrough(
+            delegate,
+            stream,
+            PermitReleasingInputStream.class,
+            PermitReleasingInputStream::inner
+        );
     }
 
     @Override
@@ -255,7 +266,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
      */
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final ConcurrencyLimiter limiter;
-        private volatile boolean released;
+        private final AtomicBoolean released = new AtomicBoolean();
 
         PermitReleasingInputStream(InputStream in, ConcurrencyLimiter limiter) {
             super(in);
@@ -272,8 +283,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
          * stream has been aborted directly via the delegate, so we don't double-close.
          */
         void markReleased() {
-            if (released == false) {
-                released = true;
+            if (released.getAndSet(true) == false) {
                 limiter.release();
             }
         }
@@ -283,8 +293,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             try {
                 super.close();
             } finally {
-                if (released == false) {
-                    released = true;
+                if (released.getAndSet(true) == false) {
                     limiter.release();
                 }
             }

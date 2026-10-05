@@ -1470,6 +1470,7 @@ public final class IndexSettings {
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
+    private final int ignoreAbove;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1695,6 +1696,7 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -2507,6 +2509,10 @@ public final class IndexSettings {
      */
     public boolean isRecoverySourceSyntheticEnabled() {
         return recoverySourceSyntheticEnabled;
+    }
+
+    public int getIgnoreAbove() {
+        return ignoreAbove;
     }
 
     public boolean useDocValuesSkipper() {

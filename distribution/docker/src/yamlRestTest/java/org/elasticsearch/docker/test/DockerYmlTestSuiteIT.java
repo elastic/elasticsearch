@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.docker.test;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -42,7 +43,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static final DockerElasticsearchCluster cluster = new DockerElasticsearchCluster();
 
-    public DockerYmlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+    public DockerYmlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

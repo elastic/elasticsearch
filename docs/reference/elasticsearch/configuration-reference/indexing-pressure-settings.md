@@ -28,7 +28,7 @@ At the beginning of each indexing stage, {{es}} accounts for the bytes consumed 
 
 The calculation includes the following elements of the request: 
 * {applies_to}`stack: ga 9.6` The request payload, and an estimate of the request context that is retained for as long as the request is in flight, such as its request headers and the security metadata of the authenticated client. 
-* {applies_to}`stack ga 9.0-9.5` The request payload only.
+* {applies_to}`stack: ga 9.0-9.5` The request payload only.
 
 This accounting is only released at the end of the indexing stage. This means that upstream stages account for the request overheard until all downstream stages are complete. For example, the coordinating request will remain accounted for until primary and replica stages are complete. The primary request remains accounted for until each in-sync replica has responded to enable replica retries if necessary.
 

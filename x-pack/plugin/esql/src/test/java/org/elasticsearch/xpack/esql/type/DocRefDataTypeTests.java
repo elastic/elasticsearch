@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.operator.topn.DocRefEncoder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TypeGroup;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.io.IOException;
 
@@ -57,6 +60,10 @@ public class DocRefDataTypeTests extends ESTestCase {
     }
 
     /** Sending the type to a node that cannot read it is a planner bug, the sender fails before writing anything. */
+    public void testTopNCarriesItWithTheRegistryEncoder() {
+        assertThat(TopNExec.encoder(DataType.DOC_REF, AlwaysReferencedIndexedByShardId.INSTANCE), sameInstance(DocRefEncoder.PROTOTYPE));
+    }
+
     public void testWriteToOldNodeFails() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(DataType.DataTypesTransportVersions.ESQL_FETCH_PHASE_PLAN));

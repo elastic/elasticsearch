@@ -529,8 +529,7 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean hasValueQueries(FieldName field) {
-            // Unlike the others this is off unless a test asks for it: a field answering a query over its values is
-            // what the columnar modes give, not what a mapping gives by default.
+            // Off unless a test asks for it: answering over values is what the columnar modes give, not a default.
             return includes.getOrDefault(Config.VALUE_QUERIES, Set.of()).contains(field.string());
         }
 

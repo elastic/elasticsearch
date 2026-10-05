@@ -1193,8 +1193,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * A {@code text} field whose index holds no exact form of its value is pushable where its own values answer the
-     * query: the pattern is matched against the value, which is what LIKE means, so the filter leaves the compute
-     * engine. {@code gender} is such a field - text with no keyword sub-field.
+     * query. {@code gender} is such a field: text with no keyword sub-field.
      */
     public void testLikeOverAFieldsOwnValues() {
         var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
@@ -1214,7 +1213,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
     }
 
-    /** A field with an exact sub-field keeps naming it, which is the path that was already there. */
+    /** A field with an exact sub-field names that sub-field. */
     public void testLikeStillPrefersAnExactSubfield() {
         var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "job");
         var plan = plannerOptimizer.plan("from test | where job like \"Ann*\"", stats);
@@ -1268,7 +1267,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(mustNot.get(0), instanceOf(ExpressionQueryBuilder.class));
     }
 
-    /** Without values none of them is pushed, which is where they all were before. */
+    /** Without values none of them is pushed. */
     public void testTheRestOfTheFamilyWithoutValuesIsNotPushed() {
         for (String where : List.of("gender rlike \"F.*\"", "gender == \"F\"", "gender in (\"F\", \"M\")", "gender > \"F\"")) {
             var plan = plannerOptimizer.plan("from test | where " + where, new TestConfigurableSearchStats());

@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -37,8 +38,9 @@ public abstract class TextFamilyFieldType extends StringFieldType {
     private final boolean isWithinMultiField;
 
     /**
-     * A pattern matched against the value whole, which is what {@code LIKE} and its kind ask for. Answered from the
-     * values this field keeps; where it keeps none, its own wildcard query answers, matching the tokens instead.
+     * The queries below match a document's value whole, rather than the tokens that value analyzes into, which is what
+     * a predicate over the value means. Each is answered from the values this field keeps; where it keeps none, the
+     * field's own query answers, over the tokens.
      */
     @Override
     public Query wildcardLikeQuery(
@@ -53,14 +55,63 @@ public abstract class TextFamilyFieldType extends StringFieldType {
             : values.wildcard(name(), value, caseInsensitive);
     }
 
+    /** A regular expression matched against the value whole. */
+    public Query regexpLikeQuery(
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
+        final BinaryDocValuesQueries values = valueQueries();
+        return values == null
+            ? regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context)
+            : values.regexp(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates, context.getCircuitBreaker());
+    }
+
+    /** The value itself. */
+    public Query termLikeQuery(Object value, SearchExecutionContext context) {
+        final BinaryDocValuesQueries values = valueQueries();
+        return values == null ? termQuery(value, context) : values.term(name(), indexedValueForSearch(value));
+    }
+
+    /** Any of the given values. */
+    public Query termsLikeQuery(Collection<?> values, SearchExecutionContext context) {
+        final BinaryDocValuesQueries queries = valueQueries();
+        if (queries == null) {
+            return termsQuery(values, context);
+        }
+        return queries.terms(name(), values.stream().map(this::indexedValueForSearch).toList());
+    }
+
+    /** The values between the given bounds, either of which may be absent. */
+    public Query rangeLikeQuery(
+        @Nullable Object lower,
+        @Nullable Object upper,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
+        final BinaryDocValuesQueries values = valueQueries();
+        if (values == null) {
+            return rangeQuery(lower, upper, includeLower, includeUpper, null, null, null, context);
+        }
+        return values.range(
+            name(),
+            lower == null ? null : indexedValueForSearch(lower),
+            upper == null ? null : indexedValueForSearch(upper),
+            includeLower,
+            includeUpper
+        );
+    }
+
     /**
      * The queries this field answers over the values its doc values hold, rather than over the terms its index holds, or
      * null where it keeps no values a query can read. The framing of those values picks the reader; see
      * {@link BinaryDocValuesQueries#forFormat}.
      *
-     * <p>These match a document's value whole, the way a {@code keyword} field's queries do, which is what a predicate
-     * over the value asks for. The queries of this field type match the tokens the value analyzes into instead, so a
-     * caller wanting one of the two has to say which.
+     * <p>These match a document's value whole; this field type's own queries match the tokens that value analyzes into.
      */
     @Nullable
     public BinaryDocValuesQueries valueQueries() {

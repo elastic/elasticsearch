@@ -578,7 +578,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 terms.add(BytesRefs.toBytesRef(literalValueOf(rhs)));
             }
         }
-        return FieldValueQueries.required(fieldType).terms(fieldType.name(), terms);
+        return FieldValueQueries.textFamily(fieldType).termsLikeQuery(terms, context);
     }
 
     private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {

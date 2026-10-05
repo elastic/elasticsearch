@@ -101,8 +101,7 @@ public interface LucenePushdownPredicates {
         if (isPushableAttribute(exp)) {
             return true;
         }
-        // The guards of isPushableFieldAttribute apply here too: a field the block loader synthesizes, or one that may
-        // be unmapped on a shard, has no values of its own to read.
+        // A field the block loader synthesizes, or one that may be unmapped on a shard, keeps no values of its own.
         return exp instanceof FieldAttribute fa
             && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
             && fa.field() instanceof FunctionEsField == false

@@ -173,8 +173,7 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     }
 
     /**
-     * The regular expression matched against the value whole, which is what RLIKE asks and what the field's own
-     * regexp query - over the tokens its index holds - does not give.
+     * The regular expression matched against the value whole, which is what RLIKE asks.
      */
     @Override
     public org.apache.lucene.search.Query asLuceneQuery(
@@ -182,14 +181,14 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
         MultiTermQuery.RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
-        return FieldValueQueries.required(fieldType)
-            .regexp(
-                fieldType.name(),
+        return FieldValueQueries.textFamily(fieldType)
+            .regexpLikeQuery(
                 pattern().asJavaRegex(),
                 RegExp.ALL,
                 caseInsensitive() ? RegExp.ASCII_CASE_INSENSITIVE : 0,
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                context.getCircuitBreaker()
+                constantScoreRewrite,
+                context
             );
     }
 

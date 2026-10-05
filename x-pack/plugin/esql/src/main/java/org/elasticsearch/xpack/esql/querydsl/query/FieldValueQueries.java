@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
-import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,29 +22,23 @@ import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTrans
  * Pushing a predicate over a field's value to the values the field keeps, for a field whose index holds no exact form
  * of them - a {@code text} field, whose index holds the tokens its values analyze into instead.
  *
- * <p>The predicate travels as an expression and builds its Lucene query on the shard, since that is where the field
- * type says how its values are framed and so which reader answers.
+ * <p>The predicate travels as an expression and builds its Lucene query on the shard, where the field type says how
+ * its values are framed.
  */
 public final class FieldValueQueries {
 
     private FieldValueQueries() {}
 
-    /** The queries {@code fieldType} answers over the values it keeps, or null where it keeps none to read. */
-    @Nullable
-    public static BinaryDocValuesQueries of(MappedFieldType fieldType) {
-        return fieldType instanceof TextFamilyFieldType textFamily ? textFamily.valueQueries() : null;
-    }
-
     /**
-     * The same, where the caller has already established that the field answers over its values - the planner pushes a
-     * predicate here only for a field every shard of the request answers.
+     * {@code fieldType} as the family that answers a predicate over its values. The planner pushes a predicate here
+     * only for a field every shard of the request answers, so a field of another kind is a bug rather than a shape to
+     * handle.
      */
-    public static BinaryDocValuesQueries required(MappedFieldType fieldType) {
-        final BinaryDocValuesQueries queries = of(fieldType);
-        if (queries == null) {
-            throw new IllegalStateException("field [" + fieldType.name() + "] keeps no values to answer a predicate over");
+    public static TextFamilyFieldType textFamily(MappedFieldType fieldType) {
+        if (fieldType instanceof TextFamilyFieldType textFamily) {
+            return textFamily;
         }
-        return queries;
+        throw new IllegalStateException("field [" + fieldType.name() + "] does not answer a predicate over its values");
     }
 
     /** Whether every node of the request understands a predicate pushed as an expression. */

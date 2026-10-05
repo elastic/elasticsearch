@@ -11,13 +11,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,9 +29,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * The queries a {@code text} field answers over the values its doc values hold. They match a document's value whole,
- * which is what a predicate over the value asks for and what the field's own queries - matching the tokens the value
- * analyzes into - do not give.
+ * The queries a {@code text} field answers over the values its doc values hold, which match a document's value whole
+ * rather than the tokens that value analyzes into.
  */
 public class TextFieldValueQueriesTests extends MapperServiceTestCase {
 
@@ -48,34 +48,64 @@ public class TextFieldValueQueriesTests extends MapperServiceTestCase {
         }));
     }
 
-    /** A field keeping no values has none to answer over, which is what the caller asks before pushing a predicate. */
+    /** A field keeping no values has none to answer over. */
     public void testWithoutDocValuesThereAreNoValueQueries() throws IOException {
         final MapperService mapperService = mapper(b -> b.field("type", "text"));
         assertThat(valueQueries(mapperService), nullValue());
     }
 
+    /**
+     * Each predicate the field answers over its values, matched against the value whole: the document whose value is
+     * {@code quick} answers a term, and the document that merely holds that token does not.
+     */
     private void assertWholeValueSemantics(MapperService mapperService) throws IOException {
-        final BinaryDocValuesQueries queries = valueQueries(mapperService);
-        assertThat(queries, notNullValue());
+        final TextFamilyFieldType field = (TextFamilyFieldType) mapperService.fieldType("field");
+        assertThat(field.valueQueries(), notNullValue());
+        withIndexOf(mapperService, (searcher, context) -> {
+            assertEquals("the value itself", 1, count(searcher, field.termLikeQuery("quick", context)));
+            assertEquals("a token of a value is not the value", 0, count(searcher, field.termLikeQuery("brown", context)));
+            assertEquals(
+                "any of the values",
+                2,
+                count(searcher, field.termsLikeQuery(List.of("quick", "jumps over the lazy dog"), context))
+            );
+            assertEquals("a prefix of the value", 1, count(searcher, field.wildcardLikeQuery("the quick*", null, false, context)));
+            assertEquals("a pattern spanning the value", 1, count(searcher, field.wildcardLikeQuery("the*fox", null, false, context)));
+            assertEquals("a regular expression over the value", 2, count(searcher, regexpLike(field, ".*the.*", context)));
+            assertEquals("the values from a bound on", 2, count(searcher, field.rangeLikeQuery("q", null, true, false, context)));
+            assertEquals(
+                "and up to a bound, in the order of the values",
+                2,
+                count(searcher, field.rangeLikeQuery(null, "quick", false, true, context))
+            );
+        });
+    }
+
+    /**
+     * A field keeping no values answers these as it always has, over the tokens its index holds: the document holding
+     * {@code brown} as a token answers a term for it.
+     */
+    public void testWithoutValuesTheFieldsOwnQueriesAnswer() throws IOException {
+        final MapperService mapperService = mapper(b -> b.field("type", "text"));
+        final TextFamilyFieldType field = (TextFamilyFieldType) mapperService.fieldType("field");
+        assertThat(field.valueQueries(), nullValue());
+        withIndexOf(mapperService, (searcher, context) -> {
+            assertEquals("a token of a value", 2, count(searcher, field.termLikeQuery("quick", context)));
+            assertEquals("and another", 1, count(searcher, field.termLikeQuery("brown", context)));
+        });
+    }
+
+    private static Query regexpLike(TextFamilyFieldType field, String pattern, SearchExecutionContext context) {
+        return field.regexpLikeQuery(pattern, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, context);
+    }
+
+    private void withIndexOf(MapperService mapperService, CheckedBiConsumer<IndexSearcher, SearchExecutionContext, IOException> check)
+        throws IOException {
         withLuceneIndex(mapperService, iw -> {
             for (String doc : DOCS) {
                 iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", doc))).rootDoc());
             }
-        }, reader -> {
-            final IndexSearcher searcher = newSearcher(reader);
-            // The whole value, as a term and as a pattern.
-            assertEquals("term over the whole value", 1, count(searcher, queries.term("field", new BytesRef("quick"))));
-            assertEquals("the value starts with it", 1, count(searcher, queries.prefix("field", "the quick", false)));
-            assertEquals("a pattern spanning the value", 1, count(searcher, queries.wildcard("field", "the quick*fox", false)));
-            assertEquals(
-                "and a regexp over it",
-                2,
-                count(searcher, queries.regexp("field", ".*the.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null))
-            );
-            // A token of a value is not the value: this is where these queries differ from the field's own.
-            assertEquals("a lone token is not the value", 0, count(searcher, queries.term("field", new BytesRef("brown"))));
-            assertEquals("nor is a token prefix", 0, count(searcher, queries.prefix("field", "brown", false)));
-        });
+        }, reader -> check.accept(newSearcher(reader), createSearchExecutionContext(mapperService)));
     }
 
     private static int count(IndexSearcher searcher, Query query) throws IOException {

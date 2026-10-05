@@ -16,10 +16,10 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -431,8 +431,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
 
         if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, left())) {
-            // The expression builds the query over the field's values on the shard. asLuceneQuery builds the positive
-            // shape, so an inequality is negated here, exactly as it is for a field whose exact form is indexed.
+            // asLuceneQuery builds the positive shape, so an inequality is negated here.
             final Query over = FieldValueQueries.over(source(), handler.nameOf((TypedAttribute) left()), this);
             return this instanceof NotEquals ? new NotQuery(source(), over) : over;
         }
@@ -451,23 +450,22 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         MultiTermQuery.RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
-        final BinaryDocValuesQueries values = FieldValueQueries.required(fieldType);
-        final String name = fieldType.name();
+        final TextFamilyFieldType field = FieldValueQueries.textFamily(fieldType);
         final BytesRef value = BytesRefs.toBytesRef(literalValueOf(right()));
         if (this instanceof Equals || this instanceof NotEquals) {
-            return values.term(name, value);
+            return field.termLikeQuery(value, context);
         }
         if (this instanceof GreaterThan) {
-            return values.range(name, value, null, false, false);
+            return field.rangeLikeQuery(value, null, false, false, context);
         }
         if (this instanceof GreaterThanOrEqual) {
-            return values.range(name, value, null, true, false);
+            return field.rangeLikeQuery(value, null, true, false, context);
         }
         if (this instanceof LessThan) {
-            return values.range(name, null, value, false, false);
+            return field.rangeLikeQuery(null, value, false, false, context);
         }
         if (this instanceof LessThanOrEqual) {
-            return values.range(name, null, value, false, true);
+            return field.rangeLikeQuery(null, value, false, true, context);
         }
         throw new QlIllegalArgumentException("Don't know how to answer [{}] over a field's values", symbol());
     }

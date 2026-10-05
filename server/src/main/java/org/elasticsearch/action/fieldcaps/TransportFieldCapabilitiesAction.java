@@ -392,7 +392,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         })) {
             // local cluster
-            RequestDispatcher.dispatch(
+            var requestDispatcher = new RequestDispatcher(
                 clusterService,
                 transportService,
                 projectResolver,
@@ -402,12 +402,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 localIndices,
                 nowInMillis,
                 concreteLocalIndices,
-                canCache(request, remoteClusterIndices, concreteLocalIndices) ? cache : null,
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
-                refs.acquire()::close
+                refs.acquire()::close,
+                canCache(request, remoteClusterIndices, concreteLocalIndices) ? cache : null
             );
+            requestDispatcher.start();
             fieldCapTask.addListener(() -> {
                 if (finishedOrCancelled.compareAndSet(false, true)) {
                     singleThreadedExecutor.execute(releaseResourcesOnCancel);

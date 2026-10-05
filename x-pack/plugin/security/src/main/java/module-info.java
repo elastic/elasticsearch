@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.security.logging.SecurityActionLoggingFieldsProvi
 
 module org.elasticsearch.security {
     requires java.naming;
+    requires java.net.http;
     requires java.security.jgss;
     requires java.xml;
 
@@ -69,6 +70,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.settings to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.stats to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.security.action.workload to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent, org.elasticsearch.internal.security;

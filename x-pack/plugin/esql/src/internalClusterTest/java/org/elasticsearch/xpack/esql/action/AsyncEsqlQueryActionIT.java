@@ -678,6 +678,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 // deliberately small timeout, to frequently trigger incomplete response
                 .waitForCompletionTimeout(TimeValue.timeValueNanos(randomIntBetween(1, 20)))
                 .keepOnCompletion(randomBoolean())
+                // a cancelled data-node request would otherwise be reported as a partial result instead of a TaskCancelledException
+                .allowPartialResults(false)
                 .keepAlive(randomKeepAlive())
         ).actionGet(60, TimeUnit.SECONDS);
     }

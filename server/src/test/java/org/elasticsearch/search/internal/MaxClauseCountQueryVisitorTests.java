@@ -225,7 +225,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertEquals(new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate(), first.getEstimatedBytes());
     }
 
-    public void testChargesScanningBinaryDocValuesTermQueryByDecodeCostEstimate() {
+    public void testScanningBinaryDocValuesTermQueryAccountsForDecodeCostEstimate() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         Query query = new ScanningBinaryDocValuesTermQuery("field", new BytesRef("value"), BinaryDocValuesFormat.SEPARATE_COUNT);
 
@@ -250,14 +250,14 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         bool.build().visit(visitor);
 
         assertEquals(
-            "each binary DV scan clause must be charged and summed, not floored once for the whole tree",
+            "each binary DV scan clause must be accounted for and summed, not floored once for the whole tree",
             expected,
             visitor.getEstimatedBytes()
         );
         assertEquals(clauses, visitor.getNumClauses());
     }
 
-    public void testScanningBinaryDocValuesTermInSetQueryIsChargedOncePerClauseNotPerTerm() {
+    public void testScanningBinaryDocValuesTermInSetQueryIsAccountedForOncePerClauseNotPerTerm() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         int termCount = randomIntBetween(2, 500);
         List<BytesRef> terms = new ArrayList<>(termCount);
@@ -270,7 +270,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
         assertEquals(
-            "a TermInSet query opens a single decoder regardless of how many terms it holds, so it must be charged once",
+            "a TermInSet query opens a single decoder regardless of how many terms it holds, so it must be accounted for once",
             expected,
             visitor.getEstimatedBytes()
         );
@@ -412,7 +412,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         }
     }
 
-    public void testChargesNothingExtraWhenFieldAbsentFromReader() throws IOException {
+    public void testNoExtraMemoryAccountedWhenFieldAbsentFromReader() throws IOException {
         try (Directory directory = new ByteBuffersDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
                 writer.addDocument(new Document());
@@ -430,7 +430,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
                 query.visit(visitor);
 
                 // No leaf has the field, so no decoder will ever open for it against this reader — only the
-                // query object's own shallow size is charged, not the conservative fallback.
+                // query object's own shallow size is accounted for, not the conservative fallback.
                 long expected = RamUsageEstimator.shallowSizeOf(query);
                 assertEquals(expected, visitor.getEstimatedBytes());
             }

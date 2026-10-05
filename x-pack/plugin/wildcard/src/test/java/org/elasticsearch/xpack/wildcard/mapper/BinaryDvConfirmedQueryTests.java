@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
 
-    public void testIsChargedAsABinaryDocValuesScanCost() {
+    public void testIsAccountedForAsABinaryDocValuesScanCost() {
         Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
 
         assertThat(

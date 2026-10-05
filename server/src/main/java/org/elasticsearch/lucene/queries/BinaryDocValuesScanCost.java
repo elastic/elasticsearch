@@ -24,7 +24,7 @@ import java.io.UncheckedIOException;
  * blocks into heap arrays — the {@code Scanning*} queries in this package, {@link BinaryDocValuesLengthQuery}, and
  * the wildcard module's {@code BinaryDvConfirmedQuery}.
  * <p>
- * {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this to charge the real per-clause
+ * {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} uses this to account for the real per-clause
  * decode cost instead of the generic per-leaf floor, so a query with thousands of these clauses is rejected up
  * front instead of OOMing.
  */

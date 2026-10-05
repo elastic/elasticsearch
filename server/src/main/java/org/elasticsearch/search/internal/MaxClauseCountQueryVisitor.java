@@ -76,7 +76,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     @Nullable
     private final IndexReader reader;
 
-    /** Per-field cache of the resolved decode-bytes charge, so many clauses on one field probe it only once. */
+    /** Per-field cache of the resolved decode-bytes estimate, so many clauses on one field probe it only once. */
     private final Map<String, Long> binaryDvDecodeBytesCache = new HashMap<>();
 
     public MaxClauseCountQueryVisitor(int maxClauseCount) {

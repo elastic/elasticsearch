@@ -729,7 +729,10 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     assertTrue("the dictionary is larger than the page", reader.dictionarySize() > page);
                     for (int from = 0; from < docs.length; from += page) {
                         final int count = Math.min(page, docs.length - from);
-                        assertPage(reader, docValues, docs, from, count, count >= 2 * run ? Shape.ORDINALS : Shape.ANY);
+                        // A page cuts a run at each end, so it holds at most this many terms, and is ordinals once they
+                        // are few enough beside its values.
+                        final int mostTerms = count / run + 2;
+                        assertPage(reader, docValues, docs, from, count, mostTerms * 2 <= count ? Shape.ORDINALS : Shape.ANY);
                     }
                 }
             }

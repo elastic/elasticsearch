@@ -248,7 +248,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     ) {
         List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
-        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
 
         for (DataStream dataStream : dataStreams) {
             // For this action, we are returning whether the failure store is effectively enabled, either in metadata or by cluster setting.
@@ -333,7 +333,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 backingIndicesSettingsValues,
                 metadata,
                 dataStream.getIndices(),
-                defaultLifecycleForTimeSeriesEnabled
+                minimumLifecycleEnabled
             );
             if (dataStream.getFailureIndices().isEmpty() == false) {
                 collectIndexSettingsValues(
@@ -341,7 +341,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     backingIndicesSettingsValues,
                     metadata,
                     dataStream.getFailureIndices(),
-                    defaultLifecycleForTimeSeriesEnabled
+                    minimumLifecycleEnabled
                 );
             }
 
@@ -417,7 +417,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     maxTimestamps == null ? null : maxTimestamps.get(dataStream.getName()),
                     // Default to standard mode if not specified; should we set this to "unset" or "unspecified" instead?
                     indexMode == null ? IndexMode.STANDARD.getName() : indexMode.getName(),
-                    defaultLifecycleForTimeSeriesEnabled
+                    minimumLifecycleEnabled
                 )
             );
         }
@@ -434,7 +434,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         Map<Index, IndexProperties> backingIndicesSettingsValues,
         ProjectMetadata metadata,
         List<Index> backingIndices,
-        boolean defaultLifecycleForTimeSeriesEnabled
+        boolean minimumLifecycleEnabled
     ) {
         for (Index index : backingIndices) {
             IndexMetadata indexMetadata = metadata.index(index);
@@ -453,7 +453,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             ManagedBy managedBy = ManagedBy.fromLifecycleManagedBy(
                 DataStream.lifecycleManagedBy(
                     indexMetadata.getLifecyclePolicyName(),
-                    dataStream.getEffectiveLifecycleForIndex(index, defaultLifecycleForTimeSeriesEnabled),
+                    dataStream.getEffectiveLifecycleForIndex(index, minimumLifecycleEnabled),
                     indexMetadata.getSettings(),
                     indexMode
                 )

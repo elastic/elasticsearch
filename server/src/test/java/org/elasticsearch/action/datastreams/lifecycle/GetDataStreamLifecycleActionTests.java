@@ -137,7 +137,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
                 new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(dataStreamName, null, randomBoolean(), true),
                 globalRetention
             );
-            assertThat(resultMap, equalTo(Map.of("name", dataStreamName, "lifecycle_enabled_by_default", true)));
+            assertThat(resultMap, equalTo(Map.of("name", dataStreamName, "minimum_lifecycle_enabled", true)));
         }
         {
             // a data stream without any lifecycle displays only its name
@@ -154,7 +154,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
                 createDataStreamLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE, randomBoolean()),
                 globalRetention
             );
-            assertThat(resultMap.containsKey("lifecycle_enabled_by_default"), equalTo(false));
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), equalTo(false));
             assertThat(((Map<String, Object>) resultMap.get("lifecycle")).get("enabled"), equalTo(true));
         }
     }

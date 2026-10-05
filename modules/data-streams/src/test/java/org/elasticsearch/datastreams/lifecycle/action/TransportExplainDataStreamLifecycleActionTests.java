@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
@@ -58,14 +59,17 @@ import static org.mockito.Mockito.when;
 public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
     private TransportExplainDataStreamLifecycleAction testAction;
-    private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-        ClusterSettings.createBuiltInClusterSettings()
-    );
+    private DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @Before
     public void setUpAction() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings = DataStreamLifecycleFixtures.createDataStreamLifecycleSettings(
+            randomBoolean(),
+            null,
+            null
+        );
         testAction = new TransportExplainDataStreamLifecycleAction(
             mock(TransportService.class),
             clusterService,
@@ -314,10 +318,10 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             .build()
             .projectState(projectMetadata.id());
 
-        for (boolean defaultLifecycleForTimeSeriesEnabled : new boolean[] { false, true }) {
+        for (boolean minimumLifecycleEnabled : new boolean[] { false, true }) {
             // The default lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
             // only this method. This should be replaced with the cluster setting once it is available.
-            dataStreamLifecycleSettings.setDefaultLifecycleForTimeSeriesEnabled(defaultLifecycleForTimeSeriesEnabled);
+            dataStreamLifecycleSettings.setMinimumLifecycleEnabled(minimumLifecycleEnabled);
 
             ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -340,12 +344,12 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
             for (IndexMetadata tsdsIndex : List.of(tsdsRolledOverIndex, tsdsWriteIndex)) {
                 ExplainIndexDataStreamLifecycle explain = explainByIndex.get(tsdsIndex.getIndex().getName());
-                assertThat(explain.isManagedByLifecycle(), is(defaultLifecycleForTimeSeriesEnabled));
-                assertThat(explain.isLifecycleEnabledByDefault(), is(defaultLifecycleForTimeSeriesEnabled));
+                assertThat(explain.isManagedByLifecycle(), is(minimumLifecycleEnabled));
+                assertThat(explain.isMinimumLifecycleEnabled(), is(minimumLifecycleEnabled));
                 // the default lifecycle is not reported as a configured lifecycle
                 assertThat(explain.getLifecycle(), is(nullValue()));
             }
-            if (defaultLifecycleForTimeSeriesEnabled) {
+            if (minimumLifecycleEnabled) {
                 ExplainIndexDataStreamLifecycle explain = explainByIndex.get(tsdsRolledOverIndex.getIndex().getName());
                 assertThat(explain.getIndexCreationDate(), is(tsdsRolledOverIndex.getCreationDate()));
                 assertThat(explain.getRolloverDate(), is(now - 3600_000L));
@@ -353,12 +357,12 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
             ExplainIndexDataStreamLifecycle withLifecycle = explainByIndex.get(tsdsWithLifecycleIndex.getIndex().getName());
             assertThat(withLifecycle.isManagedByLifecycle(), is(true));
-            assertThat(withLifecycle.isLifecycleEnabledByDefault(), is(false));
+            assertThat(withLifecycle.isMinimumLifecycleEnabled(), is(false));
             assertThat(withLifecycle.getLifecycle(), equalTo(configuredLifecycle));
 
             ExplainIndexDataStreamLifecycle standard = explainByIndex.get(standardIndex.getIndex().getName());
             assertThat(standard.isManagedByLifecycle(), is(false));
-            assertThat(standard.isLifecycleEnabledByDefault(), is(false));
+            assertThat(standard.isMinimumLifecycleEnabled(), is(false));
         }
     }
 

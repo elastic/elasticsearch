@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class TransportGetDataStreamLifecycleActionTests extends ESTestCase {
@@ -68,12 +67,8 @@ public class TransportGetDataStreamLifecycleActionTests extends ESTestCase {
             .build()
             .projectState(projectMetadata.id());
 
-        for (boolean defaultLifecycleForTimeSeriesEnabled : new boolean[] { false, true }) {
-            GetDataStreamLifecycleAction.Response response = getDataStreamLifecycle(
-                defaultLifecycleForTimeSeriesEnabled,
-                Settings.EMPTY,
-                projectState
-            );
+        for (boolean minimumLifecycleEnabled : new boolean[] { false, true }) {
+            GetDataStreamLifecycleAction.Response response = getDataStreamLifecycle(minimumLifecycleEnabled, null, null, projectState);
             assertThat(
                 response.getDataStreamLifecycles(),
                 equalTo(
@@ -89,7 +84,7 @@ public class TransportGetDataStreamLifecycleActionTests extends ESTestCase {
                             "tsds-without-lifecycle",
                             null,
                             false,
-                            defaultLifecycleForTimeSeriesEnabled
+                            minimumLifecycleEnabled
                         )
                     )
                 )
@@ -104,10 +99,6 @@ public class TransportGetDataStreamLifecycleActionTests extends ESTestCase {
     public void testGlobalRetentionWithDefaultLifecycleForTimeSeries() {
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
-        Settings globalRetentionSettings = Settings.builder()
-            .put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention)
-            .put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention)
-            .build();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addDataStream(builder, "tsds-without-lifecycle", IndexMode.TIME_SERIES, null);
         ProjectMetadata projectMetadata = builder.build();
@@ -116,7 +107,12 @@ public class TransportGetDataStreamLifecycleActionTests extends ESTestCase {
             .build()
             .projectState(projectMetadata.id());
 
-        GetDataStreamLifecycleAction.Response response = getDataStreamLifecycle(true, globalRetentionSettings, projectState);
+        GetDataStreamLifecycleAction.Response response = getDataStreamLifecycle(
+            true,
+            globalDefaultRetention,
+            globalMaxRetention,
+            projectState
+        );
         assertThat(response.getGlobalRetention(), equalTo(new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention)));
         assertThat(
             response.getDataStreamLifecycles(),
@@ -148,16 +144,16 @@ public class TransportGetDataStreamLifecycleActionTests extends ESTestCase {
     }
 
     private static GetDataStreamLifecycleAction.Response getDataStreamLifecycle(
-        boolean defaultLifecycleForTimeSeriesEnabled,
-        Settings globalRetentionSettings,
+        boolean minimumLifecycleEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention,
         ProjectState projectState
     ) {
-        // The default lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
-        // only this method. This should be replaced with the cluster setting once it is available.
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = spy(
-            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(globalRetentionSettings))
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleFixtures.createDataStreamLifecycleSettings(
+            minimumLifecycleEnabled,
+            globalDefaultRetention,
+            globalMaxRetention
         );
-        when(dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()).thenReturn(defaultLifecycleForTimeSeriesEnabled);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         TransportGetDataStreamLifecycleAction action = new TransportGetDataStreamLifecycleAction(

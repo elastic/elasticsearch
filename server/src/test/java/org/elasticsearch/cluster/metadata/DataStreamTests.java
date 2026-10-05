@@ -555,6 +555,29 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(templateMode));
     }
 
+    public void testIsMinimumLifecycleApplicable() {
+        DataStream timeSeries = DataStreamTestHelper.randomInstance().copy().setIndexMode(IndexMode.TIME_SERIES).setLifecycle(null).build();
+        assertThat(timeSeries.isMinimumLifecycleApplicable(true), is(true));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(false), is(false));
+
+        DataStreamLifecycle lifecycle = randomBoolean()
+            ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build()
+            : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
+        timeSeries = timeSeries.copy().setLifecycle(lifecycle).build();
+        assertThat(timeSeries.isMinimumLifecycleApplicable(randomBoolean()), is(false));
+
+        IndexMode indexMode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.COLUMNAR,
+            IndexMode.LOGSDB_COLUMNAR,
+            null
+        );
+        DataStream dataStream = DataStreamTestHelper.randomInstance().copy().setIndexMode(indexMode).setLifecycle(null).build();
+        assertThat(dataStream.isMinimumLifecycleApplicable(randomBoolean()), is(false));
+    }
+
     public void testRolloverFailureStore() {
         DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();

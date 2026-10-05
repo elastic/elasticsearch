@@ -75,20 +75,20 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         ProjectState state,
         ActionListener<GetDataStreamLifecycleStatsAction.Response> listener
     ) throws Exception {
-        listener.onResponse(collectStats(state.metadata(), dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled()));
+        listener.onResponse(collectStats(state.metadata(), dataStreamLifecycleSettings.minimumLifecycleEnabled()));
     }
 
     // Visible for testing
-    GetDataStreamLifecycleStatsAction.Response collectStats(ProjectMetadata project, boolean defaultLifecycleForTimeSeriesEnabled) {
+    GetDataStreamLifecycleStatsAction.Response collectStats(ProjectMetadata project, boolean minimumLifecycleEnabled) {
         Set<Index> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices(project.id());
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
         for (DataStream dataStream : project.dataStreams().values()) {
-            DataStreamLifecycle effectiveLifecycle = dataStream.getEffectiveDataLifecycle(defaultLifecycleForTimeSeriesEnabled);
+            DataStreamLifecycle effectiveLifecycle = dataStream.getEffectiveDataLifecycle(minimumLifecycleEnabled);
             if (effectiveLifecycle != null && effectiveLifecycle.enabled()) {
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {
-                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index, defaultLifecycleForTimeSeriesEnabled)) {
+                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index, minimumLifecycleEnabled)) {
                         total++;
                         if (indicesInErrorStore.contains(index)) {
                             inError++;

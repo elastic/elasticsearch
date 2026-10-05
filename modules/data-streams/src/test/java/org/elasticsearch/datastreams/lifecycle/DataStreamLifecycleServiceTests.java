@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -84,6 +83,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskSta
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStreamLifecycleSettings;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomRolloverConditions;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FIVE_HUNDRED_TWELVE_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
@@ -2178,7 +2178,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         List<RolloverRequest> rolloverRequests = requestsOfType(RolloverRequest.class);
         assertThat(rolloverRequests, hasSize(1));
         assertThat(rolloverRequests.getFirst().getRolloverTarget(), is(dataStreamName));
-        // the default lifecycle has no retention, so nothing is deleted
+        // the minimum lifecycle has no retention, so nothing is deleted
         assertThat(requestsOfType(DeleteIndexRequest.class), empty());
         // the non-write indices are past their time bounds, so they are prepared for force merge by configuring their merge policy
         List<UpdateSettingsRequest> updateSettingsRequests = requestsOfType(UpdateSettingsRequest.class);
@@ -2189,9 +2189,9 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
     }
 
     /**
-     * The default lifecycle for time series is meant to only keep the data stream healthy, e.g. rollover and force merge, without
+     * The minimum lifecycle for time series is meant to only keep the data stream healthy, e.g. rollover and force merge, without
      * deleting any data. For this reason the global retention, which applies to the data streams with a configured lifecycle without
-     * retention, should not be applied to the data streams that are managed by the default lifecycle.
+     * retention, should not be applied to the data streams that are managed by the minimum lifecycle.
      */
     public void testGlobalRetentionIsNotAppliedWhenLifecycleEnabledByDefault() {
         TimeValue globalDefaultRetention = TimeValue.timeValueHours(1);
@@ -2199,7 +2199,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         {
-            // the data stream is managed by the default lifecycle, so the global retention is not applied
+            // the data stream is managed by the minimum lifecycle, so the global retention is not applied
             ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
             createTimeSeriesDataStream(builder, dataStreamName, settings(IndexVersion.current()), null);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
@@ -2232,7 +2232,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
 
     public void testDataStreamsNotEligibleForDefaultLifecycleAreSkipped() {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        // a configured lifecycle takes precedence over the default lifecycle
+        // a configured lifecycle takes precedence over the minimum lifecycle
         createTimeSeriesDataStream(
             builder,
             "tsds-with-disabled-lifecycle",
@@ -2246,7 +2246,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             settings(IndexVersion.current()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"),
             null
         );
-        // the default lifecycle applies only to time series data streams
+        // the minimum lifecycle applies only to time series data streams
         builder.put(createDataStream(builder, "standard-without-lifecycle", 3, settings(IndexVersion.current()), null, now));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
@@ -2260,12 +2260,8 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         DataStream dataStream = createTimeSeriesDataStream(builder, dataStreamName, settings(IndexVersion.current()), null);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
-        for (boolean defaultLifecycleForTimeSeriesEnabled : new boolean[] { true, false }) {
-            DataStreamLifecycleService service = createServiceWithDefaultLifecycleForTimeSeries(
-                defaultLifecycleForTimeSeriesEnabled,
-                null,
-                null
-            );
+        for (boolean minimumLifecycleEnabled : new boolean[] { true, false }) {
+            DataStreamLifecycleService service = createServiceWithDefaultLifecycleForTimeSeries(minimumLifecycleEnabled, null, null);
             try {
                 for (Index index : dataStream.getIndices()) {
                     service.getErrorStore().recordError(builder.getId(), index, new NullPointerException("bad"));
@@ -2274,7 +2270,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
                 for (Index index : dataStream.getIndices()) {
                     assertThat(
                         service.getErrorStore().getError(builder.getId(), index),
-                        defaultLifecycleForTimeSeriesEnabled ? notNullValue() : nullValue()
+                        minimumLifecycleEnabled ? notNullValue() : nullValue()
                     );
                 }
             } finally {
@@ -2365,17 +2361,17 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
 
     /**
      * Runs the data stream lifecycle service once against the provided state, with the provided global retention settings and the
-     * default lifecycle for time series enabled or disabled. The requests seen during previous runs are cleared.
+     * minimum lifecycle for time series enabled or disabled. The requests seen during previous runs are cleared.
      */
     private void runWithDefaultLifecycleForTimeSeries(
-        boolean defaultLifecycleForTimeSeriesEnabled,
+        boolean minimumLifecycleEnabled,
         TimeValue globalDefaultRetention,
         TimeValue globalMaxRetention,
         ClusterState state
     ) {
         clientSeenRequests.clear();
         DataStreamLifecycleService service = createServiceWithDefaultLifecycleForTimeSeries(
-            defaultLifecycleForTimeSeriesEnabled,
+            minimumLifecycleEnabled,
             globalDefaultRetention,
             globalMaxRetention
         );
@@ -2387,14 +2383,12 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
     }
 
     private DataStreamLifecycleService createServiceWithDefaultLifecycleForTimeSeries(
-        boolean defaultLifecycleForTimeSeriesEnabled,
+        boolean minimumLifecycleEnabled,
         TimeValue globalDefaultRetention,
         TimeValue globalMaxRetention
     ) {
-        // The default lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
-        // only this method. This should be replaced with the cluster setting once it is available.
         DataStreamLifecycleSettings settings = createDataStreamLifecycleSettings(
-            defaultLifecycleForTimeSeriesEnabled,
+            minimumLifecycleEnabled,
             globalDefaultRetention,
             globalMaxRetention
         );
@@ -2413,27 +2407,6 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             settings,
             ignored -> downsamplingIndices
         );
-    }
-
-    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(
-        Boolean defaultLifecycleForTimeSeriesEnabled,
-        TimeValue globalDefaultRetention,
-        TimeValue globalMaxRetention
-    ) {
-        Settings.Builder clusterSettingsBuilder = Settings.builder();
-        if (globalDefaultRetention != null) {
-            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
-        }
-        if (globalMaxRetention != null) {
-            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
-        }
-        DataStreamLifecycleSettings settings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(clusterSettingsBuilder.build())
-        );
-        if (defaultLifecycleForTimeSeriesEnabled != null) {
-            settings.setDefaultLifecycleForTimeSeriesEnabled(defaultLifecycleForTimeSeriesEnabled);
-        }
-        return settings;
     }
 
     private <T extends TransportRequest> List<T> requestsOfType(Class<T> type) {

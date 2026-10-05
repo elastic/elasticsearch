@@ -244,10 +244,10 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 randomFrozenTransitionStatusOrNull(),
                 true
             );
-            assertThat(enabledByDefault.isLifecycleEnabledByDefault(), is(true));
+            assertThat(enabledByDefault.isMinimumLifecycleEnabled(), is(true));
             Map<String, Object> resultMap = getXContentMap(enabledByDefault, null, null);
             assertThat(resultMap.get("managed_by_lifecycle"), is(true));
-            assertThat(resultMap.get("lifecycle_enabled_by_default"), is(true));
+            assertThat(resultMap.get("minimum_lifecycle_enabled"), is(true));
             assertThat(resultMap.containsKey("lifecycle"), is(false));
         }
         {
@@ -259,15 +259,15 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 randomFrozenTransitionStatusOrNull(),
                 false
             );
-            assertThat(configured.isLifecycleEnabledByDefault(), is(false));
+            assertThat(configured.isMinimumLifecycleEnabled(), is(false));
             Map<String, Object> resultMap = getXContentMap(configured, null, null);
-            assertThat(resultMap.containsKey("lifecycle_enabled_by_default"), is(false));
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), is(false));
             assertThat(((Map<String, Object>) resultMap.get("lifecycle")).get("enabled"), is(true));
         }
         {
             // an unmanaged index displays only its name and that it is not managed
             ExplainIndexDataStreamLifecycle unmanaged = ExplainIndexDataStreamLifecycle.unmanagedIndex("my-index");
-            assertThat(unmanaged.isLifecycleEnabledByDefault(), is(false));
+            assertThat(unmanaged.isMinimumLifecycleEnabled(), is(false));
             Map<String, Object> resultMap = getXContentMap(unmanaged, null, null);
             assertThat(resultMap, equalTo(Map.of("index", "my-index", "managed_by_lifecycle", false)));
         }
@@ -282,7 +282,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         assertThat(unmanaged.getLifecycle(), is(nullValue()));
         assertThat(unmanaged.getError(), is(nullValue()));
         assertThat(unmanaged.getFrozenTransitionStatus(), is(nullValue()));
-        assertThat(unmanaged.isLifecycleEnabledByDefault(), is(false));
+        assertThat(unmanaged.isMinimumLifecycleEnabled(), is(false));
         assertThat(copyInstance(unmanaged), equalTo(unmanaged));
     }
 
@@ -297,18 +297,18 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         {
             ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
                 enabledByDefault,
-                TransportVersionUtils.randomVersionSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_DEFAULT_LIFECYCLE)
+                TransportVersionUtils.randomVersionSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_MINIMUM_LIFECYCLE)
             );
-            assertThat(roundTripped.isLifecycleEnabledByDefault(), is(true));
+            assertThat(roundTripped.isMinimumLifecycleEnabled(), is(true));
             assertThat(roundTripped, equalTo(enabledByDefault));
         }
         {
             // older nodes are not aware of the default lifecycle, so the flag is dropped
             ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
                 enabledByDefault,
-                TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_DEFAULT_LIFECYCLE)
+                TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_MINIMUM_LIFECYCLE)
             );
-            assertThat(roundTripped.isLifecycleEnabledByDefault(), is(false));
+            assertThat(roundTripped.isMinimumLifecycleEnabled(), is(false));
             assertThat(roundTripped.isManagedByLifecycle(), is(true));
             assertThat(roundTripped.getIndex(), is(enabledByDefault.getIndex()));
         }

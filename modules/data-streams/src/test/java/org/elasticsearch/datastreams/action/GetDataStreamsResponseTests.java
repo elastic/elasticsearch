@@ -82,7 +82,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 false,
                 null,
                 null,
-                // the default lifecycle applies only to time series data streams, so it has no effect on this standard data stream
+                // the minimum lifecycle applies only to time series data streams, so it has no effect on this standard data stream
                 randomBoolean()
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -100,10 +100,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(Map.of("enabled", true)));
-                assertThat(
-                    dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()),
-                    is(nullValue())
-                );
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(
                     dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                     is(ManagedBy.LIFECYCLE.displayValue)
@@ -188,7 +185,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 false,
                 null,
                 null,
-                // the default lifecycle applies only to time series data streams, so it has no effect on this standard data stream
+                // the minimum lifecycle applies only to time series data streams, so it has no effect on this standard data stream
                 randomBoolean()
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -207,10 +204,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(Map.of("enabled", false)));
-                assertThat(
-                    dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()),
-                    is(nullValue())
-                );
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(
                     dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                     is(ManagedBy.UNMANAGED.displayValue)
@@ -283,7 +277,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 false,
                 null,
                 null,
-                // the default lifecycle applies only to time series data streams, so it has no effect on this standard data stream
+                // the minimum lifecycle applies only to time series data streams, so it has no effect on this standard data stream
                 randomBoolean()
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -313,11 +307,11 @@ public class GetDataStreamsResponseTests extends ESTestCase {
     }
 
     /**
-     * A time series data stream without a configured lifecycle is managed by the default lifecycle when the default lifecycle for time
-     * series is enabled. In that case the response reports that the lifecycle is enabled by default and resolves which feature manages
-     * the next generation index based on the default lifecycle.
+     * A time series data stream without a configured lifecycle is managed by the minimum lifecycle when enabled. In that case
+     * the response reports that the lifecycle is enabled and resolves which feature manages the next generation index
+     * based on the minimum lifecycle.
      */
-    public void testResponseDefaultLifecycleForTimeSeriesRepresentation() throws Exception {
+    public void testMinimumLifecycleForTimeSeriesRepresentation() throws Exception {
         String dataStreamName = "metrics";
         Index firstGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
         Index writeIndex = new Index(getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
@@ -329,7 +323,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
         String ilmPolicyName = "rollover-30days";
 
         {
-            // the default lifecycle for time series is enabled, so the data stream is managed by the data stream lifecycle
+            // the minimum lifecycle for time series is enabled, so the data stream is managed by the data stream lifecycle
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
                 firstGenerationIndex,
                 new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null),
@@ -352,9 +346,9 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 )
             );
             assertThat(dataStreamMap.get(DataStream.NAME_FIELD.getPreferredName()), is(dataStreamName));
-            // the default lifecycle is not displayed as the configured lifecycle
+            // the minimum lifecycle is not displayed as the configured lifecycle
             assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(true));
+            assertThat(dataStreamMap.get(Response.DataStreamInfo.MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName()), is(true));
             assertThat(
                 dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                 is(ManagedBy.LIFECYCLE.displayValue)
@@ -363,7 +357,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
         }
 
         {
-            // the default lifecycle for time series is disabled, so the data stream is unmanaged
+            // the minimum lifecycle for time series is disabled, so the data stream is unmanaged
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
                 firstGenerationIndex,
                 new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null),
@@ -386,7 +380,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 )
             );
             assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(nullValue()));
+            assertThat(dataStreamMap.get(Response.DataStreamInfo.MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName()), is(nullValue()));
             assertThat(
                 dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                 is(ManagedBy.UNMANAGED.displayValue)
@@ -395,7 +389,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
         }
 
         {
-            // the default lifecycle for time series is enabled and the template has an ILM policy, so prefer_ilm decides
+            // the minimum lifecycle for time series is enabled and the template has an ILM policy, so prefer_ilm decides
             boolean templatePreferIlm = randomBoolean();
             ManagedBy expectedManagedBy = templatePreferIlm ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
@@ -422,7 +416,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
             assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(templatePreferIlm));
             assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(ilmPolicyName));
             assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(nullValue()));
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(true));
+            assertThat(dataStreamMap.get(Response.DataStreamInfo.MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName()), is(true));
             assertThat(
                 dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                 is(expectedManagedBy.displayValue)
@@ -431,7 +425,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
         }
 
         {
-            // a configured lifecycle takes precedence, so the lifecycle is never reported as enabled by default
+            // a configured lifecycle takes precedence, so the minimum lifecycle is not enabled
             boolean lifecycleEnabled = randomBoolean();
             ManagedBy expectedManagedBy = lifecycleEnabled ? ManagedBy.LIFECYCLE : ManagedBy.UNMANAGED;
             DataStream timeSeriesWithLifecycle = timeSeriesWithoutLifecycle.copy()
@@ -462,7 +456,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                 dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()),
                 is(Map.of("enabled", lifecycleEnabled))
             );
-            assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_ENABLED_BY_DEFAULT_FIELD.getPreferredName()), is(nullValue()));
+            assertThat(dataStreamMap.get(Response.DataStreamInfo.MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName()), is(nullValue()));
             assertThat(
                 dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
                 is(expectedManagedBy.displayValue)

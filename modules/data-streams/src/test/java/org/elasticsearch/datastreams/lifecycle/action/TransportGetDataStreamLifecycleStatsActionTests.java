@@ -141,7 +141,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         }
         ProjectMetadata project = builder.build();
         when(errorStore.getAllIndices(project.id())).thenReturn(indicesInError);
-        // none of the data streams are time series, so the default lifecycle for time series has no effect
+        // none of the data streams are time series, so the minimum lifecycle for time series has no effect
         GetDataStreamLifecycleStatsAction.Response response = action.collectStats(project, randomBoolean());
         assertThat(response.getRunDuration(), is(lastRunDuration));
         assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
@@ -159,8 +159,8 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
     }
 
     /**
-     * Time series data streams without a configured lifecycle are managed by the default lifecycle only when the default lifecycle for
-     * time series is enabled, so they should only be reported in the stats in that case. Whether the default lifecycle applies depends
+     * Time series data streams without a configured lifecycle are managed by the minimum lifecycle only when the minimum lifecycle for
+     * time series is enabled, so they should only be reported in the stats in that case. Whether the minimum lifecycle applies depends
      * on the index mode of the data stream, so the backing indices use the standard index mode to avoid having to configure
      * non-overlapping time series ranges.
      */
@@ -179,7 +179,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
         indicesInError.add(tsdsWithoutLifecycle.getIndices().get(randomInt(numBackingIndices - 1)));
         builder.put(tsdsWithoutLifecycle);
-        // the backing indices have an ILM policy, and ILM is preferred, so none of them are managed by the default lifecycle
+        // the backing indices have an ILM policy, and ILM is preferred, so none of them are managed by the minimum lifecycle
         DataStream tsdsWithIlm = createDataStream(
             builder,
             "tsds-with-ilm",
@@ -189,7 +189,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             now
         ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
         builder.put(tsdsWithIlm);
-        // a configured lifecycle takes precedence over the default lifecycle
+        // a configured lifecycle takes precedence over the minimum lifecycle
         DataStream tsdsWithDisabledLifecycle = createDataStream(
             builder,
             "tsds-with-disabled-lifecycle",
@@ -199,7 +199,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             now
         ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
         builder.put(tsdsWithDisabledLifecycle);
-        // the default lifecycle applies only to time series data streams
+        // the minimum lifecycle applies only to time series data streams
         DataStream standardWithoutLifecycle = createDataStream(
             builder,
             "standard-without-lifecycle",

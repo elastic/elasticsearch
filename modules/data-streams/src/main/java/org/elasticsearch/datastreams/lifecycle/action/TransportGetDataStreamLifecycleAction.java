@@ -98,7 +98,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
             request.indicesOptions()
         );
         Map<String, DataStream> dataStreams = state.metadata().dataStreams();
-        boolean defaultLifecycleForTimeSeriesEnabled = dataStreamLifecycleSettings.defaultLifecycleForTimeSeriesEnabled();
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
 
         ((CancellableTask) task).ensureNotCancelled();
         listener.onResponse(
@@ -111,8 +111,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
                             dataStream.getName(),
                             dataStream.getDataLifecycle(),
                             dataStream.isSystem(),
-                            dataStream.getDataLifecycle() == null
-                                && dataStream.getEffectiveDataLifecycle(defaultLifecycleForTimeSeriesEnabled) != null
+                            dataStream.isMinimumLifecycleApplicable(minimumLifecycleEnabled)
                         )
                     )
                     .sorted(Comparator.comparing(GetDataStreamLifecycleAction.Response.DataStreamLifecycle::dataStreamName))

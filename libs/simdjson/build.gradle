@@ -85,14 +85,12 @@ tasks.named('dependencyLicenses').configure {
 nativeLibraryBuild {
   modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
   workingDir = layout.projectDirectory.dir('native')
-  // "build.gradle" is part of the sources: it declares the toolchain, the platforms and the build commands,
-  // so a change here can change the compiled artifact just as a change to the C++ sources can.
-  sources = ['native/src/**', 'native/Makefile', 'build.gradle']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  sources = ['native/src/**', 'native/Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
   forwardedEnvironment = ['CLANG_CXX']
-  // The platforms libsimdjson is built for. Other hosts (Windows, Intel Mac) consume the artifact and
+  // The platforms libsimdjson is built for. Other hosts (Intel Mac) still consume the artifact but
   // fall back to the Java implementation when they don't have a platform-specific one.
-  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64']
+  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64', 'windows-x64']
 
   // Reuse the published artifact whenever these sources already have one, addressed by their hash.
   artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
@@ -101,9 +99,10 @@ nativeLibraryBuild {
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib': 'darwin-aarch64/libsimdjson.dylib',
-    'build/libs/simdjson/shared/aarch64/libsimdjson.so'   : 'linux-aarch64/libsimdjson.so',
-    'build/libs/simdjson/shared/amd64/libsimdjson.so'     : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib' : 'darwin-aarch64/libsimdjson.dylib',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so'    : 'linux-aarch64/libsimdjson.so',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so'      : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/windows-x64/simdjson.dll'  : 'windows-x64/simdjson.dll',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

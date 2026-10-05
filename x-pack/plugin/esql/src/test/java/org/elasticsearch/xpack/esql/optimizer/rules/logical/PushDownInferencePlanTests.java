@@ -46,6 +46,10 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class PushDownInferencePlanTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PushDownInferencePlanTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * {@code ... | SORT y | <inference> | LIMIT 10}: the limit must end up beneath the command, so only 10 rows are sent for
      * inference. Were the command pushed under the sort first, it would embed every row and then discard all but 10.

@@ -39,7 +39,9 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         final String apiKeyCredentials = getApiKeyCredentials();
         assertAuthenticateWithApiKey(apiKeyCredentials, true);
 
-        assertFailToGetToken();
+        // OAuth2 tokens are available at all license levels
+        final String accessToken = getAccessToken();
+        assertAuthenticateWithToken(accessToken);
         // Service account token works independently to oauth2 token service
         final String bearerString = createServiceAccountToken();
         assertAuthenticateWithServiceAccountToken(bearerString);
@@ -70,7 +72,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             checkIndexWrite();
             accessToken = getAccessToken();
             apiKeyCredentials1 = getApiKeyCredentials();
-            assertAuthenticateWithToken(accessToken, true);
+            assertAuthenticateWithToken(accessToken);
             assertAuthenticateWithApiKey(apiKeyCredentials1, true);
             assertAddRoleWithDLS(true);
             assertAddRoleWithFLS(true);
@@ -83,9 +85,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
             revertTrial();
-            assertAuthenticateWithToken(accessToken, false);
+            // OAuth2 tokens issued under the trial license remain usable, and new tokens can be issued, on Basic
+            assertAuthenticateWithToken(accessToken);
+            assertAuthenticateWithToken(getAccessToken());
             assertAuthenticateWithApiKey(apiKeyCredentials1, true);
-            assertFailToGetToken();
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
             // Any indices with DLS/FLS cannot be searched with the API key when the license is on Basic
@@ -239,30 +242,15 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         return ObjectPath.evaluate(apiKeyResponseMap, "encoded").toString();
     }
 
-    private void assertFailToGetToken() {
-        ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(buildGetTokenRequest()));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(e.getMessage(), containsString("current license is non-compliant for [security tokens]"));
-    }
-
-    private void assertAuthenticateWithToken(String accessToken, boolean shouldSucceed) throws IOException {
+    private void assertAuthenticateWithToken(String accessToken) throws IOException {
         assertNotNull("access token cannot be null", accessToken);
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
         request.setOptions(options);
-        if (shouldSucceed) {
-            Response authenticateResponse = client().performRequest(request);
-            assertOK(authenticateResponse);
-            assertEquals("security_test_user", entityAsMap(authenticateResponse).get("username"));
-        } else {
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(
-                e.getMessage(),
-                containsString("unable to authenticate with provided credentials and anonymous access is not allowed for this request")
-            );
-        }
+        Response authenticateResponse = client().performRequest(request);
+        assertOK(authenticateResponse);
+        assertEquals("security_test_user", entityAsMap(authenticateResponse).get("username"));
     }
 
     private void assertAuthenticateWithApiKey(String apiKeyCredentials, boolean shouldSucceed) throws IOException {

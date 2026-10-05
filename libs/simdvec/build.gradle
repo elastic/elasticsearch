@@ -116,11 +116,11 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
   workingDir = layout.projectDirectory.dir('native')
   sources = ['native/src/vec/**', 'native/Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
   forwardedEnvironment = ['CLANG_CXX']
-  // The platforms libvec is built for. Other hosts (Windows, Intel Mac) consume the artifact and
+  // The platforms libvec is built for. Other hosts (Intel Mac) still consume the artifact but
   // fall back to the Panama implementation when they don't have a platform-specific implementation.
-  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64']
+  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64', 'windows-x64']
 
   // Reuse the published artifact whenever these sources already have one, addressed by their hash.
   artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
@@ -129,9 +129,10 @@ nativeLibraryBuild {
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
-    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
-    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/aarch64/libvec.dylib' : 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'    : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'      : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/windows-x64/vec.dll'  : 'windows-x64/vec.dll',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

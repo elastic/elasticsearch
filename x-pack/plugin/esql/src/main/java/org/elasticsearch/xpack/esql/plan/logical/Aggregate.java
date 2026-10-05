@@ -331,11 +331,10 @@ public class Aggregate extends UnaryPlan
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
-        Holder<Boolean> hasScoringAggs = new Holder<>();
         forEachExpression(FilteredExpression.class, fe -> {
             if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
-                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
-                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                for (Expression field : aggregateFunction.fields()) {
+                    if (MetadataAttribute.isScoreAttribute(field)) {
                         if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
                             failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
                         }
@@ -471,8 +470,17 @@ public class Aggregate extends UnaryPlan
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });
-            checkNested.accept(af.field());
+            af.fields().forEach(checkNested);
             af.parameters().forEach(checkNested);
+            // Unlike the fields, which the optimizer extracts into an EVAL computed before the aggregation, the parameters are never
+            // evaluated per input row, so a grouping function used there (e.g. COUNT(histogram, BUCKET(histogram, 20))) is not supported
+            af.parameters()
+                .forEach(
+                    param -> param.forEachDown(
+                        GroupingFunction.class,
+                        gf -> failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()))
+                    )
+                );
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here

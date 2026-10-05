@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
  * This first cut covers the object-store read layer. The per-{@code StorageObject}
  * {@link StorageObjectMetricsCounters} already tracks request count, request nanos, bytes read and
  * retries for the query profile; this holder bridges those same events to the registry. The counters
- * call {@link #recordRequest} / {@link #recordRetry} once a metrics holder is attached to them (see
- * {@code StorageObject#attachMetrics}); when none is attached they use {@link #NOOP}.
+ * call {@link #recordRequest} / {@link #recordRetry} / {@link #recordBytes} once a metrics holder is
+ * attached to them (see {@code StorageObject#attachMetrics}); when none is attached they use {@link #NOOP}.
  */
 public final class ExternalSourceMetrics {
 
@@ -41,7 +41,7 @@ public final class ExternalSourceMetrics {
     /** Wall time of a single object-store read request, in milliseconds. */
     public static final String STORAGE_REQUESTS_DURATION = "es.esql.datasources.storage.requests.duration.histogram";
 
-    /** Bytes returned by object-store reads, before decompression. */
+    /** Physical bytes received from object-store reads, before outer decompression. */
     public static final String STORAGE_BYTES_READ_TOTAL = "es.esql.datasources.storage.bytes_read.total";
 
     /** Automatic retries issued by the cross-provider retry decorator. */
@@ -159,6 +159,20 @@ public final class ExternalSourceMetrics {
     public static final String REASON_ATTRIBUTE = "es_datasource_reason";
 
     /**
+     * Schema-resolution dimension on the discovery histograms, a closed low-cardinality set:
+     * {@code first_file_wins}, {@code union_by_name}, {@code strict}.
+     */
+    public static final String SCHEMA_RESOLUTION_ATTRIBUTE = "es_datasource_schema_resolution";
+
+    /**
+     * Whether the discovery pass stopped at a key bound instead of enumerating the dataset. Without this the
+     * duration histogram and the file-count distribution mix two populations: a pass that answered a schema from
+     * one page, and one that walked the whole glob. The second is what "discovery cost" is asked about, and the
+     * first would otherwise read as the dataset having got smaller and faster.
+     */
+    public static final String TRUNCATED_ATTRIBUTE = "es_datasource_listing_truncated";
+
+    /**
      * Query-outcome dimension, a closed low-cardinality set: {@code success}, {@code failure}, {@code cancelled}.
      */
     public static final String OUTCOME_ATTRIBUTE = "es_datasource_outcome";
@@ -200,6 +214,12 @@ public final class ExternalSourceMetrics {
      * Keyed {@code type + '\0' + format}. Every closed combination is present so lookups never allocate.
      */
     private static final Map<String, Map<String, Object>> TYPE_FORMAT_ATTRIBUTES = typeFormatAttributes();
+
+    /**
+     * Pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} maps for discovery histograms.
+     * Keyed {@code type + '\0' + schema_resolution}. Every closed combination is present so lookups never allocate.
+     */
+    private static final Map<String, Map<String, Object>> TYPE_SCHEMA_RESOLUTION_ATTRIBUTES = typeSchemaResolutionAttributes();
 
     /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
     private static final Map<String, Map<String, Object>> OUTCOME_ATTRIBUTES = Map.of(
@@ -369,6 +389,10 @@ public final class ExternalSourceMetrics {
      * observes the request duration. {@code scheme} is the raw storage scheme, folded to {@link #TYPE_ATTRIBUTE}
      * via {@link Type#fromScheme(String)}.
      * <p>
+     * Pass filled-buffer size when this event is the only byte source. Pass {@code bytes = 0} and
+     * publish received bytes separately via {@link #recordBytes} so a later stream close cannot
+     * mint a second request.
+     * <p>
      * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
      * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
      */
@@ -386,6 +410,28 @@ public final class ExternalSourceMetrics {
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordRequest failed", e);
+        }
+    }
+
+    /**
+     * Records received bytes for an already-counted request. Increments
+     * {@link #STORAGE_BYTES_READ_TOTAL} and phone-home {@code storageBytesRead} only — does not
+     * increment {@code storage.requests.total}. Used once at stream close after {@code addRequest}
+     * booked the GET with {@code bytes = 0}. Best-effort (self-guarded).
+     */
+    public void recordBytes(long bytes, String scheme) {
+        if (bytes <= 0) {
+            return;
+        }
+        try {
+            Type type = Type.fromScheme(scheme);
+            Map<String, Object> attributes = typeAttrsForToken(type.key());
+            bytesReadTotal.incrementBy(bytes, attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordBytes(type, bytes);
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: recordBytes failed", e);
         }
     }
 
@@ -497,11 +543,21 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records one external-source discovery pass: its wall time, the file count and the estimated byte total, on
-     * the given storage {@code scheme}. Best-effort (self-guarded).
+     * the given storage {@code scheme}, tagged with the effective {@code schemaResolution} and with whether the
+     * listing stopped at a bound ({@link #TRUNCATED_ATTRIBUTE}), which decides whether the counts describe the
+     * dataset or a page of it. Best-effort (self-guarded).
+     * Phone-home {@link DataSourceUsageAccumulator#recordDiscovery} is unchanged — no new usage stream.
      */
-    public void recordDiscovery(long durationMillis, long filesScanned, long bytesScanned, String scheme) {
+    public void recordDiscovery(
+        long durationMillis,
+        long filesScanned,
+        long bytesScanned,
+        String scheme,
+        FormatReader.SchemaResolution schemaResolution,
+        boolean truncated
+    ) {
         try {
-            Map<String, Object> attributes = typeAttrs(scheme);
+            Map<String, Object> attributes = typeSchemaResolutionAttrs(scheme, schemaResolution, truncated);
             discoveryDuration.record(Math.max(0L, durationMillis), attributes);
             discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
             discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
@@ -661,6 +717,48 @@ public final class ExternalSourceMetrics {
 
     private static String typeFormatKey(String type, String format) {
         return type + '\0' + format;
+    }
+
+    private static String typeResolutionKey(String type, String resolution, boolean truncated) {
+        return type + '\0' + resolution + '\0' + truncated;
+    }
+
+    /**
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #SCHEMA_RESOLUTION_ATTRIBUTE} map. Null resolution
+     * folds to {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. Every closed combination is present so this
+     * never allocates.
+     */
+    private static Map<String, Object> typeSchemaResolutionAttrs(
+        String scheme,
+        FormatReader.SchemaResolution schemaResolution,
+        boolean truncated
+    ) {
+        String type = Type.fromScheme(scheme).key();
+        String resolution = canonicalSchemaResolution(schemaResolution);
+        Map<String, Object> attrs = TYPE_SCHEMA_RESOLUTION_ATTRIBUTES.get(typeResolutionKey(type, resolution, truncated));
+        assert attrs != null : "non-canonical type/schema_resolution [" + type + "/" + resolution + "]";
+        return attrs;
+    }
+
+    private static Map<String, Map<String, Object>> typeSchemaResolutionAttributes() {
+        Map<String, Map<String, Object>> maps = new HashMap<>();
+        for (Type type : Type.values()) {
+            for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
+                String key = canonicalSchemaResolution(resolution);
+                for (boolean truncated : new boolean[] { false, true }) {
+                    maps.put(
+                        typeResolutionKey(type.key(), key, truncated),
+                        Map.of(TYPE_ATTRIBUTE, type.key(), SCHEMA_RESOLUTION_ATTRIBUTE, key, TRUNCATED_ATTRIBUTE, truncated)
+                    );
+                }
+            }
+        }
+        return Map.copyOf(maps);
+    }
+
+    static String canonicalSchemaResolution(FormatReader.SchemaResolution schemaResolution) {
+        FormatReader.SchemaResolution resolved = schemaResolution == null ? FormatReader.DEFAULT_SCHEMA_RESOLUTION : schemaResolution;
+        return resolved.configName();
     }
 
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */

@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -103,6 +104,24 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertBusy(() -> assertThat(counter("replays"), hasSize(1)));
     }
 
+    public void testFailedReplayIsRetried() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        exportAndWait("first");
+        exportAndWait("second");
+        safeSleep(200); // let the write window (100ms) expire so the reader can promote the file
+        delegate.clearExported();
+        exporter.flush().join(10, TimeUnit.SECONDS);
+        assertThat("the drain stops at the failed replay of the first batch", delegate.exportedNames(), contains("first"));
+
+        delegate.setShouldFail(false);
+        delegate.clearExported();
+        assertBusy(() -> {
+            exporter.flush().join(10, TimeUnit.SECONDS);
+            assertThat(delegate.exportedNames(), hasItems("first", "second"));
+        });
+    }
+
     public void testDiskCapRotatesOldestToMakeRoom() throws Exception {
         build(Settings.builder().put("telemetry.metrics.buffer.disk_size", "1kb").build());
 
@@ -140,6 +159,26 @@ public class BufferingMetricExporterTests extends ESTestCase {
         exporter = null;
 
         assertThat("buffered file must remain on disk for next startup", countBufferFiles(), greaterThanOrEqualTo(1));
+    }
+
+    public void testRestartDrainsRecoveredBufferFiles() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        exportAndWait("recovered");
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
+        exporter.shutdown();
+
+        // Recreate everything as if there was a restart
+        delegate = new FakeMetricExporter();
+        meterProvider = new RecordingOtelMeterProvider();
+        build(Settings.EMPTY);
+
+        // let the write window (100ms) expire
+        safeSleep(200);
+        exportAndWait("trigger");
+
+        assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
+        assertThat(delegate.exportedNames(), hasItems("recovered", "trigger"));
     }
 
     public void testGaugesRecoverAfterNoopMeterProvider() throws Exception {

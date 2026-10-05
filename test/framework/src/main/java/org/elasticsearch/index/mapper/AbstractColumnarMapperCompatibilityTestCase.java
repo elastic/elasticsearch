@@ -29,11 +29,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -79,15 +82,71 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     protected record Batch(String name, long primaryTerm, List<Doc> docs) {}
 
     /**
+     * Which ESCF encode path produces the source columns for a scenario. The two encoders assign
+     * element types independently, so the same JSON can yield different column kinds; tests that
+     * care about the mapper's reaction to a column kind pick the encoder explicitly instead of
+     * inheriting whatever the ambient feature flag selects.
+     */
+    protected enum SourceEncoder {
+        JACKSON(false),
+        SIMD(true);
+
+        private final boolean allowSimd;
+
+        SourceEncoder(boolean allowSimd) {
+            this.allowSimd = allowSimd;
+        }
+
+        /** Whether this encoder runs in the current build: simdjson needs its native library and feature flag. */
+        public boolean isAvailable() {
+            return this == JACKSON || EscfEncoder.isSimdEnabled();
+        }
+
+        /** The encoders a differential test can run in this build, in declaration order. */
+        public static List<SourceEncoder> available() {
+            return Arrays.stream(values()).filter(SourceEncoder::isAvailable).toList();
+        }
+    }
+
+    /**
      * Runs the parity check for the given mapping, index settings, and scenarios. Builds a
      * {@link MapperService} from the supplied mapping and settings, then calls
      * {@link #assertScenario} for each scenario.
      */
     protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
+        assertColumnarMatchesXContent(mapping, indexSettings, SourceEncoder.SIMD, scenarios);
+    }
+
+    /**
+     * Runs the parity check with {@code encoder} producing the source columns, for tests that must
+     * pin the encode path rather than inherit the ambient one.
+     */
+    protected final void assertColumnarMatchesXContent(
+        XContentBuilder mapping,
+        Settings indexSettings,
+        SourceEncoder encoder,
+        Batch... scenarios
+    ) throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario);
+            assertScenario(mapperService, scenario, encoder);
+        }
+    }
+
+    /**
+     * Like {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Batch...)} but with an explicit index version,
+     * for testing pre-gate BWC behaviour.
+     */
+    protected final void assertColumnarMatchesXContent(
+        IndexVersion indexVersion,
+        XContentBuilder mapping,
+        Settings indexSettings,
+        Batch... scenarios
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
+        for (Batch scenario : scenarios) {
+            assertScenario(mapperService, scenario, SourceEncoder.SIMD);
         }
     }
 
@@ -102,6 +161,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * parity with the x-content parse path.
      */
     protected final void mapColumnarLeaf(MapperService mapperService, String field, String... sources) throws IOException {
+        mapColumnarLeaf(mapperService, field, SourceEncoder.SIMD, sources);
+    }
+
+    /**
+     * Runs a bail-out check with {@code encoder} producing the source column. A column kind the
+     * mapper refuses depends on the encode path, so a test asserting the refusal must pin it.
+     */
+    protected final void mapColumnarLeaf(MapperService mapperService, String field, SourceEncoder encoder, String... sources)
+        throws IOException {
         final int docCount = sources.length;
         final BytesReference[] sourceBytesArray = new BytesReference[docCount];
         final IndexRequest[] requests = new IndexRequest[docCount];
@@ -118,7 +186,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 indexSettings,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             );
-            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)
         ) {
             final SourceSchema schema = escfBatch.schema();
             for (int c = 0; c < schema.leafCount(); c++) {
@@ -166,7 +234,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@code (seqNo, primaryTerm, version)} values to both paths after parsing, exactly as
      * {@code InternalEngine} does at indexing time.
      */
-    private void assertScenario(MapperService mapperService, Batch scenario) throws IOException {
+    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder) throws IOException {
         final List<Doc> docs = scenario.docs();
         final int docCount = docs.size();
 
@@ -197,7 +265,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 m.preColumnarParse(ctx);
             }
 
-            try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            try (EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)) {
                 final SourceSchema schema = escfBatch.schema();
 
                 // Accumulate leaves owned by a group mapper (e.g. flattened). Groups are ordered by first-seen
@@ -251,7 +319,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     // SourceToParse so the row-path DocumentParser reads the same tsid bytes via
                     // SourceToParse#tsid() rather than re-building it from source dimensions.
                     final SourceToParse sourceToParse = doc.tsid() != null
-                        ? new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing(), Map.of(), doc.tsid())
+                        ? new SourceToParse(
+                            doc.id(),
+                            new BytesSource(sourceBytesArray[i], XContentType.JSON, true),
+                            doc.routing(),
+                            Map.of(),
+                            Map.of(),
+                            XContentMeteringParserDecorator.NOOP,
+                            doc.tsid()
+                        )
                         : new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
                     final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
                     // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
@@ -303,6 +379,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder) throws IOException {
+        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd)) {
+            for (BytesReference source : sources) {
+                escfEncoder.addDocument(source, XContentType.JSON, 0);
+            }
+            return escfEncoder.buildPartition(0);
+        }
+    }
+
     private static void assertSupportsColumnarParse(FieldMapper mapper, String path, IndexSettings indexSettings) {
         if (mapper.supportsColumnarParse(indexSettings) == false) {
             throw new AssertionError(
@@ -314,6 +399,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     + "test data must only include fields whose mappers support columnar"
             );
         }
+    }
+
+    /**
+     * The type {@code column} gives {@code doc}. A doc-values payload carrying a document that indexed nothing reports the field's
+     * index options itself, so the type is not the column's for every document it covers.
+     */
+    private static FieldType typeFor(Column column, int doc) {
+        final FieldType type = new FieldType(
+            column instanceof ColumnarPayloadColumn payload ? payload.fieldTypeFor(doc) : column.fieldType()
+        );
+        type.freeze();
+        return type;
     }
 
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
@@ -352,12 +449,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 if (isSparse || randomBoolean()) {
                     final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
                     for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.value())));
                     }
                 } else {
                     final BytesRefValuesCursor cursor = binaryColumn.values();
                     for (int doc = 0; doc < cursor.size(); doc++) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
             } else if (column instanceof TokenStreamColumn) {

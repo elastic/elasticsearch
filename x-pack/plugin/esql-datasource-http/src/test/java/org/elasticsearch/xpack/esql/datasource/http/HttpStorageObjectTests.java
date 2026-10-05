@@ -8,14 +8,20 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -31,7 +37,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -68,6 +76,26 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
 
         assertEquals(path, object.path());
+    }
+
+    public void testStorageIdentityScopedByCustomHeaders() {
+        HttpClient mockClient = mock(HttpClient.class);
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpConfiguration alice = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer alice-secret")).build();
+        HttpConfiguration aliceAgain = HttpConfiguration.builder()
+            .customHeaders(Map.of("Authorization", "Bearer alice-secret"))
+            .requestTimeout(Duration.ofSeconds(7))
+            .build();
+        HttpConfiguration bob = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer bob-secret")).build();
+
+        HttpStorageObject aliceObject = new HttpStorageObject(mockClient, path, alice);
+        assertEquals(aliceObject.storageIdentity(), new HttpStorageObject(mockClient, path, aliceAgain).storageIdentity());
+        assertNotEquals(aliceObject.storageIdentity(), new HttpStorageObject(mockClient, path, bob).storageIdentity());
+        assertNotEquals(
+            aliceObject.storageIdentity(),
+            new HttpStorageObject(mockClient, path, HttpConfiguration.defaults()).storageIdentity()
+        );
+        assertThat(aliceObject.storageIdentity().toString(), not(containsString("alice-secret")));
     }
 
     public void testPathWithPreKnownLength() {
@@ -203,6 +231,87 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(eue.getCause(), instanceOf(IOException.class));
     }
 
+    public void testCancelInFlightNotifiesListener() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        AtomicReference<CompletableFuture<HttpResponse<DirectReadBuffer>>> inFlight = new AtomicReference<>();
+        doAnswer(invocation -> {
+            CompletableFuture<HttpResponse<DirectReadBuffer>> future = new CompletableFuture<>();
+            inFlight.set(future);
+            requestStarted.countDown();
+            return future;
+        }).when(mockClient).sendAsync(any(), any());
+
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = object.startReadBytesAsync(0, 100, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+
+        assertTrue("request must start", requestStarted.await(5, TimeUnit.SECONDS));
+        cancel.close();
+        assertTrue("listener must be notified after in-flight cancel", listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals("read cancelled", error.get().getMessage());
+        assertTrue(inFlight.get().isCancelled());
+    }
+
+    public void testCancelInFlightClosedSocketStaysCancelledNotUnavailable() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        AtomicReference<CompletableFuture<HttpResponse<DirectReadBuffer>>> inFlight = new AtomicReference<>();
+        doAnswer(invocation -> {
+            CompletableFuture<HttpResponse<DirectReadBuffer>> future = new CompletableFuture<>() {
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    return completeExceptionally(new IOException("closed"));
+                }
+            };
+            inFlight.set(future);
+            return future;
+        }).when(mockClient).sendAsync(any(), any());
+
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = object.startReadBytesAsync(0, 100, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+        cancel.close();
+        assertTrue(listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertThat(error.get(), not(instanceOf(ExternalUnavailableException.class)));
+        assertTrue(inFlight.get().isCompletedExceptionally());
+    }
+
     /**
      * The truncated-body case: a 206 range that closes short of the requested length. Driven through
      * the real {@link DirectByteBufferBodyHandlers} subscriber, then wrapped the way the JDK
@@ -224,7 +333,33 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(thrown, instanceOf(ExternalUnavailableException.class));
         assertFalse(((ExternalUnavailableException) thrown).throttling());
         assertThat(thrown.getMessage(), containsString("shorter than expected"));
-        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), containsString(path.objectName()));
+        assertThat(thrown.getMessage(), not(containsString("transient read failure")));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    /**
+     * Same truncated-body case as {@link #testAsyncShortBodyIsRetryable503}, but the origin
+     * ignores {@code Range} and answers {@code 200 OK}. {@code readAsyncFailure} uses position
+     * {@code 0}, so skip is 0 and the short fill is the 200 path. The leaf EUE must survive the
+     * mapper; a one-level peel would retype it as a generic {@code typeTransportFailure}
+     * ("transient read failure").
+     */
+    public void testAsyncShortBodyOn200IsRetryable503() throws Exception {
+        int requested = 10;
+        HttpClient mockClient = mock(HttpClient.class);
+        mockSendAsyncLikeHttpClient(mockClient, HttpStatus.SC_OK, List.of(ByteBuffer.wrap(new byte[requested - 5])));
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        Exception thrown = readAsyncFailure(object, requested);
+
+        assertThat(thrown, instanceOf(ExternalUnavailableException.class));
+        assertFalse(((ExternalUnavailableException) thrown).throttling());
+        assertThat(thrown.getMessage(), containsString("shorter than expected"));
+        assertThat(thrown.getMessage(), containsString(path.objectName()));
         assertThat(thrown.getMessage(), not(containsString("transient read failure")));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
@@ -239,14 +374,26 @@ public class HttpStorageObjectTests extends ESTestCase {
     public void testAsyncUnavailableSurvivesWrapping() throws Exception {
         StoragePath path = StoragePath.of("https://example.com/file.parquet");
         ExternalUnavailableException withCause = new ExternalUnavailableException(
-            "HTTP response body shorter than expected reading [" + path + "]",
+            Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            false,
+            0L,
             new IOException("connection reset")
         );
         HttpClient direct = mock(HttpClient.class);
         doReturn(CompletableFuture.failedFuture(withCause)).when(direct).sendAsync(any(), any());
         assertSame(withCause, readAsyncFailure(new HttpStorageObject(direct, path, HttpConfiguration.defaults()), 10));
 
-        ExternalUnavailableException wrapped = new ExternalUnavailableException("HTTP response body shorter than expected");
+        ExternalUnavailableException wrapped = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
         HttpClient jdkWrapped = mock(HttpClient.class);
         doReturn(
             CompletableFuture.failedFuture(
@@ -319,8 +466,8 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the bytes read from the response.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
+     * received-body, so a close with no read books 0.
      */
     public void testRangeNewStreamIncrementsMetrics() throws Exception {
         long rangeBytes = 1024L;
@@ -342,9 +489,31 @@ public class HttpStorageObjectTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals(0L, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainCountsReceivedBytes() throws Exception {
+        long rangeBytes = 1024L;
+        int drained = between(1, (int) rangeBytes);
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(rangeBytes))), (a, b) -> true)
+        );
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[(int) rangeBytes]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        try (InputStream stream = obj.newStream(0, rangeBytes)) {
+            assertEquals(drained, stream.read(new byte[drained]));
+        }
+        assertEquals(1L, obj.metrics().requestCount());
+        assertEquals(drained, obj.metrics().bytesRead());
     }
 
     public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
@@ -457,6 +626,132 @@ public class HttpStorageObjectTests extends ESTestCase {
             in.readAllBytes();
         }
         expectThrows(ExternalObjectChangedException.class, obj::newStream);
+    }
+
+    /**
+     * Each {@code mapReadFailure} form names the object by its safe name (last path segment) without the storage URI,
+     * credentials, or query parameters.
+     */
+    public void testReadFailureRedactsUrl() throws Exception {
+        IOException clientError = expectThrows(IOException.class, () -> objectAnswering(HttpStatus.SC_FORBIDDEN).newStream());
+        assertEquals("Failed to read object from [b.csv] (HTTP 403)", clientError.getMessage());
+
+        ExternalUnavailableException unavailable = expectThrows(
+            ExternalUnavailableException.class,
+            () -> objectAnswering(HttpStatus.SC_SERVICE_UNAVAILABLE).newStream()
+        );
+        assertSafeMessage(unavailable.getMessage());
+
+        ExternalObjectChangedException changed = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED).newStream(1, 2)
+        );
+        assertSafeMessage(changed.getMessage());
+    }
+
+    /**
+     * A store's error body routinely names the bucket or object in plain text, with no storage-URI scheme and no
+     * absolute path for {@code safeForUserMessage} to catch. It must never reach the exception message; it is
+     * logged at DEBUG for the admin instead.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the DEBUG body log")
+    public void testErrorBodyIsLoggedNotForwarded() throws Exception {
+        String body = "{\"error\":{\"code\":404,\"message\":\"No such object: my-bucket/tenant-a/x.csv\"}}";
+
+        MockLog.assertThatLogger(() -> {
+            IOException e = expectThrows(IOException.class, () -> objectAnsweringWithBody(HttpStatus.SC_NOT_FOUND, body).newStream());
+            assertEquals("Failed to read object from [b.csv] (HTTP 404)", e.getMessage());
+            assertThat(e.getMessage(), not(containsString("my-bucket")));
+        },
+            HttpStorageObject.class,
+            new MockLog.SeenEventExpectation(
+                "error body",
+                HttpStorageObject.class.getCanonicalName(),
+                Level.DEBUG,
+                "*my-bucket/tenant-a/x.csv*"
+            )
+        );
+    }
+
+    /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with {@code body}. */
+    private static HttpStorageObject objectAnsweringWithBody(int statusCode, String body) throws Exception {
+        HttpResponse<InputStream> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(statusCode);
+        when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+        when(response.body()).thenReturn(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(response).when(mockClient).send(any(), any());
+        return new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());
+    }
+
+    /** Both {@code observeEtag} failures name the object by its safe name (last path segment). */
+    public void testEtagMismatchRedactsUrl() throws Exception {
+        ExternalObjectChangedException changed = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> readTwiceWithEtags("\"gen-1\"", "\"gen-2\"")
+        );
+        assertEquals("External data object [b.csv] was modified during read", changed.getMessage());
+
+        ExternalObjectChangedException unverifiable = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> readTwiceWithEtags("\"gen-1\"", null)
+        );
+        assertSafeMessage(unverifiable.getMessage());
+    }
+
+    /** The async send failures that are not already typed are wrapped with the object name, not the storage URI. */
+    public void testAsyncSendFailureRedactsUrl() throws Exception {
+        for (Throwable failure : List.of(new CompletionException(new IOException("closed")), new IllegalArgumentException("boom"))) {
+            HttpClient mockClient = mock(HttpClient.class);
+            doReturn(CompletableFuture.failedFuture(failure)).when(mockClient).sendAsync(any(), any());
+            StoragePath path = StoragePath.of(HttpUrlsTests.SECRET_URL);
+            HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+            assertSafeMessage(readAsyncFailure(object, 10).getMessage());
+        }
+    }
+
+    private static void assertSafeMessage(String message) {
+        assertThat(message, containsString("b.csv"));
+        assertThat(message, not(containsString("user:pass")));
+        assertThat(message, not(containsString("X-Amz-Signature")));
+        assertThat(message, not(containsString("https://")));
+    }
+
+    /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with an empty body. */
+    private static HttpStorageObject objectAnswering(int statusCode) throws Exception {
+        HttpResponse<InputStream> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(statusCode);
+        when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+        when(response.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(response).when(mockClient).send(any(), any());
+        return new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());
+    }
+
+    /** Reads the object at {@link HttpUrlsTests#SECRET_URL} twice; the GETs return {@code firstEtag}, then {@code secondEtag}. */
+    private static void readTwiceWithEtags(String firstEtag, String secondEtag) throws Exception {
+        // Build both responses before stubbing: okWithEtag stubs its own mock, which Mockito rejects inside another stubbing.
+        HttpResponse<InputStream> first = okWithEtag(firstEtag);
+        HttpResponse<InputStream> second = okWithEtag(secondEtag);
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());
+        for (int i = 0; i < 2; i++) {
+            try (InputStream in = obj.newStream()) {
+                in.readAllBytes();
+            }
+        }
+    }
+
+    private static HttpResponse<InputStream> okWithEtag(String etag) {
+        Map<String, List<String>> headers = etag == null
+            ? Map.of("Content-Length", List.of("5"))
+            : Map.of("Content-Length", List.of("5"), "ETag", List.of(etag));
+        HttpResponse<InputStream> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(response.headers()).thenReturn(HttpHeaders.of(headers, (a, b) -> true));
+        when(response.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        return response;
     }
 
     /**

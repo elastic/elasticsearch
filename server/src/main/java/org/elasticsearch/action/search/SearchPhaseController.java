@@ -143,12 +143,14 @@ public final class SearchPhaseController {
     }
 
     static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
-        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
-        if (topDocsList.isEmpty()) {
+        final List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
+        final int numShards = topDocsList.size();
+        // empty results contribute no docs and may not agree on the concrete type, so they must not pick the merge strategy
+        final List<TopDocs> nonEmptyDocs = topDocsList.stream().filter(td -> td.scoreDocs.length > 0).toList();
+        if (nonEmptyDocs.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = topDocsList.getFirst();
-        final int numShards = topDocsList.size();
+        final TopDocs topDocs = nonEmptyDocs.getFirst();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         }
@@ -156,14 +158,14 @@ public final class SearchPhaseController {
         try {
             if (topDocs instanceof TopFieldGroups firstTopDocs) {
                 final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
-                TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
+                TopFieldGroups[] shardTopDocs = nonEmptyDocs.toArray(new TopFieldGroups[0]);
                 mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
             } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-                TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+                TopFieldDocs[] shardTopDocs = nonEmptyDocs.toArray(new TopFieldDocs[0]);
                 final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
                 mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
             } else {
-                final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
+                final TopDocs[] shardTopDocs = nonEmptyDocs.toArray(new TopDocs[0]);
                 mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
             }
         } catch (IllegalArgumentException e) {
@@ -230,8 +232,10 @@ public final class SearchPhaseController {
         var fetchResults = fetchResultsArray.asList();
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
         try {
-            if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
+            if (reducedQueryPhase.suggest != null) {
+                int suggestionsOffset = reducedQueryPhase.sortedTopDocs.scoreDocs.length
+                    - reducedQueryPhase.sortedTopDocs.numberOfCompletionsSuggestions;
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, suggestionsOffset, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
             // Own refs for suggestion option hits so they survive fetch result release (caller exits try-with-resources).
             // Refs are incremented inside Suggest#collectCompletionOptionHits when passed true, not in mergeSuggest above.
@@ -256,7 +260,12 @@ public final class SearchPhaseController {
     ) {
         for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
             final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
-            for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
+            if (suggestionOptions.isEmpty()) {
+                continue;
+            }
+            final int suggestionEnd = currentOffset + suggestionOptions.size();
+            final List<CompletionSuggestion.Entry.Option> fetchedOptions = new ArrayList<>(suggestionOptions.size());
+            for (int scoreDocIndex = currentOffset; scoreDocIndex < suggestionEnd; scoreDocIndex++) {
                 ScoreDoc shardDoc = sortedDocs[scoreDocIndex];
                 SearchPhaseResult searchResultProvider = fetchResultsArray.get(shardDoc.shardIndex);
                 if (searchResultProvider == null) {
@@ -277,8 +286,11 @@ public final class SearchPhaseController {
                 hit.score(shardDoc.score);
                 hit.shard(fetchResult.getSearchShardTarget());
                 suggestOption.setHit(hit);
+                fetchedOptions.add(suggestOption);
             }
-            currentOffset += suggestionOptions.size();
+            suggestionOptions.clear();
+            suggestionOptions.addAll(fetchedOptions);
+            currentOffset = suggestionEnd;
         }
         assert currentOffset == sortedDocs.length : "expected no more score doc slices";
     }
@@ -436,8 +448,10 @@ public final class SearchPhaseController {
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
-            if (result.sortValueFormats() != null) {
-                sortValueFormats = result.sortValueFormats();
+            // a result with no formats must not override the ones of the shards that collected hits
+            DocValueFormat[] resultFormats = result.sortValueFormats();
+            if (resultFormats != null && resultFormats.length > 0) {
+                sortValueFormats = resultFormats;
             }
 
             if (result.getTimeRangeFilterFromMillis() != null) {
@@ -521,7 +535,7 @@ public final class SearchPhaseController {
         boolean firstResult = true;
         for (SearchPhaseResult entry : queryResults) {
             DocValueFormat[] formats = entry.queryResult().sortValueFormats();
-            if (formats == null) return;
+            if (formats == null || formats.length == 0) continue;
             if (firstResult) {
                 firstResult = false;
                 ulFormats = new boolean[formats.length];

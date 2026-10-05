@@ -83,6 +83,31 @@ public class PutJobActionRequestTests extends AbstractBWCWireSerializationTestCa
         assertThat(deserialized, equalTo(request));
     }
 
+    public void testSetCloudCredentialShouldCloseReplacedCredential() {
+        Request request = createTestInstance();
+        SecureString first = new SecureString("first-token".toCharArray());
+        SecureString second = new SecureString("second-token".toCharArray());
+        request.setCloudCredential(new CloudCredential(first));
+
+        CloudCredential replacement = new CloudCredential(second);
+        request.setCloudCredential(replacement);
+
+        expectThrows(IllegalStateException.class, first::length);
+        assertThat(request.getCloudCredential(), equalTo(replacement));
+        assertThat(second.length(), equalTo("second-token".length()));
+    }
+
+    public void testSetCloudCredentialWithSameInstanceShouldNotCloseIt() {
+        Request request = createTestInstance();
+        SecureString secret = new SecureString("caller-uiam-token".toCharArray());
+        CloudCredential credential = new CloudCredential(secret);
+        request.setCloudCredential(credential);
+
+        request.setCloudCredential(credential);
+
+        assertThat(secret.length(), equalTo("caller-uiam-token".length()));
+    }
+
     public void testCloseShouldZeroCloudCredential() {
         Request request = createTestInstance();
         SecureString secret = new SecureString("caller-uiam-token".toCharArray());

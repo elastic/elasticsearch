@@ -96,6 +96,10 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         public void setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            // Zero a previously carried credential rather than orphaning it; re-setting the same instance must not close it.
+            if (this.cloudCredential != null && this.cloudCredential != cloudCredential) {
+                IOUtils.closeWhileHandlingException(this.cloudCredential);
+            }
             this.cloudCredential = cloudCredential;
         }
 

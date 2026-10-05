@@ -3763,7 +3763,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, partial_mapping_view_keep_messages
+FROM partial_mapping_sample_data, keep_messages_partial_mapping_view
 | STATS c = COUNT(*), d = COUNT(unmapped_event_duration)
 ;
 
@@ -3790,7 +3790,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, partial_mapping_view_keep_messages
+FROM partial_mapping_sample_data, keep_messages_partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_event_duration
 ;
@@ -3823,7 +3823,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, partial_mapping_view_drop_duration
+FROM partial_mapping_sample_data, drop_unmapped_duration_partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_event_duration
 ;
@@ -3856,7 +3856,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, partial_mapping_view_drop_duration_wildcard
+FROM partial_mapping_sample_data, drop_unmapped_duration_wildcard_partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_event_duration
 ;
@@ -3889,7 +3889,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, partial_mapping_view_rename_duration
+FROM partial_mapping_sample_data, rename_unmapped_duration_partial_mapping_view
 | WHERE message == "42"
 | KEEP message, unmapped_event_duration, renamed_duration
 ;
@@ -3923,7 +3923,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM partial_mapping_sample_data, partial_mapping_view_stats_rows
+FROM partial_mapping_sample_data, stats_count_partial_mapping_view
 | WHERE message == "42" OR rows == 7
 | KEEP message, unmapped_event_duration, rows
 | SORT message NULLS LAST

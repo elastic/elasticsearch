@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,6 +20,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * A predicate over a {@code text} field's value is answered from the values the field keeps, in Lucene, rather than by
@@ -84,6 +87,48 @@ public class TextValuePushdownIT extends AbstractEsqlIntegTestCase {
     public void testTheValueKeepsItsCase() {
         assertSame("WHERE body LIKE \"The Quick*\"");
         assertSame("WHERE body == \"The Quick Brown Fox\"");
+    }
+
+    /**
+     * In a strictly columnar index the predicate is answered in Lucene, so the source emits only the documents that
+     * answer it. Without the values it emits every document and the compute engine does the answering, which is the
+     * regression this guards: a predicate that stops being pushed emits more rows than it answers.
+     */
+    public void testTheColumnarIndexAnswersInLucene() {
+        for (String tail : List.of(
+            "WHERE body LIKE \"the quick*\"",
+            "WHERE body RLIKE \"the quick.*\"",
+            "WHERE body == \"quick\"",
+            "WHERE body IN (\"quick\", \"the quick brown fox\")",
+            "WHERE body > \"q\"",
+            "WHERE starts_with(body, \"the\")"
+        )) {
+            final long answered = rowsOf(PUSHED, tail);
+            assertThat(tail + ": emitted only what it answered", rowsEmitted(PUSHED, tail), equalTo(answered));
+            assertThat(tail + ": the other index emitted more", rowsEmitted(NOT_PUSHED, tail), greaterThan(answered));
+        }
+    }
+
+    private long rowsOf(String index, String tail) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + index + " | " + tail + " | KEEP id"))) {
+            return getValuesList(response).size();
+        }
+    }
+
+    /** The rows the Lucene source handed to the compute engine, which a pushed predicate has already narrowed. */
+    private long rowsEmitted(String index, String tail) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + index + " | " + tail + " | KEEP id").profile(true))) {
+            assertThat(response.profile(), notNullValue());
+            long rows = 0;
+            for (var driver : response.profile().drivers()) {
+                for (var operator : driver.operators()) {
+                    if (operator.status() instanceof LuceneOperator.Status lucene) {
+                        rows += lucene.rowsEmitted();
+                    }
+                }
+            }
+            return rows;
+        }
     }
 
     private void assertSame(String tail) {

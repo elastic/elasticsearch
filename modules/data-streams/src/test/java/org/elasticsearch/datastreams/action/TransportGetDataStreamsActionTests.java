@@ -71,7 +71,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
     private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-        ClusterSettings.createBuiltInClusterSettings()
+        ClusterSettings.createBuiltInClusterSettings(),
+        Settings.EMPTY
     );
     private final DataStreamFailureStoreSettings emptyDataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
@@ -87,7 +88,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         metadataDataStreamsService = new MetadataDataStreamsService(
             clusterService,
             indicesService,
-            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY),
             IndexSettingProviders.EMPTY
         );
     }
@@ -402,7 +403,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     )
                     .put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
-            )
+            ),
+            Settings.EMPTY
         );
         response = TransportGetDataStreamsAction.innerOperation(
             state,

@@ -90,7 +90,8 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
     protected volatile CountDownLatch invokerWaitLatch;
     protected ClusterService clusterService;
     protected final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-        ClusterSettings.createBuiltInClusterSettings()
+        ClusterSettings.createBuiltInClusterSettings(),
+        Settings.EMPTY
     );
     protected final Set<Index> downsamplingIndices = new HashSet<>();
 

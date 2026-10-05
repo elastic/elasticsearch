@@ -934,7 +934,7 @@ public class SnapshotResiliencyTestHelper {
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                         featureService,
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY)
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
